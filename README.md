@@ -2,6 +2,27 @@
 
 A multi-agent AI team system for software development, featuring a web-based UI for managing AI agents, teams, and projects.
 
+## 🛠️ CI/CD Setup
+
+This project includes a comprehensive CI/CD pipeline:
+
+### Pre-commit Hooks
+
+- **ESLint** - Automatically fixes code style issues
+- **Prettier** - Formats code consistently
+- **Commitlint** - Ensures conventional commit messages
+- **Semantic Index** - Auto-rebuilds on source changes (post-commit)
+
+### GitHub Actions
+
+- **CI Pipeline** - Runs on all PRs (lint, typecheck, test, build)
+- **E2E Tests** - Playwright tests with screenshots
+- **Deployment** - Automated deployments to staging/production
+
+### Branch Protection
+
+See [.github/BRANCH_PROTECTION.md](.github/BRANCH_PROTECTION.md) for recommended settings.
+
 ## 🚀 Quick Start
 
 ```bash
