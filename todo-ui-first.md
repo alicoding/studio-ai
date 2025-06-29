@@ -6,7 +6,7 @@
 
 - [ ] Initialize React + Vite project
   ```bash
-  cd claude-ea
+  cd claude-studio
   npm create vite@latest web -- --template react-ts
   cd web
   npm install

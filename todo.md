@@ -1,4 +1,4 @@
-# Claude-EA Implementation TODO List
+# Claude Studio Implementation TODO List
 
 ## 🚀 **PRIORITY 1: Framework Modernization (Replace Custom Solutions)**
 
@@ -168,8 +168,8 @@
 
 - [x] Initialize project structure
   ```bash
-  mkdir -p claude-ea/{src,web,config,tests}
-  cd claude-ea
+  mkdir -p claude-studio/{src,web,config,tests}
+  cd claude-studio
   npm init -y
   ```
 - [x] Install web dependencies first

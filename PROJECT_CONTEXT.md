@@ -48,7 +48,7 @@ Agent Processes (Claude SDK)
 ## File Structure
 
 ```
-claude-ea/
+claude-studio/
 ├── src/                    # React app
 │   ├── routes/            # TanStack Router pages
 │   ├── components/        # React components (TO BUILD)

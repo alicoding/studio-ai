@@ -4,8 +4,8 @@
 
 - [ ] Create basic HTML structure
   ```bash
-  mkdir -p claude-ea/prototype
-  cd claude-ea/prototype
+  mkdir -p claude-studio/prototype
+  cd claude-studio/prototype
   ```
 - [ ] Create index.html with:
   - [ ] Sidebar for agent cards

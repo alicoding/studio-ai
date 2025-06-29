@@ -6,7 +6,7 @@
 Claude-EA Web Application
 │
 ├── Navigation Bar (Global)
-│   ├── Brand: "Claude EA"
+│   ├── Brand: "Claude Studio"
 │   ├── Nav Links: Projects | Agents | Teams (Active indicator)
 │   └── Settings Button (⚙️)
 │

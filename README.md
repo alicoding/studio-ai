@@ -1,4 +1,4 @@
-# Claude-EA (Engineering Assistant)
+# Claude Studio
 
 A multi-agent AI team system for software development, featuring a web-based UI for managing AI agents, teams, and projects.
 
@@ -71,7 +71,7 @@ http://localhost:5174
 ## 🏗️ Architecture
 
 ```
-claude-ea/
+claude-studio/
 ├── src/
 │   ├── routes/          # Page components (TanStack Router)
 │   ├── components/      # Reusable UI components

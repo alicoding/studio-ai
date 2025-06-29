@@ -1,6 +1,6 @@
 # Branch Protection Rules
 
-This document outlines the recommended branch protection rules for the Claude EA repository.
+This document outlines the recommended branch protection rules for the Claude Studio repository.
 
 ## Main Branch Protection
 

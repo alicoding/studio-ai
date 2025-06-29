@@ -47,8 +47,8 @@ Clean rebuild of the AI agent team system, fixing critical issues while preservi
 - Files:
   - `/tmp/claude-agents/registry.json` - Process registry
   - `~/.claude/agent-sessions.json` - Session tracking
-  - `~/.claude-ea/projects/{project-id}/` - Project data
-  - `~/.claude-ea/teams/` - Team templates
+  - `~/.claude-studio/projects/{project-id}/` - Project data
+  - `~/.claude-studio/teams/` - Team templates
 
 ### 4. UI/UX Design
 
@@ -97,7 +97,7 @@ Clean rebuild of the AI agent team system, fixing critical issues while preservi
 ### Phase 1: Core Libraries (Week 1)
 
 ```
-claude-ea/
+claude-studio/
 ├── lib/
 │   ├── process/          # Process lifecycle management
 │   │   ├── ProcessManager.ts      # Spawn, monitor, cleanup processes
