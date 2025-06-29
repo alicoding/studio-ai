@@ -1,0 +1,27 @@
+# CODEOWNERS for Claude EA
+
+# Global owners
+* @ali
+
+# Frontend components
+/src/components/ @ali
+/src/routes/ @ali
+/src/hooks/ @ali
+/src/stores/ @ali
+
+# Backend/API
+/web/server/ @ali
+
+# UI/Styling
+/src/**/*.css @ali
+/src/index.css @ali
+
+# Configuration
+/package.json @ali
+/vite.config.ts @ali
+/tsconfig.json @ali
+/.github/ @ali
+
+# Documentation
+*.md @ali
+/docs/ @ali

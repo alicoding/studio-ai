@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+
+# Auto-rebuild semantic index after commits
+echo "🔄 Checking if semantic index needs rebuild..."
+
+# Check if any source files changed in the last commit
+CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -E 'src/.*\.(ts|js|tsx|jsx)$' || true)
+
+if [ -n "$CHANGED_FILES" ]; then
+    echo "📝 Source files changed, rebuilding semantic index..."
+    npm run build-semantic-index --silent || echo "⚠️  Semantic index build not configured yet"
+    echo "✅ Semantic index update complete"
+else
+    echo "ℹ️  No source changes, skipping semantic index rebuild"
+fi
