@@ -5,11 +5,8 @@ import path from 'path'
 import os from 'os'
 import { ProcessManager } from '../../../lib/process/ProcessManager.js'
 import { ConfigService } from '../../../src/services/ConfigService.js'
-import { ProjectService } from '../services/ProjectService.js'
-
 const router = Router()
 const configService = ConfigService.getInstance()
-const projectService = new ProjectService()
 
 // GET /api/agents - Get all agent configurations
 router.get('/', async (req, res) => {
@@ -229,20 +226,10 @@ router.delete('/session', async (req, res) => {
       return res.status(400).json({ error: 'projectId and agentId are required' })
     }
 
-    // Get the actual Claude project directory name
-    // Claude escapes directory names by replacing / with -
-    const project = await projectService.getProject(projectId)
-
-    let claudeProjectDir = projectId
-    if (project && project.path) {
-      // Convert the project path to Claude's escaped format
-      claudeProjectDir = project.path.replace(/\//g, '-')
-    }
-
-    console.log('Delete session file:', {
+    // The projectId IS already the Claude directory name (e.g., -Users-ali-claude-swarm-claude-team-claude-studio)
+    // We don't need to convert it
+    console.log('Delete session file request:', {
       projectId,
-      projectPath: project?.path,
-      claudeProjectDir,
       agentId,
     })
 
@@ -251,17 +238,20 @@ router.delete('/session', async (req, res) => {
       os.homedir(),
       '.claude',
       'projects',
-      claudeProjectDir,
+      projectId,
       `${agentId}.jsonl`
     )
+
+    console.log(`Attempting to delete file: ${sessionPath}`)
 
     try {
       // Check if file exists
       await fs.access(sessionPath)
+      console.log(`File exists: ${sessionPath}`)
 
       // Delete the file
       await fs.unlink(sessionPath)
-      console.log(`Deleted session file: ${sessionPath}`)
+      console.log(`Successfully deleted session file: ${sessionPath}`)
 
       res.json({
         message: 'Session file deleted successfully',
