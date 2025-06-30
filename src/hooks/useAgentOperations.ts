@@ -243,7 +243,7 @@ export function useAgentOperations() {
    */
   const removeAgentFromTeam = useCallback(
     async (agentId: string, agentName: string): Promise<AgentOperationResult> => {
-      if (!confirm(`Remove ${agentName} from team?`)) {
+      if (!confirm(`Remove ${agentName} from team? This will delete all session history.`)) {
         return { success: false, error: 'User cancelled' }
       }
 
@@ -251,10 +251,33 @@ export function useAgentOperations() {
         // Kill the agent process if it exists
         await processManager.killAgent(agentId)
 
+        // Delete the Claude native session file
+        if (activeProjectId) {
+          try {
+            const response = await fetch('/api/agents/session', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                projectId: activeProjectId,
+                agentId: agentId,
+              }),
+            })
+
+            if (!response.ok) {
+              console.warn('Failed to delete Claude session file:', await response.text())
+            } else {
+              console.log(`Deleted session file for agent ${agentId}`)
+            }
+          } catch (error) {
+            console.error('Error deleting session file:', error)
+            // Continue with removal even if session file deletion fails
+          }
+        }
+
         // Remove from Zustand store
         removeAgent(agentId)
 
-        console.log(`Agent ${agentId} removed from team and process killed`)
+        console.log(`Agent ${agentId} removed from team, process killed, and session deleted`)
         return { success: true }
       } catch (error) {
         console.error(`Failed to remove agent ${agentId}:`, error)
@@ -264,11 +287,11 @@ export function useAgentOperations() {
 
         return {
           success: false,
-          error: error instanceof Error ? error.message : 'Failed to kill process',
+          error: error instanceof Error ? error.message : 'Failed to remove agent',
         }
       }
     },
-    [processManager, removeAgent]
+    [processManager, removeAgent, activeProjectId]
   )
 
   /**

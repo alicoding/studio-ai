@@ -1,5 +1,8 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
+import fs from 'fs/promises'
+import path from 'path'
+import os from 'os'
 import { ProcessManager } from '../../../lib/process/ProcessManager.js'
 import { ConfigService } from '../../../src/services/ConfigService.js'
 
@@ -11,9 +14,9 @@ router.get('/', async (req, res) => {
   try {
     const agents = await configService.getAllAgents()
     // Add projects using info (would need to scan all projects)
-    const clientAgents = agents.map(agent => ({
+    const clientAgents = agents.map((agent) => ({
       ...agent,
-      projectsUsing: [] // TODO: Implement project scanning
+      projectsUsing: [], // TODO: Implement project scanning
     }))
     res.json(clientAgents)
   } catch (error) {
@@ -31,7 +34,7 @@ router.get('/:id', async (req, res) => {
     }
     const clientAgent = {
       ...agent,
-      projectsUsing: [] // TODO: Implement project scanning
+      projectsUsing: [], // TODO: Implement project scanning
     }
     res.json(clientAgent)
   } catch (error) {
@@ -66,12 +69,12 @@ router.post('/', async (req, res) => {
       tools: tools || ['read', 'write', 'bash'],
       model: model || 'claude-3-opus',
       maxTokens: 200000,
-      temperature: 0.7
+      temperature: 0.7,
     })
 
     const clientAgent = {
       ...newAgent,
-      projectsUsing: []
+      projectsUsing: [],
     }
     res.status(201).json(clientAgent)
   } catch (error) {
@@ -92,7 +95,7 @@ router.put('/:id', async (req, res) => {
       ...(tools && { tools }),
       ...(model && { model }),
       ...(maxTokens && { maxTokens }),
-      ...(temperature !== undefined && { temperature })
+      ...(temperature !== undefined && { temperature }),
     })
 
     const updated = await configService.getAgent(req.params.id)
@@ -102,7 +105,7 @@ router.put('/:id', async (req, res) => {
 
     const clientAgent = {
       ...updated,
-      projectsUsing: []
+      projectsUsing: [],
     }
     res.json(clientAgent)
   } catch (error) {
@@ -149,7 +152,7 @@ router.post('/:id/spawn', async (req, res) => {
       systemPrompt: config?.systemPrompt || agent.systemPrompt,
       tools: config?.tools || agent.tools,
       model: config?.model || agent.model,
-      maxTokens: config?.maxTokens || agent.maxTokens
+      maxTokens: config?.maxTokens || agent.maxTokens,
     }
 
     await processManager.spawnAgent(req.params.id, projectId, agentConfig)
@@ -158,7 +161,7 @@ router.post('/:id/spawn', async (req, res) => {
     const project = await configService.getProject(projectId)
     if (project && !project.activeAgents.includes(req.params.id)) {
       await configService.updateProject(projectId, {
-        activeAgents: [...project.activeAgents, req.params.id]
+        activeAgents: [...project.activeAgents, req.params.id],
       })
     }
 
@@ -199,6 +202,53 @@ router.put('/:id/status', async (req, res) => {
   } catch (error) {
     console.error('Failed to update agent status:', error)
     res.status(500).json({ error: 'Failed to update agent status' })
+  }
+})
+
+// DELETE /api/agents/session - Delete Claude native session file
+router.delete('/session', async (req, res) => {
+  try {
+    const { projectId, agentId } = req.body
+
+    if (!projectId || !agentId) {
+      return res.status(400).json({ error: 'projectId and agentId are required' })
+    }
+
+    // Construct the session file path
+    const sessionPath = path.join(
+      os.homedir(),
+      '.claude',
+      'projects',
+      projectId,
+      `${agentId}.jsonl`
+    )
+
+    try {
+      // Check if file exists
+      await fs.access(sessionPath)
+
+      // Delete the file
+      await fs.unlink(sessionPath)
+      console.log(`Deleted session file: ${sessionPath}`)
+
+      res.json({
+        message: 'Session file deleted successfully',
+        path: sessionPath,
+      })
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        // File doesn't exist, that's OK
+        res.json({
+          message: 'Session file not found (already deleted)',
+          path: sessionPath,
+        })
+      } else {
+        throw error
+      }
+    }
+  } catch (error) {
+    console.error('Failed to delete session file:', error)
+    res.status(500).json({ error: 'Failed to delete session file' })
   }
 })
 
