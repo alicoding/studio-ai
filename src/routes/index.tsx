@@ -31,30 +31,30 @@ export const Route = createFileRoute('/')({
 
 function ProjectsPage() {
   const navigate = useNavigate()
-  
+
   // DRY: Use shared hook for fetching projects
   const { projects } = useProjects()
-  
+
   // Get project-specific agents
   const { agents: projectAgents, loading: loadingAgents } = useProjectAgents()
-  
+
   // Agent roles hook
   const { assignRole, roleAssignments, loadAssignments, getAgentRole } = useAgentRoles()
-  
+
   // Load role assignments when agents change
   useEffect(() => {
     if (projectAgents.length > 0) {
-      const agentIds = projectAgents.map(a => a.id)
+      const agentIds = projectAgents.map((a) => a.id)
       loadAssignments(agentIds)
     }
   }, [projectAgents, loadAssignments])
-  
+
   // Merge agents with their role assignments
-  const agentsWithRoles = projectAgents.map(agent => {
+  const agentsWithRoles = projectAgents.map((agent) => {
     const roleConfig = getAgentRole(agent.id)
     return {
       ...agent,
-      role: roleConfig?.role || agent.role
+      role: roleConfig?.role || agent.role,
     }
   })
 
@@ -94,12 +94,12 @@ function ProjectsPage() {
     closeProjectInWorkspace,
     openProjectInWorkspace,
   } = useProjectStore()
-  
+
   // Get only the open projects for workspace tabs
   const openProjects = getOpenProjects()
-  
+
   // Get active project details
-  const activeProject = projects.find(p => p.id === activeProjectId)
+  const activeProject = projects.find((p) => p.id === activeProjectId)
 
   // Modal states
   const [showAgentSelection, setShowAgentSelection] = useState(false)
@@ -122,7 +122,7 @@ function ProjectsPage() {
       }
     }
     loadAgentConfigs()
-  }, [])
+  }, [setAgentConfigs])
 
   // Listen for agent status updates via WebSocket
   useEffect(() => {
@@ -148,7 +148,10 @@ function ProjectsPage() {
       if (activeProjectId && selectedAgentId) {
         try {
           await processManager.sendMention(message, selectedAgentId, activeProjectId)
-          addToQueue({ target: message.split(' ')[0], message: message.split(' ').slice(1).join(' ') })
+          addToQueue({
+            target: message.split(' ')[0],
+            message: message.split(' ').slice(1).join(' '),
+          })
         } catch (error) {
           console.error('Failed to send @mention:', error)
         }
@@ -158,18 +161,18 @@ function ProjectsPage() {
     } else {
       // Send regular messages through Claude API
       // Get the selected agent to use their sessionId
-      const selectedAgent = agentsWithRoles.find(a => a.id === selectedAgentId)
-      
+      const selectedAgent = agentsWithRoles.find((a) => a.id === selectedAgentId)
+
       const result = await sendClaudeMessage(message, {
         projectPath: activeProject?.path,
         role: 'dev', // Valid roles: 'dev', 'ux', 'test', 'pm'
-        sessionId: selectedAgent?.sessionId || undefined // Use selected agent's sessionId for resuming
+        sessionId: selectedAgent?.sessionId || undefined, // Use selected agent's sessionId for resuming
       })
-      
+
       if (result && result.sessionId) {
         console.log('Claude response:', result.response)
         console.log('New session ID:', result.sessionId)
-        
+
         // Update the agent's sessionId if we have a selected agent
         if (selectedAgentId) {
           updateAgentSessionId(selectedAgentId, result.sessionId)
@@ -197,25 +200,27 @@ function ProjectsPage() {
       if (agent.status === 'offline') {
         // Agent is offline - spawn it
         console.log(`Spawning agent ${agentId}...`)
-        
+
         // Try to find existing config first
-        const existingConfig = availableConfigs.find(c => c.id === agentId)
-        
-        const agentConfig = existingConfig ? {
-          role: existingConfig.role,
-          systemPrompt: existingConfig.systemPrompt,
-          tools: existingConfig.tools
-        } : {
-          // Create dynamic config for agents without existing configuration
-          name: agent.name,
-          role: agent.role,
-          systemPrompt: `You are ${agent.name}, a ${agent.role} agent.`,
-          tools: ['file_system', 'terminal', 'web_search'],
-          model: 'claude-3-opus'
-        }
-        
+        const existingConfig = availableConfigs.find((c) => c.id === agentId)
+
+        const agentConfig = existingConfig
+          ? {
+              role: existingConfig.role,
+              systemPrompt: existingConfig.systemPrompt,
+              tools: existingConfig.tools,
+            }
+          : {
+              // Create dynamic config for agents without existing configuration
+              name: agent.name,
+              role: agent.role,
+              systemPrompt: `You are ${agent.name}, a ${agent.role} agent.`,
+              tools: ['file_system', 'terminal', 'web_search'],
+              model: 'claude-3-opus',
+            }
+
         await processManager.spawnAgent(agentId, activeProjectId, agentConfig)
-        
+
         // Update UI status to online
         updateAgentStatus(agentId, 'online')
         console.log(`Agent ${agentId} spawned and online`)
@@ -223,7 +228,7 @@ function ProjectsPage() {
         // Agent is online/busy/ready - kill the process
         console.log(`Stopping agent ${agentId}...`)
         await processManager.killAgent(agentId)
-        
+
         // Update UI status to offline
         updateAgentStatus(agentId, 'offline')
         console.log(`Agent ${agentId} stopped`)
@@ -279,16 +284,16 @@ function ProjectsPage() {
 
   const handleAddAgents = async (agentIds: string[]) => {
     if (!activeProjectId) return
-    
+
     try {
       // Spawn agents using ProcessManager
       for (const agentId of agentIds) {
-        const agentConfig = availableConfigs.find(c => c.id === agentId)
+        const agentConfig = availableConfigs.find((c) => c.id === agentId)
         if (agentConfig) {
           await processManager.spawnAgent(agentId, activeProjectId, {
             role: agentConfig.role,
             systemPrompt: agentConfig.systemPrompt || '',
-            tools: agentConfig.tools || []
+            tools: agentConfig.tools || [],
           })
           console.log(`Agent ${agentId} spawned for project ${activeProjectId}`)
         }
@@ -316,7 +321,7 @@ function ProjectsPage() {
   }
 
   const handleAgentConvert = async (agentId: string) => {
-    const agent = agentsWithRoles.find(a => a.id === agentId)
+    const agent = agentsWithRoles.find((a) => a.id === agentId)
     if (!agent) return
 
     setSelectedLegacyAgent(agent)
@@ -324,7 +329,7 @@ function ProjectsPage() {
   }
 
   const handleReassignRole = async (agentId: string) => {
-    const agent = agentsWithRoles.find(a => a.id === agentId)
+    const agent = agentsWithRoles.find((a) => a.id === agentId)
     if (!agent) return
 
     setSelectedLegacyAgent(agent)
@@ -335,12 +340,12 @@ function ProjectsPage() {
     if (!selectedLegacyAgent) return
 
     try {
-      const roleConfig = availableConfigs.find(c => c.id === roleId)
+      const roleConfig = availableConfigs.find((c) => c.id === roleId)
       if (!roleConfig) return
 
       // Simply assign the role to the agent
       await assignRole(selectedLegacyAgent.id, roleId, customTools)
-      
+
       console.log(`Agent ${selectedLegacyAgent.name} assigned role ${roleConfig.name}`)
       setShowAssignRole(false)
       setSelectedLegacyAgent(null)
@@ -397,9 +402,7 @@ function ProjectsPage() {
               Open a project from the Projects page or create a new one to get started.
             </p>
             <div className="flex gap-4 justify-center">
-              <Button onClick={() => navigate({ to: '/projects' })}>
-                Browse Projects
-              </Button>
+              <Button onClick={() => navigate({ to: '/projects' })}>Browse Projects</Button>
               <Button onClick={() => setShowCreateProject(true)} variant="outline">
                 <Plus className="w-4 h-4 mr-2" />
                 Create New Project
@@ -408,72 +411,66 @@ function ProjectsPage() {
           </div>
         </div>
       ) : (
-      <div className="flex h-[calc(100vh-90px)]">
-        <Sidebar
-          agents={agentsWithRoles}
-          selectedAgentId={selectedAgentId}
-          isCollapsed={sidebarCollapsed}
-          isLoading={loadingAgents}
-          availableConfigs={availableConfigs}
-          onAgentSelect={setSelectedAgent}
-          onAgentPause={handleAgentPause}
-          onAgentClear={handleAgentClear}
-          onAgentRemove={handleAgentRemove}
-          onAgentConvert={handleAgentConvert}
-          onAgentReassignRole={handleReassignRole}
-          onAddAgent={() => setShowAgentSelection(true)}
-          onCreateAgent={() => setShowCreateAgent(true)}
-          onLoadTeam={() => alert('Load team template coming soon')}
-        />
-
-        <main className="flex-1 flex flex-col overflow-hidden">
-          <ViewControls
-            currentView={viewMode}
+        <div className="flex h-[calc(100vh-90px)]">
+          <Sidebar
+            agents={agentsWithRoles}
             selectedAgentId={selectedAgentId}
-            onViewChange={setViewMode}
-            onSidebarToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-            onCleanupZombies={handleCleanupZombies}
+            isCollapsed={sidebarCollapsed}
+            isLoading={loadingAgents}
+            availableConfigs={availableConfigs}
+            onAgentSelect={setSelectedAgent}
+            onAgentPause={handleAgentPause}
+            onAgentClear={handleAgentClear}
+            onAgentRemove={handleAgentRemove}
+            onAgentConvert={handleAgentConvert}
+            onAgentReassignRole={handleReassignRole}
+            onAddAgent={() => setShowAgentSelection(true)}
+            onCreateAgent={() => setShowCreateAgent(true)}
+            onLoadTeam={() => alert('Load team template coming soon')}
           />
 
-          <div className="flex-1 overflow-hidden flex flex-col">
-            {viewMode === 'develop' ? (
-              <DevelopView
-                onTerminalInput={(command) =>
-                  console.log('Develop terminal input (UI-first):', {
-                    agentId: 'server',
-                    input: command,
-                  })
-                }
-              />
-            ) : (
-              <div className="flex-1 flex overflow-hidden">
-                {viewMode === 'single' && (
-                  <SingleView selectedAgentId={selectedAgentId} />
-                )}
-                {viewMode === 'split' && (
-                  <SplitView agents={projectAgents} />
-                )}
-                {viewMode === 'grid' && (
-                  <GridView agents={projectAgents} />
-                )}
-              </div>
+          <main className="flex-1 flex flex-col overflow-hidden">
+            <ViewControls
+              currentView={viewMode}
+              selectedAgentId={selectedAgentId}
+              onViewChange={setViewMode}
+              onSidebarToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onCleanupZombies={handleCleanupZombies}
+            />
+
+            <div className="flex-1 overflow-hidden flex flex-col">
+              {viewMode === 'develop' ? (
+                <DevelopView
+                  onTerminalInput={(command) =>
+                    console.log('Develop terminal input (UI-first):', {
+                      agentId: 'server',
+                      input: command,
+                    })
+                  }
+                />
+              ) : (
+                <div className="flex-1 flex overflow-hidden">
+                  {viewMode === 'single' && <SingleView selectedAgentId={selectedAgentId} />}
+                  {viewMode === 'split' && <SplitView agents={projectAgents} />}
+                  {viewMode === 'grid' && <GridView agents={projectAgents} />}
+                </div>
+              )}
+            </div>
+
+            {viewMode !== 'develop' && (
+              <>
+                <MessageQueue items={messageQueue} onClear={clearQueue} />
+
+                <ChatPanel
+                  agents={projectAgents}
+                  onSendMessage={handleSendMessage}
+                  onBroadcast={handleBroadcast}
+                  onInterrupt={handleInterrupt}
+                />
+              </>
             )}
-          </div>
-
-          {viewMode !== 'develop' && (
-            <>
-              <MessageQueue items={messageQueue} onClear={clearQueue} />
-
-              <ChatPanel
-                agents={projectAgents}
-                onSendMessage={handleSendMessage}
-                onBroadcast={handleBroadcast}
-                onInterrupt={handleInterrupt}
-              />
-            </>
-          )}
-        </main>
-      </div>
+          </main>
+        </div>
       )}
 
       {/* Modals */}
@@ -502,7 +499,7 @@ function ProjectsPage() {
         availableRoles={availableConfigs}
         currentAgentConfig={
           selectedLegacyAgent && roleAssignments[selectedLegacyAgent.id]
-            ? availableConfigs.find(c => c.id === roleAssignments[selectedLegacyAgent.id].roleId)
+            ? availableConfigs.find((c) => c.id === roleAssignments[selectedLegacyAgent.id].roleId)
             : undefined
         }
         onAssignRole={handleAssignRole}

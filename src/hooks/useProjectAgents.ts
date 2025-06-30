@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useProjectStore } from '../stores'
 import type { Agent } from '../stores/agents'
 
@@ -11,18 +11,18 @@ export function useProjectAgents() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(false)
 
-  const fetchProjectAgents = async () => {
+  const fetchProjectAgents = useCallback(async () => {
     if (!activeProjectId) {
       setAgents([])
       return
     }
-    
+
     setLoading(true)
     try {
       const response = await fetch(`/api/projects/${activeProjectId}/sessions`)
       if (response.ok) {
         const data = await response.json()
-        
+
         // Convert sessions to agents
         const projectAgents: Agent[] = data.sessions.map((session: any) => {
           return {
@@ -36,7 +36,7 @@ export function useProjectAgents() {
             sessionId: session.sessionId,
           }
         })
-        
+
         setAgents(projectAgents)
       }
     } catch (error) {
@@ -45,11 +45,11 @@ export function useProjectAgents() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [activeProjectId])
 
   useEffect(() => {
     fetchProjectAgents()
-  }, [activeProjectId])
+  }, [fetchProjectAgents])
 
   // Listen for session compaction events
   useEffect(() => {
@@ -60,11 +60,11 @@ export function useProjectAgents() {
     }
 
     window.addEventListener('session-compacted', handleCompaction as EventListener)
-    
+
     return () => {
       window.removeEventListener('session-compacted', handleCompaction as EventListener)
     }
-  }, [activeProjectId])
+  }, [fetchProjectAgents])
 
   return { agents, loading, activeProjectId }
 }

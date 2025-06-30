@@ -1,6 +1,6 @@
 /**
  * System API - Process Management & Health Monitoring
- * 
+ *
  * SOLID: Single Responsibility - only system-level operations
  * DRY: Centralized system management endpoints
  * KISS: Simple REST endpoints with error handling
@@ -23,18 +23,18 @@ const execAsync = promisify(exec)
 router.get('/process-stats', async (req, res) => {
   try {
     const processManager = ProcessManager.getInstance()
-    
+
     const stats = processManager.getStats()
-    
+
     // Get all projects and their agents
     const projectAgents: Record<string, any[]> = {}
     // For now, we don't have a way to get all projects, so we'll return empty
     // This would be populated by iterating through known projects
-    
+
     const response = {
       processCount: stats.activeProcesses,
       projectAgents,
-      registryHealth: stats.registryStats.health
+      registryHealth: stats.registryStats.health,
     }
 
     console.log('Process stats:', response)
@@ -50,11 +50,11 @@ router.post('/cleanup-zombies', async (req, res) => {
   try {
     const cleaner = ProcessCleaner.getInstance()
     const result = await cleaner.cleanupZombies()
-    
+
     const response = {
       killedCount: result.killedProcesses.length,
       killedProcesses: result.killedProcesses,
-      message: `Cleanup completed: ${result.killedProcesses.length} zombie processes killed`
+      message: `Cleanup completed: ${result.killedProcesses.length} zombie processes killed`,
     }
 
     console.log('Zombie cleanup result:', response)
@@ -70,13 +70,13 @@ router.get('/health', async (req, res) => {
   try {
     // TODO: Integration point - Stage 2 ProcessRegistry
     // const registryHealth = ProcessRegistry.getInstance().healthCheck()
-    
+
     const health = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       memory: process.memoryUsage(),
-      processRegistry: 'healthy'
+      processRegistry: 'healthy',
     }
 
     res.json(health)
@@ -95,17 +95,21 @@ router.post('/detect-command', async (req, res) => {
     }
 
     const whichCommand = process.platform === 'win32' ? 'where' : 'which'
-    const { stdout } = await execAsync(`${whichCommand} -a ${command} 2>/dev/null || ${whichCommand} ${command}`)
+    const { stdout } = await execAsync(
+      `${whichCommand} -a ${command} 2>/dev/null || ${whichCommand} ${command}`
+    )
     const paths = stdout.trim().split('\n').filter(Boolean)
-    
+
     // Filter out node_modules paths and prioritize system installations
-    const systemPaths = paths.filter(p => !p.includes('node_modules'))
-    const selectedPath = systemPaths.length > 0 ? systemPaths[0] : 
-                        paths.find(p => !p.includes(process.cwd())) || // Prefer paths outside current project
-                        null
-    
+    const systemPaths = paths.filter((p) => !p.includes('node_modules'))
+    const selectedPath =
+      systemPaths.length > 0
+        ? systemPaths[0]
+        : paths.find((p) => !p.includes(process.cwd())) || // Prefer paths outside current project
+          null
+
     res.json({ path: selectedPath })
-  } catch (error) {
+  } catch {
     // Command not found is not an error, just return null
     res.json({ path: null })
   }
@@ -120,13 +124,11 @@ router.post('/check-path', async (req, res) => {
     }
 
     // Expand ~ to home directory
-    const expandedPath = path.startsWith('~') 
-      ? path.replace('~', os.homedir())
-      : path
+    const expandedPath = path.startsWith('~') ? path.replace('~', os.homedir()) : path
 
     await access(expandedPath, constants.F_OK | constants.X_OK)
     res.json({ exists: true, expandedPath })
-  } catch (error) {
+  } catch {
     res.json({ exists: false })
   }
 })

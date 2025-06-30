@@ -50,7 +50,7 @@ function AgentsPage() {
       }
     }
     loadAgents()
-  }, [])
+  }, [setAgentConfigs])
 
   const filteredAgents = agents.filter((agent) => {
     const matchesSearch =
@@ -77,14 +77,14 @@ function AgentsPage() {
         name: `${agent.name} (Copy)`,
         projectsUsing: [],
       }
-      
+
       try {
         const response = await fetch('/api/agents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(cloned),
         })
-        
+
         if (response.ok) {
           const newAgent = await response.json()
           addAgentConfig(newAgent)
@@ -102,7 +102,7 @@ function AgentsPage() {
         const response = await fetch(`/api/agents/${id}`, {
           method: 'DELETE',
         })
-        
+
         if (response.ok) {
           removeAgentConfig(id)
         } else {
@@ -124,7 +124,7 @@ function AgentsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(agent),
         })
-        
+
         if (response.ok) {
           const updatedAgent = await response.json()
           updateAgentConfig(updatedAgent)
@@ -138,7 +138,7 @@ function AgentsPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(agent),
         })
-        
+
         if (response.ok) {
           const newAgent = await response.json()
           addAgentConfig(newAgent)
@@ -202,8 +202,8 @@ function AgentsPage() {
           ) : filteredAgents.length === 0 ? (
             <div className="col-span-full text-center py-12">
               <div className="text-muted-foreground">
-                {searchQuery || roleFilter !== 'all' 
-                  ? 'No agents match your filters' 
+                {searchQuery || roleFilter !== 'all'
+                  ? 'No agents match your filters'
                   : 'No agent configurations yet. Create your first one!'}
               </div>
             </div>

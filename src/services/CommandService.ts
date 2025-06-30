@@ -33,26 +33,26 @@ export class CommandService {
     switch (commandName) {
       case '#team':
         return this.handleTeamCommand(context)
-      
+
       case '#help':
         return this.handleHelpCommand()
-      
+
       case '#clear':
         return this.handleClearCommand()
-      
+
       case '#broadcast':
         return this.handleBroadcastCommand(args.join(' '), context)
-      
+
       case '#spawn':
         return this.handleSpawnCommand(args[0], context)
-      
+
       case '#interrupt':
         return this.handleInterruptCommand(args[0], context)
-      
+
       default:
         return {
           type: 'error',
-          content: `Unknown command: ${command}. Type #help for available commands.`
+          content: `Unknown command: ${command}. Type #help for available commands.`,
         }
     }
   }
@@ -62,17 +62,17 @@ export class CommandService {
    */
   private async handleTeamCommand(context: CommandContext): Promise<CommandResult> {
     const { agents } = context
-    
+
     // Group agents by status
-    const activeAgents = agents.filter(a => a.status === 'active' || a.status === 'working')
-    const idleAgents = agents.filter(a => a.status === 'idle' || a.status === 'online')
-    const offlineAgents = agents.filter(a => a.status === 'offline')
+    const activeAgents = agents.filter((a) => a.status === 'active' || a.status === 'working')
+    const idleAgents = agents.filter((a) => a.status === 'idle' || a.status === 'online')
+    const offlineAgents = agents.filter((a) => a.status === 'offline')
 
     let teamMessage = `📋 **Team Members** (${agents.length} agents)\n\n`
-    
+
     if (activeAgents.length > 0) {
       teamMessage += `**Active:**\n`
-      activeAgents.forEach(agent => {
+      activeAgents.forEach((agent) => {
         const task = agent.currentTask ? ` - ${agent.currentTask}` : ''
         teamMessage += `🟢 **@${agent.id}** - ${agent.role}${task}\n`
       })
@@ -81,7 +81,7 @@ export class CommandService {
 
     if (idleAgents.length > 0) {
       teamMessage += `**Available:**\n`
-      idleAgents.forEach(agent => {
+      idleAgents.forEach((agent) => {
         teamMessage += `🟡 **@${agent.id}** - ${agent.role} (ready)\n`
       })
       teamMessage += '\n'
@@ -89,14 +89,14 @@ export class CommandService {
 
     if (offlineAgents.length > 0) {
       teamMessage += `**Offline:**\n`
-      offlineAgents.forEach(agent => {
+      offlineAgents.forEach((agent) => {
         teamMessage += `⚫ **@${agent.id}** - ${agent.role}\n`
       })
     }
 
     return {
       type: 'message',
-      content: teamMessage
+      content: teamMessage,
     }
   }
 
@@ -121,7 +121,7 @@ export class CommandService {
 
     return {
       type: 'message',
-      content: helpMessage
+      content: helpMessage,
     }
   }
 
@@ -134,7 +134,7 @@ export class CommandService {
       content: '🧹 **Conversation cleared**',
       action: () => {
         // Action will be handled by UI
-      }
+      },
     }
   }
 
@@ -145,16 +145,24 @@ export class CommandService {
     if (!message.trim()) {
       return {
         type: 'error',
-        content: 'Broadcast message cannot be empty. Usage: #broadcast [message]'
+        content: 'Broadcast message cannot be empty. Usage: #broadcast [message]',
       }
     }
 
+    const recipientCount = context.agents.filter((a) => a.id !== context.selectedAgentId).length
+
     return {
       type: 'message',
-      content: `📢 **Broadcasting:** ${message}`,
+      content: `📢 **Broadcasting to ${recipientCount} agents:** ${message}`,
       action: async () => {
-        // Broadcast will be handled by MessageService
-      }
+        // Broadcast will be handled by MessageService with context
+        console.log(
+          'Broadcasting to project:',
+          context.projectId,
+          'from agent:',
+          context.selectedAgentId
+        )
+      },
     }
   }
 
@@ -165,16 +173,26 @@ export class CommandService {
     if (!role) {
       return {
         type: 'error',
-        content: 'Please specify a role. Usage: #spawn [role]'
+        content: 'Please specify a role. Usage: #spawn [role]',
+      }
+    }
+
+    // Check if agent with this role already exists
+    const existingAgent = context.agents.find((a) => a.role === role)
+    if (existingAgent) {
+      return {
+        type: 'message',
+        content: `⚠️ Agent with role '${role}' already exists: ${existingAgent.name} (${existingAgent.status})`,
       }
     }
 
     return {
       type: 'action',
-      content: `🚀 **Spawning ${role} agent...**`,
+      content: `🚀 **Spawning ${role} agent for project ${context.projectId}...**`,
       action: async () => {
-        // Spawning will be handled by ProcessManager
-      }
+        // Spawning will be handled by ProcessManager with project context
+        console.log('Spawning agent with role:', role, 'for project:', context.projectId)
+      },
     }
   }
 
@@ -185,24 +203,24 @@ export class CommandService {
     if (!agentMention || !agentMention.startsWith('@')) {
       return {
         type: 'error',
-        content: 'Please specify an agent. Usage: #interrupt @agent'
+        content: 'Please specify an agent. Usage: #interrupt @agent',
       }
     }
 
     const agentId = agentMention.substring(1)
-    const agent = context.agents.find(a => a.id === agentId)
-    
+    const agent = context.agents.find((a) => a.id === agentId)
+
     if (!agent) {
       return {
         type: 'error',
-        content: `Agent @${agentId} not found in this project`
+        content: `Agent @${agentId} not found in this project`,
       }
     }
 
     if (agent.status === 'offline') {
       return {
         type: 'error',
-        content: `Cannot interrupt @${agentId} - agent is offline`
+        content: `Cannot interrupt @${agentId} - agent is offline`,
       }
     }
 
@@ -211,7 +229,7 @@ export class CommandService {
       content: `⚡ **Interrupting @${agentId}...**`,
       action: async () => {
         // Interrupt will be handled by ProcessManager
-      }
+      },
     }
   }
 
@@ -225,8 +243,8 @@ export class CommandService {
       body: JSON.stringify({
         sessionId,
         content,
-        type: 'command-response'
-      })
+        type: 'command-response',
+      }),
     })
   }
 }

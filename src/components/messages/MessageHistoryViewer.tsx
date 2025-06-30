@@ -45,7 +45,11 @@ const ESTIMATED_ITEM_HEIGHT = 150 // Increased for richer content
 const PAGE_SIZE = 50
 const LOAD_MORE_THRESHOLD = 5 // Load more when within 5 items of the top
 
-export function MessageHistoryViewer({ sessionId, projectId, agentName }: MessageHistoryViewerProps) {
+export function MessageHistoryViewer({
+  sessionId,
+  projectId,
+  agentName,
+}: MessageHistoryViewerProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -56,7 +60,7 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
   const hasUserScrolled = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerHeight, setContainerHeight] = useState(600)
-  
+
   // Get WebSocket connection
   const { socket } = useWebSocket()
 
@@ -108,13 +112,13 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
     if (!socket || !sessionId) return
 
     const handleNewMessage = (data: { sessionId: string; message: any }) => {
-      console.log('WebSocket message received:', { 
-        dataSessionId: data.sessionId, 
+      console.log('WebSocket message received:', {
+        dataSessionId: data.sessionId,
         currentSessionId: sessionId,
         matches: data.sessionId === sessionId,
-        message: data.message 
+        message: data.message,
       })
-      
+
       // Only handle messages for our session
       if (data.sessionId === sessionId) {
         const newMessage: Message = {
@@ -127,21 +131,23 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
           isMeta: data.message.isMeta || false,
           isCompactSummary: data.message.isCompactSummary || false,
           usage: data.message.usage,
-          rawData: data.message
+          rawData: data.message,
         }
-        
+
         // Check if this is a compact command output
         const contentStr = typeof data.message.content === 'string' ? data.message.content : ''
         if (contentStr.includes('<local-command-stdout>Compacted')) {
           // Trigger a refresh of the token count
           // This will cause the parent component to re-fetch agent data
-          window.dispatchEvent(new CustomEvent('session-compacted', { 
-            detail: { sessionId } 
-          }))
+          window.dispatchEvent(
+            new CustomEvent('session-compacted', {
+              detail: { sessionId },
+            })
+          )
         }
-        
+
         // Append to messages (including system messages)
-        setMessages(prev => [...prev, newMessage])
+        setMessages((prev) => [...prev, newMessage])
       }
     }
 
@@ -162,36 +168,36 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
     try {
       const params = new URLSearchParams({
         limit: PAGE_SIZE.toString(),
-        ...(cursorRef.current && { cursor: cursorRef.current })
+        ...(cursorRef.current && { cursor: cursorRef.current }),
       })
-      
+
       const url = `/api/projects/${projectId}/sessions/${sessionId}/messages?${params}`
       const response = await fetch(url)
-      
+
       if (!response.ok) {
         throw new Error(`Failed to load messages: ${response.status}`)
       }
 
       const data = await response.json()
-      console.log('📦 Received data:', { 
-        messageCount: data.messages?.length, 
+      console.log('📦 Received data:', {
+        messageCount: data.messages?.length,
         hasMore: data.hasMore,
-        cursor: data.nextCursor 
+        cursor: data.nextCursor,
       })
-      
+
       // Don't filter - show all messages including system messages
       const newMessages = (data.messages || []).map((msg: any) => ({
         ...msg,
-        isCompactSummary: msg.isCompactSummary || false
+        isCompactSummary: msg.isCompactSummary || false,
       }))
-      
+
       if (newMessages.length > 0) {
         if (cursorRef.current) {
           // Prepending older messages
-          setMessages(prev => [...newMessages, ...prev])
+          setMessages((prev) => [...newMessages, ...prev])
           // Adjust item heights indices
           const newHeights: { [key: number]: number } = {}
-          Object.keys(itemHeights.current).forEach(key => {
+          Object.keys(itemHeights.current).forEach((key) => {
             newHeights[parseInt(key) + newMessages.length] = itemHeights.current[parseInt(key)]
           })
           itemHeights.current = newHeights
@@ -203,7 +209,7 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
         // No more messages
         setHasMore(false)
       }
-      
+
       setHasMore(data.hasMore || false)
       cursorRef.current = data.nextCursor || null
     } catch (err) {
@@ -235,29 +241,38 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
   }, [messages])
 
   // Handle scroll to check if we need to load more
-  const handleScroll = useCallback(({ scrollOffset, scrollDirection }: { scrollOffset: number; scrollDirection: 'forward' | 'backward' }) => {
-    // Mark that user has scrolled
-    if (!hasUserScrolled.current && scrollOffset > 0) {
-      hasUserScrolled.current = true
-    }
+  const handleScroll = useCallback(
+    ({
+      scrollOffset,
+      scrollDirection,
+    }: {
+      scrollOffset: number
+      scrollDirection: 'forward' | 'backward'
+    }) => {
+      // Mark that user has scrolled
+      if (!hasUserScrolled.current && scrollOffset > 0) {
+        hasUserScrolled.current = true
+      }
 
-    // Only load more if:
-    // 1. User is scrolling up (backward)
-    // 2. We're near the top
-    // 3. We have more messages to load
-    // 4. Not currently loading
-    // 5. User has actually scrolled (prevents auto-loading when viewport isn't full)
-    if (
-      scrollDirection === 'backward' && 
-      scrollOffset < LOAD_MORE_THRESHOLD * ESTIMATED_ITEM_HEIGHT && 
-      hasMore && 
-      !loading &&
-      messages.length > 0 &&
-      hasUserScrolled.current
-    ) {
-      loadMoreMessages()
-    }
-  }, [hasMore, loading, loadMoreMessages, messages.length])
+      // Only load more if:
+      // 1. User is scrolling up (backward)
+      // 2. We're near the top
+      // 3. We have more messages to load
+      // 4. Not currently loading
+      // 5. User has actually scrolled (prevents auto-loading when viewport isn't full)
+      if (
+        scrollDirection === 'backward' &&
+        scrollOffset < LOAD_MORE_THRESHOLD * ESTIMATED_ITEM_HEIGHT &&
+        hasMore &&
+        !loading &&
+        messages.length > 0 &&
+        hasUserScrolled.current
+      ) {
+        loadMoreMessages()
+      }
+    },
+    [hasMore, loading, loadMoreMessages, messages.length]
+  )
 
   const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
     const message = messages[index]
@@ -269,7 +284,7 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
       // Delay ResizeObserver setup to avoid interfering with initial render
       const timer = setTimeout(() => {
         if (!measureRef.current) return
-        
+
         const resizeObserver = new ResizeObserver((entries) => {
           for (const entry of entries) {
             const height = entry.contentRect.height
@@ -289,13 +304,14 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
       return () => {
         clearTimeout(timer)
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [index, getItemSize, setItemSize])
 
     if (!message) {
       // Loading indicator at the top
       if (index === 0 && loading) {
         return (
-          <div 
+          <div
             style={{
               position: 'absolute',
               top: style.top,
@@ -310,10 +326,10 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
       }
       return null
     }
-    
+
     return (
-      <div 
-        ref={measureRef} 
+      <div
+        ref={measureRef}
         style={{
           position: 'absolute',
           top: style.top,

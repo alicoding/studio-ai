@@ -1,12 +1,13 @@
 // KISS: Simple React hook wrapper for AgentManager
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { AgentManager, AgentState, AgentConfig } from '../../lib/agents'
 
 export function useAgentManager(projectId: string) {
   const [agents, setAgents] = useState<AgentState[]>([])
   const [loading, setLoading] = useState(true)
-  
-  const manager = AgentManager.getInstance()
+
+  // Use useMemo to ensure manager instance is stable
+  const manager = useMemo(() => AgentManager.getInstance(), [])
 
   // Load agents for project
   useEffect(() => {
@@ -37,35 +38,44 @@ export function useAgentManager(projectId: string) {
       manager.off('agent:process-changed', handleUpdate)
       manager.off('agent:activity-changed', handleUpdate)
     }
-  }, [projectId])
+  }, [projectId, manager])
 
   // Spawn agent if needed
-  const ensureAgentActive = useCallback(async (agentId: string, projectPath: string) => {
-    if (manager.needsSpawn(agentId)) {
-      await manager.spawnAgent(agentId, projectPath)
-    }
-  }, [])
+  const ensureAgentActive = useCallback(
+    async (agentId: string, projectPath: string) => {
+      if (manager.needsSpawn(agentId)) {
+        await manager.spawnAgent(agentId, projectPath)
+      }
+    },
+    [manager]
+  )
 
   // Send message to agent (auto-spawn if needed)
-  const sendMessage = useCallback(async (agentId: string, _message: string, projectPath: string) => {
-    // Ensure agent is active
-    await ensureAgentActive(agentId, projectPath)
-    
-    // Mark as responding
-    manager.setResponding(agentId, true)
-    
-    try {
-      // Send message via API
-      // ... actual message sending logic
-    } finally {
-      manager.setResponding(agentId, false)
-    }
-  }, [ensureAgentActive])
+  const sendMessage = useCallback(
+    async (agentId: string, _message: string, projectPath: string) => {
+      // Ensure agent is active
+      await ensureAgentActive(agentId, projectPath)
+
+      // Mark as responding
+      manager.setResponding(agentId, true)
+
+      try {
+        // Send message via API
+        // ... actual message sending logic
+      } finally {
+        manager.setResponding(agentId, false)
+      }
+    },
+    [ensureAgentActive, manager]
+  )
 
   // Convert legacy agent
-  const convertAgent = useCallback(async (agentId: string, config: AgentConfig) => {
-    manager.setConfig(agentId, config)
-  }, [])
+  const convertAgent = useCallback(
+    async (agentId: string, config: AgentConfig) => {
+      manager.setConfig(agentId, config)
+    },
+    [manager]
+  )
 
   return {
     agents,
