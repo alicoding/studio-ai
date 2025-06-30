@@ -1,4 +1,5 @@
-import { Menu, Square, Grid3X3, SplitSquareHorizontal, Code } from 'lucide-react'
+import { Menu, Square, Grid3X3, SplitSquareHorizontal, Code, Trash2 } from 'lucide-react'
+import { Button } from '../ui/button'
 
 type ViewMode = 'single' | 'split' | 'grid' | 'develop'
 
@@ -7,6 +8,7 @@ interface ViewControlsProps {
   selectedAgentId: string | null
   onViewChange: (view: ViewMode) => void
   onSidebarToggle: () => void
+  onCleanupZombies?: () => void
 }
 
 const viewIcons = {
@@ -21,6 +23,7 @@ export function ViewControls({
   selectedAgentId,
   onViewChange,
   onSidebarToggle,
+  onCleanupZombies,
 }: ViewControlsProps) {
   return (
     <div className="flex items-center gap-2 p-2 bg-card border-b">
@@ -52,6 +55,19 @@ export function ViewControls({
       <span className="text-muted-foreground text-sm ml-auto">
         {selectedAgentId ? `→ ${selectedAgentId}` : '→ No agent selected'}
       </span>
+
+      {onCleanupZombies && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onCleanupZombies}
+          className="ml-2"
+          title="Cleanup zombie Claude processes"
+        >
+          <Trash2 className="w-3 h-3 mr-1" />
+          Cleanup
+        </Button>
+      )}
     </div>
   )
 }

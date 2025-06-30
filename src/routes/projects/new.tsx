@@ -76,10 +76,14 @@ function NewProjectPage() {
         id: `project-${Date.now()}`,
         name: projectName.trim(),
         description: projectDescription.trim(),
-        template: selectedTemplate,
+        path: `~/projects/${projectName.trim().toLowerCase().replace(/\s+/g, '-')}`,
+        createdAt: new Date().toISOString(),
         lastModified: new Date().toISOString(),
-        agentCount: 0,
-        agentIds: [],
+        sessionCount: 0,
+        lastSessionAt: undefined,
+        status: 'active' as const,
+        tags: selectedTemplate ? [selectedTemplate] : [],
+        favorite: false,
       }
 
       // Add to store

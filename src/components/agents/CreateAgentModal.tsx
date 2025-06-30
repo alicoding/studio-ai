@@ -8,8 +8,10 @@ import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
 import { Checkbox } from '../ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Save, Wand2 } from 'lucide-react'
+import { CLAUDE_CODE_TOOLS } from '../../lib/tools/toolRegistry'
+import { ROLE_DEFAULT_TOOLS, ROLE_SYSTEM_PROMPTS } from '../../lib/tools/roleDefaults'
+import { ModalLayout } from '../ui/modal-layout'
 
 const agentSchema = z.object({
   name: z.string().min(1, 'Agent name is required').max(50, 'Name too long'),
@@ -33,13 +35,8 @@ interface CreateAgentModalProps {
   agent?: AgentConfig | null // Optional agent for edit mode
 }
 
-const AVAILABLE_TOOLS = [
-  'File System (Read/Write)',
-  'Terminal Commands',
-  'Web Search',
-  'Database Access',
-  'Production Deploy',
-]
+// Default tools that most agents should have
+const DEFAULT_TOOLS = ['read', 'write', 'edit', 'bash', 'grep', 'glob', 'ls']
 
 const ROLE_OPTIONS = [
   { value: 'dev', label: 'Developer' },
@@ -59,8 +56,8 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
       name: '',
       role: 'dev',
       systemPrompt: '',
-      tools: ['File System (Read/Write)', 'Terminal Commands'],
-      model: 'Claude 3 Opus',
+      tools: ['desktop-commander', 'zen-ai'],
+      model: 'claude-opus-4',
     },
   })
 
@@ -76,13 +73,14 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
         model: agent.model,
       })
     } else if (isOpen) {
-      // Create mode - reset to defaults
+      // Create mode - reset to defaults with role-specific values
+      const defaultRole = 'dev'
       form.reset({
         name: '',
-        role: 'dev',
-        systemPrompt: '',
-        tools: ['File System (Read/Write)', 'Terminal Commands'],
-        model: 'Claude 3 Opus',
+        role: defaultRole,
+        systemPrompt: ROLE_SYSTEM_PROMPTS[defaultRole] || '',
+        tools: ROLE_DEFAULT_TOOLS[defaultRole] || DEFAULT_TOOLS,
+        model: 'claude-opus-4',
       })
     }
   }, [isOpen, agent, form])
@@ -109,13 +107,28 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isEditMode ? 'Edit Agent' : 'Create New Agent'}</DialogTitle>
-        </DialogHeader>
-
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+    <ModalLayout
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEditMode ? 'Edit Agent' : 'Create New Agent'}
+      footer={
+        <>
+          <Button type="button" variant="outline">
+            <Save className="w-4 h-4 mr-2" />
+            Save as Template
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={form.formState.isSubmitting}
+            onClick={form.handleSubmit(onSubmit)}
+          >
+            <Wand2 className="w-4 h-4 mr-2" />
+            {isEditMode ? 'Save Changes' : 'Create & Spawn'}
+          </Button>
+        </>
+      }
+    >
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Agent Name</Label>
             <Input id="name" placeholder="e.g., dev_assistant" {...form.register('name')} />
@@ -128,7 +141,16 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
             <Label htmlFor="role">Role</Label>
             <Select
               value={form.watch('role')}
-              onValueChange={(value) => form.setValue('role', value)}
+              onValueChange={(value) => {
+                form.setValue('role', value)
+                // Apply role defaults when role changes
+                if (ROLE_DEFAULT_TOOLS[value]) {
+                  form.setValue('tools', ROLE_DEFAULT_TOOLS[value])
+                }
+                if (ROLE_SYSTEM_PROMPTS[value]) {
+                  form.setValue('systemPrompt', ROLE_SYSTEM_PROMPTS[value])
+                }
+              }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select a role" />
@@ -163,20 +185,121 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
           </div>
 
           <div className="space-y-2">
-            <Label>Tool Access</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {AVAILABLE_TOOLS.map((tool) => (
-                <div key={tool} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={tool}
-                    checked={form.watch('tools').includes(tool)}
-                    onCheckedChange={(checked) => handleToolToggle(tool, checked as boolean)}
-                  />
-                  <Label htmlFor={tool} className="text-sm font-normal">
-                    {tool}
-                  </Label>
+            <div className="flex items-center justify-between">
+              <Label>Tool Access</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const currentTools = form.watch('tools')
+                  const allToolIds = CLAUDE_CODE_TOOLS.map(t => t.id)
+                  if (currentTools.length === allToolIds.length) {
+                    form.setValue('tools', [])
+                  } else {
+                    form.setValue('tools', allToolIds)
+                  }
+                }}
+                className="text-xs"
+              >
+                {form.watch('tools').length === CLAUDE_CODE_TOOLS.length ? 'Deselect All' : 'Select All'}
+              </Button>
+            </div>
+            <div className="space-y-4">
+              {/* Group tools by category */}
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">File Operations</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {CLAUDE_CODE_TOOLS.filter(t => t.category === 'file').map((tool) => (
+                    <div key={tool.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={tool.id}
+                        checked={form.watch('tools').includes(tool.id)}
+                        onCheckedChange={(checked) => handleToolToggle(tool.id, checked as boolean)}
+                      />
+                      <Label htmlFor={tool.id} className="text-sm font-normal">
+                        <span className="font-medium">{tool.name}</span>
+                        {tool.requiresPermission && <span className="text-xs text-yellow-600 ml-1">⚠️</span>}
+                      </Label>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
+              
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">Search & Navigation</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {CLAUDE_CODE_TOOLS.filter(t => t.category === 'search').map((tool) => (
+                    <div key={tool.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={tool.id}
+                        checked={form.watch('tools').includes(tool.id)}
+                        onCheckedChange={(checked) => handleToolToggle(tool.id, checked as boolean)}
+                      />
+                      <Label htmlFor={tool.id} className="text-sm font-normal">
+                        <span className="font-medium">{tool.name}</span>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">Execution</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {CLAUDE_CODE_TOOLS.filter(t => t.category === 'execution').map((tool) => (
+                    <div key={tool.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={tool.id}
+                        checked={form.watch('tools').includes(tool.id)}
+                        onCheckedChange={(checked) => handleToolToggle(tool.id, checked as boolean)}
+                      />
+                      <Label htmlFor={tool.id} className="text-sm font-normal">
+                        <span className="font-medium">{tool.name}</span>
+                        {tool.requiresPermission && <span className="text-xs text-yellow-600 ml-1">⚠️</span>}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">Utilities</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {CLAUDE_CODE_TOOLS.filter(t => t.category === 'utility').map((tool) => (
+                    <div key={tool.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={tool.id}
+                        checked={form.watch('tools').includes(tool.id)}
+                        onCheckedChange={(checked) => handleToolToggle(tool.id, checked as boolean)}
+                      />
+                      <Label htmlFor={tool.id} className="text-sm font-normal">
+                        <span className="font-medium">{tool.name}</span>
+                        {tool.requiresPermission && <span className="text-xs text-yellow-600 ml-1">⚠️</span>}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-2">MCP Tools</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {CLAUDE_CODE_TOOLS.filter(t => t.category === 'mcp').map((tool) => (
+                    <div key={tool.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={tool.id}
+                        checked={form.watch('tools').includes(tool.id)}
+                        onCheckedChange={(checked) => handleToolToggle(tool.id, checked as boolean)}
+                      />
+                      <Label htmlFor={tool.id} className="text-sm font-normal">
+                        <span className="font-medium">{tool.name}</span>
+                        {tool.requiresPermission && <span className="text-xs text-yellow-600 ml-1">⚠️</span>}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
             {form.formState.errors.tools && (
               <p className="text-sm text-destructive">{form.formState.errors.tools.message}</p>
@@ -193,9 +316,11 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Claude 3 Opus">Claude 3 Opus</SelectItem>
-                <SelectItem value="Claude 3 Sonnet">Claude 3 Sonnet</SelectItem>
-                <SelectItem value="Claude 3 Haiku">Claude 3 Haiku</SelectItem>
+                <SelectItem value="claude-opus-4">Claude 4 Opus</SelectItem>
+                <SelectItem value="claude-sonnet-4">Claude 4 Sonnet</SelectItem>
+                <SelectItem value="claude-3.5-sonnet">Claude 3.5 Sonnet</SelectItem>
+                <SelectItem value="claude-3-opus">Claude 3 Opus</SelectItem>
+                <SelectItem value="claude-3-haiku">Claude 3 Haiku</SelectItem>
               </SelectContent>
             </Select>
             {form.formState.errors.model && (
@@ -203,18 +328,7 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
             )}
           </div>
 
-          <DialogFooter className="gap-2">
-            <Button type="button" variant="outline">
-              <Save className="w-4 h-4 mr-2" />
-              Save as Template
-            </Button>
-            <Button type="submit" disabled={form.formState.isSubmitting}>
-              <Wand2 className="w-4 h-4 mr-2" />
-              {isEditMode ? 'Save Changes' : 'Create & Spawn'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      </form>
+    </ModalLayout>
   )
 }

@@ -8,11 +8,11 @@ import { Card } from '../ui/card'
 import { Checkbox } from '../ui/checkbox'
 import { FolderOpen, GitBranch } from 'lucide-react'
 
-interface Project {
+interface CreateProjectData {
   name: string
   description: string
   thumbnail?: string
-  directory?: string
+  path?: string
   template?: string
   gitInit?: boolean
 }
@@ -20,7 +20,7 @@ interface Project {
 interface CreateProjectModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreate: (project: Project) => void
+  onCreate: (project: CreateProjectData) => void
 }
 
 const PROJECT_TEMPLATES = [
@@ -75,7 +75,7 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: CreateProjectM
       name: projectName,
       description: description.trim() || template?.description || '',
       thumbnail: template?.thumbnail,
-      directory: directory.trim() || defaultDirectory,
+      path: directory.trim() || defaultDirectory,
       template: selectedTemplate,
       gitInit,
     })

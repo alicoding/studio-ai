@@ -1,241 +1,179 @@
 import { Router } from 'express'
-import fs from 'fs/promises'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+import { ProjectService } from '../services/ProjectService.js'
+import { ProcessManager } from '../../../lib/process/ProcessManager.js'
 
 const router = Router()
-
-// Project interface
-interface Project {
-  id: string
-  name: string
-  description?: string
-  activeAgents: string[] // agent instance IDs
-  createdAt: string
-  updatedAt: string
-  cwd: string // Current working directory for the project
-}
-
-// Storage paths
-const PROJECTS_DIR = path.join(__dirname, '../../../data/projects')
-const PROJECTS_FILE = path.join(PROJECTS_DIR, 'projects.json')
-
-// Ensure data directory exists
-async function ensureDataDir() {
-  try {
-    await fs.mkdir(PROJECTS_DIR, { recursive: true })
-    try {
-      await fs.access(PROJECTS_FILE)
-    } catch {
-      await fs.writeFile(PROJECTS_FILE, JSON.stringify([]), 'utf-8')
-    }
-  } catch {
-    console.error('Error creating projects directory:', error)
-  }
-}
-
-// Load projects from file
-async function loadProjects(): Promise<Project[]> {
-  try {
-    await ensureDataDir()
-    const data = await fs.readFile(PROJECTS_FILE, 'utf-8')
-    return JSON.parse(data)
-  } catch {
-    console.error('Error loading projects:', error)
-    return []
-  }
-}
-
-// Save projects to file
-async function saveProjects(projects: Project[]): Promise<void> {
-  await ensureDataDir()
-  await fs.writeFile(PROJECTS_FILE, JSON.stringify(projects, null, 2), 'utf-8')
-}
+const projectService = new ProjectService()
 
 // GET /api/projects - Get all projects
 router.get('/', async (req, res) => {
   try {
-    const projects = await loadProjects()
+    const projects = await projectService.getAllProjects()
     res.json(projects)
-  } catch {
-    res.status(500).json({ error: 'Failed to load projects' })
+  } catch (error) {
+    console.error('Error fetching projects:', error)
+    res.status(500).json({ error: 'Failed to fetch projects' })
   }
 })
 
 // GET /api/projects/:id - Get specific project
 router.get('/:id', async (req, res) => {
   try {
-    const projects = await loadProjects()
-    const project = projects.find((p) => p.id === req.params.id)
+    const project = await projectService.getProject(req.params.id)
 
     if (!project) {
       return res.status(404).json({ error: 'Project not found' })
     }
 
     res.json(project)
-  } catch {
-    res.status(500).json({ error: 'Failed to load project' })
+  } catch (error) {
+    console.error('Error fetching project:', error)
+    res.status(500).json({ error: 'Failed to fetch project' })
   }
 })
 
-// POST /api/projects - Create new project
-router.post('/', async (req, res) => {
+// PUT /api/projects/:id/metadata - Update project metadata (tags, favorite, status, etc.)
+router.put('/:id/metadata', async (req, res) => {
   try {
-    const { name, description, cwd } = req.body
+    const { status, tags, favorite, notes } = req.body
 
-    if (!name) {
-      return res.status(400).json({ error: 'Project name is required' })
-    }
-
-    const projects = await loadProjects()
-
-    const newProject: Project = {
-      id: `project_${Date.now()}`,
-      name,
-      description: description || '',
-      activeAgents: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      cwd: cwd || process.cwd(),
-    }
-
-    projects.push(newProject)
-    await saveProjects(projects)
-
-    // Create project directory
-    const projectDir = path.join(__dirname, `../../../data/projects/${newProject.id}`)
-    await fs.mkdir(projectDir, { recursive: true })
-
-    res.status(201).json(newProject)
-  } catch {
-    res.status(500).json({ error: 'Failed to create project' })
-  }
-})
-
-// PUT /api/projects/:id - Update project
-router.put('/:id', async (req, res) => {
-  try {
-    const projects = await loadProjects()
-    const index = projects.findIndex((p) => p.id === req.params.id)
-
-    if (index === -1) {
-      return res.status(404).json({ error: 'Project not found' })
-    }
-
-    const { name, description, cwd } = req.body
-
-    projects[index] = {
-      ...projects[index],
-      ...(name && { name }),
-      ...(description !== undefined && { description }),
-      ...(cwd && { cwd }),
-      updatedAt: new Date().toISOString(),
-    }
-
-    await saveProjects(projects)
-    res.json(projects[index])
-  } catch {
-    res.status(500).json({ error: 'Failed to update project' })
-  }
-})
-
-// DELETE /api/projects/:id - Delete project
-router.delete('/:id', async (req, res) => {
-  try {
-    const projects = await loadProjects()
-    const filteredProjects = projects.filter((p) => p.id !== req.params.id)
-
-    if (projects.length === filteredProjects.length) {
-      return res.status(404).json({ error: 'Project not found' })
-    }
-
-    await saveProjects(filteredProjects)
-
-    // TODO: Clean up project directory and stop any active agents
-
-    res.json({ message: 'Project deleted successfully' })
-  } catch {
-    res.status(500).json({ error: 'Failed to delete project' })
-  }
-})
-
-// GET /api/projects/:id/agents - Get active agents in project
-router.get('/:id/agents', async (req, res) => {
-  try {
-    const projects = await loadProjects()
-    const project = projects.find((p) => p.id === req.params.id)
-
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' })
-    }
-
-    // TODO: Get actual agent instances with their status
-    // For now, return the agent IDs
-    res.json({
-      projectId: project.id,
-      agents: project.activeAgents,
+    await projectService.updateProjectMetadata(req.params.id, {
+      status,
+      tags,
+      favorite,
+      notes,
     })
-  } catch {
-    res.status(500).json({ error: 'Failed to load project agents' })
+
+    const updatedProject = await projectService.getProject(req.params.id)
+    res.json(updatedProject)
+  } catch (error) {
+    console.error('Error updating project metadata:', error)
+    res.status(500).json({ error: 'Failed to update project metadata' })
   }
 })
 
-// POST /api/projects/:id/agents - Add agent to project
-router.post('/:id/agents', async (req, res) => {
+// POST /api/projects/:id/favorite - Toggle favorite status
+router.post('/:id/favorite', async (req, res) => {
   try {
-    const { agentConfigId } = req.body
+    await projectService.toggleFavorite(req.params.id)
+    const updatedProject = await projectService.getProject(req.params.id)
+    res.json(updatedProject)
+  } catch (error) {
+    console.error('Error toggling favorite:', error)
+    res.status(500).json({ error: 'Failed to toggle favorite' })
+  }
+})
 
-    if (!agentConfigId) {
-      return res.status(400).json({ error: 'Agent configuration ID is required' })
+// POST /api/projects/:id/tags - Add tag to project
+router.post('/:id/tags', async (req, res) => {
+  try {
+    const { tag } = req.body
+
+    if (!tag) {
+      return res.status(400).json({ error: 'Tag is required' })
     }
 
-    const projects = await loadProjects()
-    const project = projects.find((p) => p.id === req.params.id)
+    await projectService.addTag(req.params.id, tag)
+    const updatedProject = await projectService.getProject(req.params.id)
+    res.json(updatedProject)
+  } catch (error) {
+    console.error('Error adding tag:', error)
+    res.status(500).json({ error: 'Failed to add tag' })
+  }
+})
 
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' })
-    }
+// DELETE /api/projects/:id/tags/:tag - Remove tag from project
+router.delete('/:id/tags/:tag', async (req, res) => {
+  try {
+    await projectService.removeTag(req.params.id, decodeURIComponent(req.params.tag))
+    const updatedProject = await projectService.getProject(req.params.id)
+    res.json(updatedProject)
+  } catch (error) {
+    console.error('Error removing tag:', error)
+    res.status(500).json({ error: 'Failed to remove tag' })
+  }
+})
 
-    // TODO: Actually spawn the agent process
-    const agentInstanceId = `${agentConfigId}_${Date.now()}`
-    project.activeAgents.push(agentInstanceId)
-    project.updatedAt = new Date().toISOString()
+// POST /api/projects/:id/archive - Archive project
+router.post('/:id/archive', async (req, res) => {
+  try {
+    await projectService.archiveProject(req.params.id)
+    const updatedProject = await projectService.getProject(req.params.id)
+    res.json(updatedProject)
+  } catch (error) {
+    console.error('Error archiving project:', error)
+    res.status(500).json({ error: 'Failed to archive project' })
+  }
+})
 
-    await saveProjects(projects)
+// POST /api/projects/:id/unarchive - Unarchive project
+router.post('/:id/unarchive', async (req, res) => {
+  try {
+    await projectService.unarchiveProject(req.params.id)
+    const updatedProject = await projectService.getProject(req.params.id)
+    res.json(updatedProject)
+  } catch (error) {
+    console.error('Error unarchiving project:', error)
+    res.status(500).json({ error: 'Failed to unarchive project' })
+  }
+})
 
-    res.json({
-      message: 'Agent added to project',
-      agentInstanceId,
-      projectId: project.id,
+// GET /api/projects/:id/sessions - Get project sessions (agents)
+router.get('/:id/sessions', async (req, res) => {
+  try {
+    const sessions = await projectService.getProjectSessions(req.params.id)
+    res.json({ sessions })
+  } catch (error) {
+    console.error('Error fetching project sessions:', error)
+    res.status(500).json({ error: 'Failed to fetch project sessions' })
+  }
+})
+
+// DELETE /api/projects/:id/sessions/:fileName - Delete a session
+router.delete('/:id/sessions/:fileName', async (req, res) => {
+  try {
+    await projectService.deleteProjectSession(req.params.id, req.params.fileName)
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting session:', error)
+    res.status(500).json({ error: 'Failed to delete session' })
+  }
+})
+
+// GET /api/projects/:id/sessions/:sessionId/messages - Get messages from a session
+router.get('/:id/sessions/:sessionId/messages', async (req, res) => {
+  try {
+    const { cursor, limit = '50' } = req.query
+    const result = await projectService.getSessionMessages(
+      req.params.id,
+      req.params.sessionId,
+      {
+        cursor: cursor as string | undefined,
+        limit: parseInt(limit as string, 10)
+      }
+    )
+    res.json(result)
+  } catch (error) {
+    console.error('Error fetching session messages:', error)
+    res.status(500).json({ error: 'Failed to fetch messages' })
+  }
+})
+
+// DELETE /api/projects/:id/agents - Kill all agents for project
+router.delete('/:id/agents', async (req, res) => {
+  try {
+    const processManager = ProcessManager.getInstance()
+    await processManager.killProject(req.params.id)
+    
+    console.log(`All agents for project ${req.params.id} killed`)
+    
+    res.json({ 
+      message: 'Project agents killed successfully',
+      projectId: req.params.id 
     })
-  } catch {
-    res.status(500).json({ error: 'Failed to add agent to project' })
-  }
-})
-
-// DELETE /api/projects/:id/agents/:agentId - Remove agent from project
-router.delete('/:id/agents/:agentId', async (req, res) => {
-  try {
-    const projects = await loadProjects()
-    const project = projects.find((p) => p.id === req.params.id)
-
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' })
-    }
-
-    project.activeAgents = project.activeAgents.filter((a) => a !== req.params.agentId)
-    project.updatedAt = new Date().toISOString()
-
-    await saveProjects(projects)
-
-    // TODO: Actually stop the agent process
-
-    res.json({ message: 'Agent removed from project' })
-  } catch {
-    res.status(500).json({ error: 'Failed to remove agent from project' })
+  } catch (error) {
+    console.error('Error killing project agents:', error)
+    res.status(500).json({ error: 'Failed to kill project agents' })
   }
 })
 

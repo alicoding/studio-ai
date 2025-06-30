@@ -629,6 +629,10 @@ UI: Type "@dev1 implement feature"
 3. **Add to Stage 2**: Event emitters for UI updates
 4. **Add to Stage 8**: WebSocket integration for streaming responses
 5. **Add to todo.md**: Integration testing stage
+6. **Add to Stage 12.1**: Message history viewer with virtual scrolling
+   - Parse and display historical messages from .jsonl files
+   - Support for @mentions and #commands parsing
+   - Integration with Tiptap for rich message rendering
 
 ### File Dependencies
 

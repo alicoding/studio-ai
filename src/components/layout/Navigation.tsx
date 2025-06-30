@@ -1,11 +1,7 @@
 import { Link, useLocation } from '@tanstack/react-router'
 import { Settings } from 'lucide-react'
 
-interface NavigationProps {
-  onSettingsClick: () => void
-}
-
-export function Navigation({ onSettingsClick }: NavigationProps) {
+export function Navigation() {
   const location = useLocation()
 
   const isActive = (path: string) => {
@@ -57,13 +53,17 @@ export function Navigation({ onSettingsClick }: NavigationProps) {
           Teams
         </Link>
       </div>
-      <button
-        className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-colors"
+      <Link
+        to="/settings"
+        className={`p-2 rounded-md transition-colors ${
+          isActive('/settings')
+            ? 'text-primary bg-primary/10 border border-primary/20'
+            : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+        }`}
         title="Settings"
-        onClick={onSettingsClick}
       >
         <Settings className="w-5 h-5" />
-      </button>
+      </Link>
     </nav>
   )
 }

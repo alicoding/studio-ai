@@ -1,18 +1,26 @@
 import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
+import { devtools, persist } from 'zustand/middleware'
 
 export interface Project {
   id: string
   name: string
-  description: string
-  lastModified: string
-  agentCount: number
-  thumbnail?: string
-  template?: string
-  agentIds?: string[]
-  directory?: string
-  createdAt?: string | Date
-  agents?: any[]
+  description?: string
+  path: string
+  createdAt: Date | string
+  sessionCount: number
+  lastSessionAt?: Date | string
+  status: 'active' | 'archived' | 'draft'
+  lastModified: Date | string
+  tags: string[]
+  favorite: boolean
+  studioMetadata?: {
+    projectId: string
+    status: 'active' | 'archived' | 'draft'
+    tags: string[]
+    favorite: boolean
+    notes: string
+    lastModified: Date | string
+  }
 }
 
 export interface QueueItem {
@@ -25,18 +33,33 @@ export interface QueueItem {
 
 interface ProjectState {
   // State
-  projects: Project[]
+  projects: Project[] // All projects from Claude Code
+  openProjects: string[] // Project IDs that are open in workspace tabs
   activeProjectId: string | null
+  projectAgents: Record<string, string[]> // Map of projectId to active agentIds
   messageQueue: QueueItem[]
   viewMode: 'single' | 'split' | 'grid' | 'develop'
   sidebarCollapsed: boolean
+  isLoading: boolean
+  error: string | null
 
   // Actions
   setProjects: (projects: Project[]) => void
+  fetchProjects: () => Promise<void>
   addProject: (project: Project) => void
   updateProject: (projectId: string, updates: Partial<Project>) => void
+  updateProjectMetadata: (projectId: string, metadata: { tags?: string[]; favorite?: boolean; status?: 'active' | 'archived' | 'draft'; notes?: string }) => Promise<void>
   removeProject: (projectId: string) => void
   setActiveProject: (projectId: string | null) => void
+  
+  // Workspace tab actions
+  openProjectInWorkspace: (projectId: string) => void
+  closeProjectInWorkspace: (projectId: string) => void
+  getOpenProjects: () => Project[]
+  
+  // Agent management per project
+  setProjectAgents: (projectId: string, agentIds: string[]) => void
+  getActiveProjectAgents: () => string[]
 
   // Queue actions
   addToQueue: (item: Omit<QueueItem, 'id' | 'timestamp' | 'status'>) => void
@@ -53,45 +76,44 @@ interface ProjectState {
   clearAll: () => void
 }
 
-const MOCK_PROJECTS: Project[] = [
-  {
-    id: 'project-1',
-    name: 'Project Alpha',
-    description: 'Full-stack web application with React and Node.js backend',
-    lastModified: '2024-01-15T10:30:00Z',
-    agentCount: 3,
-    agentIds: ['dev-1', 'ux-1'],
-  },
-  {
-    id: 'project-2',
-    name: 'Project Beta',
-    description: 'Mobile app prototype with React Native',
-    lastModified: '2024-01-12T14:20:00Z',
-    agentCount: 2,
-    agentIds: ['backend-1'],
-  },
-  {
-    id: 'project-3',
-    name: 'Data Analysis',
-    description: 'Python data science pipeline with ML models',
-    lastModified: '2024-01-10T09:15:00Z',
-    agentCount: 1,
-    agentIds: [],
-  },
-]
+// Mock data will be replaced by real data from the API
+const MOCK_PROJECTS: Project[] = []
 
 export const useProjectStore = create<ProjectState>()(
   devtools(
-    (set) => ({
+    persist(
+      (set, get) => ({
       // Initial state
       projects: MOCK_PROJECTS,
-      activeProjectId: 'project-1',
+      openProjects: [], // No projects open initially
+      activeProjectId: null,
+      projectAgents: {}, // No agents assigned initially
       messageQueue: [],
       viewMode: 'single',
       sidebarCollapsed: false,
+      isLoading: false,
+      error: null,
 
       // Project actions
       setProjects: (projects) => set({ projects }, false, 'setProjects'),
+
+      fetchProjects: async () => {
+        set({ isLoading: true, error: null }, false, 'fetchProjects.start')
+        try {
+          const response = await fetch('/api/projects')
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
+          const projects = await response.json()
+          set({ projects, isLoading: false, error: null }, false, 'fetchProjects.success')
+        } catch (error) {
+          console.error('Failed to fetch projects:', error)
+          set({ 
+            isLoading: false, 
+            error: error instanceof Error ? error.message : 'Failed to fetch projects' 
+          }, false, 'fetchProjects.error')
+        }
+      },
 
       addProject: (project) =>
         set(
@@ -111,17 +133,49 @@ export const useProjectStore = create<ProjectState>()(
           'updateProject'
         ),
 
+      updateProjectMetadata: async (projectId, metadata) => {
+        try {
+          const response = await fetch(`/api/projects/${projectId}/metadata`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(metadata),
+          })
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
+          
+          const updatedProject = await response.json()
+          
+          // Update the local state with the updated project
+          set(
+            (state) => ({
+              projects: state.projects.map((p) => (p.id === projectId ? updatedProject : p)),
+            }),
+            false,
+            'updateProjectMetadata'
+          )
+        } catch (error) {
+          console.error('Failed to update project metadata:', error)
+          throw error
+        }
+      },
+
       removeProject: (projectId) =>
         set(
           (state) => {
             const newProjects = state.projects.filter((p) => p.id !== projectId)
+            const newOpenProjects = state.openProjects.filter((id) => id !== projectId)
             const newActiveId =
               state.activeProjectId === projectId
-                ? newProjects[0]?.id || null
+                ? newOpenProjects[0] || null
                 : state.activeProjectId
 
             return {
               projects: newProjects,
+              openProjects: newOpenProjects,
               activeProjectId: newActiveId,
             }
           },
@@ -187,10 +241,32 @@ export const useProjectStore = create<ProjectState>()(
           'toggleSidebar'
         ),
 
+      // Agent management per project
+      setProjectAgents: (projectId, agentIds) =>
+        set(
+          (state) => ({
+            projectAgents: {
+              ...state.projectAgents,
+              [projectId]: agentIds,
+            },
+          }),
+          false,
+          'setProjectAgents'
+        ),
+
+      getActiveProjectAgents: () => {
+        const state = get()
+        if (!state.activeProjectId) return []
+        return state.projectAgents[state.activeProjectId] || []
+      },
+
+
+
       clearAll: () =>
         set(
           {
             projects: [],
+            openProjects: [],
             activeProjectId: null,
             messageQueue: [],
             viewMode: 'single',
@@ -199,9 +275,60 @@ export const useProjectStore = create<ProjectState>()(
           false,
           'clearAll'
         ),
+
+      // Workspace tab actions
+      openProjectInWorkspace: (projectId) =>
+        set(
+          (state) => {
+            // Add to open projects if not already there
+            if (!state.openProjects.includes(projectId)) {
+              return {
+                openProjects: [...state.openProjects, projectId],
+                activeProjectId: projectId, // Make it active when opened
+              }
+            }
+            // Just make it active if already open
+            return { activeProjectId: projectId }
+          },
+          false,
+          'openProjectInWorkspace'
+        ),
+
+      closeProjectInWorkspace: (projectId) =>
+        set(
+          (state) => {
+            const newOpenProjects = state.openProjects.filter((id) => id !== projectId)
+            const newActiveId =
+              state.activeProjectId === projectId
+                ? newOpenProjects[newOpenProjects.length - 1] || null
+                : state.activeProjectId
+
+            return {
+              openProjects: newOpenProjects,
+              activeProjectId: newActiveId,
+            }
+          },
+          false,
+          'closeProjectInWorkspace'
+        ),
+
+      getOpenProjects: () => {
+        const state = get()
+        return state.projects.filter((p) => state.openProjects.includes(p.id))
+      },
     }),
     {
-      name: 'project-store',
+      name: 'claude-studio-projects',
+      partialize: (state) => ({
+        openProjects: state.openProjects,
+        activeProjectId: state.activeProjectId,
+        viewMode: state.viewMode,
+        sidebarCollapsed: state.sidebarCollapsed,
+      }),
     }
+  ),
+  {
+    name: 'project-store',
+  }
   )
 )

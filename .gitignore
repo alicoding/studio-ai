@@ -32,3 +32,10 @@ Thumbs.db
 # Session data
 ~/.claude/
 /tmp/claude-agents/
+
+# Test files
+test-*.js
+debug-*.js
+
+# Local configuration (not the app config)
+.claude-studio-local/

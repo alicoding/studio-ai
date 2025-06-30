@@ -1,69 +1,24 @@
 import { Router } from 'express'
-import fs from 'fs/promises'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+import { v4 as uuidv4 } from 'uuid'
+import { ProcessManager } from '../../../lib/process/ProcessManager.js'
+import { ProcessRegistry } from '../../../lib/process/ProcessRegistry.js'
+import { ConfigService } from '../../../src/services/ConfigService.js'
 
 const router = Router()
-
-// Agent configuration interface
-interface AgentConfig {
-  id: string
-  name: string
-  role: string
-  systemPrompt: string
-  tools: string[]
-  model: string
-  createdAt: string
-  updatedAt: string
-  usedInProjects?: string[]
-}
-
-// Storage paths
-const AGENTS_DIR = path.join(__dirname, '../../../data/agents')
-const AGENTS_FILE = path.join(AGENTS_DIR, 'configurations.json')
-
-// Ensure data directory exists
-async function ensureDataDir() {
-  try {
-    await fs.mkdir(AGENTS_DIR, { recursive: true })
-    // Check if configurations file exists, if not create it
-    try {
-      await fs.access(AGENTS_FILE)
-    } catch {
-      await fs.writeFile(AGENTS_FILE, JSON.stringify([]), 'utf-8')
-    }
-  } catch (error) {
-    console.error('Error creating data directory:', error)
-  }
-}
-
-// Load agents from file
-async function loadAgents(): Promise<AgentConfig[]> {
-  try {
-    await ensureDataDir()
-    const data = await fs.readFile(AGENTS_FILE, 'utf-8')
-    return JSON.parse(data)
-  } catch (error) {
-    console.error('Error loading agents:', error)
-    return []
-  }
-}
-
-// Save agents to file
-async function saveAgents(agents: AgentConfig[]): Promise<void> {
-  await ensureDataDir()
-  await fs.writeFile(AGENTS_FILE, JSON.stringify(agents, null, 2), 'utf-8')
-}
+const configService = ConfigService.getInstance()
 
 // GET /api/agents - Get all agent configurations
 router.get('/', async (req, res) => {
   try {
-    const agents = await loadAgents()
-    res.json(agents)
-  } catch {
+    const agents = await configService.getAllAgents()
+    // Add projects using info (would need to scan all projects)
+    const clientAgents = agents.map(agent => ({
+      ...agent,
+      projectsUsing: [] // TODO: Implement project scanning
+    }))
+    res.json(clientAgents)
+  } catch (error) {
+    console.error('Failed to load agents:', error)
     res.status(500).json({ error: 'Failed to load agents' })
   }
 })
@@ -71,15 +26,17 @@ router.get('/', async (req, res) => {
 // GET /api/agents/:id - Get specific agent configuration
 router.get('/:id', async (req, res) => {
   try {
-    const agents = await loadAgents()
-    const agent = agents.find((a) => a.id === req.params.id)
-
+    const agent = await configService.getAgent(req.params.id)
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' })
     }
-
-    res.json(agent)
-  } catch {
+    const clientAgent = {
+      ...agent,
+      projectsUsing: [] // TODO: Implement project scanning
+    }
+    res.json(clientAgent)
+  } catch (error) {
+    console.error('Failed to load agent:', error)
     res.status(500).json({ error: 'Failed to load agent' })
   }
 })
@@ -87,32 +44,39 @@ router.get('/:id', async (req, res) => {
 // POST /api/agents - Create new agent configuration
 router.post('/', async (req, res) => {
   try {
-    const { name, role, systemPrompt, tools, model } = req.body
+    const { id, name, role, systemPrompt, tools, model } = req.body
 
     // Validation
     if (!name || !role || !systemPrompt) {
       return res.status(400).json({ error: 'Name, role, and system prompt are required' })
     }
 
-    const agents = await loadAgents()
+    // Check if agent with this ID already exists
+    if (id) {
+      const existing = await configService.getAgent(id)
+      if (existing) {
+        return res.status(409).json({ error: 'Agent with this ID already exists' })
+      }
+    }
 
-    const newAgent: AgentConfig = {
-      id: `${role}_${Date.now()}`,
+    const newAgent = await configService.createAgent({
+      id: id || uuidv4(),
       name,
       role,
       systemPrompt,
-      tools: tools || ['file_system', 'terminal', 'web_search'],
+      tools: tools || ['read', 'write', 'bash'],
       model: model || 'claude-3-opus',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      usedInProjects: [],
+      maxTokens: 200000,
+      temperature: 0.7
+    })
+
+    const clientAgent = {
+      ...newAgent,
+      projectsUsing: []
     }
-
-    agents.push(newAgent)
-    await saveAgents(agents)
-
-    res.status(201).json(newAgent)
-  } catch {
+    res.status(201).json(clientAgent)
+  } catch (error) {
+    console.error('Failed to create agent:', error)
     res.status(500).json({ error: 'Failed to create agent' })
   }
 })
@@ -120,45 +84,47 @@ router.post('/', async (req, res) => {
 // PUT /api/agents/:id - Update agent configuration
 router.put('/:id', async (req, res) => {
   try {
-    const agents = await loadAgents()
-    const index = agents.findIndex((a) => a.id === req.params.id)
+    const { name, role, systemPrompt, tools, model, maxTokens, temperature } = req.body
 
-    if (index === -1) {
-      return res.status(404).json({ error: 'Agent not found' })
-    }
-
-    const { name, role, systemPrompt, tools, model } = req.body
-
-    agents[index] = {
-      ...agents[index],
+    await configService.updateAgent(req.params.id, {
       ...(name && { name }),
       ...(role && { role }),
       ...(systemPrompt && { systemPrompt }),
       ...(tools && { tools }),
       ...(model && { model }),
-      updatedAt: new Date().toISOString(),
+      ...(maxTokens && { maxTokens }),
+      ...(temperature !== undefined && { temperature })
+    })
+
+    const updated = await configService.getAgent(req.params.id)
+    if (!updated) {
+      return res.status(404).json({ error: 'Agent not found' })
     }
 
-    await saveAgents(agents)
-    res.json(agents[index])
-  } catch {
+    const clientAgent = {
+      ...updated,
+      projectsUsing: []
+    }
+    res.json(clientAgent)
+  } catch (error) {
+    console.error('Failed to update agent:', error)
     res.status(500).json({ error: 'Failed to update agent' })
   }
 })
 
-// DELETE /api/agents/:id - Delete agent configuration
+// DELETE /api/agents/:id - Kill running agent and delete configuration
 router.delete('/:id', async (req, res) => {
   try {
-    const agents = await loadAgents()
-    const filteredAgents = agents.filter((a) => a.id !== req.params.id)
+    // Kill running agent process first
+    const processManager = ProcessManager.getInstance()
+    await processManager.killAgent(req.params.id)
 
-    if (agents.length === filteredAgents.length) {
-      return res.status(404).json({ error: 'Agent not found' })
-    }
+    console.log(`Agent ${req.params.id} killed`)
 
-    await saveAgents(filteredAgents)
-    res.json({ message: 'Agent deleted successfully' })
-  } catch {
+    await configService.deleteAgent(req.params.id)
+    res.json({ message: 'Agent killed and deleted successfully' })
+  } catch (error) {
+    console.error('Failed to delete agent:', error)
     res.status(500).json({ error: 'Failed to delete agent' })
   }
 })
@@ -166,36 +132,74 @@ router.delete('/:id', async (req, res) => {
 // POST /api/agents/:id/spawn - Spawn agent to project
 router.post('/:id/spawn', async (req, res) => {
   try {
-    const { projectId } = req.body
+    const { projectId, config } = req.body
 
     if (!projectId) {
       return res.status(400).json({ error: 'Project ID is required' })
     }
 
-    const agents = await loadAgents()
-    const agent = agents.find((a) => a.id === req.params.id)
-
+    const agent = await configService.getAgent(req.params.id)
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' })
     }
 
-    // TODO: Implement actual agent spawning with ProcessManager
-    // Integration point: Stage 8 - AgentSpawner
-    // const agentInstance = await AgentSpawner.spawn(agent, projectId);
-    // Integration point: Stage 2 - ProcessManager
-    // const pid = await ProcessManager.createProcess(agentInstance);
-    // Integration point: Stage 3 - IPC
-    // await IPCServer.start(agentInstance.id);
+    // Spawn agent using ProcessManager
+    const processManager = ProcessManager.getInstance()
+    const agentConfig = {
+      role: config?.role || agent.role,
+      systemPrompt: config?.systemPrompt || agent.systemPrompt,
+      tools: config?.tools || agent.tools,
+      model: config?.model || agent.model,
+      maxTokens: config?.maxTokens || agent.maxTokens
+    }
 
-    // For now, just return success
+    await processManager.spawnAgent(req.params.id, projectId, agentConfig)
+
+    // Update project to include this agent
+    const project = await configService.getProject(projectId)
+    if (project && !project.activeAgents.includes(req.params.id)) {
+      await configService.updateProject(projectId, {
+        activeAgents: [...project.activeAgents, req.params.id]
+      })
+    }
+
+    console.log(`Agent ${req.params.id} spawned for project ${projectId}`)
+
     res.json({
       message: 'Agent spawned successfully',
       agentId: req.params.id,
       projectId,
       status: 'ready',
     })
-  } catch {
+  } catch (error) {
+    console.error('Failed to spawn agent:', error)
     res.status(500).json({ error: 'Failed to spawn agent' })
+  }
+})
+
+// PUT /api/agents/:id/status - Set agent status
+router.put('/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body
+
+    if (!status || !['online', 'offline'].includes(status)) {
+      return res.status(400).json({ error: 'Valid status is required (online, offline)' })
+    }
+
+    // Update agent status using ProcessManager
+    const processManager = ProcessManager.getInstance()
+    await processManager.setAgentStatus(req.params.id, status as 'online' | 'offline')
+
+    console.log(`Agent ${req.params.id} status updated to ${status}`)
+
+    res.json({
+      message: 'Agent status updated successfully',
+      agentId: req.params.id,
+      status,
+    })
+  } catch (error) {
+    console.error('Failed to update agent status:', error)
+    res.status(500).json({ error: 'Failed to update agent status' })
   }
 })
 

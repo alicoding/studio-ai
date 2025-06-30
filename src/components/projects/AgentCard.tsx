@@ -1,4 +1,4 @@
-import { Play, Pause, Trash2, X } from 'lucide-react'
+import { Play, Pause, Trash2, X, Sparkles, UserCog } from 'lucide-react'
 
 interface AgentInfo {
   id: string
@@ -17,6 +17,10 @@ interface AgentCardProps {
   onPause: () => void
   onClear: () => void
   onRemove: () => void
+  onConvert?: () => void
+  onReassignRole?: () => void
+  isLegacy?: boolean
+  hasConfig?: boolean
 }
 
 const statusColors = {
@@ -26,6 +30,16 @@ const statusColors = {
   offline: '#6b7280',
 }
 
+const roleDisplayNames: Record<string, string> = {
+  dev: 'Developer',
+  architect: 'Architect', 
+  ux: 'UX Designer',
+  tester: 'QA Engineer',
+  orchestrator: 'Orchestrator',
+  custom: 'Custom Role',
+  'Legacy Agent': 'Legacy Agent',
+}
+
 export function AgentCard({
   agent,
   isSelected,
@@ -33,6 +47,10 @@ export function AgentCard({
   onPause,
   onClear,
   onRemove,
+  onConvert,
+  onReassignRole,
+  isLegacy = false,
+  hasConfig = false,
 }: AgentCardProps) {
   const tokenPercentage = (agent.tokens / agent.maxTokens) * 100
 
@@ -55,7 +73,13 @@ export function AgentCard({
           ></span>
           <span className="text-foreground font-medium text-sm">{agent.name}</span>
         </div>
-        <span className="text-muted-foreground text-xs font-medium">{agent.role}</span>
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+          agent.role === 'Legacy Agent' 
+            ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' 
+            : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+        }`}>
+          {roleDisplayNames[agent.role] || agent.role}
+        </span>
       </div>
 
       <div className="space-y-2">
@@ -80,6 +104,30 @@ export function AgentCard({
       </div>
 
       <div className="flex items-center gap-1 mt-3 pt-3 border-t border-border">
+        {isLegacy && onConvert ? (
+          <button
+            className="p-2 text-purple-500 hover:text-purple-400 hover:bg-purple-500/10 rounded-md transition-all"
+            onClick={(e) => {
+              e.stopPropagation()
+              onConvert()
+            }}
+            title="Assign role configuration"
+          >
+            <Sparkles className="w-4 h-4" />
+          </button>
+        ) : null}
+        {hasConfig && onReassignRole && (
+          <button
+            className="p-2 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-md transition-all"
+            onClick={(e) => {
+              e.stopPropagation()
+              onReassignRole()
+            }}
+            title="Change role"
+          >
+            <UserCog className="w-4 h-4" />
+          </button>
+        )}
         {agent.status === 'offline' ? (
           <button
             className="p-2 text-muted-foreground hover:text-green-500 hover:bg-green-500/10 rounded-md transition-all"
