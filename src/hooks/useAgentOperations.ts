@@ -248,12 +248,17 @@ export function useAgentOperations() {
       }
 
       try {
-        // Kill the agent process if it exists
+        // Step 1: Kill the agent process if it exists
+        console.log(`Step 1: Killing agent process for ${agentId}`)
         await processManager.killAgent(agentId)
+        console.log(`Step 1 complete: Agent process killed`)
 
-        // Delete the Claude native session file
+        // Step 2: Delete the Claude native session file
         if (activeProjectId) {
           try {
+            console.log(
+              `Step 2: Deleting session file for agent ${agentId} in project ${activeProjectId}`
+            )
             const response = await fetch('/api/agents/session', {
               method: 'DELETE',
               headers: { 'Content-Type': 'application/json' },
@@ -266,18 +271,23 @@ export function useAgentOperations() {
             if (!response.ok) {
               console.warn('Failed to delete Claude session file:', await response.text())
             } else {
-              console.log(`Deleted session file for agent ${agentId}`)
+              const result = await response.json()
+              console.log(`Step 2 complete:`, result.message)
             }
           } catch (error) {
-            console.error('Error deleting session file:', error)
+            console.error('Error in step 2 (session file deletion):', error)
             // Continue with removal even if session file deletion fails
           }
+        } else {
+          console.log('Step 2 skipped: No active project ID')
         }
 
-        // Remove from Zustand store
+        // Step 3: Remove from Zustand store (UI state)
+        console.log(`Step 3: Removing agent from UI state`)
         removeAgent(agentId)
+        console.log(`Step 3 complete: Agent removed from UI`)
 
-        console.log(`Agent ${agentId} removed from team, process killed, and session deleted`)
+        console.log(`All steps complete: Agent ${agentId} fully removed`)
         return { success: true }
       } catch (error) {
         console.error(`Failed to remove agent ${agentId}:`, error)

@@ -114,7 +114,7 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-// DELETE /api/agents/:id - Kill running agent and delete configuration
+// DELETE /api/agents/:id - Kill running agent and delete configuration if exists
 router.delete('/:id', async (req, res) => {
   try {
     // Kill running agent process first
@@ -123,11 +123,24 @@ router.delete('/:id', async (req, res) => {
 
     console.log(`Agent ${req.params.id} killed`)
 
-    await configService.deleteAgent(req.params.id)
-    res.json({ message: 'Agent killed and deleted successfully' })
+    // Try to delete agent configuration if it exists
+    try {
+      const agent = await configService.getAgent(req.params.id)
+      if (agent) {
+        await configService.deleteAgent(req.params.id)
+        console.log(`Agent ${req.params.id} configuration deleted`)
+      } else {
+        console.log(`Agent ${req.params.id} has no configuration to delete (runtime agent)`)
+      }
+    } catch (configError) {
+      // It's OK if there's no configuration to delete
+      console.log(`No configuration found for agent ${req.params.id}:`, configError)
+    }
+
+    res.json({ message: 'Agent killed successfully' })
   } catch (error) {
-    console.error('Failed to delete agent:', error)
-    res.status(500).json({ error: 'Failed to delete agent' })
+    console.error('Failed to kill agent:', error)
+    res.status(500).json({ error: 'Failed to kill agent' })
   }
 })
 
