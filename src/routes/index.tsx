@@ -17,6 +17,7 @@ import { useProjectAgents } from '../hooks/useProjectAgents'
 import { useAgentRoles } from '../hooks/useAgentRoles'
 import { useClaudeMessages } from '../hooks/useClaudeMessages'
 import { useProcessManager } from '../hooks/useProcessManager'
+import { useWebSocket } from '../hooks/useWebSocket'
 
 import { SingleView } from '../components/projects/views/SingleView'
 import { SplitView } from '../components/projects/views/SplitView'
@@ -62,6 +63,9 @@ function ProjectsPage() {
 
   // Process management hook
   const processManager = useProcessManager()
+
+  // WebSocket connection
+  const { socket } = useWebSocket()
 
   // Zustand stores
   const {
@@ -119,6 +123,24 @@ function ProjectsPage() {
     }
     loadAgentConfigs()
   }, [])
+
+  // Listen for agent status updates via WebSocket
+  useEffect(() => {
+    if (!socket) return
+
+    const handleAgentStatusUpdate = (data: any) => {
+      console.log('Agent status update:', data)
+      if (data.agentId && data.status) {
+        updateAgentStatus(data.agentId, data.status)
+      }
+    }
+
+    socket.on('agent:status', handleAgentStatusUpdate)
+
+    return () => {
+      socket.off('agent:status', handleAgentStatusUpdate)
+    }
+  }, [socket, updateAgentStatus])
 
   const handleSendMessage = async (message: string) => {
     if (message.startsWith('@')) {

@@ -72,6 +72,19 @@ export class MessageRouter {
   public parseMentions(message: string): MentionMessage[] {
     const mentions: MentionMessage[] = []
     
+    // Check for @all first (broadcast to all agents)
+    if (message.startsWith('@all ')) {
+      const content = message.substring(5).trim()
+      // Return special mention for broadcast
+      mentions.push({
+        targetAgent: 'all',
+        content: content,
+        projectId: '',
+        from: { agentId: '', role: '' }
+      })
+      return mentions
+    }
+    
     // Regex to match @agentId followed by content
     const mentionRegex = /@(\w+)\s+([^@]+?)(?=@\w+|$)/g
     
@@ -113,6 +126,12 @@ export class MessageRouter {
     fromAgentId: string,
     projectId: string
   ): Promise<boolean> {
+    // Handle @all broadcast
+    if (mention.targetAgent === 'all') {
+      const result = await this.broadcastToProject(mention.content, fromAgentId, projectId)
+      return result.success.length > 0
+    }
+    
     // Check if target agent exists and is reachable
     const targetAgent = this.registry.get(mention.targetAgent)
     

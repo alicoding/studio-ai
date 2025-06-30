@@ -1,15 +1,12 @@
 import { format, formatDistanceToNow } from 'date-fns'
 import { cn } from '../../lib/utils'
-import { ChevronDown, ChevronRight, Copy, Check, RefreshCw, Trash2, Terminal, FileJson, AlertCircle } from 'lucide-react'
-import { useState, useCallback } from 'react'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { RefreshCw, Trash2, Terminal } from 'lucide-react'
+import { useState } from 'react'
 import { Button } from '../ui/button'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
 import { Badge } from '../ui/badge'
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
 import { CommandMessage } from './CommandMessage'
+import { MarkdownContent, CompactSummaryBlock } from './content-blocks'
+import { renderContentItem } from './content-blocks/ContentTypeRegistry'
 
 interface MessageContent {
   type: string
@@ -34,140 +31,10 @@ interface EnhancedMessageBubbleProps {
     cache_read_input_tokens?: number
   }
   isMeta?: boolean
+  isCompactSummary?: boolean
   rawData?: any
   onRetry?: () => void
   onDelete?: () => void
-}
-
-
-function detectLanguage(code: string): string {
-  // Simple language detection based on content
-  if (code.includes('function') || code.includes('const ') || code.includes('let ')) return 'javascript'
-  if (code.includes('def ') || code.includes('import ') || code.includes('print(')) return 'python'
-  if (code.includes('interface ') || code.includes('type ') || code.includes(': string')) return 'typescript'
-  if (code.includes('<div') || code.includes('<span') || code.includes('</')) return 'html'
-  if (code.includes('{') && code.includes('}') && code.includes(':')) return 'json'
-  if (code.includes('SELECT') || code.includes('FROM') || code.includes('WHERE')) return 'sql'
-  return 'text'
-}
-
-function CodeBlock({ code, language }: { code: string; language?: string }) {
-  const [copied, setCopied] = useState(false)
-  const detectedLang = language || detectLanguage(code)
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(code)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }, [code])
-
-  return (
-    <div className="relative group my-2">
-      <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={handleCopy}
-          className="h-7 px-2"
-        >
-          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-        </Button>
-      </div>
-      <SyntaxHighlighter
-        language={detectedLang}
-        style={oneDark}
-        className="rounded-md !bg-secondary"
-        customStyle={{
-          margin: 0,
-          fontSize: '0.875rem',
-        }}
-      >
-        {code}
-      </SyntaxHighlighter>
-    </div>
-  )
-}
-
-function ToolUseBlock({ name, input }: { name: string; input: unknown }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const inputStr = typeof input === 'string' ? input : JSON.stringify(input, null, 2)
-  const isLarge = inputStr.length > 200
-
-  return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className="my-2 p-3 bg-secondary/50 rounded-md border border-border">
-        <CollapsibleTrigger className="flex items-center gap-2 w-full text-left hover:opacity-80">
-          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          <Terminal className="h-4 w-4 text-blue-500" />
-          <span className="font-medium text-sm">Tool: {name}</span>
-          {isLarge && !isOpen && (
-            <span className="text-xs text-muted-foreground ml-auto">Click to expand</span>
-          )}
-        </CollapsibleTrigger>
-        <CollapsibleContent className="overflow-hidden">
-          <div className="mt-2 overflow-auto max-h-[400px]">
-            <CodeBlock code={inputStr} language="json" />
-          </div>
-        </CollapsibleContent>
-      </div>
-    </Collapsible>
-  )
-}
-
-function ToolResultBlock({ content }: { content: string | object }) {
-  const [isOpen, setIsOpen] = useState(true)
-  const contentStr = typeof content === 'string' ? content : JSON.stringify(content, null, 2)
-  const isLarge = contentStr.length > 500
-
-  return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <div className="my-2 p-3 bg-green-500/10 rounded-md border border-green-500/20">
-        <CollapsibleTrigger className="flex items-center gap-2 w-full text-left hover:opacity-80">
-          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          <FileJson className="h-4 w-4 text-green-500" />
-          <span className="font-medium text-sm text-green-700 dark:text-green-400">Tool Result</span>
-          {isLarge && !isOpen && (
-            <span className="text-xs text-muted-foreground ml-auto">Click to expand</span>
-          )}
-        </CollapsibleTrigger>
-        <CollapsibleContent className="overflow-hidden">
-          <div className="mt-2 overflow-auto max-h-[400px]">
-            {typeof content === 'string' ? (
-              <pre className="text-sm whitespace-pre-wrap break-words">{content}</pre>
-            ) : (
-              <CodeBlock code={contentStr} language="json" />
-            )}
-          </div>
-        </CollapsibleContent>
-      </div>
-    </Collapsible>
-  )
-}
-
-// Configure marked to preserve breaks
-marked.setOptions({
-  breaks: true,
-  gfm: true,
-  pedantic: false,
-})
-
-function MarkdownContent({ content }: { content: string }) {
-  // Process content to preserve multiple newlines
-  const processedContent = content
-    .replace(/\n\n+/g, (match) => {
-      // Replace multiple newlines with HTML breaks
-      return '\n\n' + '<br/>'.repeat(match.length - 2)
-    })
-  
-  const html = marked.parse(processedContent) as string
-  const cleanHtml = DOMPurify.sanitize(html)
-  
-  return (
-    <div 
-      className="prose prose-sm dark:prose-invert max-w-none [&_p]:whitespace-pre-line"
-      dangerouslySetInnerHTML={{ __html: cleanHtml }}
-    />
-  )
 }
 
 
@@ -222,36 +89,7 @@ function renderContent(content: string | MessageContent[], role: string) {
   if (Array.isArray(content)) {
     return (
       <div className="space-y-2">
-        {content.map((item, index) => {
-          if (item.type === 'text' && item.text) {
-            return (
-              <div key={index} className="text-sm text-foreground break-words">
-                <MarkdownContent content={item.text} />
-              </div>
-            )
-          }
-          
-          if (item.type === 'tool_use' && item.name) {
-            return <ToolUseBlock key={index} name={item.name} input={item.input} />
-          }
-          
-          if (item.type === 'tool_result' && item.content) {
-            return <ToolResultBlock key={index} content={item.content} />
-          }
-          
-          // Handle unknown content types gracefully
-          return (
-            <div key={index} className="my-2 p-3 bg-yellow-500/10 rounded-md border border-yellow-500/20">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-yellow-500" />
-                <span className="text-sm font-medium">Unknown content type: {item.type}</span>
-              </div>
-              <pre className="mt-2 text-xs overflow-x-auto">
-                {JSON.stringify(item, null, 2)}
-              </pre>
-            </div>
-          )
-        })}
+        {content.map((item, index) => renderContentItem(item, index))}
       </div>
     )
   }
@@ -272,10 +110,10 @@ export function EnhancedMessageBubble({
   model,
   usage,
   isMeta,
+  isCompactSummary,
   onRetry,
   onDelete,
 }: EnhancedMessageBubbleProps) {
-  const [showTimestamp, setShowTimestamp] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const formattedTime = timestamp ? format(new Date(timestamp), 'PPpp') : null
@@ -289,6 +127,11 @@ export function EnhancedMessageBubble({
       setConfirmDelete(true)
       setTimeout(() => setConfirmDelete(false), 3000)
     }
+  }
+
+  // Handle compact summary messages
+  if (isCompactSummary) {
+    return <CompactSummaryBlock content={typeof content === 'string' ? content : JSON.stringify(content)} timestamp={timestamp} />
   }
 
   // Handle system messages and other message types
@@ -313,11 +156,9 @@ export function EnhancedMessageBubble({
   return (
     <div
       className={cn(
-        "flex gap-3 py-4 px-4 group hover:bg-secondary/20 transition-colors",
+        "flex gap-3 py-4 px-4 group",
         role === 'assistant' && "bg-secondary/30"
       )}
-      onMouseEnter={() => setShowTimestamp(true)}
-      onMouseLeave={() => setShowTimestamp(false)}
     >
       <div className="flex-shrink-0">
         <div className={cn(
@@ -353,11 +194,11 @@ export function EnhancedMessageBubble({
               className="text-xs text-muted-foreground cursor-help"
               title={formattedTime || undefined}
             >
-              {showTimestamp && formattedTime ? formattedTime : relativeTime}
+              {relativeTime}
             </span>
           )}
           
-          <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+          <div className="ml-auto opacity-0 group-hover:opacity-100 flex gap-1">
             {role === 'assistant' && onRetry && (
               <Button
                 size="sm"

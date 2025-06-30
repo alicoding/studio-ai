@@ -20,7 +20,6 @@ import { setupWebSocket } from './websocket.js'
 
 // Import process management
 import { ProcessManager } from '../../lib/process/ProcessManager.js'
-import { ProcessRegistry } from '../../lib/process/ProcessRegistry.js'
 import { ProcessCleaner } from '../../lib/process/ProcessCleaner.js'
 
 // Load environment variables

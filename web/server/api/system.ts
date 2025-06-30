@@ -9,14 +9,12 @@
 
 import { Router } from 'express'
 import { ProcessManager } from '../../../lib/process/ProcessManager.js'
-import { ProcessRegistry } from '../../../lib/process/ProcessRegistry.js'
 import { ProcessCleaner } from '../../../lib/process/ProcessCleaner.js'
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import { access, readdir } from 'fs/promises'
+import { access } from 'fs/promises'
 import { constants } from 'fs'
 import * as os from 'os'
-import * as path from 'path'
 
 const router = Router()
 const execAsync = promisify(exec)

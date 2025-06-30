@@ -71,6 +71,24 @@ router.post('/mention', async (req, res) => {
     
     console.log(`Mention routed from ${fromAgentId} to ${result.targets.length} agents`)
     
+    // Get socket.io instance to emit to UI
+    const io = req.app.get('io')
+    
+    // For each target agent, send the mention through their session
+    for (const targetAgentId of result.targets) {
+      // Emit mention to UI for the target agent
+      io.emit('agent:mention-received', {
+        targetAgentId,
+        fromAgentId,
+        message,
+        projectId,
+        timestamp: new Date().toISOString()
+      })
+      
+      // TODO: In the future, we could also send through Claude API
+      // For now, just notify the UI to handle it
+    }
+    
     res.json({
       message: 'Mention routed successfully',
       fromAgentId,
@@ -91,6 +109,36 @@ router.delete('/sessions/:sessionId', (req, res) => {
   } catch (error) {
     console.error('Error removing session:', error)
     res.status(500).json({ error: 'Failed to remove session' })
+  }
+})
+
+// POST /api/messages/system - Send a system message to the chat
+router.post('/system', async (req, res) => {
+  try {
+    const { sessionId, content, type = 'system' } = req.body
+
+    if (!sessionId || !content) {
+      return res.status(400).json({ error: 'SessionId and content are required' })
+    }
+
+    // Get socket.io instance to emit messages
+    const io = req.app.get('io')
+
+    // Emit system message to chat
+    io.emit('message:new', {
+      sessionId: sessionId,
+      message: {
+        role: 'system',
+        content: content,
+        timestamp: new Date().toISOString(),
+        type: type
+      }
+    })
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Error sending system message:', error)
+    res.status(500).json({ error: 'Failed to send system message' })
   }
 })
 

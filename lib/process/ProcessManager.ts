@@ -8,6 +8,7 @@
 
 import { spawn, ChildProcess } from 'child_process'
 import { ProcessRegistry } from './ProcessRegistry.js'
+import { IPCClient } from '../ipc/IPCClient.js'
 import { 
   AgentProcess, 
   AgentConfig, 
@@ -17,10 +18,12 @@ import {
 export class ProcessManager {
   private static instance: ProcessManager | null = null
   private registry: ProcessRegistry
+  private ipcClient: IPCClient
   private activeProcesses: Map<string, ChildProcess> = new Map()
 
   private constructor() {
     this.registry = ProcessRegistry.getInstance()
+    this.ipcClient = new IPCClient()
   }
 
   /**
@@ -297,6 +300,13 @@ export class ProcessManager {
   }
 
 
+
+  /**
+   * Get IPC client for inter-agent communication
+   */
+  public getIPCClient(): IPCClient {
+    return this.ipcClient
+  }
 
   /**
    * Get process manager statistics

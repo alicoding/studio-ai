@@ -1,4 +1,4 @@
-import { Terminal, FileText, Settings, HelpCircle, Hash } from 'lucide-react'
+import { Terminal, FileText, Settings, HelpCircle, Hash, Users } from 'lucide-react'
 
 interface Command {
   name: string
@@ -29,6 +29,18 @@ const SLASH_COMMANDS: Command[] = [
 ]
 
 const HASH_COMMANDS: Command[] = [
+  {
+    name: '#team',
+    description: 'Show all agents in this project (who you can @mention)',
+    icon: Users,
+    usage: '#team'
+  },
+  {
+    name: '#broadcast',
+    description: 'Send message to all agents in the project',
+    icon: Users,
+    usage: '#broadcast [message]'
+  },
   {
     name: '#help',
     description: 'Show help information',

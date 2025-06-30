@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import { ProcessManager } from '../../../lib/process/ProcessManager.js'
-import { ProcessRegistry } from '../../../lib/process/ProcessRegistry.js'
 import { ConfigService } from '../../../src/services/ConfigService.js'
 
 const router = Router()

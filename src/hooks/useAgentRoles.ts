@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useAgentStore } from '../stores'
 
 interface AgentRoleAssignment {
@@ -53,7 +53,7 @@ export function useAgentRoles() {
   }
 
   // Load all role assignments
-  const loadAssignments = async (agentIds: string[]) => {
+  const loadAssignments = useCallback(async (agentIds: string[]) => {
     setLoading(true)
     const assignments: Record<string, AgentRoleAssignment> = {}
 
@@ -75,7 +75,7 @@ export function useAgentRoles() {
 
     setRoleAssignments(assignments)
     setLoading(false)
-  }
+  }, [])
 
   return {
     roleAssignments,

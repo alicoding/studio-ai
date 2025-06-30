@@ -30,6 +30,7 @@ interface Message {
     cache_read_input_tokens?: number
   }
   isMeta?: boolean
+  isCompactSummary?: boolean
   messageId?: string
   rawData?: any // For debugging purposes
 }
@@ -52,7 +53,6 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
   const cursorRef = useRef<string | null>(null)
   const listRef = useRef<List>(null)
   const itemHeights = useRef<{ [key: number]: number }>({})
-  const scrollToBottomOnNextUpdate = useRef(false)
   const hasUserScrolled = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerHeight, setContainerHeight] = useState(600)
@@ -79,7 +79,6 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
     setHasMore(true)
     cursorRef.current = null
     itemHeights.current = {}
-    scrollToBottomOnNextUpdate.current = true
     hasUserScrolled.current = false
     setError(null)
   }, [sessionId])
@@ -119,13 +118,16 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
       // Only handle messages for our session
       if (data.sessionId === sessionId) {
         const newMessage: Message = {
-          id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: data.message.id || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           role: data.message.role,
           content: data.message.content,
           timestamp: data.message.timestamp || new Date().toISOString(),
           model: data.message.model,
           agentName: data.message.role === 'assistant' ? agentName : undefined,
           isMeta: data.message.isMeta || false,
+          isCompactSummary: data.message.isCompactSummary || false,
+          usage: data.message.usage,
+          rawData: data.message
         }
         
         // Check if this is a compact command output
@@ -140,7 +142,6 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
         
         // Append to messages (including system messages)
         setMessages(prev => [...prev, newMessage])
-        scrollToBottomOnNextUpdate.current = true
       }
     }
 
@@ -179,7 +180,10 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
       })
       
       // Don't filter - show all messages including system messages
-      const newMessages = data.messages || []
+      const newMessages = (data.messages || []).map((msg: any) => ({
+        ...msg,
+        isCompactSummary: msg.isCompactSummary || false
+      }))
       
       if (newMessages.length > 0) {
         if (cursorRef.current) {
@@ -194,7 +198,6 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
         } else {
           // Initial load
           setMessages(newMessages)
-          scrollToBottomOnNextUpdate.current = true
         }
       } else {
         // No more messages
@@ -218,17 +221,16 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
     }
   }, [sessionId, projectId, messages.length, loadMoreMessages])
 
-  // Scroll to bottom after initial load
+  // Always scroll to bottom when messages change
   useEffect(() => {
-    if (scrollToBottomOnNextUpdate.current && messages.length > 0 && listRef.current) {
-      scrollToBottomOnNextUpdate.current = false
-      // Wait for next frame to ensure sizes are calculated
-      requestAnimationFrame(() => {
+    if (messages.length > 0 && listRef.current) {
+      // Small delay to ensure sizes are calculated
+      setTimeout(() => {
         if (listRef.current) {
           console.log('📍 Scrolling to bottom')
           listRef.current.scrollToItem(messages.length - 1, 'end')
         }
-      })
+      }, 100)
     }
   }, [messages])
 
@@ -264,21 +266,30 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
     useEffect(() => {
       if (!measureRef.current) return
 
-      const resizeObserver = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const height = entry.contentRect.height
-          if (height > 0 && height !== getItemSize(index)) {
-            setItemSize(index, height)
+      // Delay ResizeObserver setup to avoid interfering with initial render
+      const timer = setTimeout(() => {
+        if (!measureRef.current) return
+        
+        const resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const height = entry.contentRect.height
+            if (height > 0 && Math.abs(height - getItemSize(index)) > 5) {
+              setItemSize(index, height)
+            }
           }
-        }
-      })
+        })
 
-      resizeObserver.observe(measureRef.current)
+        resizeObserver.observe(measureRef.current)
+
+        return () => {
+          resizeObserver.disconnect()
+        }
+      }, 50)
 
       return () => {
-        resizeObserver.disconnect()
+        clearTimeout(timer)
       }
-    }, [index])
+    }, [index, getItemSize, setItemSize])
 
     if (!message) {
       // Loading indicator at the top
@@ -319,6 +330,7 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
           model={message.model}
           usage={message.usage}
           isMeta={message.isMeta}
+          isCompactSummary={message.isCompactSummary}
           rawData={message.rawData}
         />
       </div>
@@ -354,7 +366,7 @@ export function MessageHistoryViewer({ sessionId, projectId, agentName }: Messag
         width="100%"
         className="scrollbar-thin scrollbar-thumb-secondary"
         style={{ overflow: 'auto' }}
-        overscanCount={3}
+        overscanCount={5}
         initialScrollOffset={0}
       >
         {Row}
