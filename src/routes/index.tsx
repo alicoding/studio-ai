@@ -62,6 +62,7 @@ function ProjectsPage() {
     configs, // Updated from availableConfigs
     addAgentConfig,
     setAgentConfigs,
+    setAgents, // Add setAgents to sync from hook
     getProjectAgents: getStoreProjectAgents, // Use store getter instead of hook
   } = useAgentStore()
 
@@ -70,6 +71,16 @@ function ProjectsPage() {
 
   // WebSocket operations (handles event registration)
   useWebSocketOperations()
+
+  // Sync projectAgents from hook into Zustand store
+  useEffect(() => {
+    if (projectAgents.length > 0) {
+      setAgents(projectAgents)
+    } else if (projectAgents.length === 0 && !loadingAgents) {
+      // Clear agents when no agents found (not loading)
+      setAgents([])
+    }
+  }, [projectAgents, loadingAgents, setAgents])
 
   // Get agents from Zustand store instead of useProjectAgents hook
   const storeAgents = getStoreProjectAgents(activeProjectId || '')
