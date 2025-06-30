@@ -2,23 +2,11 @@ import { AgentCard } from '../projects/AgentCard'
 import { Button } from '../ui/button'
 import { Separator } from '../ui/separator'
 import { UserPlus, Bot, Users } from 'lucide-react'
-
-interface Agent {
-  id: string
-  name: string
-  role: string
-  status: 'ready' | 'online' | 'busy' | 'offline'
-  tokens: number
-  maxTokens: number
-  lastMessage?: string
-}
+import { useAgentStore, useProjectStore } from '../../stores'
 
 interface SidebarProps {
-  agents: Agent[]
-  selectedAgentId: string | null
   isCollapsed: boolean
   isLoading?: boolean
-  onAgentSelect: (agentId: string) => void
   onAgentPause: (agentId: string) => void
   onAgentClear: (agentId: string) => void
   onAgentRemove: (agentId: string) => void
@@ -27,15 +15,11 @@ interface SidebarProps {
   onAddAgent: () => void
   onCreateAgent: () => void
   onLoadTeam: () => void
-  availableConfigs?: unknown[] // TODO Phase 2: Remove prop drilling, use useAgentStore getConfig directly
 }
 
 export function Sidebar({
-  agents,
-  selectedAgentId,
   isCollapsed,
   isLoading = false,
-  onAgentSelect,
   onAgentPause,
   onAgentClear,
   onAgentRemove,
@@ -44,8 +28,18 @@ export function Sidebar({
   onAddAgent,
   onCreateAgent,
   onLoadTeam,
-  availableConfigs = [],
 }: SidebarProps) {
+  // Get data directly from Zustand stores
+  const { selectedAgentId, configs, setSelectedAgent, getProjectAgents } = useAgentStore()
+  const { activeProjectId } = useProjectStore()
+
+  // Get agents for the active project
+  const agents = getProjectAgents(activeProjectId || '')
+
+  // Handler for agent selection
+  const onAgentSelect = (agentId: string) => {
+    setSelectedAgent(agentId)
+  }
   return (
     <aside
       className={`flex flex-col bg-card border-r transition-all duration-200 ${
@@ -73,7 +67,7 @@ export function Sidebar({
           </div>
         ) : (
           agents.map((agent) => {
-            const hasConfig = availableConfigs.some((config) => config.id === agent.id)
+            const hasConfig = configs.some((config) => config.id === agent.id)
             return (
               <AgentCard
                 key={agent.id}

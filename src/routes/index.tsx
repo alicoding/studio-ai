@@ -42,7 +42,7 @@ function ProjectsPage() {
   // DRY: Use shared hook for fetching projects
   const { projects } = useProjects()
 
-  // Get project-specific agents
+  // TODO Phase 3: Remove useProjectAgents hook completely, move server fetching to store
   const { agents: projectAgents, loading: loadingAgents } = useProjectAgents()
 
   // Agent roles hook
@@ -56,37 +56,40 @@ function ProjectsPage() {
   const modalOps = useModalOperations()
   const layout = useWorkspaceLayout()
 
+  // Zustand stores
+  const {
+    selectedAgentId,
+    configs, // Updated from availableConfigs
+    addAgentConfig,
+    setAgentConfigs,
+    getProjectAgents: getStoreProjectAgents, // Use store getter instead of hook
+  } = useAgentStore()
+
+  const { activeProjectId, messageQueue, setActiveProject, clearQueue, getOpenProjects } =
+    useProjectStore()
+
   // WebSocket operations (handles event registration)
   useWebSocketOperations()
 
-  // Load role assignments when agents change
+  // Get agents from Zustand store instead of useProjectAgents hook
+  const storeAgents = getStoreProjectAgents(activeProjectId || '')
+
+  // Load role assignments when store agents change
   useEffect(() => {
-    if (projectAgents.length > 0) {
-      const agentIds = projectAgents.map((a) => a.id)
+    if (storeAgents.length > 0) {
+      const agentIds = storeAgents.map((a) => a.id)
       loadAssignments(agentIds)
     }
-  }, [projectAgents, loadAssignments])
+  }, [storeAgents, loadAssignments])
 
-  // Merge agents with their role assignments
-  const agentsWithRoles = projectAgents.map((agent) => {
+  // Merge store agents with their role assignments
+  const agentsWithRoles = storeAgents.map((agent) => {
     const roleConfig = getAgentRole(agent.id)
     return {
       ...agent,
       role: roleConfig?.role || agent.role,
     }
   })
-
-  // Zustand stores
-  const {
-    selectedAgentId,
-    configs, // Updated from availableConfigs
-    setSelectedAgent,
-    addAgentConfig,
-    setAgentConfigs,
-  } = useAgentStore()
-
-  const { activeProjectId, messageQueue, setActiveProject, clearQueue, getOpenProjects } =
-    useProjectStore()
 
   // Get only the open projects for workspace tabs
   const openProjects = getOpenProjects()
@@ -233,12 +236,8 @@ function ProjectsPage() {
       ) : (
         <div className="flex h-[calc(100vh-90px)]">
           <Sidebar
-            agents={agentsWithRoles}
-            selectedAgentId={selectedAgentId}
             isCollapsed={layout.sidebarCollapsed}
             isLoading={loadingAgents}
-            availableConfigs={configs} // TODO: Remove prop drilling in Phase 2
-            onAgentSelect={setSelectedAgent}
             onAgentPause={handleAgentPause}
             onAgentClear={handleAgentClear}
             onAgentRemove={handleAgentRemove}
@@ -271,8 +270,8 @@ function ProjectsPage() {
               ) : (
                 <div className="flex-1 flex overflow-hidden">
                   {layout.isSingleView && <SingleView selectedAgentId={selectedAgentId} />}
-                  {layout.isSplitView && <SplitView agents={projectAgents} />}
-                  {layout.isGridView && <GridView agents={projectAgents} />}
+                  {layout.isSplitView && <SplitView />}
+                  {layout.isGridView && <GridView />}
                 </div>
               )}
             </div>
@@ -282,7 +281,6 @@ function ProjectsPage() {
                 <MessageQueue items={messageQueue} onClear={clearQueue} />
 
                 <ChatPanel
-                  agents={projectAgents}
                   onSendMessage={handleSendMessage}
                   onBroadcast={handleBroadcast}
                   onInterrupt={handleInterrupt}

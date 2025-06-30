@@ -1,21 +1,20 @@
 import { useState, useRef } from 'react'
 import TextareaAutosize from 'react-textarea-autosize'
 import { CommandSuggestions } from './CommandSuggestions'
-
-interface Agent {
-  id: string
-  role: string
-  status: 'ready' | 'online' | 'busy' | 'offline'
-}
+import { useAgentStore, useProjectStore } from '../../stores'
 
 interface ChatPanelProps {
-  agents: Agent[]
   onSendMessage: (message: string) => void | Promise<void>
   onBroadcast: () => void
   onInterrupt: () => void
 }
 
-export function ChatPanel({ agents, onSendMessage, onBroadcast, onInterrupt }: ChatPanelProps) {
+export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanelProps) {
+  // Get agents from Zustand store
+  const { getProjectAgents } = useAgentStore()
+  const { activeProjectId } = useProjectStore()
+
+  const agents = getProjectAgents(activeProjectId || '')
   const [message, setMessage] = useState('')
   const [showMentions, setShowMentions] = useState(false)
   const [mentionFilter, setMentionFilter] = useState('')
@@ -28,13 +27,13 @@ export function ChatPanel({ agents, onSendMessage, onBroadcast, onInterrupt }: C
     setMessage(value)
 
     const lastWord = value.split(' ').pop() || ''
-    
+
     // Check for mentions
     if (lastWord.startsWith('@') && lastWord.length > 1) {
       setMentionFilter(lastWord.substring(1).toLowerCase())
       setShowMentions(true)
       setShowCommands(null)
-    } 
+    }
     // Check for slash commands
     else if (lastWord.startsWith('/') && lastWord.length >= 1) {
       setCommandFilter(lastWord.substring(1).toLowerCase())
@@ -46,8 +45,7 @@ export function ChatPanel({ agents, onSendMessage, onBroadcast, onInterrupt }: C
       setCommandFilter(lastWord.substring(1).toLowerCase())
       setShowCommands('hash')
       setShowMentions(false)
-    }
-    else {
+    } else {
       setShowMentions(false)
       setShowCommands(null)
     }
@@ -109,7 +107,9 @@ export function ChatPanel({ agents, onSendMessage, onBroadcast, onInterrupt }: C
           maxRows={8}
         />
         <div className="flex items-center justify-between mt-2">
-          <span className="text-xs text-muted-foreground">ESC to interrupt • Enter to send • Shift+Enter for new line</span>
+          <span className="text-xs text-muted-foreground">
+            ESC to interrupt • Enter to send • Shift+Enter for new line
+          </span>
           <button
             className="text-xs px-3 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
             onClick={onBroadcast}
@@ -120,11 +120,7 @@ export function ChatPanel({ agents, onSendMessage, onBroadcast, onInterrupt }: C
       </div>
 
       {showCommands && (
-        <CommandSuggestions
-          filter={commandFilter}
-          onSelect={completeCommand}
-          type={showCommands}
-        />
+        <CommandSuggestions filter={commandFilter} onSelect={completeCommand} type={showCommands} />
       )}
 
       {showMentions && (

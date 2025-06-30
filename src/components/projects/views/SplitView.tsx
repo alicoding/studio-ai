@@ -1,19 +1,19 @@
 import { useState } from 'react'
 import { MessageHistoryViewer } from '../../messages/MessageHistoryViewer'
-import { useProjectStore } from '../../../stores/projects'
-import type { Agent } from '../../../stores/agents'
+import { useProjectStore, useAgentStore } from '../../../stores'
 
-interface SplitViewProps {
-  agents: Agent[]
-}
+interface SplitViewProps {}
 
-export function SplitView({ agents }: SplitViewProps) {
+export function SplitView({}: SplitViewProps) {
+  const { activeProjectId } = useProjectStore()
+  const { getProjectAgents } = useAgentStore()
+
+  // Get agents from Zustand store
+  const agents = getProjectAgents(activeProjectId || '')
   const [selectedAgents, setSelectedAgents] = useState<[string | null, string | null]>([
     agents[0]?.id || null,
     agents[1]?.id || null,
   ])
-  
-  const { activeProjectId } = useProjectStore()
 
   const selectAgent = (index: 0 | 1, agentId: string) => {
     const newSelection: [string | null, string | null] = [...selectedAgents]
@@ -25,8 +25,8 @@ export function SplitView({ agents }: SplitViewProps) {
     <div className="flex-1 flex gap-2 p-2 h-full">
       {[0, 1].map((index) => {
         const agentId = selectedAgents[index as 0 | 1]
-        const selectedAgent = agents.find(a => a.id === agentId)
-        
+        const selectedAgent = agents.find((a) => a.id === agentId)
+
         return (
           <div
             key={index}
@@ -48,8 +48,8 @@ export function SplitView({ agents }: SplitViewProps) {
             </div>
             {selectedAgent && activeProjectId ? (
               <div className="flex-1 overflow-hidden">
-                <MessageHistoryViewer 
-                  sessionId={selectedAgent.sessionId || selectedAgent.id} 
+                <MessageHistoryViewer
+                  sessionId={selectedAgent.sessionId || selectedAgent.id}
                   projectId={activeProjectId}
                   agentName={selectedAgent.name}
                 />
