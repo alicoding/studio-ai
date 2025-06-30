@@ -149,7 +149,23 @@ function ProjectsPage() {
   }
 
   const handleAgentClear = async (agentId: string) => {
-    const result = await agentOps.clearAgentSession(agentId)
+    // Find agent info for better prompt
+    const agent = storeAgents.find((a) => a.id === agentId)
+    const agentName = agent?.name || `Agent ${agentId.slice(0, 8)}`
+
+    // Prompt user for custom initialization message
+    const customPrompt = prompt(
+      `Enter initialization prompt for ${agentName} (or leave empty for default):`,
+      ''
+    )
+
+    // If user cancels, don't proceed
+    if (customPrompt === null) {
+      return
+    }
+
+    const result = await agentOps.clearAgentSession(agentId, customPrompt.trim() || undefined)
+
     if (result.success) {
       toast.success(
         `Session cleared${result.newSessionId ? ` - New session: ${result.newSessionId.slice(0, 8)}...` : ''}`
@@ -194,16 +210,24 @@ function ProjectsPage() {
 
   // Role operations
   const handleAgentConvert = async (agentId: string) => {
-    const agent = agentsWithRoles.find((a) => a.id === agentId)
+    // Use Zustand getter for more reliable agent lookup
+    const agent = getStoreProjectAgents(activeProjectId || '').find((a) => a.id === agentId)
     if (agent) {
+      console.log('Starting agent conversion for:', agent)
       roleOps.startAgentConversion(agent)
+    } else {
+      console.error('Agent not found for conversion:', agentId)
     }
   }
 
   const handleReassignRole = async (agentId: string) => {
-    const agent = agentsWithRoles.find((a) => a.id === agentId)
+    // Use Zustand getter for more reliable agent lookup
+    const agent = getStoreProjectAgents(activeProjectId || '').find((a) => a.id === agentId)
     if (agent) {
+      console.log('Starting role reassignment for:', agent)
       roleOps.startRoleReassignment(agent)
+    } else {
+      console.error('Agent not found for role reassignment:', agentId)
     }
   }
 

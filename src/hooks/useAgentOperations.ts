@@ -22,7 +22,14 @@ export function useAgentOperations() {
   const processManager = useProcessManager()
   const { sendMessage: sendClaudeMessage } = useClaudeMessages()
 
-  const { updateAgentStatus, updateAgentSessionId, removeAgent, getConfig } = useAgentStore()
+  const {
+    updateAgentStatus,
+    updateAgentSessionId,
+    updateAgentTokens,
+    updateAgentMessage,
+    removeAgent,
+    getConfig,
+  } = useAgentStore()
 
   const { activeProjectId, projects } = useProjectStore()
 
@@ -103,7 +110,10 @@ export function useAgentOperations() {
    * This replicates the /clear command functionality
    */
   const clearAgentSession = useCallback(
-    async (agentId: string): Promise<AgentOperationResult & { newSessionId?: string }> => {
+    async (
+      agentId: string,
+      customPrompt?: string
+    ): Promise<AgentOperationResult & { newSessionId?: string }> => {
       console.log('Clearing agent session (starting fresh session):', agentId)
 
       try {
@@ -125,7 +135,9 @@ export function useAgentOperations() {
         const agentRole = agentConfig?.role || 'dev'
 
         // Step 4: Start fresh session with initialization message
-        const initMessage = `You are ${agentName}, a ${agentRole} agent. Please stand by for instructions.`
+        const initMessage =
+          customPrompt ||
+          `You are ${agentName}, a ${agentRole} agent. Please stand by for instructions.`
 
         console.log('Starting new session with message:', initMessage)
         const result = await sendClaudeMessage(initMessage, {
@@ -139,7 +151,11 @@ export function useAgentOperations() {
           updateAgentSessionId(agentId, result.sessionId)
           console.log('New session started:', result.sessionId)
 
-          // Step 6: Emit event to clear message history in UI
+          // Step 6: Reset agent state for fresh session
+          updateAgentTokens(agentId, 0) // Reset tokens to 0 for fresh session
+          updateAgentMessage(agentId, 'Session cleared - fresh start') // Update last message
+
+          // Step 7: Emit event to clear message history in UI
           window.dispatchEvent(
             new CustomEvent('agent-session-cleared', {
               detail: {
@@ -147,6 +163,17 @@ export function useAgentOperations() {
                 oldSessionId: '', // We cleared it already
                 newSessionId: result.sessionId,
                 projectPath: activeProject.path,
+              },
+            })
+          )
+
+          // Step 8: Emit event to refresh agents from server
+          window.dispatchEvent(
+            new CustomEvent('session-compacted', {
+              detail: {
+                agentId,
+                sessionId: result.sessionId,
+                reason: 'session-cleared',
               },
             })
           )
@@ -169,7 +196,15 @@ export function useAgentOperations() {
         }
       }
     },
-    [activeProjectId, getConfig, projects, sendClaudeMessage, updateAgentSessionId]
+    [
+      activeProjectId,
+      getConfig,
+      projects,
+      sendClaudeMessage,
+      updateAgentSessionId,
+      updateAgentTokens,
+      updateAgentMessage,
+    ]
   )
 
   /**
