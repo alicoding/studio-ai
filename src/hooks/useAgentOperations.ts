@@ -134,10 +134,20 @@ export function useAgentOperations() {
         const agentName = agentConfig?.name || `Agent ${agentId.slice(0, 8)}`
         const agentRole = agentConfig?.role || 'dev'
 
-        // Step 4: Get default prompt from system settings if no custom prompt
-        let defaultPrompt = `You are ${agentName}, a ${agentRole} agent. Please stand by for instructions.`
+        // Step 4: Determine the prompt to use
+        let initMessage: string
 
-        if (!customPrompt) {
+        if (customPrompt) {
+          // Use custom prompt if provided
+          initMessage = customPrompt
+        } else if (agentConfig?.systemPrompt) {
+          // Use the agent's configured system prompt (role configuration)
+          initMessage = agentConfig.systemPrompt
+          console.log('Using agent role system prompt for clear session')
+        } else {
+          // Only fall back to default for legacy agents without proper configuration
+          let defaultPrompt = `You are ${agentName}, a ${agentRole} agent. Please stand by for instructions.`
+
           try {
             const response = await fetch('/api/settings/system')
             if (response.ok) {
@@ -152,10 +162,12 @@ export function useAgentOperations() {
           } catch (error) {
             console.warn('Failed to load system settings, using default prompt:', error)
           }
+
+          initMessage = defaultPrompt
+          console.log('Using default clear session prompt for legacy agent')
         }
 
         // Step 5: Start fresh session with initialization message
-        const initMessage = customPrompt || defaultPrompt
 
         console.log('Starting new session with message:', initMessage)
         const result = await sendClaudeMessage(initMessage, {

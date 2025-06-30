@@ -312,7 +312,9 @@ function SettingsPage() {
                   {/* Default Clear Session Prompt */}
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor="clear-prompt">Default Clear Session Prompt</Label>
+                      <Label htmlFor="clear-prompt">
+                        Default Clear Session Prompt (Legacy Agents)
+                      </Label>
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger>
@@ -320,7 +322,8 @@ function SettingsPage() {
                           </TooltipTrigger>
                           <TooltipContent>
                             <p>Default message when clearing agent sessions.</p>
-                            <p>Used when no custom prompt is provided.</p>
+                            <p>Only used for legacy agents without system prompts.</p>
+                            <p>Agents with role configurations use their own prompts.</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
