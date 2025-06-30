@@ -82,7 +82,7 @@ export class ClaudeProjectScanner {
     try {
       const projectPath = path.join(this.claudeProjectsPath, dirName)
       const sessions = await this.getSessionFiles(projectPath)
-      const { createdAt, lastModified, lastSessionAt } = await this.getProjectDates(projectPath, sessions)
+      const { createdAt, lastSessionAt } = await this.getProjectDates(projectPath, sessions)
       
       // Get the actual working directory from the first session
       const actualPath = await this.getActualProjectPath(projectPath, sessions)
@@ -90,11 +90,10 @@ export class ClaudeProjectScanner {
       return {
         id: dirName,
         name: this.sanitizedNameToReadable(actualPath),
-        description: `Claude Code project from ${actualPath}`,
         path: actualPath,
-        createdAt,
         sessionCount: sessions.length,
-        lastSessionAt,
+        lastModified: lastSessionAt || createdAt,
+        sessions: sessions,
       }
     } catch (error) {
       console.error(`Error parsing project ${dirName}:`, error)
@@ -189,7 +188,7 @@ export class ClaudeProjectScanner {
             // Skip malformed lines
           }
         }
-      } catch (error) {
+      } catch {
         // Try next session file
       }
     }

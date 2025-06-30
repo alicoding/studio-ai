@@ -28,21 +28,21 @@ export function MarkdownContent({ content }: { content: string }) {
           li: ({ children }) => <li className="ml-0">{children}</li>,
 
           // Code
-          code: ({ inline, className, children }) => {
+          code: ({ className, children }) => {
             const match = /language-(\w+)/.exec(className || '')
             const language = match ? match[1] : ''
 
-            // For inline code (no language class)
-            if (inline !== false) {
-              return (
-                <code className="bg-secondary px-1.5 py-0.5 rounded text-sm font-mono inline">
-                  {children}
-                </code>
-              )
+            // If there's a language class, it's a code block
+            if (language) {
+              return <CodeBlock code={String(children).replace(/\n$/, '')} language={language} />
             }
 
-            // For code blocks with language
-            return <CodeBlock code={String(children).replace(/\n$/, '')} language={language} />
+            // Otherwise it's inline code
+            return (
+              <code className="bg-secondary px-1.5 py-0.5 rounded text-sm font-mono inline">
+                {children}
+              </code>
+            )
           },
 
           // Pre element wrapper for code blocks

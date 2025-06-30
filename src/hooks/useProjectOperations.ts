@@ -86,13 +86,15 @@ export function useProjectOperations() {
       const newProject: Project = {
         id: `project-${Date.now()}`,
         name: projectData.name,
+        description: projectData.description,
         path: projectData.path || projectData.directory || 
           `~/projects/${projectData.name.toLowerCase().replace(/\s+/g, '-')}`,
+        createdAt: new Date().toISOString(),
         lastModified: new Date().toISOString(),
-        agentCount: 0,
-        agentIds: [],
-        directory: projectData.directory || 
-          `~/projects/${projectData.name.toLowerCase().replace(/\s+/g, '-')}`,
+        sessionCount: 0,
+        status: 'active',
+        tags: [],
+        favorite: false,
       }
 
       // Add project to store

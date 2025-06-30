@@ -70,9 +70,9 @@ export class UnifiedProjectService {
         const studioProject: UnifiedProject = {
           id: claudeProject.id,
           name: claudeProject.name,
-          description: claudeProject.description || '',
+          description: '',
           workspacePath: claudeProject.path,
-          created: claudeProject.createdAt.toISOString(),
+          created: claudeProject.lastModified.toISOString(),
           lastModified: claudeProject.lastModified.toISOString(),
           activeAgents: [],
           settings: {
@@ -116,9 +116,9 @@ export class UnifiedProjectService {
       return {
         id: claudeProject.id,
         name: claudeProject.name,
-        description: claudeProject.description || '',
+        description: '',
         workspacePath: claudeProject.path,
-        created: claudeProject.createdAt.toISOString(),
+        created: claudeProject.lastModified.toISOString(),
         lastModified: claudeProject.lastModified.toISOString(),
         activeAgents: [],
         settings: {
@@ -158,7 +158,7 @@ export class UnifiedProjectService {
       await this.configService.createProject({
         id: projectId,
         name: config.name || claudeProject.name,
-        description: config.description || claudeProject.description || '',
+        description: config.description || '',
         workspacePath: config.workspacePath || claudeProject.path,
         activeAgents: config.activeAgents || [],
         settings: config.settings || {
@@ -190,7 +190,7 @@ export class UnifiedProjectService {
     await this.configService.createProject({
       id: projectId,
       name: claudeProject.name,
-      description: claudeProject.description || '',
+      description: '',
       workspacePath: claudeProject.path,
       activeAgents: [],
       settings: {
@@ -211,7 +211,7 @@ export class UnifiedProjectService {
   /**
    * Get project sessions (from Claude native)
    */
-  async getProjectSessions(projectId: string): Promise<any[]> {
+  async getProjectSessions(projectId: string): Promise<unknown[]> {
     return this.claudeProjectService.getProjectSessions(projectId)
   }
 
@@ -222,7 +222,7 @@ export class UnifiedProjectService {
     projectId: string,
     sessionId: string,
     options: { cursor?: string; limit?: number } = {}
-  ): Promise<any> {
+  ): Promise<unknown> {
     return this.claudeProjectService.getSessionMessages(projectId, sessionId, options)
   }
 }
