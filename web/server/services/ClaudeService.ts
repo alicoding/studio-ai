@@ -29,7 +29,8 @@ export class ClaudeService {
     projectPath?: string,
     role: Role = 'dev',
     onStream?: (data: any) => void,
-    io?: any
+    io?: any,
+    forceNewSession?: boolean
   ): Promise<{ response: string; sessionId: string | null }> {
     const agent = this.getOrCreateAgent(sessionId || 'default', role, projectPath)
     
@@ -39,7 +40,7 @@ export class ClaudeService {
     }
 
     try {
-      const response = await agent.sendMessage(content, projectPath, io, sessionId || 'default')
+      const response = await agent.sendMessage(content, projectPath, io, sessionId || 'default', forceNewSession)
       const agentInfo = agent.getInfo()
       
       return {

@@ -227,6 +227,34 @@ export function MessageHistoryViewer({
     }
   }, [sessionId, projectId, messages.length, loadMoreMessages])
 
+  // Listen for session clear events
+  useEffect(() => {
+    const handleSessionCleared = (event: CustomEvent) => {
+      const { agentId: clearedAgentId, newSessionId } = event.detail
+      
+      // Check if this is the session we're viewing
+      if (sessionId === clearedAgentId || sessionId === newSessionId) {
+        console.log('🗑️ Session cleared, resetting message history')
+        setMessages([])
+        setHasMore(true)
+        setError(null)
+        cursorRef.current = null
+        itemHeights.current = {}
+        
+        // Reset list if available
+        if (listRef.current) {
+          listRef.current.resetAfterIndex(0)
+        }
+      }
+    }
+
+    window.addEventListener('agent-session-cleared', handleSessionCleared as EventListener)
+    
+    return () => {
+      window.removeEventListener('agent-session-cleared', handleSessionCleared as EventListener)
+    }
+  }, [sessionId])
+
   // Always scroll to bottom when messages change
   useEffect(() => {
     if (messages.length > 0 && listRef.current) {

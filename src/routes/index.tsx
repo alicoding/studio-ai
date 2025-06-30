@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
+import { toast } from 'sonner'
 import { Sidebar } from '../components/layout/Sidebar'
 import { ProjectTabs } from '../components/projects/ProjectTabs'
 import { ViewControls } from '../components/projects/ViewControls'
@@ -11,13 +12,19 @@ import { AssignRoleModal } from '../components/agents/AssignRoleModal'
 import { Button } from '../components/ui/button'
 import { Plus } from 'lucide-react'
 
-import { useAgentStore, useProjectStore, type Project } from '../stores'
+import { useAgentStore, useProjectStore } from '../stores'
 import { useProjects } from '../hooks/useProjects'
 import { useProjectAgents } from '../hooks/useProjectAgents'
 import { useAgentRoles } from '../hooks/useAgentRoles'
-import { useClaudeMessages } from '../hooks/useClaudeMessages'
-import { useProcessManager } from '../hooks/useProcessManager'
-import { useWebSocket } from '../hooks/useWebSocket'
+
+// SOLID: Modular operation hooks
+import { useAgentOperations } from '../hooks/useAgentOperations'
+import { useMessageOperations } from '../hooks/useMessageOperations'
+import { useProjectOperations } from '../hooks/useProjectOperations'
+import { useRoleOperations } from '../hooks/useRoleOperations'
+import { useModalOperations } from '../hooks/useModalOperations'
+import { useWorkspaceLayout } from '../hooks/useWorkspaceLayout'
+import { useWebSocketOperations } from '../hooks/useWebSocketOperations'
 
 import { SingleView } from '../components/projects/views/SingleView'
 import { SplitView } from '../components/projects/views/SplitView'
@@ -39,7 +46,18 @@ function ProjectsPage() {
   const { agents: projectAgents, loading: loadingAgents } = useProjectAgents()
 
   // Agent roles hook
-  const { assignRole, roleAssignments, loadAssignments, getAgentRole } = useAgentRoles()
+  const { loadAssignments, getAgentRole } = useAgentRoles()
+
+  // SOLID: Modular operation hooks
+  const agentOps = useAgentOperations()
+  const messageOps = useMessageOperations()
+  const projectOps = useProjectOperations()
+  const roleOps = useRoleOperations()
+  const modalOps = useModalOperations()
+  const layout = useWorkspaceLayout()
+  
+  // WebSocket operations (handles event registration)
+  useWebSocketOperations()
 
   // Load role assignments when agents change
   useEffect(() => {
@@ -58,23 +76,11 @@ function ProjectsPage() {
     }
   })
 
-  // Claude messages hook
-  const { sendMessage: sendClaudeMessage } = useClaudeMessages()
-
-  // Process management hook
-  const processManager = useProcessManager()
-
-  // WebSocket connection
-  const { socket } = useWebSocket()
-
   // Zustand stores
   const {
     selectedAgentId,
     availableConfigs,
     setSelectedAgent,
-    updateAgentStatus,
-    updateAgentSessionId,
-    removeAgent,
     addAgentConfig,
     setAgentConfigs,
   } = useAgentStore()
@@ -82,17 +88,9 @@ function ProjectsPage() {
   const {
     activeProjectId,
     messageQueue,
-    viewMode,
-    sidebarCollapsed,
     setActiveProject,
-    addProject,
-    addToQueue,
     clearQueue,
-    setViewMode,
-    setSidebarCollapsed,
     getOpenProjects,
-    closeProjectInWorkspace,
-    openProjectInWorkspace,
   } = useProjectStore()
 
   // Get only the open projects for workspace tabs
@@ -100,13 +98,6 @@ function ProjectsPage() {
 
   // Get active project details
   const activeProject = projects.find((p) => p.id === activeProjectId)
-
-  // Modal states
-  const [showAgentSelection, setShowAgentSelection] = useState(false)
-  const [showCreateAgent, setShowCreateAgent] = useState(false)
-  const [showCreateProject, setShowCreateProject] = useState(false)
-  const [showAssignRole, setShowAssignRole] = useState(false)
-  const [selectedLegacyAgent, setSelectedLegacyAgent] = useState<any>(null)
 
   // Load agent configs from server on mount
   useEffect(() => {
@@ -124,264 +115,96 @@ function ProjectsPage() {
     loadAgentConfigs()
   }, [setAgentConfigs])
 
-  // Listen for agent status updates via WebSocket
-  useEffect(() => {
-    if (!socket) return
-
-    const handleAgentStatusUpdate = (data: any) => {
-      console.log('Agent status update:', data)
-      if (data.agentId && data.status) {
-        updateAgentStatus(data.agentId, data.status)
-      }
-    }
-
-    socket.on('agent:status', handleAgentStatusUpdate)
-
-    return () => {
-      socket.off('agent:status', handleAgentStatusUpdate)
-    }
-  }, [socket, updateAgentStatus])
-
+  // Message handling
   const handleSendMessage = async (message: string) => {
-    if (message.startsWith('@')) {
-      // Use ProcessManager for @mentions - auto-respawns dead agents
-      if (activeProjectId && selectedAgentId) {
-        try {
-          await processManager.sendMention(message, selectedAgentId, activeProjectId)
-          addToQueue({
-            target: message.split(' ')[0],
-            message: message.split(' ').slice(1).join(' '),
-          })
-        } catch (error) {
-          console.error('Failed to send @mention:', error)
-        }
-      }
-    } else if (message.startsWith('#')) {
-      console.log('Execute command (UI-first):', message)
-    } else {
-      // Send regular messages through Claude API
-      // Get the selected agent to use their sessionId
-      const selectedAgent = agentsWithRoles.find((a) => a.id === selectedAgentId)
-
-      const result = await sendClaudeMessage(message, {
-        projectPath: activeProject?.path,
-        role: 'dev', // Valid roles: 'dev', 'ux', 'test', 'pm'
-        sessionId: selectedAgent?.sessionId || undefined, // Use selected agent's sessionId for resuming
-      })
-
-      if (result && result.sessionId) {
-        console.log('Claude response:', result.response)
-        console.log('New session ID:', result.sessionId)
-
-        // Update the agent's sessionId if we have a selected agent
-        if (selectedAgentId) {
-          updateAgentSessionId(selectedAgentId, result.sessionId)
-        }
-        // Messages are handled via WebSocket events in the API
-      }
+    const result = await messageOps.sendMessage(message, agentsWithRoles, activeProject)
+    if (!result.success && result.error) {
+      toast.error(result.error)
     }
   }
 
   const handleBroadcast = () => {
-    console.log('Broadcast command (UI-first):', '#broadcast')
+    messageOps.broadcastMessage()
   }
 
   const handleInterrupt = () => {
-    clearQueue()
-    console.log('Queue clear (UI-first):', selectedAgentId)
+    messageOps.interruptMessages()
   }
 
+  // Agent operations
   const handleAgentPause = async (agentId: string) => {
-    try {
-      // Get agent from Zustand store
-      const agent = agentsWithRoles.find((a) => a.id === agentId)
-      if (!agent || !activeProjectId) return
-
-      if (agent.status === 'offline') {
-        // Agent is offline - spawn it
-        console.log(`Spawning agent ${agentId}...`)
-
-        // Try to find existing config first
-        const existingConfig = availableConfigs.find((c) => c.id === agentId)
-
-        const agentConfig = existingConfig
-          ? {
-              role: existingConfig.role,
-              systemPrompt: existingConfig.systemPrompt,
-              tools: existingConfig.tools,
-            }
-          : {
-              // Create dynamic config for agents without existing configuration
-              name: agent.name,
-              role: agent.role,
-              systemPrompt: `You are ${agent.name}, a ${agent.role} agent.`,
-              tools: ['file_system', 'terminal', 'web_search'],
-              model: 'claude-3-opus',
-            }
-
-        await processManager.spawnAgent(agentId, activeProjectId, agentConfig)
-
-        // Update UI status to online
-        updateAgentStatus(agentId, 'online')
-        console.log(`Agent ${agentId} spawned and online`)
-      } else {
-        // Agent is online/busy/ready - kill the process
-        console.log(`Stopping agent ${agentId}...`)
-        await processManager.killAgent(agentId)
-
-        // Update UI status to offline
-        updateAgentStatus(agentId, 'offline')
-        console.log(`Agent ${agentId} stopped`)
-      }
-    } catch (error) {
-      console.error(`Failed to toggle agent ${agentId}:`, error)
-      // Revert UI status on error
-      const agent = agentsWithRoles.find((a) => a.id === agentId)
-      if (agent) {
-        updateAgentStatus(agentId, agent.status)
-      }
+    const agent = agentsWithRoles.find((a) => a.id === agentId)
+    if (agent) {
+      await agentOps.toggleAgent(agentId, agent)
     }
   }
 
-  const handleAgentClear = (agentId: string) => {
-    console.log('Clear agent tokens (UI-first):', agentId)
-    // emit('agent:token-update', { agentId, tokens: 0, maxTokens: 200000 })
+  const handleAgentClear = async (agentId: string) => {
+    const result = await agentOps.clearAgentSession(agentId)
+    if (result.success) {
+      toast.success(`Session cleared${result.newSessionId ? ` - New session: ${result.newSessionId.slice(0, 8)}...` : ''}`)
+    } else if (result.error) {
+      toast.error(`Failed to clear session: ${result.error}`)
+    }
   }
 
   const handleAgentRemove = async (agentId: string) => {
     const agent = projectAgents.find((a) => a.id === agentId)
-    if (agent && confirm(`Remove ${agent.name} from team?`)) {
-      try {
-        // Kill the agent process if it exists
-        await processManager.killAgent(agentId)
-        // Remove from Zustand store
-        removeAgent(agentId)
-        console.log(`Agent ${agentId} removed from team and process killed`)
-      } catch (error) {
-        console.error(`Failed to remove agent ${agentId}:`, error)
-        // Still remove from UI store even if process kill fails
-        removeAgent(agentId)
-      }
+    if (agent) {
+      await agentOps.removeAgentFromTeam(agentId, agent.name)
     }
   }
 
+  // Project operations
   const handleCloseProject = async (projectId: string) => {
-    const project = openProjects.find((p) => p.id === projectId)
-    if (project) {
-      try {
-        // Kill all agents for this project
-        await processManager.killProject(projectId)
-        // Close project in workspace
-        closeProjectInWorkspace(projectId)
-        console.log(`Project ${projectId} closed and all agents killed`)
-      } catch (error) {
-        console.error(`Failed to cleanup project ${projectId}:`, error)
-        // Still close the project even if cleanup fails
-        closeProjectInWorkspace(projectId)
-      }
-    }
+    await projectOps.closeProject(projectId)
   }
 
   const handleAddAgents = async (agentIds: string[]) => {
-    if (!activeProjectId) return
-
-    try {
-      // Spawn agents using ProcessManager
-      for (const agentId of agentIds) {
-        const agentConfig = availableConfigs.find((c) => c.id === agentId)
-        if (agentConfig) {
-          await processManager.spawnAgent(agentId, activeProjectId, {
-            role: agentConfig.role,
-            systemPrompt: agentConfig.systemPrompt || '',
-            tools: agentConfig.tools || [],
-          })
-          console.log(`Agent ${agentId} spawned for project ${activeProjectId}`)
-        }
-      }
-      setShowAgentSelection(false)
-    } catch (error) {
-      console.error('Failed to add agents:', error)
+    const result = await agentOps.addAgentsToProject(agentIds)
+    if (result.success) {
+      modalOps.closeModal('agentSelection')
     }
   }
 
   const handleCreateAgent = (agentConfig: any) => {
     addAgentConfig(agentConfig)
-    setShowCreateAgent(false)
+    modalOps.closeModal('createAgent')
   }
 
   const handleCleanupZombies = async () => {
-    try {
-      const result = await processManager.cleanup()
-      console.log('Zombie cleanup completed:', result)
-      alert(`Cleanup completed: ${result?.killedCount || 0} zombie processes killed`)
-    } catch (error) {
-      console.error('Failed to cleanup zombies:', error)
-      alert('Failed to cleanup zombie processes')
+    const result = await agentOps.cleanupZombies()
+    if (result.success) {
+      toast.success(`Cleanup completed: ${result.killedCount || 0} zombie processes killed`)
+    } else {
+      toast.error('Failed to cleanup zombie processes')
     }
   }
 
+  // Role operations
   const handleAgentConvert = async (agentId: string) => {
     const agent = agentsWithRoles.find((a) => a.id === agentId)
-    if (!agent) return
-
-    setSelectedLegacyAgent(agent)
-    setShowAssignRole(true)
+    if (agent) {
+      roleOps.startAgentConversion(agent)
+    }
   }
 
   const handleReassignRole = async (agentId: string) => {
     const agent = agentsWithRoles.find((a) => a.id === agentId)
-    if (!agent) return
-
-    setSelectedLegacyAgent(agent)
-    setShowAssignRole(true)
+    if (agent) {
+      roleOps.startRoleReassignment(agent)
+    }
   }
 
   const handleAssignRole = async (roleId: string, customTools?: string[]) => {
-    if (!selectedLegacyAgent) return
-
-    try {
-      const roleConfig = availableConfigs.find((c) => c.id === roleId)
-      if (!roleConfig) return
-
-      // Simply assign the role to the agent
-      await assignRole(selectedLegacyAgent.id, roleId, customTools)
-
-      console.log(`Agent ${selectedLegacyAgent.name} assigned role ${roleConfig.name}`)
-      setShowAssignRole(false)
-      setSelectedLegacyAgent(null)
-    } catch (error) {
-      console.error('Failed to assign role:', error)
-      alert(`Failed to assign role: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+    await roleOps.assignRoleToAgent(roleId, customTools)
   }
 
   const handleCreateProject = (projectData: any) => {
-    const newProject: Project = {
-      ...projectData,
-      id: `project-${Date.now()}`,
-      lastModified: new Date().toISOString(),
-      agentCount: 0,
-      agentIds: [],
-      directory:
-        projectData.directory ||
-        `~/projects/${projectData.name.toLowerCase().replace(/\s+/g, '-')}`,
+    const result = projectOps.createProject(projectData)
+    if (result.success) {
+      modalOps.closeModal('createProject')
     }
-
-    // Add project to store
-    addProject(newProject)
-
-    // Open in workspace and make active
-    openProjectInWorkspace(newProject.id)
-
-    // Close modal
-    setShowCreateProject(false)
-
-    // In a real implementation, this would:
-    // 1. Create the actual directory on the filesystem
-    // 2. Initialize git repository if requested
-    // 3. Copy template files if using a template
-    // 4. Set up project configuration
-    console.log('Creating project directory:', newProject.path)
   }
 
   return (
@@ -390,7 +213,7 @@ function ProjectsPage() {
         projects={openProjects}
         activeProjectId={activeProjectId}
         onProjectSelect={setActiveProject}
-        onProjectCreate={() => setShowCreateProject(true)}
+        onProjectCreate={() => modalOps.openModal('createProject')}
         onProjectClose={handleCloseProject}
       />
 
@@ -403,7 +226,7 @@ function ProjectsPage() {
             </p>
             <div className="flex gap-4 justify-center">
               <Button onClick={() => navigate({ to: '/projects' })}>Browse Projects</Button>
-              <Button onClick={() => setShowCreateProject(true)} variant="outline">
+              <Button onClick={() => modalOps.openModal('createProject')} variant="outline">
                 <Plus className="w-4 h-4 mr-2" />
                 Create New Project
               </Button>
@@ -415,7 +238,7 @@ function ProjectsPage() {
           <Sidebar
             agents={agentsWithRoles}
             selectedAgentId={selectedAgentId}
-            isCollapsed={sidebarCollapsed}
+            isCollapsed={layout.sidebarCollapsed}
             isLoading={loadingAgents}
             availableConfigs={availableConfigs}
             onAgentSelect={setSelectedAgent}
@@ -424,22 +247,22 @@ function ProjectsPage() {
             onAgentRemove={handleAgentRemove}
             onAgentConvert={handleAgentConvert}
             onAgentReassignRole={handleReassignRole}
-            onAddAgent={() => setShowAgentSelection(true)}
-            onCreateAgent={() => setShowCreateAgent(true)}
-            onLoadTeam={() => alert('Load team template coming soon')}
+            onAddAgent={() => modalOps.openModal('agentSelection')}
+            onCreateAgent={() => modalOps.openModal('createAgent')}
+            onLoadTeam={() => toast.info('Load team template coming soon')}
           />
 
           <main className="flex-1 flex flex-col overflow-hidden">
             <ViewControls
-              currentView={viewMode}
+              currentView={layout.viewMode}
               selectedAgentId={selectedAgentId}
-              onViewChange={setViewMode}
-              onSidebarToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onViewChange={layout.setViewMode}
+              onSidebarToggle={layout.toggleSidebar}
               onCleanupZombies={handleCleanupZombies}
             />
 
             <div className="flex-1 overflow-hidden flex flex-col">
-              {viewMode === 'develop' ? (
+              {layout.isDevelopView ? (
                 <DevelopView
                   onTerminalInput={(command) =>
                     console.log('Develop terminal input (UI-first):', {
@@ -450,14 +273,14 @@ function ProjectsPage() {
                 />
               ) : (
                 <div className="flex-1 flex overflow-hidden">
-                  {viewMode === 'single' && <SingleView selectedAgentId={selectedAgentId} />}
-                  {viewMode === 'split' && <SplitView agents={projectAgents} />}
-                  {viewMode === 'grid' && <GridView agents={projectAgents} />}
+                  {layout.isSingleView && <SingleView selectedAgentId={selectedAgentId} agents={agentsWithRoles} />}
+                  {layout.isSplitView && <SplitView agents={projectAgents} />}
+                  {layout.isGridView && <GridView agents={projectAgents} />}
                 </div>
               )}
             </div>
 
-            {viewMode !== 'develop' && (
+            {layout.showChatPanel && (
               <>
                 <MessageQueue items={messageQueue} onClear={clearQueue} />
 
@@ -475,45 +298,42 @@ function ProjectsPage() {
 
       {/* Modals */}
       <AgentSelectionModal
-        isOpen={showAgentSelection}
-        onClose={() => setShowAgentSelection(false)}
+        isOpen={modalOps.isAgentSelectionOpen}
+        onClose={() => modalOps.closeModal('agentSelection')}
         onSelect={handleAddAgents}
         availableAgents={availableConfigs}
         currentAgentIds={agentsWithRoles.map((a) => a.id)}
       />
 
       <CreateAgentModal
-        isOpen={showCreateAgent}
-        onClose={() => setShowCreateAgent(false)}
+        isOpen={modalOps.isCreateAgentOpen}
+        onClose={() => modalOps.closeModal('createAgent')}
         onCreate={handleCreateAgent}
       />
 
       <AssignRoleModal
-        isOpen={showAssignRole}
-        onClose={() => {
-          setShowAssignRole(false)
-          setSelectedLegacyAgent(null)
-        }}
-        agentName={selectedLegacyAgent?.name || ''}
-        agentId={selectedLegacyAgent?.id || ''}
+        isOpen={roleOps.showAssignRole}
+        onClose={roleOps.cancelRoleAssignment}
+        agentName={roleOps.selectedLegacyAgent?.name || ''}
+        agentId={roleOps.selectedLegacyAgent?.id || ''}
         availableRoles={availableConfigs}
         currentAgentConfig={
-          selectedLegacyAgent && roleAssignments[selectedLegacyAgent.id]
-            ? availableConfigs.find((c) => c.id === roleAssignments[selectedLegacyAgent.id].roleId)
+          roleOps.selectedLegacyAgent
+            ? roleOps.getAgentRoleAssignment(roleOps.selectedLegacyAgent.id)
             : undefined
         }
         onAssignRole={handleAssignRole}
         onCreateRole={() => {
-          setShowAssignRole(false)
-          setShowCreateAgent(true)
+          roleOps.cancelRoleAssignment()
+          modalOps.openModal('createAgent')
         }}
-        isReassignment={!!(selectedLegacyAgent && roleAssignments[selectedLegacyAgent.id])}
-        currentRole={selectedLegacyAgent?.role}
+        isReassignment={roleOps.getLegacyAgentSelection().isReassignment}
+        currentRole={roleOps.selectedLegacyAgent?.role}
       />
 
       <CreateProjectModal
-        isOpen={showCreateProject}
-        onClose={() => setShowCreateProject(false)}
+        isOpen={modalOps.isCreateProjectOpen}
+        onClose={() => modalOps.closeModal('createProject')}
         onCreate={handleCreateProject}
       />
     </>

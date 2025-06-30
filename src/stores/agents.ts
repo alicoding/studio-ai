@@ -21,6 +21,7 @@ export interface AgentConfig {
   tools: string[]
   model: string
   projectsUsing: string[]
+  maxTokens?: number
 }
 
 interface AgentState {
@@ -28,6 +29,7 @@ interface AgentState {
   agents: Agent[]
   selectedAgentId: string | null
   availableConfigs: AgentConfig[]
+  clearingAgentId: string | null // Track which agent is being cleared
 
   // Actions
   setAgents: (agents: Agent[]) => void
@@ -39,11 +41,19 @@ interface AgentState {
   updateAgentSessionId: (agentId: string, sessionId: string) => void
   setSelectedAgent: (agentId: string | null) => void
 
+  // Session clearing
+  setClearingAgent: (agentId: string | null) => void
+  clearAgentSession: (agentId: string) => void
+
   // Config actions
   addAgentConfig: (config: AgentConfig) => void
   updateAgentConfig: (config: AgentConfig) => void
   removeAgentConfig: (configId: string) => void
   setAgentConfigs: (configs: AgentConfig[]) => void
+
+  // Computed getters
+  getSelectedAgent: () => Agent | null
+  getAgentsWithRoles: () => Agent[]
 
   // Utility actions
   sendMessage: (from: string, to: string, content: string) => void
@@ -59,6 +69,7 @@ export const useAgentStore = create<AgentState>()(
       agents: [],
       selectedAgentId: null,
       availableConfigs: [],
+      clearingAgentId: null,
 
       // Actions
       setAgents: (agents) => set({ agents }, false, 'setAgents'),
@@ -128,6 +139,21 @@ export const useAgentStore = create<AgentState>()(
 
       setSelectedAgent: (agentId) => set({ selectedAgentId: agentId }, false, 'setSelectedAgent'),
 
+      // Session clearing actions
+      setClearingAgent: (agentId) => set({ clearingAgentId: agentId }, false, 'setClearingAgent'),
+      
+      clearAgentSession: (agentId) => 
+        set(
+          (state) => ({
+            agents: state.agents.map((a) => 
+              a.id === agentId ? { ...a, sessionId: '' } : a
+            ),
+            clearingAgentId: null,
+          }),
+          false,
+          'clearAgentSession'
+        ),
+
       // Config actions
       addAgentConfig: (config) =>
         set(
@@ -167,6 +193,19 @@ export const useAgentStore = create<AgentState>()(
       sendMessage: (from, to, content) => {
         console.log('Send message (UI-first):', { from, to, content })
         // TODO: Implement WebSocket message sending
+      },
+
+      // Computed getters
+      getSelectedAgent: () => {
+        const state = get()
+        return state.agents.find(a => a.id === state.selectedAgentId) || null
+      },
+
+      getAgentsWithRoles: () => {
+        const state = get()
+        // This would merge with role assignments - for now just return agents
+        // TODO: integrate with role assignments when needed
+        return state.agents
       },
 
       clearAll: () =>

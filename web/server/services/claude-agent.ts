@@ -30,17 +30,20 @@ export class ClaudeAgent {
     // Stream callbacks not implemented in this simplified version
   }
 
-  async sendMessage(content: string, projectPath?: string, io?: any, sessionId?: string): Promise<string> {
+  async sendMessage(content: string, projectPath?: string, io?: any, sessionId?: string, forceNewSession?: boolean): Promise<string> {
     try {
       this.agent.status = 'busy'
       console.log('Sending message to Claude SDK:', content)
       console.log('Project path:', projectPath)
+      console.log('Resume session:', this.agent.sessionId)
       
       // Create abort controller for this request
       this.abortController = new AbortController()
       
       const messages: SDKMessage[] = []
       let resultText = ''
+      let hasError = false
+      let errorMessage = ''
       
       // Query returns an async generator that yields messages
       for await (const message of query({
@@ -49,13 +52,27 @@ export class ClaudeAgent {
         options: {
           maxTurns: 3, // Limit turns for safety
           outputFormat: 'stream-json', // Use streaming JSON format
-          verbose: true, // Enable verbose mode to see all system messages
+          verbose: true, // Enable verbose mode to see all system messages and debug issues
           cwd: projectPath || process.cwd(), // Set working directory to project path
-          resume: this.agent.sessionId || undefined, // Resume session if we have a sessionId
+          resume: forceNewSession ? undefined : (this.agent.sessionId || undefined), // Don't resume if forcing new session
         }
       })) {
         console.log('Received message:', message.type, message)
         messages.push(message)
+        
+        // Check for error messages
+        if (message.type === 'error') {
+          hasError = true
+          errorMessage = message.error || 'Unknown error occurred'
+          console.error('Claude SDK error:', message)
+        }
+        
+        // Check for result with error
+        if (message.type === 'result' && message.subtype === 'error') {
+          hasError = true
+          errorMessage = message.error || message.result || 'Query failed'
+          console.error('Claude query failed:', message)
+        }
         
         // Emit all messages through WebSocket if io is provided
         if (io && sessionId) {
@@ -77,6 +94,19 @@ export class ClaudeAgent {
               }
             })
           }
+          
+          // Emit error messages to UI
+          if (message.type === 'error') {
+            io.emit('message:new', {
+              sessionId: effectiveSessionId,
+              message: {
+                role: 'system',
+                content: `Error: ${message.error || 'Unknown error'}`,
+                timestamp: new Date().toISOString(),
+                type: 'error'
+              }
+            })
+          }
         }
         
         // Extract text from assistant messages
@@ -95,7 +125,13 @@ export class ClaudeAgent {
         }
       }
       
+      // Throw error if we encountered one during processing
+      if (hasError) {
+        throw new Error(`Claude Code error: ${errorMessage}`)
+      }
+      
       console.log('Final response:', resultText)
+      console.log('Session ID after query:', this.sessionId)
       
       this.agent.status = 'online'
       this.agent.sessionId = this.sessionId || null
@@ -104,7 +140,15 @@ export class ClaudeAgent {
     } catch (error) {
       this.agent.status = 'online'
       console.error('Error in Claude query:', error)
-      throw error
+      
+      // Provide more detailed error information
+      if (error instanceof Error) {
+        const enhancedError = new Error(`Claude Code failed: ${error.message}`)
+        enhancedError.stack = error.stack
+        throw enhancedError
+      }
+      
+      throw new Error(`Claude Code failed with unknown error: ${String(error)}`)
     }
   }
 

@@ -1,5 +1,5 @@
 import { MessageHistoryViewer } from '../../messages/MessageHistoryViewer'
-import { useProjectStore } from '../../../stores'
+import { useProjectStore, useAgentStore } from '../../../stores'
 import { useProjectAgents } from '../../../hooks/useProjectAgents'
 
 interface SingleViewProps {
@@ -8,10 +8,15 @@ interface SingleViewProps {
 
 export function SingleView({ selectedAgentId }: SingleViewProps) {
   const { activeProjectId } = useProjectStore()
-  const { agents } = useProjectAgents()
+  const { agents: projectAgents } = useProjectAgents()
+  const { agents: storeAgents } = useAgentStore()
 
-  // Find the selected agent to get its sessionId
-  const selectedAgent = agents.find(agent => agent.id === selectedAgentId)
+  // Find the selected agent - prioritize store data for real-time updates
+  const storeAgent = storeAgents.find(agent => agent.id === selectedAgentId)
+  const projectAgent = projectAgents.find(agent => agent.id === selectedAgentId)
+  
+  // Use store agent if available (for real-time updates), otherwise fallback to project agent
+  const selectedAgent = storeAgent || projectAgent
 
   if (!selectedAgentId || !selectedAgent) {
     return (

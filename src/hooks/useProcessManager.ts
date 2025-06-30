@@ -21,6 +21,9 @@ interface AgentConfig {
   role: string
   systemPrompt: string
   tools: string[]
+  name?: string
+  model?: string
+  maxTokens?: number
 }
 
 interface ProcessManagerHook {

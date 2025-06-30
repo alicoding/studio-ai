@@ -4,6 +4,7 @@ interface SendMessageOptions {
   sessionId?: string
   projectPath?: string
   role?: 'dev' | 'ux' | 'test' | 'pm'
+  forceNewSession?: boolean
 }
 
 interface MessageResponse {
@@ -36,12 +37,16 @@ export function useClaudeMessages() {
           sessionId: options.sessionId,
           projectPath: options.projectPath,
           role: options.role || 'dev',
+          forceNewSession: options.forceNewSession || false,
         }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to send message')
+        console.error('Server error response:', errorData)
+        const errorMessage = errorData.error || 'Failed to send message'
+        const errorDetails = errorData.details ? ` - ${errorData.details}` : ''
+        throw new Error(`${errorMessage}${errorDetails}`)
       }
 
       const data = await response.json()

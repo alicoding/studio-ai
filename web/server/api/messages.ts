@@ -10,7 +10,7 @@ const claudeService = new ClaudeService()
 // KISS: Simple endpoint that delegates to service
 router.post('/', async (req, res) => {
   try {
-    const { content, sessionId, projectPath, role = 'dev' } = req.body
+    const { content, sessionId, projectPath, role = 'dev', forceNewSession = false } = req.body
 
     if (!content) {
       return res.status(400).json({ error: 'Content is required' })
@@ -34,11 +34,12 @@ router.post('/', async (req, res) => {
     // TODO: Add SSE streaming support later if needed
     const result = await claudeService.sendMessage(
       content,
-      sessionId,
+      forceNewSession ? undefined : sessionId, // Don't pass sessionId if forcing new session
       projectPath,
       role as Role,
       undefined,
-      io
+      io,
+      forceNewSession
     )
 
     // Don't emit assistant response here - it's already emitted from claude-agent during streaming
@@ -50,9 +51,24 @@ router.post('/', async (req, res) => {
     })
   } catch (error) {
     console.error('Error sending message:', error)
+    
+    // Provide detailed error information
+    let errorMessage = 'Failed to send message'
+    let errorDetails = 'Unknown error'
+    
+    if (error instanceof Error) {
+      errorMessage = error.message
+      errorDetails = error.stack || error.message
+    } else {
+      errorDetails = String(error)
+    }
+    
+    console.error('Full error details:', errorDetails)
+    
     res.status(500).json({ 
-      error: 'Failed to send message',
-      details: error instanceof Error ? error.message : String(error)
+      error: errorMessage,
+      details: errorDetails,
+      timestamp: new Date().toISOString()
     })
   }
 })

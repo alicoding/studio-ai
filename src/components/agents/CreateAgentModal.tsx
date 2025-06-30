@@ -19,6 +19,7 @@ const agentSchema = z.object({
   systemPrompt: z.string().min(10, 'System prompt must be at least 10 characters'),
   tools: z.array(z.string()).min(1, 'At least one tool must be selected'),
   model: z.string().min(1, 'Model is required'),
+  maxTokens: z.number().min(1000).max(1000000).optional(),
 })
 
 type AgentFormData = z.infer<typeof agentSchema>
@@ -58,6 +59,7 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
       systemPrompt: '',
       tools: ['desktop-commander', 'zen-ai'],
       model: 'claude-opus-4',
+      maxTokens: 200000,
     },
   })
 
@@ -71,6 +73,7 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
         systemPrompt: agent.systemPrompt,
         tools: agent.tools,
         model: agent.model,
+        maxTokens: agent.maxTokens || 200000,
       })
     } else if (isOpen) {
       // Create mode - reset to defaults with role-specific values
@@ -81,6 +84,7 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
         systemPrompt: ROLE_SYSTEM_PROMPTS[defaultRole] || '',
         tools: ROLE_DEFAULT_TOOLS[defaultRole] || DEFAULT_TOOLS,
         model: 'claude-opus-4',
+        maxTokens: 200000,
       })
     }
   }, [isOpen, agent, form])
@@ -325,6 +329,22 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
             </Select>
             {form.formState.errors.model && (
               <p className="text-sm text-destructive">{form.formState.errors.model.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="maxTokens">Max Tokens</Label>
+            <Input 
+              id="maxTokens" 
+              type="number"
+              placeholder="200000"
+              {...form.register('maxTokens', { valueAsNumber: true })} 
+            />
+            <p className="text-xs text-muted-foreground">
+              Maximum number of tokens for this agent (1000 - 1000000)
+            </p>
+            {form.formState.errors.maxTokens && (
+              <p className="text-sm text-destructive">{form.formState.errors.maxTokens.message}</p>
             )}
           </div>
 
