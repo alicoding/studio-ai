@@ -230,17 +230,28 @@ export function MessageHistoryViewer({
   // Listen for session clear events
   useEffect(() => {
     const handleSessionCleared = (event: CustomEvent) => {
-      const { agentId: clearedAgentId, newSessionId } = event.detail
-      
+      const { agentId: clearedAgentId, oldSessionId, newSessionId } = event.detail
+
       // Check if this is the session we're viewing
-      if (sessionId === clearedAgentId || sessionId === newSessionId) {
-        console.log('🗑️ Session cleared, resetting message history')
+      // The sessionId prop could be either the agent ID or the actual session ID
+      const isThisSession =
+        sessionId === clearedAgentId ||
+        sessionId === oldSessionId ||
+        (oldSessionId === '' && sessionId === clearedAgentId)
+
+      if (isThisSession) {
+        console.log('🗑️ Session cleared, resetting message history for:', {
+          sessionId,
+          clearedAgentId,
+          oldSessionId,
+          newSessionId,
+        })
         setMessages([])
         setHasMore(true)
         setError(null)
         cursorRef.current = null
         itemHeights.current = {}
-        
+
         // Reset list if available
         if (listRef.current) {
           listRef.current.resetAfterIndex(0)
@@ -249,7 +260,7 @@ export function MessageHistoryViewer({
     }
 
     window.addEventListener('agent-session-cleared', handleSessionCleared as EventListener)
-    
+
     return () => {
       window.removeEventListener('agent-session-cleared', handleSessionCleared as EventListener)
     }
