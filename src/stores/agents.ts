@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
+// Runtime state - changes frequently during agent operation
 export interface Agent {
   id: string
   name: string
@@ -13,6 +14,7 @@ export interface Agent {
   pid?: number
 }
 
+// Configuration state - changes rarely, defines agent behavior
 export interface AgentConfig {
   id: string
   name: string
@@ -24,14 +26,22 @@ export interface AgentConfig {
   maxTokens?: number
 }
 
+// Utility type for components that need both runtime and config data
+export interface AgentWithConfig {
+  agent: Agent
+  config: AgentConfig | null
+}
+
 interface AgentState {
-  // State
+  // Runtime state (changes frequently)
   agents: Agent[]
   selectedAgentId: string | null
-  availableConfigs: AgentConfig[]
   clearingAgentId: string | null // Track which agent is being cleared
 
-  // Actions
+  // Configuration state (changes rarely)
+  configs: AgentConfig[] // Renamed from availableConfigs for clarity
+
+  // Runtime actions
   setAgents: (agents: Agent[]) => void
   addAgent: (agent: Agent) => void
   removeAgent: (agentId: string) => void
@@ -51,8 +61,13 @@ interface AgentState {
   removeAgentConfig: (configId: string) => void
   setAgentConfigs: (configs: AgentConfig[]) => void
 
-  // Computed getters
+  // NEW: Comprehensive getters - eliminate prop drilling and data source confusion
+  getAgent: (id: string) => Agent | null
+  getConfig: (id: string) => AgentConfig | null
+  getAgentWithConfig: (id: string) => AgentWithConfig | null
   getSelectedAgent: () => Agent | null
+  getSelectedAgentWithConfig: () => AgentWithConfig | null
+  getProjectAgents: (projectId: string) => Agent[]
   getAgentsWithRoles: () => Agent[]
 
   // Utility actions
@@ -64,11 +79,11 @@ interface AgentState {
 
 export const useAgentStore = create<AgentState>()(
   devtools(
-    (set) => ({
+    (set, get) => ({
       // Initial state
       agents: [],
       selectedAgentId: null,
-      availableConfigs: [],
+      configs: [], // Renamed from availableConfigs
       clearingAgentId: null,
 
       // Actions
@@ -141,13 +156,11 @@ export const useAgentStore = create<AgentState>()(
 
       // Session clearing actions
       setClearingAgent: (agentId) => set({ clearingAgentId: agentId }, false, 'setClearingAgent'),
-      
-      clearAgentSession: (agentId) => 
+
+      clearAgentSession: (agentId) =>
         set(
           (state) => ({
-            agents: state.agents.map((a) => 
-              a.id === agentId ? { ...a, sessionId: '' } : a
-            ),
+            agents: state.agents.map((a) => (a.id === agentId ? { ...a, sessionId: '' } : a)),
             clearingAgentId: null,
           }),
           false,
@@ -158,7 +171,7 @@ export const useAgentStore = create<AgentState>()(
       addAgentConfig: (config) =>
         set(
           (state) => ({
-            availableConfigs: [...state.availableConfigs, config],
+            configs: [...state.configs, config],
           }),
           false,
           'addAgentConfig'
@@ -167,7 +180,7 @@ export const useAgentStore = create<AgentState>()(
       updateAgentConfig: (config) =>
         set(
           (state) => ({
-            availableConfigs: state.availableConfigs.map((c) => (c.id === config.id ? config : c)),
+            configs: state.configs.map((c) => (c.id === config.id ? config : c)),
           }),
           false,
           'updateAgentConfig'
@@ -176,18 +189,13 @@ export const useAgentStore = create<AgentState>()(
       removeAgentConfig: (configId) =>
         set(
           (state) => ({
-            availableConfigs: state.availableConfigs.filter((c) => c.id !== configId),
+            configs: state.configs.filter((c) => c.id !== configId),
           }),
           false,
           'removeAgentConfig'
         ),
 
-      setAgentConfigs: (configs) =>
-        set(
-          { availableConfigs: configs },
-          false,
-          'setAgentConfigs'
-        ),
+      setAgentConfigs: (configs) => set({ configs }, false, 'setAgentConfigs'),
 
       // Utility actions
       sendMessage: (from, to, content) => {
@@ -195,16 +203,62 @@ export const useAgentStore = create<AgentState>()(
         // TODO: Implement WebSocket message sending
       },
 
-      // Computed getters
+      // NEW: Comprehensive getters - eliminate prop drilling and data source confusion
+      getAgent: (id: string) => {
+        const state = get()
+        return state.agents.find((agent) => agent.id === id) || null
+      },
+
+      getConfig: (id: string) => {
+        const state = get()
+        return state.configs.find((config) => config.id === id) || null
+      },
+
+      getAgentWithConfig: (id: string) => {
+        const state = get()
+        const agent = state.agents.find((a) => a.id === id)
+        const config = state.configs.find((c) => c.id === id)
+
+        if (!agent) return null
+
+        return {
+          agent,
+          config: config || null,
+        }
+      },
+
       getSelectedAgent: () => {
         const state = get()
-        return state.agents.find(a => a.id === state.selectedAgentId) || null
+        if (!state.selectedAgentId) return null
+        return state.agents.find((a) => a.id === state.selectedAgentId) || null
+      },
+
+      getSelectedAgentWithConfig: () => {
+        const state = get()
+        if (!state.selectedAgentId) return null
+
+        const agent = state.agents.find((a) => a.id === state.selectedAgentId)
+        const config = state.configs.find((c) => c.id === state.selectedAgentId)
+
+        if (!agent) return null
+
+        return {
+          agent,
+          config: config || null,
+        }
+      },
+
+      getProjectAgents: (_projectId: string) => {
+        const state = get()
+        // Filter agents that belong to this project
+        // For now, return all agents - this will be enhanced when we add project filtering
+        return state.agents
       },
 
       getAgentsWithRoles: () => {
         const state = get()
-        // This would merge with role assignments - for now just return agents
-        // TODO: integrate with role assignments when needed
+        // Return agents with their role information
+        // This maintains compatibility with existing usage
         return state.agents
       },
 
@@ -213,7 +267,7 @@ export const useAgentStore = create<AgentState>()(
           {
             agents: [],
             selectedAgentId: null,
-            availableConfigs: [],
+            configs: [],
           },
           false,
           'clearAll'

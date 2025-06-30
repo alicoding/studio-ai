@@ -14,7 +14,7 @@ interface AgentRoleAssignment {
  * Keeps role templates and agent assignments separate
  */
 export function useAgentRoles() {
-  const { availableConfigs } = useAgentStore()
+  const { configs } = useAgentStore() // Updated from availableConfigs
   const [roleAssignments, setRoleAssignments] = useState<Record<string, AgentRoleAssignment>>({})
   const [loading, setLoading] = useState(false)
 
@@ -22,8 +22,8 @@ export function useAgentRoles() {
   const getAgentRole = (agentId: string) => {
     const assignment = roleAssignments[agentId]
     if (!assignment) return null
-    
-    return availableConfigs.find(config => config.id === assignment.roleId)
+
+    return configs.find((config) => config.id === assignment.roleId)
   }
 
   // Assign role to agent
@@ -40,9 +40,9 @@ export function useAgentRoles() {
       }
 
       const assignment = await response.json()
-      setRoleAssignments(prev => ({
+      setRoleAssignments((prev) => ({
         ...prev,
-        [agentId]: assignment
+        [agentId]: assignment,
       }))
 
       return assignment

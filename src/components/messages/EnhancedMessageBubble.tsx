@@ -32,11 +32,10 @@ interface EnhancedMessageBubbleProps {
   }
   isMeta?: boolean
   isCompactSummary?: boolean
-  rawData?: any
+  rawData?: unknown
   onRetry?: () => void
   onDelete?: () => void
 }
-
 
 function renderContent(content: string | MessageContent[], role: string) {
   if (typeof content === 'string') {
@@ -45,7 +44,7 @@ function renderContent(content: string | MessageContent[], role: string) {
     const messageMatch = content.match(/<command-message>([^<]+)<\/command-message>/)
     const argsMatch = content.match(/<command-args>([^<]*)<\/command-args>/)
     const outputMatch = content.match(/<local-command-stdout>([^<]+)<\/local-command-stdout>/)
-    
+
     if (commandMatch || outputMatch) {
       return (
         <CommandMessage
@@ -56,7 +55,7 @@ function renderContent(content: string | MessageContent[], role: string) {
         />
       )
     }
-    
+
     // User messages are always plain text - preserve exact formatting
     if (role === 'user') {
       return (
@@ -65,19 +64,17 @@ function renderContent(content: string | MessageContent[], role: string) {
         </div>
       )
     }
-    
+
     // Assistant messages might contain markdown
     const hasMarkdown = /[*_`#\[\](!]/.test(content) || content.includes('```')
-    
+
     // For plain text without markdown, preserve formatting
     if (!hasMarkdown) {
       return (
-        <div className="text-sm text-foreground break-words whitespace-pre-wrap">
-          {content}
-        </div>
+        <div className="text-sm text-foreground break-words whitespace-pre-wrap">{content}</div>
       )
     }
-    
+
     // For markdown content
     return (
       <div className="text-sm text-foreground break-words">
@@ -95,11 +92,7 @@ function renderContent(content: string | MessageContent[], role: string) {
   }
 
   // Fallback for unknown content format
-  return (
-    <pre className="text-sm whitespace-pre-wrap">
-      {JSON.stringify(content, null, 2)}
-    </pre>
-  )
+  return <pre className="text-sm whitespace-pre-wrap">{JSON.stringify(content, null, 2)}</pre>
 }
 
 export function EnhancedMessageBubble({
@@ -117,7 +110,9 @@ export function EnhancedMessageBubble({
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const formattedTime = timestamp ? format(new Date(timestamp), 'PPpp') : null
-  const relativeTime = timestamp ? formatDistanceToNow(new Date(timestamp), { addSuffix: true }) : null
+  const relativeTime = timestamp
+    ? formatDistanceToNow(new Date(timestamp), { addSuffix: true })
+    : null
 
   const handleDelete = () => {
     if (confirmDelete) {
@@ -131,7 +126,12 @@ export function EnhancedMessageBubble({
 
   // Handle compact summary messages
   if (isCompactSummary) {
-    return <CompactSummaryBlock content={typeof content === 'string' ? content : JSON.stringify(content)} timestamp={timestamp} />
+    return (
+      <CompactSummaryBlock
+        content={typeof content === 'string' ? content : JSON.stringify(content)}
+        timestamp={timestamp}
+      />
+    )
   }
 
   // Handle system messages and other message types
@@ -145,59 +145,54 @@ export function EnhancedMessageBubble({
               {role} {isMeta && '(System)'}
             </span>
           </div>
-          <div className="text-sm">
-            {renderContent(content, role)}
-          </div>
+          <div className="text-sm">{renderContent(content, role)}</div>
         </div>
       </div>
     )
   }
 
   return (
-    <div
-      className={cn(
-        "flex gap-3 py-4 px-4 group",
-        role === 'assistant' && "bg-secondary/30"
-      )}
-    >
+    <div className={cn('flex gap-3 py-4 px-4 group', role === 'assistant' && 'bg-secondary/30')}>
       <div className="flex-shrink-0">
-        <div className={cn(
-          "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium",
-          role === 'user' 
-            ? "bg-primary text-primary-foreground" 
-            : "bg-secondary text-secondary-foreground"
-        )}>
+        <div
+          className={cn(
+            'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
+            role === 'user'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-secondary text-secondary-foreground'
+          )}
+        >
           {role === 'user' ? 'U' : 'A'}
         </div>
       </div>
-      
+
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2 mb-1 flex-wrap">
           <span className="font-medium text-sm">
             {role === 'user' ? 'User' : agentName || 'Assistant'}
           </span>
-          
+
           {role === 'assistant' && model && (
             <Badge variant="outline" className="text-xs">
               {model}
             </Badge>
           )}
-          
+
           {usage && (
             <Badge variant="secondary" className="text-xs">
               {usage.input_tokens + usage.output_tokens} tokens
             </Badge>
           )}
-          
+
           {relativeTime && (
-            <span 
+            <span
               className="text-xs text-muted-foreground cursor-help"
               title={formattedTime || undefined}
             >
               {relativeTime}
             </span>
           )}
-          
+
           <div className="ml-auto opacity-0 group-hover:opacity-100 flex gap-1">
             {role === 'assistant' && onRetry && (
               <Button
@@ -210,23 +205,23 @@ export function EnhancedMessageBubble({
                 <RefreshCw className="h-3 w-3" />
               </Button>
             )}
-            
+
             {onDelete && (
               <Button
                 size="sm"
-                variant={confirmDelete ? "destructive" : "ghost"}
+                variant={confirmDelete ? 'destructive' : 'ghost'}
                 onClick={handleDelete}
                 className="h-7 px-2"
-                title={confirmDelete ? "Click again to confirm" : "Delete message"}
+                title={confirmDelete ? 'Click again to confirm' : 'Delete message'}
               >
                 <Trash2 className="h-3 w-3" />
               </Button>
             )}
           </div>
         </div>
-        
+
         {renderContent(content, role)}
-        
+
         {usage && (
           <div className="mt-2 text-xs text-muted-foreground">
             <span>Input: {usage.input_tokens}</span>

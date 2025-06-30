@@ -55,7 +55,7 @@ function ProjectsPage() {
   const roleOps = useRoleOperations()
   const modalOps = useModalOperations()
   const layout = useWorkspaceLayout()
-  
+
   // WebSocket operations (handles event registration)
   useWebSocketOperations()
 
@@ -79,19 +79,14 @@ function ProjectsPage() {
   // Zustand stores
   const {
     selectedAgentId,
-    availableConfigs,
+    configs, // Updated from availableConfigs
     setSelectedAgent,
     addAgentConfig,
     setAgentConfigs,
   } = useAgentStore()
 
-  const {
-    activeProjectId,
-    messageQueue,
-    setActiveProject,
-    clearQueue,
-    getOpenProjects,
-  } = useProjectStore()
+  const { activeProjectId, messageQueue, setActiveProject, clearQueue, getOpenProjects } =
+    useProjectStore()
 
   // Get only the open projects for workspace tabs
   const openProjects = getOpenProjects()
@@ -142,7 +137,9 @@ function ProjectsPage() {
   const handleAgentClear = async (agentId: string) => {
     const result = await agentOps.clearAgentSession(agentId)
     if (result.success) {
-      toast.success(`Session cleared${result.newSessionId ? ` - New session: ${result.newSessionId.slice(0, 8)}...` : ''}`)
+      toast.success(
+        `Session cleared${result.newSessionId ? ` - New session: ${result.newSessionId.slice(0, 8)}...` : ''}`
+      )
     } else if (result.error) {
       toast.error(`Failed to clear session: ${result.error}`)
     }
@@ -240,7 +237,7 @@ function ProjectsPage() {
             selectedAgentId={selectedAgentId}
             isCollapsed={layout.sidebarCollapsed}
             isLoading={loadingAgents}
-            availableConfigs={availableConfigs}
+            availableConfigs={configs} // TODO: Remove prop drilling in Phase 2
             onAgentSelect={setSelectedAgent}
             onAgentPause={handleAgentPause}
             onAgentClear={handleAgentClear}
@@ -273,7 +270,7 @@ function ProjectsPage() {
                 />
               ) : (
                 <div className="flex-1 flex overflow-hidden">
-                  {layout.isSingleView && <SingleView selectedAgentId={selectedAgentId} agents={agentsWithRoles} />}
+                  {layout.isSingleView && <SingleView selectedAgentId={selectedAgentId} />}
                   {layout.isSplitView && <SplitView agents={projectAgents} />}
                   {layout.isGridView && <GridView agents={projectAgents} />}
                 </div>
@@ -301,7 +298,7 @@ function ProjectsPage() {
         isOpen={modalOps.isAgentSelectionOpen}
         onClose={() => modalOps.closeModal('agentSelection')}
         onSelect={handleAddAgents}
-        availableAgents={availableConfigs}
+        availableAgents={configs}
         currentAgentIds={agentsWithRoles.map((a) => a.id)}
       />
 
@@ -316,10 +313,10 @@ function ProjectsPage() {
         onClose={roleOps.cancelRoleAssignment}
         agentName={roleOps.selectedLegacyAgent?.name || ''}
         agentId={roleOps.selectedLegacyAgent?.id || ''}
-        availableRoles={availableConfigs}
+        availableRoles={configs}
         currentAgentConfig={
           roleOps.selectedLegacyAgent
-            ? roleOps.getAgentRoleAssignment(roleOps.selectedLegacyAgent.id)
+            ? roleOps.getAgentRoleAssignment(roleOps.selectedLegacyAgent.id) || undefined
             : undefined
         }
         onAssignRole={handleAssignRole}

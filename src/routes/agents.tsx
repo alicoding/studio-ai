@@ -21,7 +21,7 @@ interface AgentConfig {
 
 function AgentsPage() {
   const {
-    availableConfigs: agents,
+    configs: agents, // Updated from availableConfigs
     setAgentConfigs,
     addAgentConfig,
     updateAgentConfig,

@@ -27,7 +27,7 @@ interface SidebarProps {
   onAddAgent: () => void
   onCreateAgent: () => void
   onLoadTeam: () => void
-  availableConfigs?: any[]
+  availableConfigs?: unknown[] // TODO Phase 2: Remove prop drilling, use useAgentStore getConfig directly
 }
 
 export function Sidebar({
@@ -73,7 +73,7 @@ export function Sidebar({
           </div>
         ) : (
           agents.map((agent) => {
-            const hasConfig = availableConfigs.some(config => config.id === agent.id)
+            const hasConfig = availableConfigs.some((config) => config.id === agent.id)
             return (
               <AgentCard
                 key={agent.id}
@@ -86,7 +86,9 @@ export function Sidebar({
                 onClear={() => onAgentClear(agent.id)}
                 onRemove={() => onAgentRemove(agent.id)}
                 onConvert={onAgentConvert ? () => onAgentConvert(agent.id) : undefined}
-                onReassignRole={onAgentReassignRole ? () => onAgentReassignRole(agent.id) : undefined}
+                onReassignRole={
+                  onAgentReassignRole ? () => onAgentReassignRole(agent.id) : undefined
+                }
               />
             )
           })
