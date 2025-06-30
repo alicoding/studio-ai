@@ -9,6 +9,7 @@ export interface SystemConfig {
   apiEndpoint: string
   theme: 'light' | 'dark'
   telemetry: boolean
+  defaultClearSessionPrompt: string
 }
 
 export interface MasterConfig {
@@ -102,11 +103,12 @@ export class ConfigService {
             defaultWorkspacePath: path.join(os.homedir(), 'projects'),
             apiEndpoint: 'http://localhost:3000',
             theme: 'dark',
-            telemetry: false
+            telemetry: false,
+            defaultClearSessionPrompt: 'You are an AI assistant. Please stand by for instructions.',
           },
           projects: [],
           agents: [],
-          teams: []
+          teams: [],
         }
         await this.saveMasterConfig(defaultConfig)
       }
@@ -138,21 +140,20 @@ export class ConfigService {
   }
 
   // Project operations
-  async createProject(project: Omit<ProjectConfig, 'created' | 'lastModified'>): Promise<ProjectConfig> {
+  async createProject(
+    project: Omit<ProjectConfig, 'created' | 'lastModified'>
+  ): Promise<ProjectConfig> {
     const now = new Date().toISOString()
     const fullProject: ProjectConfig = {
       ...project,
       created: now,
-      lastModified: now
+      lastModified: now,
     }
 
     const projectDir = path.join(this.configDir, 'projects', project.id)
     await fs.mkdir(projectDir, { recursive: true })
     await fs.mkdir(path.join(projectDir, 'sessions'), { recursive: true })
-    await fs.writeFile(
-      path.join(projectDir, 'project.json'),
-      JSON.stringify(fullProject, null, 2)
-    )
+    await fs.writeFile(path.join(projectDir, 'project.json'), JSON.stringify(fullProject, null, 2))
 
     // Update master config
     const config = await this.getConfig()
@@ -183,7 +184,7 @@ export class ConfigService {
     const updated = {
       ...project,
       ...updates,
-      lastModified: new Date().toISOString()
+      lastModified: new Date().toISOString(),
     }
     await fs.writeFile(
       path.join(this.configDir, 'projects', id, 'project.json'),
@@ -193,17 +194,15 @@ export class ConfigService {
 
   async deleteProject(id: string): Promise<void> {
     await fs.rm(path.join(this.configDir, 'projects', id), { recursive: true })
-    
+
     const config = await this.getConfig()
-    config.projects = config.projects.filter(p => p !== id)
+    config.projects = config.projects.filter((p) => p !== id)
     await this.saveMasterConfig(config)
   }
 
   async getAllProjects(): Promise<ProjectConfig[]> {
     const config = await this.getConfig()
-    const projects = await Promise.all(
-      config.projects.map(id => this.getProject(id))
-    )
+    const projects = await Promise.all(config.projects.map((id) => this.getProject(id)))
     return projects.filter((p): p is ProjectConfig => p !== null)
   }
 
@@ -211,7 +210,7 @@ export class ConfigService {
   async createAgent(agent: Omit<AgentConfig, 'created'>): Promise<AgentConfig> {
     const fullAgent: AgentConfig = {
       ...agent,
-      created: new Date().toISOString()
+      created: new Date().toISOString(),
     }
 
     await fs.writeFile(
@@ -230,10 +229,7 @@ export class ConfigService {
 
   async getAgent(id: string): Promise<AgentConfig | null> {
     try {
-      const data = await fs.readFile(
-        path.join(this.configDir, 'agents', `${id}.json`),
-        'utf-8'
-      )
+      const data = await fs.readFile(path.join(this.configDir, 'agents', `${id}.json`), 'utf-8')
       return JSON.parse(data)
     } catch {
       return null
@@ -253,17 +249,15 @@ export class ConfigService {
 
   async deleteAgent(id: string): Promise<void> {
     await fs.unlink(path.join(this.configDir, 'agents', `${id}.json`))
-    
+
     const config = await this.getConfig()
-    config.agents = config.agents.filter(a => a !== id)
+    config.agents = config.agents.filter((a) => a !== id)
     await this.saveMasterConfig(config)
   }
 
   async getAllAgents(): Promise<AgentConfig[]> {
     const config = await this.getConfig()
-    const agents = await Promise.all(
-      config.agents.map(id => this.getAgent(id))
-    )
+    const agents = await Promise.all(config.agents.map((id) => this.getAgent(id)))
     return agents.filter((a): a is AgentConfig => a !== null)
   }
 
@@ -271,7 +265,7 @@ export class ConfigService {
   async createTeam(team: Omit<TeamConfig, 'created'>): Promise<TeamConfig> {
     const fullTeam: TeamConfig = {
       ...team,
-      created: new Date().toISOString()
+      created: new Date().toISOString(),
     }
 
     await fs.writeFile(
@@ -290,10 +284,7 @@ export class ConfigService {
 
   async getTeam(id: string): Promise<TeamConfig | null> {
     try {
-      const data = await fs.readFile(
-        path.join(this.configDir, 'teams', `${id}.json`),
-        'utf-8'
-      )
+      const data = await fs.readFile(path.join(this.configDir, 'teams', `${id}.json`), 'utf-8')
       return JSON.parse(data)
     } catch {
       return null
@@ -302,20 +293,24 @@ export class ConfigService {
 
   async getAllTeams(): Promise<TeamConfig[]> {
     const config = await this.getConfig()
-    const teams = await Promise.all(
-      config.teams.map(id => this.getTeam(id))
-    )
+    const teams = await Promise.all(config.teams.map((id) => this.getTeam(id)))
     return teams.filter((t): t is TeamConfig => t !== null)
   }
 
   // Session management (links to Claude native sessions)
   async linkClaudeSession(projectId: string, agentId: string, sessionId: string): Promise<void> {
-    const sessionPath = path.join(this.configDir, 'projects', projectId, 'sessions', `${agentId}.json`)
+    const sessionPath = path.join(
+      this.configDir,
+      'projects',
+      projectId,
+      'sessions',
+      `${agentId}.json`
+    )
     const session: AgentSession = {
       projectId,
       agentId,
       sessionId,
-      claudeSessionPath: path.join(os.homedir(), '.claude', sessionId)
+      claudeSessionPath: path.join(os.homedir(), '.claude', sessionId),
     }
     await fs.writeFile(sessionPath, JSON.stringify(session, null, 2))
   }
@@ -339,17 +334,21 @@ export class ConfigService {
     const agents = await this.getAllAgents()
     const teams = await this.getAllTeams()
 
-    return JSON.stringify({
-      config,
-      projects,
-      agents,
-      teams
-    }, null, 2)
+    return JSON.stringify(
+      {
+        config,
+        projects,
+        agents,
+        teams,
+      },
+      null,
+      2
+    )
   }
 
   async importConfig(data: string): Promise<void> {
     const imported = JSON.parse(data)
-    
+
     // Validate structure
     if (!imported.config || !imported.projects || !imported.agents || !imported.teams) {
       throw new Error('Invalid config export format')
@@ -357,15 +356,15 @@ export class ConfigService {
 
     // Import in order
     await this.saveMasterConfig(imported.config)
-    
+
     for (const agent of imported.agents) {
       await this.createAgent(agent)
     }
-    
+
     for (const team of imported.teams) {
       await this.createTeam(team)
     }
-    
+
     for (const project of imported.projects) {
       await this.createProject(project)
     }

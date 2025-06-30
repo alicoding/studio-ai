@@ -149,22 +149,8 @@ function ProjectsPage() {
   }
 
   const handleAgentClear = async (agentId: string) => {
-    // Find agent info for better prompt
-    const agent = storeAgents.find((a) => a.id === agentId)
-    const agentName = agent?.name || `Agent ${agentId.slice(0, 8)}`
-
-    // Prompt user for custom initialization message
-    const customPrompt = prompt(
-      `Enter initialization prompt for ${agentName} (or leave empty for default):`,
-      ''
-    )
-
-    // If user cancels, don't proceed
-    if (customPrompt === null) {
-      return
-    }
-
-    const result = await agentOps.clearAgentSession(agentId, customPrompt.trim() || undefined)
+    // Clear session without prompting - will use system default
+    const result = await agentOps.clearAgentSession(agentId)
 
     if (result.success) {
       toast.success(

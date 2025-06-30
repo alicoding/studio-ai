@@ -15,14 +15,14 @@ export const Route = createFileRoute('/settings')({
   component: SettingsPage,
 })
 
-
 function SettingsPage() {
   // System settings
   const [systemConfig, setSystemConfig] = useState({
     claudeCodePath: '',
     defaultWorkspacePath: '~/projects',
     apiEndpoint: window.location.origin,
-    enableTelemetry: false
+    enableTelemetry: false,
+    defaultClearSessionPrompt: 'You are an AI assistant. Please stand by for instructions.',
   })
   const [detectedPaths, setDetectedPaths] = useState<string[]>([])
   const [detectingPath, setDetectingPath] = useState(false)
@@ -40,11 +40,11 @@ function SettingsPage() {
       if (response.ok) {
         const savedConfig = await response.json()
         // Merge saved config with defaults
-        setSystemConfig(prev => ({
+        setSystemConfig((prev) => ({
           ...prev,
           ...savedConfig,
           // Ensure apiEndpoint has a default if not saved
-          apiEndpoint: savedConfig.apiEndpoint || window.location.origin
+          apiEndpoint: savedConfig.apiEndpoint || window.location.origin,
         }))
       }
     } catch (error) {
@@ -61,7 +61,7 @@ function SettingsPage() {
       const response = await fetch('/api/settings/system', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(systemConfig)
+        body: JSON.stringify(systemConfig),
       })
       if (response.ok) {
         toast.success('System settings saved successfully!')
@@ -76,13 +76,12 @@ function SettingsPage() {
     }
   }
 
-
   // Detect Claude installation paths
   const detectClaudePath = async () => {
     setDetectingPath(true)
     try {
       const checkPaths: string[] = []
-      
+
       // Check common command names using system 'which' command
       const commands = ['claude', 'claude-code', 'claude-cli']
       for (const cmd of commands) {
@@ -90,7 +89,7 @@ function SettingsPage() {
           const response = await fetch('/api/system/detect-command', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ command: cmd })
+            body: JSON.stringify({ command: cmd }),
           })
           if (response.ok) {
             const { path } = await response.json()
@@ -100,21 +99,21 @@ function SettingsPage() {
           console.error(`Failed to detect ${cmd}:`, error)
         }
       }
-      
+
       const uniquePaths = [...new Set(checkPaths)]
       setDetectedPaths(uniquePaths)
-      
+
       // Auto-select first found path if none is set
       if (uniquePaths.length > 0 && !systemConfig.claudeCodePath) {
         const newConfig = { ...systemConfig, claudeCodePath: uniquePaths[0] }
         setSystemConfig(newConfig)
-        
+
         // Auto-save the detected path
         try {
           const response = await fetch('/api/settings/system', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newConfig)
+            body: JSON.stringify(newConfig),
           })
           if (response.ok) {
             toast.success(`Found and saved Claude at: ${uniquePaths[0]}`)
@@ -175,159 +174,202 @@ function SettingsPage() {
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
               )}
-              {!loading && (<>
-              {/* Detect Claude Installation */}
-              <div className="p-4 bg-muted rounded-lg space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Detect Claude Code Installation</Label>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={detectClaudePath}
-                    disabled={detectingPath}
-                  >
-                    {detectingPath ? (
-                      <>
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                        Detecting...
-                      </>
-                    ) : (
-                      'Auto-detect'
+              {!loading && (
+                <>
+                  {/* Detect Claude Installation */}
+                  <div className="p-4 bg-muted rounded-lg space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Detect Claude Code Installation</Label>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={detectClaudePath}
+                        disabled={detectingPath}
+                      >
+                        {detectingPath ? (
+                          <>
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            Detecting...
+                          </>
+                        ) : (
+                          'Auto-detect'
+                        )}
+                      </Button>
+                    </div>
+                    {detectedPaths.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">Found installations:</p>
+                        {detectedPaths.map((path) => {
+                          const isProjectLocal = path.includes('node_modules')
+                          return (
+                            <Button
+                              key={path}
+                              variant="ghost"
+                              size="sm"
+                              className="w-full justify-start text-left font-mono text-xs"
+                              onClick={() =>
+                                setSystemConfig((prev) => ({ ...prev, claudeCodePath: path }))
+                              }
+                            >
+                              <span className={isProjectLocal ? 'opacity-50' : ''}>{path}</span>
+                              {isProjectLocal && (
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  (project local)
+                                </span>
+                              )}
+                            </Button>
+                          )
+                        })}
+                      </div>
                     )}
-                  </Button>
-                </div>
-                {detectedPaths.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Found installations:</p>
-                    {detectedPaths.map(path => {
-                      const isProjectLocal = path.includes('node_modules')
-                      return (
-                        <Button
-                          key={path}
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start text-left font-mono text-xs"
-                          onClick={() => setSystemConfig(prev => ({ ...prev, claudeCodePath: path }))}
-                        >
-                          <span className={isProjectLocal ? 'opacity-50' : ''}>
-                            {path}
-                          </span>
-                          {isProjectLocal && (
-                            <span className="ml-2 text-xs text-muted-foreground">(project local)</span>
-                          )}
-                        </Button>
-                      )
-                    })}
                   </div>
-                )}
-              </div>
-              {/* Claude Code Path */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="claude-path">Claude Code Installation Path</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="w-4 h-4 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Path to your Claude Code executable.</p>
-                        <p>Click "Auto-detect" to find it automatically</p>
-                        <p>or enter the path manually.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <Input
-                  id="claude-path"
-                  type="text"
-                  value={systemConfig.claudeCodePath}
-                  onChange={(e) => setSystemConfig(prev => ({ ...prev, claudeCodePath: e.target.value }))}
-                  placeholder="e.g., /usr/local/bin/claude"
-                />
-              </div>
+                  {/* Claude Code Path */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="claude-path">Claude Code Installation Path</Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Path to your Claude Code executable.</p>
+                            <p>Click "Auto-detect" to find it automatically</p>
+                            <p>or enter the path manually.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <Input
+                      id="claude-path"
+                      type="text"
+                      value={systemConfig.claudeCodePath}
+                      onChange={(e) =>
+                        setSystemConfig((prev) => ({ ...prev, claudeCodePath: e.target.value }))
+                      }
+                      placeholder="e.g., /usr/local/bin/claude"
+                    />
+                  </div>
 
-              {/* Default Workspace Path */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="workspace-path">Default Workspace Path</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="w-4 h-4 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Default directory where new projects</p>
-                        <p>will be created</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <Input
-                  id="workspace-path"
-                  type="text"
-                  value={systemConfig.defaultWorkspacePath}
-                  onChange={(e) => setSystemConfig(prev => ({ ...prev, defaultWorkspacePath: e.target.value }))}
-                  placeholder="~/projects"
-                />
-              </div>
+                  {/* Default Workspace Path */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="workspace-path">Default Workspace Path</Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Default directory where new projects</p>
+                            <p>will be created</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <Input
+                      id="workspace-path"
+                      type="text"
+                      value={systemConfig.defaultWorkspacePath}
+                      onChange={(e) =>
+                        setSystemConfig((prev) => ({
+                          ...prev,
+                          defaultWorkspacePath: e.target.value,
+                        }))
+                      }
+                      placeholder="~/projects"
+                    />
+                  </div>
 
-              {/* API Settings */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="api-endpoint">API Endpoint</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <HelpCircle className="w-4 h-4 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Backend API server URL.</p>
-                        <p>Useful when running backend separately</p>
-                        <p>or on a different machine/port</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <Input
-                  id="api-endpoint"
-                  type="text"
-                  value={systemConfig.apiEndpoint}
-                  onChange={(e) => setSystemConfig(prev => ({ ...prev, apiEndpoint: e.target.value }))}
-                  placeholder="http://localhost:3000"
-                />
-              </div>
+                  {/* API Settings */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="api-endpoint">API Endpoint</Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Backend API server URL.</p>
+                            <p>Useful when running backend separately</p>
+                            <p>or on a different machine/port</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <Input
+                      id="api-endpoint"
+                      type="text"
+                      value={systemConfig.apiEndpoint}
+                      onChange={(e) =>
+                        setSystemConfig((prev) => ({ ...prev, apiEndpoint: e.target.value }))
+                      }
+                      placeholder="http://localhost:3000"
+                    />
+                  </div>
 
-              {/* Telemetry */}
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="telemetry"
-                    checked={systemConfig.enableTelemetry}
-                    onCheckedChange={(checked) => 
-                      setSystemConfig(prev => ({ ...prev, enableTelemetry: !!checked }))
-                    }
-                  />
-                  <Label htmlFor="telemetry" className="font-normal cursor-pointer">
-                    Enable anonymous usage analytics
-                  </Label>
-                </div>
-                <p className="text-xs text-muted-foreground ml-6">
-                  Help improve Claude Studio by sharing anonymous usage data
-                </p>
-              </div>
+                  {/* Default Clear Session Prompt */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="clear-prompt">Default Clear Session Prompt</Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Default message when clearing agent sessions.</p>
+                            <p>Used when no custom prompt is provided.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <textarea
+                      id="clear-prompt"
+                      className="w-full px-3 py-2 bg-background border border-input rounded-md resize-y min-h-[80px] text-sm"
+                      value={
+                        systemConfig.defaultClearSessionPrompt ||
+                        'You are an AI assistant. Please stand by for instructions.'
+                      }
+                      onChange={(e) =>
+                        setSystemConfig((prev) => ({
+                          ...prev,
+                          defaultClearSessionPrompt: e.target.value,
+                        }))
+                      }
+                      placeholder="You are an AI assistant. Please stand by for instructions."
+                      rows={3}
+                    />
+                  </div>
 
+                  {/* Telemetry */}
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="telemetry"
+                        checked={systemConfig.enableTelemetry}
+                        onCheckedChange={(checked) =>
+                          setSystemConfig((prev) => ({ ...prev, enableTelemetry: !!checked }))
+                        }
+                      />
+                      <Label htmlFor="telemetry" className="font-normal cursor-pointer">
+                        Enable anonymous usage analytics
+                      </Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-6">
+                      Help improve Claude Studio by sharing anonymous usage data
+                    </p>
+                  </div>
 
-              <div className="pt-4">
-                <Button 
-                  onClick={handleSystemSave}
-                  disabled={saving}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  {saving ? 'Saving...' : 'Save System Settings'}
-                </Button>
-              </div>
-              </>)}
+                  <div className="pt-4">
+                    <Button onClick={handleSystemSave} disabled={saving}>
+                      <Save className="w-4 h-4 mr-2" />
+                      {saving ? 'Saving...' : 'Save System Settings'}
+                    </Button>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -349,17 +391,15 @@ function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Project Configuration</CardTitle>
-              <CardDescription>
-                Settings that apply to specific projects
-              </CardDescription>
+              <CardDescription>Settings that apply to specific projects</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-center py-8 text-muted-foreground">
                 <FolderOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>Select a project to configure its settings</p>
                 <p className="text-sm mt-2">
-                  Project settings include environment variables, disabled tools, 
-                  and project-specific MCP servers
+                  Project settings include environment variables, disabled tools, and
+                  project-specific MCP servers
                 </p>
               </div>
             </CardContent>
