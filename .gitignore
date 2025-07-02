@@ -31,4 +31,14 @@ Thumbs.db
 
 # Session data
 ~/.claude/
-/tmp/claude-agents/src/routeTree.gen.ts
+/tmp/claude-agents/
+
+# Test files
+test-*.js
+debug-*.js
+
+# Local configuration (not the app config)
+.claude-studio-local/
+
+# Auto-generated files
+src/routeTree.gen.ts

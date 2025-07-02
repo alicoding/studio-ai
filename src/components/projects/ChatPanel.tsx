@@ -1,42 +1,61 @@
 import { useState, useRef } from 'react'
-
-interface Agent {
-  id: string
-  role: string
-  status: 'ready' | 'online' | 'busy' | 'offline'
-}
+import TextareaAutosize from 'react-textarea-autosize'
+import { CommandSuggestions } from './CommandSuggestions'
+import { useAgentStore, useProjectStore } from '../../stores'
 
 interface ChatPanelProps {
-  agents: Agent[]
-  onSendMessage: (message: string) => void
+  onSendMessage: (message: string) => void | Promise<void>
   onBroadcast: () => void
   onInterrupt: () => void
 }
 
-export function ChatPanel({ agents, onSendMessage, onBroadcast, onInterrupt }: ChatPanelProps) {
+export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanelProps) {
+  // Get agents from Zustand store
+  const { getProjectAgents } = useAgentStore()
+  const { activeProjectId } = useProjectStore()
+
+  const agents = getProjectAgents(activeProjectId || '')
   const [message, setMessage] = useState('')
   const [showMentions, setShowMentions] = useState(false)
   const [mentionFilter, setMentionFilter] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [showCommands, setShowCommands] = useState<'slash' | 'hash' | null>(null)
+  const [commandFilter, setCommandFilter] = useState('')
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
     setMessage(value)
 
     const lastWord = value.split(' ').pop() || ''
+
+    // Check for mentions
     if (lastWord.startsWith('@') && lastWord.length > 1) {
       setMentionFilter(lastWord.substring(1).toLowerCase())
       setShowMentions(true)
+      setShowCommands(null)
+    }
+    // Check for slash commands
+    else if (lastWord.startsWith('/') && lastWord.length >= 1) {
+      setCommandFilter(lastWord.substring(1).toLowerCase())
+      setShowCommands('slash')
+      setShowMentions(false)
+    }
+    // Check for hash commands
+    else if (lastWord.startsWith('#') && lastWord.length >= 1) {
+      setCommandFilter(lastWord.substring(1).toLowerCase())
+      setShowCommands('hash')
+      setShowMentions(false)
     } else {
       setShowMentions(false)
+      setShowCommands(null)
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       if (message.trim()) {
-        onSendMessage(message.trim())
+        onSendMessage(message) // Don't trim here to preserve formatting
         setMessage('')
         setShowMentions(false)
       }
@@ -54,6 +73,14 @@ export function ChatPanel({ agents, onSendMessage, onBroadcast, onInterrupt }: C
     inputRef.current?.focus()
   }
 
+  const completeCommand = (command: string) => {
+    const words = message.split(' ')
+    words[words.length - 1] = command
+    setMessage(words.join(' ') + ' ')
+    setShowCommands(null)
+    inputRef.current?.focus()
+  }
+
   const filteredAgents = agents.filter(
     (agent) => agent.status !== 'offline' && agent.id.toLowerCase().includes(mentionFilter)
   )
@@ -68,18 +95,21 @@ export function ChatPanel({ agents, onSendMessage, onBroadcast, onInterrupt }: C
   return (
     <div className="relative bg-card border-t border-border">
       <div className="p-4">
-        <input
+        <TextareaAutosize
           ref={inputRef}
-          type="text"
-          className="w-full px-4 py-2 bg-input border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          placeholder="Type a message or command (#team, @agent)..."
+          className="w-full px-4 py-2 bg-input border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+          placeholder="Type a message, /compact, /config, /help, #commands, or @agent..."
           value={message}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           autoComplete="off"
+          minRows={1}
+          maxRows={8}
         />
         <div className="flex items-center justify-between mt-2">
-          <span className="text-xs text-muted-foreground">ESC to interrupt • Enter to send</span>
+          <span className="text-xs text-muted-foreground">
+            ESC to interrupt • Enter to send • Shift+Enter for new line
+          </span>
           <button
             className="text-xs px-3 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
             onClick={onBroadcast}
@@ -88,6 +118,10 @@ export function ChatPanel({ agents, onSendMessage, onBroadcast, onInterrupt }: C
           </button>
         </div>
       </div>
+
+      {showCommands && (
+        <CommandSuggestions filter={commandFilter} onSelect={completeCommand} type={showCommands} />
+      )}
 
       {showMentions && (
         <div className="absolute bottom-full left-0 right-0 bg-popover border border-border rounded-md shadow-lg mb-2 mx-4 max-h-48 overflow-y-auto">

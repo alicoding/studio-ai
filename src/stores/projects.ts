@@ -1,18 +1,26 @@
 import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
+import { devtools, persist } from 'zustand/middleware'
 
 export interface Project {
   id: string
   name: string
-  description: string
-  lastModified: string
-  agentCount: number
-  thumbnail?: string
-  template?: string
-  agentIds?: string[]
-  directory?: string
-  createdAt?: string | Date
-  agents?: any[]
+  description?: string
+  path: string
+  createdAt: Date | string
+  sessionCount: number
+  lastSessionAt?: Date | string
+  status: 'active' | 'archived' | 'draft'
+  lastModified: Date | string
+  tags: string[]
+  favorite: boolean
+  studioMetadata?: {
+    projectId: string
+    status: 'active' | 'archived' | 'draft'
+    tags: string[]
+    favorite: boolean
+    notes: string
+    lastModified: Date | string
+  }
 }
 
 export interface QueueItem {
@@ -25,18 +33,42 @@ export interface QueueItem {
 
 interface ProjectState {
   // State
-  projects: Project[]
+  projects: Project[] // All projects from Claude Code
+  openProjects: string[] // Project IDs that are open in workspace tabs
   activeProjectId: string | null
+  projectAgents: Record<string, string[]> // Map of projectId to active agentIds
   messageQueue: QueueItem[]
   viewMode: 'single' | 'split' | 'grid' | 'develop'
   sidebarCollapsed: boolean
+  chatCollapsed: boolean
+  isLoading: boolean
+  error: string | null
 
   // Actions
   setProjects: (projects: Project[]) => void
+  fetchProjects: () => Promise<void>
   addProject: (project: Project) => void
   updateProject: (projectId: string, updates: Partial<Project>) => void
+  updateProjectMetadata: (
+    projectId: string,
+    metadata: {
+      tags?: string[]
+      favorite?: boolean
+      status?: 'active' | 'archived' | 'draft'
+      notes?: string
+    }
+  ) => Promise<void>
   removeProject: (projectId: string) => void
   setActiveProject: (projectId: string | null) => void
+
+  // Workspace tab actions
+  openProjectInWorkspace: (projectId: string) => void
+  closeProjectInWorkspace: (projectId: string) => void
+  getOpenProjects: () => Project[]
+
+  // Agent management per project
+  setProjectAgents: (projectId: string, agentIds: string[]) => void
+  getActiveProjectAgents: () => string[]
 
   // Queue actions
   addToQueue: (item: Omit<QueueItem, 'id' | 'timestamp' | 'status'>) => void
@@ -48,158 +80,274 @@ interface ProjectState {
   setViewMode: (mode: 'single' | 'split' | 'grid' | 'develop') => void
   setSidebarCollapsed: (collapsed: boolean) => void
   toggleSidebar: () => void
+  setChatCollapsed: (collapsed: boolean) => void
+  toggleChat: () => void
 
   // Utility actions
   clearAll: () => void
 }
 
-const MOCK_PROJECTS: Project[] = [
-  {
-    id: 'project-1',
-    name: 'Project Alpha',
-    description: 'Full-stack web application with React and Node.js backend',
-    lastModified: '2024-01-15T10:30:00Z',
-    agentCount: 3,
-    agentIds: ['dev-1', 'ux-1'],
-  },
-  {
-    id: 'project-2',
-    name: 'Project Beta',
-    description: 'Mobile app prototype with React Native',
-    lastModified: '2024-01-12T14:20:00Z',
-    agentCount: 2,
-    agentIds: ['backend-1'],
-  },
-  {
-    id: 'project-3',
-    name: 'Data Analysis',
-    description: 'Python data science pipeline with ML models',
-    lastModified: '2024-01-10T09:15:00Z',
-    agentCount: 1,
-    agentIds: [],
-  },
-]
+// Mock data will be replaced by real data from the API
+const MOCK_PROJECTS: Project[] = []
 
 export const useProjectStore = create<ProjectState>()(
   devtools(
-    (set) => ({
-      // Initial state
-      projects: MOCK_PROJECTS,
-      activeProjectId: 'project-1',
-      messageQueue: [],
-      viewMode: 'single',
-      sidebarCollapsed: false,
+    persist(
+      (set, get) => ({
+        // Initial state
+        projects: MOCK_PROJECTS,
+        openProjects: [], // No projects open initially
+        activeProjectId: null,
+        projectAgents: {}, // No agents assigned initially
+        messageQueue: [],
+        viewMode: 'single',
+        sidebarCollapsed: false,
+        chatCollapsed: false,
+        isLoading: false,
+        error: null,
 
-      // Project actions
-      setProjects: (projects) => set({ projects }, false, 'setProjects'),
+        // Project actions
+        setProjects: (projects) => set({ projects }, false, 'setProjects'),
 
-      addProject: (project) =>
-        set(
-          (state) => ({
-            projects: [project, ...state.projects],
-          }),
-          false,
-          'addProject'
-        ),
-
-      updateProject: (projectId, updates) =>
-        set(
-          (state) => ({
-            projects: state.projects.map((p) => (p.id === projectId ? { ...p, ...updates } : p)),
-          }),
-          false,
-          'updateProject'
-        ),
-
-      removeProject: (projectId) =>
-        set(
-          (state) => {
-            const newProjects = state.projects.filter((p) => p.id !== projectId)
-            const newActiveId =
-              state.activeProjectId === projectId
-                ? newProjects[0]?.id || null
-                : state.activeProjectId
-
-            return {
-              projects: newProjects,
-              activeProjectId: newActiveId,
+        fetchProjects: async () => {
+          set({ isLoading: true, error: null }, false, 'fetchProjects.start')
+          try {
+            const response = await fetch('/api/projects')
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`)
             }
-          },
-          false,
-          'removeProject'
-        ),
-
-      setActiveProject: (projectId) =>
-        set({ activeProjectId: projectId }, false, 'setActiveProject'),
-
-      // Queue actions
-      addToQueue: (item) =>
-        set(
-          (state) => ({
-            messageQueue: [
-              ...state.messageQueue,
+            const projects = await response.json()
+            set({ projects, isLoading: false, error: null }, false, 'fetchProjects.success')
+          } catch (error) {
+            console.error('Failed to fetch projects:', error)
+            set(
               {
-                ...item,
-                id: Date.now().toString(),
-                timestamp: Date.now(),
-                status: 'pending' as const,
+                isLoading: false,
+                error: error instanceof Error ? error.message : 'Failed to fetch projects',
               },
-            ],
-          }),
-          false,
-          'addToQueue'
-        ),
+              false,
+              'fetchProjects.error'
+            )
+          }
+        },
 
-      updateQueueItem: (itemId, updates) =>
-        set(
-          (state) => ({
-            messageQueue: state.messageQueue.map((item) =>
-              item.id === itemId ? { ...item, ...updates } : item
-            ),
-          }),
-          false,
-          'updateQueueItem'
-        ),
+        addProject: (project) =>
+          set(
+            (state) => ({
+              projects: [project, ...state.projects],
+            }),
+            false,
+            'addProject'
+          ),
 
-      removeFromQueue: (itemId) =>
-        set(
-          (state) => ({
-            messageQueue: state.messageQueue.filter((item) => item.id !== itemId),
-          }),
-          false,
-          'removeFromQueue'
-        ),
+        updateProject: (projectId, updates) =>
+          set(
+            (state) => ({
+              projects: state.projects.map((p) => (p.id === projectId ? { ...p, ...updates } : p)),
+            }),
+            false,
+            'updateProject'
+          ),
 
-      clearQueue: () => set({ messageQueue: [] }, false, 'clearQueue'),
+        updateProjectMetadata: async (projectId, metadata) => {
+          try {
+            const response = await fetch(`/api/projects/${projectId}/metadata`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(metadata),
+            })
 
-      // UI actions
-      setViewMode: (mode) => set({ viewMode: mode }, false, 'setViewMode'),
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`)
+            }
 
-      setSidebarCollapsed: (collapsed) =>
-        set({ sidebarCollapsed: collapsed }, false, 'setSidebarCollapsed'),
+            const updatedProject = await response.json()
 
-      toggleSidebar: () =>
-        set(
-          (state) => ({
-            sidebarCollapsed: !state.sidebarCollapsed,
-          }),
-          false,
-          'toggleSidebar'
-        ),
+            // Update the local state with the updated project
+            set(
+              (state) => ({
+                projects: state.projects.map((p) => (p.id === projectId ? updatedProject : p)),
+              }),
+              false,
+              'updateProjectMetadata'
+            )
+          } catch (error) {
+            console.error('Failed to update project metadata:', error)
+            throw error
+          }
+        },
 
-      clearAll: () =>
-        set(
-          {
-            projects: [],
-            activeProjectId: null,
-            messageQueue: [],
-            viewMode: 'single',
-            sidebarCollapsed: false,
-          },
-          false,
-          'clearAll'
-        ),
-    }),
+        removeProject: (projectId) =>
+          set(
+            (state) => {
+              const newProjects = state.projects.filter((p) => p.id !== projectId)
+              const newOpenProjects = state.openProjects.filter((id) => id !== projectId)
+              const newActiveId =
+                state.activeProjectId === projectId
+                  ? newOpenProjects[0] || null
+                  : state.activeProjectId
+
+              return {
+                projects: newProjects,
+                openProjects: newOpenProjects,
+                activeProjectId: newActiveId,
+              }
+            },
+            false,
+            'removeProject'
+          ),
+
+        setActiveProject: (projectId) =>
+          set({ activeProjectId: projectId }, false, 'setActiveProject'),
+
+        // Queue actions
+        addToQueue: (item) =>
+          set(
+            (state) => ({
+              messageQueue: [
+                ...state.messageQueue,
+                {
+                  ...item,
+                  id: Date.now().toString(),
+                  timestamp: Date.now(),
+                  status: 'pending' as const,
+                },
+              ],
+            }),
+            false,
+            'addToQueue'
+          ),
+
+        updateQueueItem: (itemId, updates) =>
+          set(
+            (state) => ({
+              messageQueue: state.messageQueue.map((item) =>
+                item.id === itemId ? { ...item, ...updates } : item
+              ),
+            }),
+            false,
+            'updateQueueItem'
+          ),
+
+        removeFromQueue: (itemId) =>
+          set(
+            (state) => ({
+              messageQueue: state.messageQueue.filter((item) => item.id !== itemId),
+            }),
+            false,
+            'removeFromQueue'
+          ),
+
+        clearQueue: () => set({ messageQueue: [] }, false, 'clearQueue'),
+
+        // UI actions
+        setViewMode: (mode) => set({ viewMode: mode }, false, 'setViewMode'),
+
+        setSidebarCollapsed: (collapsed) =>
+          set({ sidebarCollapsed: collapsed }, false, 'setSidebarCollapsed'),
+
+        toggleSidebar: () =>
+          set(
+            (state) => ({
+              sidebarCollapsed: !state.sidebarCollapsed,
+            }),
+            false,
+            'toggleSidebar'
+          ),
+
+        // Agent management per project
+        setProjectAgents: (projectId, agentIds) =>
+          set(
+            (state) => ({
+              projectAgents: {
+                ...state.projectAgents,
+                [projectId]: agentIds,
+              },
+            }),
+            false,
+            'setProjectAgents'
+          ),
+
+        getActiveProjectAgents: () => {
+          const state = get()
+          if (!state.activeProjectId) return []
+          return state.projectAgents[state.activeProjectId] || []
+        },
+
+        setChatCollapsed: (collapsed) =>
+          set({ chatCollapsed: collapsed }, false, 'setChatCollapsed'),
+        toggleChat: () =>
+          set((state) => ({ chatCollapsed: !state.chatCollapsed }), false, 'toggleChat'),
+
+        clearAll: () =>
+          set(
+            {
+              projects: [],
+              openProjects: [],
+              activeProjectId: null,
+              messageQueue: [],
+              viewMode: 'single',
+              sidebarCollapsed: false,
+              chatCollapsed: false,
+            },
+            false,
+            'clearAll'
+          ),
+
+        // Workspace tab actions
+        openProjectInWorkspace: (projectId) =>
+          set(
+            (state) => {
+              // Add to open projects if not already there
+              if (!state.openProjects.includes(projectId)) {
+                return {
+                  openProjects: [...state.openProjects, projectId],
+                  activeProjectId: projectId, // Make it active when opened
+                }
+              }
+              // Just make it active if already open
+              return { activeProjectId: projectId }
+            },
+            false,
+            'openProjectInWorkspace'
+          ),
+
+        closeProjectInWorkspace: (projectId) =>
+          set(
+            (state) => {
+              const newOpenProjects = state.openProjects.filter((id) => id !== projectId)
+              const newActiveId =
+                state.activeProjectId === projectId
+                  ? newOpenProjects[newOpenProjects.length - 1] || null
+                  : state.activeProjectId
+
+              return {
+                openProjects: newOpenProjects,
+                activeProjectId: newActiveId,
+              }
+            },
+            false,
+            'closeProjectInWorkspace'
+          ),
+
+        getOpenProjects: () => {
+          const state = get()
+          return state.projects.filter((p) => state.openProjects.includes(p.id))
+        },
+      }),
+      {
+        name: 'claude-studio-projects',
+        partialize: (state) => ({
+          openProjects: state.openProjects,
+          activeProjectId: state.activeProjectId,
+          viewMode: state.viewMode,
+          sidebarCollapsed: state.sidebarCollapsed,
+          chatCollapsed: state.chatCollapsed,
+        }),
+      }
+    ),
     {
       name: 'project-store',
     }

@@ -197,23 +197,68 @@
   - Prototype files exist and will be used as reference for UI implementation
   - Using React components instead of direct HTML copy
 
-## Stage 2: Process Management (Critical - Fix Zombies) ✅ When All Checked
+## Stage 2: Process Management (Critical - Fix Zombies) ⚡ **IN PROGRESS**
 
-- [ ] Create lib/process/types.ts - Define interfaces
-- [ ] Create lib/process/ProcessRegistry.ts
+### **Current Issue:** 30+ Claude zombie processes running without cleanup
+
+### **Architecture Approach:** Follow plan.md Stage 2 - ProcessManager/ProcessRegistry/ProcessCleaner trinity
+
+- [ ] **Create lib/process/types.ts** - Define interfaces
+
+  ```typescript
+  interface AgentProcess {
+    agentId: string
+    projectId: string
+    pid: number | null
+    status: 'ready' | 'online' | 'busy' | 'offline'
+    sessionId: string | null
+    lastActivity: Date
+  }
+  ```
+
+- [ ] **Create lib/process/ProcessRegistry.ts** - Single source of truth (DRY)
   - [ ] Track PIDs in /tmp/claude-agents/registry.json
-  - [ ] Implement health checks
+  - [ ] Map<string, AgentProcess> for all projects
+  - [ ] Implement health checks (30s interval)
   - [ ] Auto-cleanup dead processes
-- [ ] Create lib/process/ProcessManager.ts
-  - [ ] Spawn process with SDK
-  - [ ] Register with ProcessRegistry
+  - [ ] Event emitter for status changes (for UI updates)
+
+- [ ] **Create lib/process/ProcessManager.ts** - Agent lifecycle management
+  - [ ] Spawn process with Claude SDK
+  - [ ] Register with ProcessRegistry (DRY - reuse #team logic)
   - [ ] Handle graceful shutdown
-- [ ] Create lib/process/ProcessCleaner.ts
+  - [ ] Multi-project support (1-5+ agents per project)
+  - [ ] Auto-respawn on @mention if sessionId exists
+
+- [ ] **Create lib/process/ProcessCleaner.ts** - Zombie cleanup
   - [ ] Detect zombie processes
   - [ ] Force kill if needed
   - [ ] Clean registry entries
-- [ ] Test: Spawn 3 processes, kill parent, verify cleanup
-- [ ] Test: No zombies after Ctrl+C
+  - [ ] Project close → kill all project agents
+  - [ ] App shutdown → kill all processes
+
+- [ ] **Agent Lifecycle Implementation (KISS)**
+  - [ ] **Spawn Agent** → `ready` state (PID assigned, session created, DON'T auto-execute)
+  - [ ] **First interaction** → `online` state (idle, awaiting messages)
+  - [ ] **Processing message** → `busy` state (working)
+  - [ ] **Complete message** → back to `online` (idle)
+  - [ ] **Play/Pause button** → toggle `online` ⟷ `offline` (keep PID alive)
+  - [ ] **Dead process + @mention** → auto-respawn using `sessionId`
+  - [ ] **Project close** → cleanup all project agents
+
+- [ ] **Integration with Existing UI**
+  - [ ] Connect to AgentCard play/pause buttons (src/components/projects/AgentCard.tsx:73)
+  - [ ] Update status indicators to use ProcessRegistry
+  - [ ] Integrate with @mention routing in ChatPanel
+  - [ ] Show agent PID status in #team command
+
+- [ ] **Testing**
+  - [ ] Test: Spawn 3 processes, kill parent, verify cleanup
+  - [ ] Test: No zombies after Ctrl+C
+  - [ ] Test: Multi-project agent spawning (2 projects, 3 agents each)
+  - [ ] Test: Play/pause preserves PID but changes message acceptance
+  - [ ] Test: @mention auto-respawns dead agent using sessionId
+  - [ ] Test: Project close kills only that project's agents
 
 ## Stage 3: IPC Communication ✅ When All Checked
 
@@ -432,6 +477,181 @@
   - [x] ESC/Enter handling (UI handlers ready)
 - [x] Test: Project workspace functional
 - [ ] Test: Can interact with agents (requires backend implementation)
+
+### Stage 12.1: Message History Viewer ✅ COMPLETED
+
+- [x] Install dependencies ✅
+  ```bash
+  npm install react-window react-window-infinite-loader
+  npm install @tiptap/react @tiptap/starter-kit @tiptap/extension-mention
+  ```
+- [x] Create src/components/messages/MessageHistoryViewer.tsx ✅
+  - [x] Virtual scrolling with react-window ✅
+  - [x] Load messages in chunks (50 at a time) ✅
+  - [x] Reverse pagination (start at bottom, scroll up for older) ✅
+  - [x] Fixed scroll behavior - always starts at bottom ✅
+- [x] Create src/components/messages/MessageParser.tsx ✅
+  - [x] Parse @mentions and #commands ✅
+  - [x] Unified parser for input and display ✅
+  - [x] Format messages for SDK ✅
+- [x] Create src/components/messages/MessageBubble.tsx ✅
+  - [x] User/assistant message styles ✅
+  - [x] Render parsed content (mentions, commands) ✅
+  - [x] Timestamp display ✅
+- [x] Create src/hooks/useMessageHistory.ts ✅
+  - [x] Integrated directly into MessageHistoryViewer ✅
+  - [x] Infinite scroll handling ✅
+  - [x] Local state management ✅
+- [x] Update web/server/api/projects.ts ✅
+  - [x] Add GET /api/projects/:id/sessions/:sessionId/messages ✅
+  - [x] Stream read .jsonl files ✅
+  - [x] Support pagination with cursor ✅
+  - [x] Fixed message parsing for Claude SDK format ✅
+- [x] Integrate with AgentCard click ✅
+  - [x] Shows MessageHistoryViewer on agent selection ✅
+  - [x] Removed History/Live toggle as requested ✅
+  - [x] Handle different view modes (single/split/grid) ✅
+- [x] Fix scroll behavior inconsistencies ✅
+  - [x] Removed scroll position persistence (was causing issues) ✅
+  - [x] Simplified to always scroll to bottom on initial load ✅
+  - [x] Fixed TypeScript errors and linting issues ✅
+  - [x] Fixed infinite scroll loop for agents with few messages ✅
+    - Added scroll direction detection (only load when scrolling up)
+    - Track if user has actually scrolled (prevents auto-loading)
+    - Multiple conditions prevent unwanted loading
+
+### Stage 12.2: Enhanced Message Formatting ✅ COMPLETED
+
+- [x] Enhance MessageBubble formatting ✅
+  - [x] Properly format tool_use messages ✅
+    - [x] Show tool name and input parameters ✅
+    - [x] Collapsible tool input for large payloads ✅
+    - [x] Tool result display with syntax highlighting ✅
+    - [x] Fixed dynamic height for expanded tool messages ✅
+  - [x] Format code blocks with syntax highlighting ✅
+    - [x] Install react-syntax-highlighter ✅
+    - [x] Detect language from code blocks ✅
+    - [x] Copy code button ✅
+  - [x] Format system messages differently ✅
+    - [x] Special styling for system reminders ✅
+    - [x] Meta messages (isMeta flag) ✅
+  - [x] Handle message content arrays properly ✅
+    - [x] Multiple content blocks in one message ✅
+    - [x] Different styling for each content type ✅
+  - [x] Add message metadata display ✅
+    - [x] Show model name for assistant messages ✅
+    - [x] Token usage display ✅
+    - [x] Message ID for debugging ✅
+  - [x] Add full markdown support ✅
+    - [x] Install react-markdown and remark-gfm ✅
+    - [x] Support tables, lists, blockquotes, links ✅
+    - [x] Integrate with existing code highlighting ✅
+- [x] Add message actions ✅
+  - [x] Copy message content (in code blocks) ✅
+  - [x] Retry message (for assistants) - UI ready ✅
+  - [x] Delete message (with confirmation) - UI ready ✅
+- [x] Improve timestamp formatting ✅
+  - [x] Relative time (5 minutes ago, yesterday) ✅
+  - [x] Group messages by date - Not needed with relative time ✅
+  - [x] Show full timestamp on hover ✅
+- [x] Add loading states ✅
+  - [x] Loading indicator already exists ✅
+  - [x] Graceful handling of unknown message types ✅
+  - [x] Error state display in MessageHistoryViewer ✅
+- [x] Fix UI issues ✅
+  - [x] Fixed scroll issues in grid view ✅
+  - [x] Fixed dynamic height calculation with ResizeObserver ✅
+  - [x] Fixed grid view overflow scrolling ✅
+  - [x] Added proper height constraints to all view modes ✅
+
+### Stage 12.3: Claude SDK Integration and Message Continuity ✅ COMPLETED
+
+- [x] Integrate Claude Code SDK ✅ COMPLETED
+  - [x] Install @anthropic-ai/claude-code SDK ✅
+  - [x] Create local claude-agent.ts implementation ✅
+  - [x] Create ClaudeService.ts following DRY/KISS/SOLID ✅
+  - [x] Add /api/messages endpoint ✅
+  - [x] Create useClaudeMessages hook ✅
+  - [x] Connect to ChatPanel for sending messages ✅
+  - [x] Handle streaming JSON responses ✅
+  - [x] Set proper cwd for project context ✅
+
+- [x] Session Resume (KISS - Just Pass SessionId) ✅ COMPLETED
+  - [x] Update handleSendMessage to use selectedAgent.sessionId ✅
+  - [x] Pass sessionId from agent card click to sendClaudeMessage ✅
+  - [x] ClaudeService already handles session persistence ✅
+  - [x] Test: Click agent → send message → continues their session ✅
+
+### Stage 12.4: Agent Management Enhancements ✅ COMPLETED
+
+- [x] **Legacy Agent Role Assignment** ✅
+  - [x] Implement AssignRoleModal for legacy agents ✅
+  - [x] Add role persistence across page refreshes ✅
+  - [x] Update Zustand store when roles are assigned ✅
+  - [x] Fix infinite loop in useAgentRoles ✅
+  - [x] Add Sparkles icon for legacy agents without configs ✅
+
+- [x] **Agent Deletion with Session Cleanup** ✅
+  - [x] Implement proper agent deletion from projects ✅
+  - [x] Delete Claude native session files at ~/.claude/projects/{projectId}/{agentId}.jsonl ✅
+  - [x] Fix route ordering issue (DELETE /api/agents/session before /:id) ✅
+  - [x] Add comprehensive logging for debugging ✅
+  - [x] Ensure agents don't reappear after refresh ✅
+
+- [x] **Multi-Select Agent Management** ✅
+  - [x] Add selection mode toggle to sidebar ✅
+  - [x] Implement checkbox selection for agents ✅
+  - [x] Add "Select All" functionality ✅
+  - [x] Implement batch delete with confirmation modal ✅
+  - [x] Add shift+click range selection ✅
+  - [x] Prevent text selection during shift+click ✅
+  - [x] Create reusable DeleteAgentModal for both single and batch deletion ✅
+  - [x] Follow DRY principle - one deletion mechanism for all cases ✅
+
+- [x] **UI/UX Improvements** ✅
+  - [x] Replace browser alerts with proper modals ✅
+  - [x] Add loading states for async operations ✅
+  - [x] Fix WebSocket server spam by disabling periodic stats ✅
+  - [x] Maintain individual delete buttons on agent cards ✅
+  - [x] Show batch operations only in selection mode ✅
+
+- [ ] Unified Message Handling (DRY/SOLID)
+  - [ ] Create src/services/MessageService.ts (Single Responsibility)
+    - [ ] Centralized message formatting and validation
+    - [ ] Handle all message types in one place
+    - [ ] Parse and format messages consistently
+  - [ ] Message Types Support (Library-First Approach)
+    - [ ] Plain text messages (already working)
+    - [ ] @mentions → Parse and route to agents
+    - [ ] #commands → Detect and handle system commands
+      - [ ] #help → Show available commands
+      - [ ] #clear → Clear current conversation
+      - [ ] #export → Export conversation
+    - [ ] File attachments → Use native File API
+      - [ ] Drag & drop files into chat
+      - [ ] Click to attach button
+      - [ ] Show file preview in message
+    - [ ] Screenshots → Use Clipboard API
+      - [ ] Paste from clipboard (Ctrl/Cmd+V)
+      - [ ] Show image preview in message
+      - [ ] Convert to base64 for Claude
+    - [ ] Code blocks → Detect ``` and format
+  - [ ] Message State Management (KISS)
+    - [ ] Add sent message to history immediately (optimistic update)
+    - [ ] Show pending state while waiting for response
+    - [ ] Update with actual response when received
+    - [ ] Handle errors gracefully (show retry option)
+  - [ ] Real-time Updates (Use Existing MessageHistoryViewer)
+    - [ ] MessageHistoryViewer already has virtual scrolling
+    - [ ] Just append new messages to existing messages array
+    - [ ] Use React state updates (no WebSocket needed yet)
+    - [ ] Maintain scroll position at bottom for new messages
+    - [ ] Only auto-scroll if user is near bottom
+  - [ ] Integration Points (DRY - Reuse Existing)
+    - [ ] Reuse MessageParser.tsx for parsing
+    - [ ] Reuse MessageBubble.tsx for display
+    - [ ] Reuse EnhancedMessageBubble.tsx for rich content
+    - [ ] Extend existing formatting for new types
 
 ## Stage 13: Web UI - Agents Page ✅ When All Checked
 
@@ -717,3 +937,30 @@
 - Don't add features not in plan.md
 - Console.log is fine for local debugging
 - If something gets complex, split the file
+
+## Future Platform-Specific Features
+
+### Desktop App (Tauri/Electron)
+
+- [ ] System tray integration
+- [ ] Global hotkeys
+- [ ] Native file system access
+- [ ] Auto-updates
+- [ ] Desktop notifications
+- [ ] OS-level theme detection
+
+### Mobile Support
+
+- [ ] Responsive UI optimization
+- [ ] Touch gestures
+- [ ] Mobile-friendly terminal
+- [ ] Push notifications
+- [ ] Offline mode with sync
+
+### Web Enhancements
+
+- [ ] PWA support
+- [ ] Browser notifications
+- [ ] Cloud sync
+- [ ] Multi-user collaboration
+- [ ] Real-time presence

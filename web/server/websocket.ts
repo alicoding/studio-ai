@@ -1,4 +1,5 @@
 import { Server, Socket } from 'socket.io'
+import { diagnosticService } from './services/DiagnosticService.js'
 
 interface AgentInfo {
   id: string
@@ -20,6 +21,19 @@ const activeAgents = new Map<string, AgentInfo>()
 const activeProjects = new Map<string, ProjectInfo>()
 
 export function setupWebSocket(io: Server) {
+  // Listen for diagnostic updates from the service
+  diagnosticService.on('diagnostics-updated', (data) => {
+    io.emit('diagnostics:updated', data)
+  })
+
+  diagnosticService.on('monitoring-started', (data) => {
+    io.emit('diagnostics:monitoring-started', data)
+  })
+
+  diagnosticService.on('monitoring-stopped', () => {
+    io.emit('diagnostics:monitoring-stopped')
+  })
+
   io.on('connection', (socket: Socket) => {
     console.log(`Client connected: ${socket.id}`)
     connectedClients.set(socket.id, socket)
@@ -28,6 +42,13 @@ export function setupWebSocket(io: Server) {
     socket.emit('initial-state', {
       agents: Array.from(activeAgents.values()),
       projects: Array.from(activeProjects.values()),
+    })
+
+    // Send current diagnostics immediately
+    const currentDiagnostics = diagnosticService.getCurrentDiagnostics()
+    socket.emit('diagnostics:current', {
+      diagnostics: currentDiagnostics,
+      timestamp: new Date(),
     })
 
     // Handle client disconnect

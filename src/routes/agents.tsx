@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AgentConfigCard } from '../components/agents/AgentConfigCard'
 import { CreateAgentModal } from '../components/agents/CreateAgentModal'
 import { PageLayout } from '../components/layout/PageLayout'
@@ -21,7 +21,8 @@ interface AgentConfig {
 
 function AgentsPage() {
   const {
-    availableConfigs: agents,
+    configs: agents, // Updated from availableConfigs
+    setAgentConfigs,
     addAgentConfig,
     updateAgentConfig,
     removeAgentConfig,
@@ -31,6 +32,25 @@ function AgentsPage() {
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [showModal, setShowModal] = useState(false)
   const [editingAgent, setEditingAgent] = useState<AgentConfig | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  // Load agents from server on mount
+  useEffect(() => {
+    const loadAgents = async () => {
+      try {
+        const response = await fetch('/api/agents')
+        if (response.ok) {
+          const data = await response.json()
+          setAgentConfigs(data)
+        }
+      } catch (error) {
+        console.error('Failed to load agents:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadAgents()
+  }, [setAgentConfigs])
 
   const filteredAgents = agents.filter((agent) => {
     const matchesSearch =
@@ -48,33 +68,90 @@ function AgentsPage() {
     }
   }
 
-  const handleClone = (id: string) => {
+  const handleClone = async (id: string) => {
     const agent = agents.find((a) => a.id === id)
     if (agent) {
       const cloned = {
         ...agent,
-        id: `${agent.role}-${Date.now()}`,
+        id: undefined, // Let server generate new ID
         name: `${agent.name} (Copy)`,
         projectsUsing: [],
       }
-      addAgentConfig(cloned)
+
+      try {
+        const response = await fetch('/api/agents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cloned),
+        })
+
+        if (response.ok) {
+          const newAgent = await response.json()
+          addAgentConfig(newAgent)
+        }
+      } catch (error) {
+        console.error('Failed to clone agent:', error)
+        alert('Failed to clone agent')
+      }
     }
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this agent configuration?')) {
-      removeAgentConfig(id)
+      try {
+        const response = await fetch(`/api/agents/${id}`, {
+          method: 'DELETE',
+        })
+
+        if (response.ok) {
+          removeAgentConfig(id)
+        } else {
+          throw new Error('Failed to delete')
+        }
+      } catch (error) {
+        console.error('Failed to delete agent:', error)
+        alert('Failed to delete agent')
+      }
     }
   }
 
-  const handleSaveAgent = (agent: AgentConfig) => {
-    if (editingAgent) {
-      updateAgentConfig(agent)
-    } else {
-      addAgentConfig(agent)
+  const handleSaveAgent = async (agent: AgentConfig) => {
+    try {
+      if (editingAgent) {
+        // Update existing agent
+        const response = await fetch(`/api/agents/${agent.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(agent),
+        })
+
+        if (response.ok) {
+          const updatedAgent = await response.json()
+          updateAgentConfig(updatedAgent)
+        } else {
+          throw new Error('Failed to update')
+        }
+      } else {
+        // Create new agent
+        const response = await fetch('/api/agents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(agent),
+        })
+
+        if (response.ok) {
+          const newAgent = await response.json()
+          addAgentConfig(newAgent)
+        } else {
+          throw new Error('Failed to create')
+        }
+      }
+      setShowModal(false)
+      setEditingAgent(null)
+    } catch (error) {
+      console.error('Failed to save agent:', error)
+      alert('Failed to save agent')
     }
-    setShowModal(false)
-    setEditingAgent(null)
   }
 
   return (
@@ -118,15 +195,29 @@ function AgentsPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto">
-          {filteredAgents.map((agent) => (
-            <AgentConfigCard
-              key={agent.id}
-              agent={agent}
-              onEdit={handleEdit}
-              onClone={handleClone}
-              onDelete={handleDelete}
-            />
-          ))}
+          {loading ? (
+            <div className="col-span-full text-center py-12">
+              <div className="text-muted-foreground">Loading agents...</div>
+            </div>
+          ) : filteredAgents.length === 0 ? (
+            <div className="col-span-full text-center py-12">
+              <div className="text-muted-foreground">
+                {searchQuery || roleFilter !== 'all'
+                  ? 'No agents match your filters'
+                  : 'No agent configurations yet. Create your first one!'}
+              </div>
+            </div>
+          ) : (
+            filteredAgents.map((agent) => (
+              <AgentConfigCard
+                key={agent.id}
+                agent={agent}
+                onEdit={handleEdit}
+                onClone={handleClone}
+                onDelete={handleDelete}
+              />
+            ))
+          )}
         </div>
 
         <CreateAgentModal

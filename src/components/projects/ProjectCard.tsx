@@ -1,12 +1,17 @@
-import { FolderOpen, Edit3, Copy, Trash2, Users } from 'lucide-react'
+import { FolderOpen, Edit3, Copy, Trash2, Users, Star } from 'lucide-react'
 
 interface Project {
   id: string
   name: string
-  description: string
-  lastModified: string
-  agentCount: number
-  thumbnail?: string
+  description?: string
+  path: string
+  createdAt: Date | string
+  sessionCount: number
+  lastSessionAt?: Date | string
+  status: 'active' | 'archived' | 'draft'
+  lastModified: Date | string
+  tags: string[]
+  favorite: boolean
 }
 
 interface ProjectCardProps {
@@ -18,30 +23,37 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, onOpen, onEdit, onDelete, onClone }: ProjectCardProps) {
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | Date) => {
+    if (!dateString) return 'Unknown'
+
     const date = new Date(dateString)
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) return 'Invalid Date'
+
     const now = new Date()
     const diffTime = Math.abs(now.getTime() - date.getTime())
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
+    if (diffDays === 0) return 'Today'
     if (diffDays === 1) return 'Yesterday'
     if (diffDays <= 7) return `${diffDays} days ago`
     return date.toLocaleDateString()
   }
 
+  const isClaudeCodeProject = (project: Project) => {
+    // Check if it's a Claude Code managed project
+    return project.id.startsWith('-Users-ali-') || project.path?.includes('/.claude/')
+  }
+
   return (
     <div className="bg-card border rounded-lg overflow-hidden hover:border-gray-500 transition-colors group">
-      <div className="aspect-video bg-background flex items-center justify-center border-b">
-        {project.thumbnail ? (
-          <img
-            src={project.thumbnail}
-            alt={`${project.name} thumbnail`}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="flex items-center justify-center text-muted-foreground">
-            <FolderOpen className="w-12 h-12" />
-          </div>
+      <div className="aspect-video bg-background flex items-center justify-center border-b relative">
+        <div className="flex items-center justify-center text-muted-foreground">
+          <FolderOpen className="w-12 h-12" />
+        </div>
+        {project.favorite && (
+          <Star className="absolute top-2 right-2 w-4 h-4 text-yellow-400 fill-current" />
         )}
       </div>
 
@@ -51,7 +63,7 @@ export function ProjectCard({ project, onOpen, onEdit, onDelete, onClone }: Proj
             {project.name}
           </h3>
           <p className="text-muted-foreground text-sm line-clamp-2 min-h-[2.5rem]">
-            {project.description}
+            {project.description || 'No description available'}
           </p>
         </div>
 
@@ -60,10 +72,28 @@ export function ProjectCard({ project, onOpen, onEdit, onDelete, onClone }: Proj
           <div className="flex items-center gap-1">
             <Users className="w-3 h-3" />
             <span>
-              {project.agentCount} agent{project.agentCount !== 1 ? 's' : ''}
+              {project.sessionCount} session{project.sessionCount !== 1 ? 's' : ''}
             </span>
           </div>
         </div>
+
+        {project.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {project.tags.slice(0, 3).map((tag) => (
+              <span
+                key={tag}
+                className="px-2 py-1 bg-secondary text-xs rounded text-muted-foreground"
+              >
+                {tag}
+              </span>
+            ))}
+            {project.tags.length > 3 && (
+              <span className="px-2 py-1 bg-secondary text-xs rounded text-muted-foreground">
+                +{project.tags.length - 3}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center gap-2 pt-2 border-t">
           <button
@@ -81,13 +111,23 @@ export function ProjectCard({ project, onOpen, onEdit, onDelete, onClone }: Proj
           >
             <Edit3 className="w-4 h-4" />
           </button>
-          <button
-            className="p-2 text-muted-foreground hover:text-white hover:bg-secondary rounded transition-colors"
-            onClick={() => onClone(project.id)}
-            title="Clone project"
-          >
-            <Copy className="w-4 h-4" />
-          </button>
+          {!isClaudeCodeProject(project) ? (
+            <button
+              className="p-2 text-muted-foreground hover:text-white hover:bg-secondary rounded transition-colors"
+              onClick={() => onClone(project.id)}
+              title="Clone project"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              className="p-2 text-muted-foreground/50 cursor-not-allowed"
+              title="Claude Code projects cannot be cloned"
+              disabled
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+          )}
           <button
             className="p-2 text-red-400 hover:text-red-300 hover:bg-secondary rounded transition-colors"
             onClick={() => onDelete(project.id)}

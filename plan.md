@@ -629,6 +629,10 @@ UI: Type "@dev1 implement feature"
 3. **Add to Stage 2**: Event emitters for UI updates
 4. **Add to Stage 8**: WebSocket integration for streaming responses
 5. **Add to todo.md**: Integration testing stage
+6. **Add to Stage 12.1**: Message history viewer with virtual scrolling
+   - Parse and display historical messages from .jsonl files
+   - Support for @mentions and #commands parsing
+   - Integration with Tiptap for rich message rendering
 
 ### File Dependencies
 
@@ -641,3 +645,71 @@ web/server/app.ts imports:
   - src/teams/TeamManager
   - lib/session/SessionTracker
 ```
+
+## Recent Enhancements (Stage 12.4)
+
+### Agent Management Improvements
+
+#### 1. Legacy Agent Role Assignment
+
+- **Problem**: Legacy agents without configuration files couldn't be assigned roles
+- **Solution**:
+  - Added `AssignRoleModal` for legacy agent configuration
+  - Implemented role persistence in `/api/agent-roles` endpoint
+  - Updated Zustand store to maintain role assignments across refreshes
+  - Fixed infinite loop issue in `useAgentRoles` hook
+
+#### 2. Agent Deletion with Session Cleanup
+
+- **Problem**: Deleting agents didn't clean up Claude native session files
+- **Solution**:
+  - Added session file deletion at `~/.claude/projects/{projectId}/{agentId}.jsonl`
+  - Fixed Express route ordering (specific routes before parameterized)
+  - Comprehensive logging for debugging file operations
+  - Ensured proper state cleanup to prevent agents reappearing
+
+#### 3. Multi-Select Agent Management
+
+- **Problem**: No way to bulk manage agents (especially stale ones)
+- **Solution**:
+  - Added selection mode with checkbox UI
+  - Implemented "Select All" functionality
+  - Added shift+click range selection
+  - Created unified `DeleteAgentModal` following DRY principle
+  - Batch operations only visible in selection mode
+  - Individual delete buttons preserved on agent cards
+
+#### 4. UI/UX Consistency
+
+- **Problem**: Mixed use of browser alerts and modals
+- **Solution**:
+  - Replaced all browser alerts with Shadcn/ui modals
+  - Added loading states for async operations
+  - Fixed WebSocket server spam by disabling periodic stats
+  - Consistent deletion experience for single and batch operations
+
+### Architecture Patterns Applied
+
+1. **DRY (Don't Repeat Yourself)**
+   - Single `DeleteAgentModal` component for all deletion cases
+   - Unified deletion logic with `skipConfirm` parameter
+   - Reusable modal patterns across the application
+
+2. **KISS (Keep It Simple, Stupid)**
+   - Simple selection mode toggle
+   - Clear visual indicators for selected agents
+   - Straightforward batch operations
+
+3. **SOLID Principles**
+   - Single Responsibility: Separate hooks for different concerns
+   - Open/Closed: Extensible selection system for future batch operations
+   - Interface Segregation: Clean prop interfaces for components
+
+### Future Extensibility
+
+The multi-select infrastructure is designed to support additional batch operations:
+
+- Batch role assignment
+- Batch status changes (pause/resume)
+- Batch token limit updates
+- Export selected agents as team template

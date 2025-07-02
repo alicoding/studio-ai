@@ -23,7 +23,6 @@ interface AgentSelectionModalProps {
   onClose: () => void
   onSelect: (agentIds: string[]) => void
   availableAgents: AgentConfig[]
-  currentAgentIds?: string[]
 }
 
 export function AgentSelectionModal({
@@ -31,15 +30,13 @@ export function AgentSelectionModal({
   onClose,
   onSelect,
   availableAgents,
-  currentAgentIds = [],
 }: AgentSelectionModalProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
 
   const filteredAgents = availableAgents.filter((agent) => {
-    // Filter out agents already in the current project
-    if (currentAgentIds.includes(agent.id)) return false
+    // No longer filter out agents already in the project - allow multiple instances
 
     // Search filter
     const matchesSearch =
@@ -178,7 +175,7 @@ export function AgentSelectionModal({
                 <p className="text-muted-foreground">
                   {searchQuery || roleFilter !== 'all'
                     ? 'No agents match your search criteria'
-                    : 'All available agents are already in this project'}
+                    : 'No agents available'}
                 </p>
               </Card>
             )}

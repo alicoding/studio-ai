@@ -10,7 +10,7 @@ interface AgentConfig {
   systemPrompt: string
   tools: string[]
   model: string
-  projectsUsing: string[]
+  projectsUsing?: string[]
 }
 
 interface AgentConfigCardProps {
@@ -55,7 +55,7 @@ export function AgentConfigCard({ agent, onEdit, onClone, onDelete }: AgentConfi
           <span>Model: {agent.model}</span>
           <div className="flex items-center gap-1">
             <Briefcase className="w-4 h-4" />
-            <span>{agent.projectsUsing.length} project(s)</span>
+            <span>{agent.projectsUsing?.length || 0} project(s)</span>
           </div>
         </div>
       </div>

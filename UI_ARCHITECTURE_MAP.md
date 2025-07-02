@@ -45,7 +45,8 @@ Claude-EA Web Application
     │           ├── Work Area
     │           │   ├── Agent Workspace (Single/Split/Grid views)
     │           │   │   └── Terminal Container(s)
-    │           │   │       └── xterm.js instances
+    │           │   │       ├── xterm.js instances (live mode)
+    │           │   │       └── MessageHistoryViewer (history mode)
     │           │   │
     │           │   └── Develop Workspace (when Develop selected)
     │           │       ├── Terminal Section (40%, collapsible)
@@ -135,6 +136,15 @@ src/components/
 │ ├── GridView.tsx # Four agents in grid
 │ └── DevelopView.tsx # IDE mode with preview
 
+```
+
+### Message History Components (New)
+```
+├── messages/
+│   ├── MessageHistoryViewer.tsx  # Virtual scrolling container
+│   ├── MessageParser.tsx         # Parse @mentions, #commands
+│   ├── MessageBubble.tsx         # Individual message display
+│   └── MessageInput.tsx          # Tiptap-based rich input
 ```
 
 ### Terminal Components

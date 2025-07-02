@@ -1,26 +1,19 @@
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/router-devtools'
-import { useState } from 'react'
 import { Navigation } from '../components/layout/Navigation'
 import { ErrorBoundary } from '../components/shared/ErrorBoundary'
-import { SettingsModal } from '../components/settings/SettingsModal'
+import { Toaster } from '../components/ui/sonner'
 
 function RootComponent() {
-  const [showSettings, setShowSettings] = useState(false)
-
-  const handleSettingsClick = () => {
-    setShowSettings(true)
-  }
-
   return (
     <ErrorBoundary>
       <div className="flex flex-col h-screen">
-        <Navigation onSettingsClick={handleSettingsClick} />
+        <Navigation />
         <div className="flex-1 overflow-hidden">
           <Outlet />
         </div>
       </div>
-      <SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      <Toaster position="bottom-right" />
       <TanStackRouterDevtools />
     </ErrorBoundary>
   )
