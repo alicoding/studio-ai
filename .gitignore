@@ -31,4 +31,4 @@ Thumbs.db
 
 # Session data
 ~/.claude/
-/tmp/claude-agents/
+/tmp/claude-agents/src/routeTree.gen.ts
