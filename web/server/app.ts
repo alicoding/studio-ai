@@ -14,6 +14,8 @@ import teamsRouter from './api/teams.js'
 import messagesRouter from './api/messages.js'
 import systemRouter from './api/system.js'
 import settingsRouter from './api/settings.js'
+import studioIntelligenceRouter from './api/studio-intelligence.js'
+import diagnosticsRouter from './api/diagnostics.js'
 
 // Import WebSocket handler
 import { setupWebSocket } from './websocket.js'
@@ -21,6 +23,9 @@ import { setupWebSocket } from './websocket.js'
 // Import process management
 import { ProcessManager } from '../../lib/process/ProcessManager.js'
 import { ProcessCleaner } from '../../lib/process/ProcessCleaner.js'
+
+// Import Studio Intelligence
+import { StudioIntelligence } from './services/studio-intelligence/StudioIntelligence.js'
 
 // Load environment variables
 dotenv.config()
@@ -58,6 +63,8 @@ app.use('/api/teams', teamsRouter)
 app.use('/api/messages', messagesRouter)
 app.use('/api/system', systemRouter)
 app.use('/api/settings', settingsRouter)
+app.use('/api/studio-intelligence', studioIntelligenceRouter)
+app.use('/api/diagnostics', diagnosticsRouter)
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -91,7 +98,7 @@ async function initializeProcessManagement() {
     const processManager = ProcessManager.getInstance()
     await processManager.initialize()
     console.log('✅ ProcessManager initialized')
-    
+
     // Cleanup any zombie processes on startup
     const cleaner = ProcessCleaner.getInstance()
     const cleanup = await cleaner.cleanupZombies()
@@ -103,20 +110,35 @@ async function initializeProcessManagement() {
   }
 }
 
+// Initialize Studio Intelligence System
+async function initializeStudioIntelligence() {
+  try {
+    console.log('🎯 Initializing Studio Intelligence...')
+    const studioIntelligence = new StudioIntelligence()
+    await studioIntelligence.ensureDefaultHooks()
+    console.log('✅ Studio Intelligence initialized')
+  } catch (error) {
+    console.error('Failed to initialize Studio Intelligence:', error)
+  }
+}
+
 // Start server
 const PORT = process.env.PORT || 3456
 httpServer.listen(PORT, async () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`)
   console.log(`📡 WebSocket listening on ws://localhost:${PORT}`)
-  
+
   // Initialize process management after server starts
   await initializeProcessManagement()
+
+  // Initialize Studio Intelligence (smart defaults)
+  await initializeStudioIntelligence()
 })
 
 // Graceful shutdown
 const gracefulShutdown = async () => {
   console.log('Shutting down gracefully...')
-  
+
   // Cleanup all processes
   try {
     const processManager = ProcessManager.getInstance()
@@ -125,7 +147,7 @@ const gracefulShutdown = async () => {
   } catch (error) {
     console.error('Error during process cleanup:', error)
   }
-  
+
   httpServer.close(() => {
     console.log('Server closed')
     process.exit(0)

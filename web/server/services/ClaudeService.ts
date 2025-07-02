@@ -1,51 +1,98 @@
-import { ClaudeAgent, type Role } from './claude-agent.js'
+import { ClaudeAgent, type Role, type AgentConfig } from './claude-agent.js'
+import { SessionService } from './SessionService.js'
 
 // SOLID: Single Responsibility - Handle Claude interactions
 // DRY: Reuse existing ClaudeAgent instead of duplicating query logic
 export class ClaudeService {
   private agents: Map<string, ClaudeAgent> = new Map()
+  private sessionService = SessionService.getInstance()
 
   // KISS: Simple method to get or create an agent
-  getOrCreateAgent(sessionId: string, role: Role = 'dev', projectPath?: string): ClaudeAgent {
-    const agentKey = sessionId || 'default'
-    
+  // Updated to use project+agent based tracking instead of just sessionId
+  async getOrCreateAgent(
+    projectId: string,
+    agentId: string,
+    role: Role = 'dev',
+    projectPath?: string,
+    agentConfig?: AgentConfig
+  ): Promise<ClaudeAgent> {
+    const agentKey = `${projectId}:${agentId}`
+
     if (!this.agents.has(agentKey)) {
-      const agent = new ClaudeAgent(
-        agentKey,
-        role,
-        sessionId,
-        projectPath ? { projectRoot: projectPath, workingDirectory: projectPath } : undefined
-      )
+      // Get tracked sessionId for this project+agent
+      const trackedSessionId = await this.sessionService.getSession(projectId, agentId)
+
+      // Get agent configuration if not provided
+      let config = agentConfig
+      if (!config) {
+        try {
+          // Dynamic import to avoid module resolution issues
+          const { ConfigService } = await import('../../../src/services/ConfigService')
+          const configService = ConfigService.getInstance()
+
+          // Handle both legacy agentIds and new instance IDs
+          const configId =
+            agentId.includes('-') && agentId.split('-').length > 3
+              ? agentId.split('-').slice(0, -2).join('-') // Extract original config ID from instance ID
+              : agentId
+
+          const storedConfig = await configService.getAgent(configId)
+          if (storedConfig) {
+            config = {
+              systemPrompt: storedConfig.systemPrompt,
+              tools: storedConfig.tools,
+              model: storedConfig.model,
+              maxTokens: storedConfig.maxTokens,
+              temperature: storedConfig.temperature,
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load agent configuration:', error)
+          // Continue without configuration
+        }
+      }
+
+      const agent = new ClaudeAgent(agentId, role, trackedSessionId, config)
+
+      // Set up session update callback
+      agent.setSessionUpdateCallback(async (newSessionId: string) => {
+        await this.sessionService.updateSession(projectId, agentId, newSessionId)
+      })
+
       this.agents.set(agentKey, agent)
     }
-    
+
     return this.agents.get(agentKey)!
   }
 
   // KISS: Simple wrapper around sendMessage with streaming support
+  // Updated to use project+agent based tracking
   async sendMessage(
     content: string,
-    sessionId?: string,
+    projectId: string,
+    agentId: string,
     projectPath?: string,
     role: Role = 'dev',
     onStream?: (data: any) => void,
     io?: any,
-    forceNewSession?: boolean
+    forceNewSession?: boolean,
+    agentConfig?: AgentConfig
   ): Promise<{ response: string; sessionId: string | null }> {
-    const agent = this.getOrCreateAgent(sessionId || 'default', role, projectPath)
-    
+    const agent = await this.getOrCreateAgent(projectId, agentId, role, projectPath, agentConfig)
+
     // Set up streaming callback if provided
     if (onStream) {
       agent.setStreamCallback(onStream)
     }
 
     try {
-      const response = await agent.sendMessage(content, projectPath, io, sessionId || 'default', forceNewSession)
+      // Pass the agentId as the sessionId parameter for UI compatibility
+      const response = await agent.sendMessage(content, projectPath, io, agentId, forceNewSession)
       const agentInfo = agent.getInfo()
-      
+
       return {
         response,
-        sessionId: agentInfo.sessionId
+        sessionId: agentInfo.sessionId,
       }
     } catch (error) {
       console.error('Error sending message via Claude:', error)
@@ -53,19 +100,23 @@ export class ClaudeService {
     }
   }
 
-  // Clean up agents
-  removeAgent(sessionId: string): void {
-    const agentKey = sessionId || 'default'
+  // Clean up agents - updated to use project+agent key
+  async removeAgent(projectId: string, agentId: string): Promise<void> {
+    const agentKey = `${projectId}:${agentId}`
     const agent = this.agents.get(agentKey)
     if (agent) {
       agent.abort()
       this.agents.delete(agentKey)
+
+      // Clear session tracking
+      await this.sessionService.clearSession(projectId, agentId)
     }
   }
 
-  // Get agent info
-  getAgentInfo(sessionId: string) {
-    const agent = this.agents.get(sessionId || 'default')
+  // Get agent info - updated to use project+agent key
+  getAgentInfo(projectId: string, agentId: string) {
+    const agentKey = `${projectId}:${agentId}`
+    const agent = this.agents.get(agentKey)
     return agent ? agent.getInfo() : null
   }
 }

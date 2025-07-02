@@ -24,6 +24,7 @@ describe('Agent Store - New Architecture', () => {
         tokens: 1000,
         maxTokens: 200000,
         sessionId: 'session-123',
+        order: 0,
       }
       store.addAgent(agent)
 
@@ -64,6 +65,7 @@ describe('Agent Store - New Architecture', () => {
         tokens: 1500,
         maxTokens: 200000,
         sessionId: 'session-456',
+        order: 0,
       }
 
       const config: AgentConfig = {
@@ -149,6 +151,7 @@ describe('Agent Store - New Architecture', () => {
         status: 'offline',
         tokens: 0,
         maxTokens: 100000,
+        order: 1,
       }
       store.addAgent(agentWithoutConfig)
 
@@ -171,6 +174,7 @@ describe('Agent Store - New Architecture', () => {
         status: 'online',
         tokens: 1000,
         maxTokens: 200000,
+        order: 0,
       }
 
       const agent2: Agent = {
@@ -180,6 +184,7 @@ describe('Agent Store - New Architecture', () => {
         status: 'offline',
         tokens: 500,
         maxTokens: 150000,
+        order: 1,
       }
 
       store.addAgent(agent1)

@@ -12,6 +12,8 @@ export interface Agent {
   lastMessage?: string
   sessionId?: string
   pid?: number
+  order: number // Position in agent list for persistent ordering
+  consolidatedSession?: any // Full consolidated session info for checkpoint UI
 }
 
 // Configuration state - changes rarely, defines agent behavior
@@ -49,7 +51,17 @@ interface AgentState {
   updateAgentTokens: (agentId: string, tokens: number, maxTokens?: number) => void
   updateAgentMessage: (agentId: string, message: string) => void
   updateAgentSessionId: (agentId: string, sessionId: string) => void
+  updateAgentRole: (agentId: string, role: string) => void
+  updateAgentFromConfig: (agentId: string, config: Partial<AgentConfig>) => void
   setSelectedAgent: (agentId: string | null) => void
+
+  // Agent ordering
+  reorderAgent: (agentId: string, newOrder: number) => void
+  swapAgentOrder: (agentId1: string, agentId2: string) => void
+  moveAgentToPosition: (agentId: string, targetIndex: number) => void
+  normalizeAgentOrder: () => void
+  saveAgentOrder: () => void
+  loadAgentOrder: () => void
 
   // Session clearing
   setClearingAgent: (agentId: string | null) => void
@@ -87,18 +99,44 @@ export const useAgentStore = create<AgentState>()(
       clearingAgentId: null,
 
       // Actions
-      setAgents: (agents) => set({ agents }, false, 'setAgents'),
-
-      addAgent: (agent) =>
+      setAgents: (agents) => {
         set(
-          (state) => ({
-            agents: [...state.agents, agent],
-          }),
+          () => {
+            // Ensure all agents have order fields, assigning them if missing
+            const agentsWithOrder = agents.map((agent, index) => ({
+              ...agent,
+              order: agent.order !== undefined ? agent.order : index,
+            }))
+
+            return { agents: agentsWithOrder }
+          },
+          false,
+          'setAgents'
+        )
+        // Load saved order after setting agents
+        get().loadAgentOrder()
+      },
+
+      addAgent: (agent) => {
+        set(
+          (state) => {
+            // Assign order as the next available position
+            const maxOrder =
+              state.agents.length > 0 ? Math.max(...state.agents.map((a) => a.order)) : -1
+            const agentWithOrder = { ...agent, order: maxOrder + 1 }
+
+            return {
+              agents: [...state.agents, agentWithOrder],
+            }
+          },
           false,
           'addAgent'
-        ),
+        )
+        // Save to localStorage after adding agent
+        get().saveAgentOrder()
+      },
 
-      removeAgent: (agentId) =>
+      removeAgent: (agentId) => {
         set(
           (state) => ({
             agents: state.agents.filter((a) => a.id !== agentId),
@@ -106,7 +144,10 @@ export const useAgentStore = create<AgentState>()(
           }),
           false,
           'removeAgent'
-        ),
+        )
+        // Save to localStorage after removing agent
+        get().saveAgentOrder()
+      },
 
       updateAgentStatus: (agentId, status) =>
         set(
@@ -152,7 +193,159 @@ export const useAgentStore = create<AgentState>()(
           'updateAgentSessionId'
         ),
 
+      updateAgentRole: (agentId, role) =>
+        set(
+          (state) => ({
+            agents: state.agents.map((a) => (a.id === agentId ? { ...a, role } : a)),
+          }),
+          false,
+          'updateAgentRole'
+        ),
+
+      updateAgentFromConfig: (agentId, config) =>
+        set(
+          (state) => ({
+            agents: state.agents.map((a) =>
+              a.id === agentId
+                ? {
+                    ...a,
+                    role: config.role || a.role,
+                    name: config.name || a.name,
+                    maxTokens: config.maxTokens || a.maxTokens,
+                  }
+                : a
+            ),
+          }),
+          false,
+          'updateAgentFromConfig'
+        ),
+
       setSelectedAgent: (agentId) => set({ selectedAgentId: agentId }, false, 'setSelectedAgent'),
+
+      // Agent ordering actions
+      reorderAgent: (agentId, newOrder) => {
+        set(
+          (state) => ({
+            agents: state.agents.map((a) => (a.id === agentId ? { ...a, order: newOrder } : a)),
+          }),
+          false,
+          'reorderAgent'
+        )
+        // Save to localStorage after reordering
+        get().saveAgentOrder()
+      },
+
+      swapAgentOrder: (agentId1, agentId2) => {
+        set(
+          (state) => {
+            const agent1 = state.agents.find((a) => a.id === agentId1)
+            const agent2 = state.agents.find((a) => a.id === agentId2)
+
+            if (!agent1 || !agent2) return state
+
+            return {
+              agents: state.agents.map((a) => {
+                if (a.id === agentId1) return { ...a, order: agent2.order }
+                if (a.id === agentId2) return { ...a, order: agent1.order }
+                return a
+              }),
+            }
+          },
+          false,
+          'swapAgentOrder'
+        )
+        // Save to localStorage after reordering
+        get().saveAgentOrder()
+      },
+
+      moveAgentToPosition: (agentId, targetIndex) => {
+        set(
+          (state) => {
+            const sortedAgents = [...state.agents].sort((a, b) => a.order - b.order)
+            const currentIndex = sortedAgents.findIndex((a) => a.id === agentId)
+
+            if (currentIndex === -1 || targetIndex < 0 || targetIndex >= sortedAgents.length) {
+              return state
+            }
+
+            // Remove agent from current position
+            const [movedAgent] = sortedAgents.splice(currentIndex, 1)
+            // Insert at new position
+            sortedAgents.splice(targetIndex, 0, movedAgent)
+
+            // Update order for all agents based on new positions
+            const updatedAgents = sortedAgents.map((agent, index) => ({
+              ...agent,
+              order: index,
+            }))
+
+            return {
+              agents: state.agents.map((a) => {
+                const updated = updatedAgents.find((ua) => ua.id === a.id)
+                return updated || a
+              }),
+            }
+          },
+          false,
+          'moveAgentToPosition'
+        )
+        // Save to localStorage after reordering
+        get().saveAgentOrder()
+      },
+
+      normalizeAgentOrder: () =>
+        set(
+          (state) => {
+            const sortedAgents = [...state.agents].sort((a, b) => a.order - b.order)
+            return {
+              agents: state.agents.map((a) => {
+                const newOrder = sortedAgents.findIndex((sa) => sa.id === a.id)
+                return { ...a, order: newOrder }
+              }),
+            }
+          },
+          false,
+          'normalizeAgentOrder'
+        ),
+
+      saveAgentOrder: () => {
+        const state = get()
+        try {
+          const agentOrder = state.agents.map((agent) => ({
+            id: agent.id,
+            order: agent.order,
+          }))
+          localStorage.setItem('claudeStudio:agentOrder', JSON.stringify(agentOrder))
+        } catch (error) {
+          console.warn('Failed to save agent order to localStorage:', error)
+        }
+      },
+
+      loadAgentOrder: () => {
+        try {
+          const savedOrder = localStorage.getItem('claudeStudio:agentOrder')
+          if (savedOrder) {
+            const agentOrder: { id: string; order: number }[] = JSON.parse(savedOrder)
+            set(
+              (state) => {
+                // Create a map of saved orders
+                const orderMap = new Map(agentOrder.map((item) => [item.id, item.order]))
+
+                return {
+                  agents: state.agents.map((agent) => ({
+                    ...agent,
+                    order: orderMap.get(agent.id) ?? agent.order,
+                  })),
+                }
+              },
+              false,
+              'loadAgentOrder'
+            )
+          }
+        } catch (error) {
+          console.warn('Failed to load agent order from localStorage:', error)
+        }
+      },
 
       // Session clearing actions
       setClearingAgent: (agentId) => set({ clearingAgentId: agentId }, false, 'setClearingAgent'),
@@ -251,8 +444,8 @@ export const useAgentStore = create<AgentState>()(
       getProjectAgents: (_projectId: string) => {
         const state = get()
         // Filter agents that belong to this project
-        // For now, return all agents - this will be enhanced when we add project filtering
-        return state.agents
+        // For now, return all agents sorted by order - this will be enhanced when we add project filtering
+        return [...state.agents].sort((a, b) => a.order - b.order)
       },
 
       getAgentsWithRoles: () => {

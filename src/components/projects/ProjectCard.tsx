@@ -25,12 +25,12 @@ interface ProjectCardProps {
 export function ProjectCard({ project, onOpen, onEdit, onDelete, onClone }: ProjectCardProps) {
   const formatDate = (dateString: string | Date) => {
     if (!dateString) return 'Unknown'
-    
+
     const date = new Date(dateString)
-    
+
     // Check if date is valid
     if (isNaN(date.getTime())) return 'Invalid Date'
-    
+
     const now = new Date()
     const diffTime = Math.abs(now.getTime() - date.getTime())
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
@@ -41,7 +41,7 @@ export function ProjectCard({ project, onOpen, onEdit, onDelete, onClone }: Proj
     return date.toLocaleDateString()
   }
 
-  const isClaudeCodeProject = (project: any) => {
+  const isClaudeCodeProject = (project: Project) => {
     // Check if it's a Claude Code managed project
     return project.id.startsWith('-Users-ali-') || project.path?.includes('/.claude/')
   }

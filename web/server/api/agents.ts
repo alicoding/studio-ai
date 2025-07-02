@@ -113,6 +113,94 @@ router.put('/:id', async (req, res) => {
   }
 })
 
+// DELETE /api/agents/session - Delete Claude native session file
+// This must be defined BEFORE the /:id route to avoid route matching issues
+router.delete('/session', async (req, res) => {
+  try {
+    const { projectId, agentId } = req.body
+
+    if (!projectId || !agentId) {
+      return res.status(400).json({ error: 'projectId and agentId are required' })
+    }
+
+    console.log('Delete session file request:', {
+      projectId,
+      agentId,
+    })
+
+    // Import SessionService
+    const { SessionService } = await import('../services/SessionService.js')
+    const sessionService = SessionService.getInstance()
+
+    // Get the tracked sessionId for this agent
+    const trackedSessionId = await sessionService.getSession(projectId, agentId)
+
+    if (trackedSessionId) {
+      // Delete using the tracked sessionId
+      // The projectId might be either the Claude directory name or the original path
+      // We need to handle both cases
+      let projectPath = projectId
+
+      // If projectId looks like a Claude directory name (starts with dash),
+      // try to convert it back to a path
+      if (projectId.startsWith('-')) {
+        projectPath = projectId.replace(/-/g, '/')
+      }
+
+      try {
+        await sessionService.deleteSessionFile(projectPath, trackedSessionId)
+        console.log(`Successfully deleted session file for sessionId: ${trackedSessionId}`)
+      } catch (error) {
+        console.error('Error deleting session file:', error)
+        // Continue even if file deletion fails
+      }
+
+      // Clear the session tracking
+      await sessionService.clearSession(projectId, agentId)
+      console.log(`Cleared session tracking for agent ${agentId} in project ${projectId}`)
+
+      res.json({
+        message: 'Session deleted and tracking cleared successfully',
+        sessionId: trackedSessionId,
+      })
+    } else {
+      // No tracked session, try legacy approach with agentId as filename
+      const sessionPath = path.join(
+        os.homedir(),
+        '.claude',
+        'projects',
+        projectId,
+        `${agentId}.jsonl`
+      )
+
+      console.log(`No tracked session, attempting legacy delete: ${sessionPath}`)
+
+      try {
+        await fs.access(sessionPath)
+        await fs.unlink(sessionPath)
+        console.log(`Successfully deleted legacy session file: ${sessionPath}`)
+
+        res.json({
+          message: 'Legacy session file deleted successfully',
+          path: sessionPath,
+        })
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          res.json({
+            message: 'No session found to delete',
+            path: sessionPath,
+          })
+        } else {
+          throw error
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to delete session:', error)
+    res.status(500).json({ error: 'Failed to delete session' })
+  }
+})
+
 // DELETE /api/agents/:id - Kill running agent and delete configuration if exists
 router.delete('/:id', async (req, res) => {
   try {
@@ -214,63 +302,6 @@ router.put('/:id/status', async (req, res) => {
   } catch (error) {
     console.error('Failed to update agent status:', error)
     res.status(500).json({ error: 'Failed to update agent status' })
-  }
-})
-
-// DELETE /api/agents/session - Delete Claude native session file
-router.delete('/session', async (req, res) => {
-  try {
-    const { projectId, agentId } = req.body
-
-    if (!projectId || !agentId) {
-      return res.status(400).json({ error: 'projectId and agentId are required' })
-    }
-
-    // The projectId IS already the Claude directory name (e.g., -Users-ali-claude-swarm-claude-team-claude-studio)
-    // We don't need to convert it
-    console.log('Delete session file request:', {
-      projectId,
-      agentId,
-    })
-
-    // Construct the session file path
-    const sessionPath = path.join(
-      os.homedir(),
-      '.claude',
-      'projects',
-      projectId,
-      `${agentId}.jsonl`
-    )
-
-    console.log(`Attempting to delete file: ${sessionPath}`)
-
-    try {
-      // Check if file exists
-      await fs.access(sessionPath)
-      console.log(`File exists: ${sessionPath}`)
-
-      // Delete the file
-      await fs.unlink(sessionPath)
-      console.log(`Successfully deleted session file: ${sessionPath}`)
-
-      res.json({
-        message: 'Session file deleted successfully',
-        path: sessionPath,
-      })
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        // File doesn't exist, that's OK
-        res.json({
-          message: 'Session file not found (already deleted)',
-          path: sessionPath,
-        })
-      } else {
-        throw error
-      }
-    }
-  } catch (error) {
-    console.error('Failed to delete session file:', error)
-    res.status(500).json({ error: 'Failed to delete session file' })
   }
 })
 

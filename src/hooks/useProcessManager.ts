@@ -1,8 +1,8 @@
 /**
  * useProcessManager - React Hook for Server-Side Process Management
- * 
+ *
  * SOLID: Single Responsibility - only handles API calls to server-side ProcessManager
- * DRY: Centralized process management API for all components  
+ * DRY: Centralized process management API for all components
  * KISS: Simple API wrapper with error handling
  */
 
@@ -26,23 +26,27 @@ interface AgentConfig {
   maxTokens?: number
 }
 
+interface CleanupResult {
+  killedCount: number
+}
+
 interface ProcessManagerHook {
   // Agent management
   spawnAgent: (agentId: string, projectId: string, config: AgentConfig) => Promise<void>
   killAgent: (agentId: string) => Promise<void>
   setAgentStatus: (agentId: string, status: 'online' | 'offline') => Promise<void>
-  
+
   // Project management
   killProject: (projectId: string) => Promise<void>
   getProjectAgents: (projectId: string) => AgentProcess[]
-  
+
   // Message routing
   sendMention: (message: string, fromAgentId: string, projectId: string) => Promise<void>
-  
+
   // System status
   processCount: number
-  cleanup: () => Promise<any>
-  
+  cleanup: () => Promise<CleanupResult>
+
   // State
   isInitialized: boolean
   error: string | null
@@ -55,64 +59,63 @@ export function useProcessManager(): ProcessManagerHook {
   const [projectAgents, setProjectAgents] = useState<Record<string, AgentProcess[]>>({})
 
   // Agent management functions via API
-  const spawnAgent = useCallback(async (
-    agentId: string, 
-    projectId: string, 
-    config: AgentConfig
-  ) => {
-    try {
-      const response = await fetch(`/api/agents/${agentId}/spawn`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, config })
-      })
-      
-      if (!response.ok) {
-        throw new Error(`Failed to spawn agent: ${response.statusText}`)
+  const spawnAgent = useCallback(
+    async (agentId: string, projectId: string, config: AgentConfig) => {
+      try {
+        const response = await fetch(`/api/agents/${agentId}/spawn`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId, config }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to spawn agent: ${response.statusText}`)
+        }
+
+        console.log(`Agent ${agentId} spawn request sent`)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error'
+        setError(message)
+        throw err
       }
-      
-      console.log(`Agent ${agentId} spawn request sent`)
-    } catch (err: any) {
-      setError(err.message)
-      throw err
-    }
-  }, [])
+    },
+    []
+  )
 
   const killAgent = useCallback(async (agentId: string) => {
     try {
       const response = await fetch(`/api/agents/${agentId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
       })
-      
+
       if (!response.ok) {
         throw new Error(`Failed to kill agent: ${response.statusText}`)
       }
-      
+
       console.log(`Agent ${agentId} kill request sent`)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setError(message)
       throw err
     }
   }, [])
 
-  const setAgentStatus = useCallback(async (
-    agentId: string, 
-    status: 'online' | 'offline'
-  ) => {
+  const setAgentStatus = useCallback(async (agentId: string, status: 'online' | 'offline') => {
     try {
       const response = await fetch(`/api/agents/${agentId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status }),
       })
-      
+
       if (!response.ok) {
         throw new Error(`Failed to set agent status: ${response.statusText}`)
       }
-      
+
       console.log(`Agent ${agentId} status set to ${status}`)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setError(message)
       throw err
     }
   }, [])
@@ -120,85 +123,98 @@ export function useProcessManager(): ProcessManagerHook {
   const killProject = useCallback(async (projectId: string) => {
     try {
       const response = await fetch(`/api/projects/${projectId}/agents`, {
-        method: 'DELETE'
+        method: 'DELETE',
       })
-      
+
       if (!response.ok) {
         throw new Error(`Failed to kill project agents: ${response.statusText}`)
       }
-      
+
       console.log(`Project ${projectId} agents kill request sent`)
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setError(message)
       throw err
     }
   }, [])
 
-  const getProjectAgents = useCallback((projectId: string): AgentProcess[] => {
-    return projectAgents[projectId] || []
-  }, [projectAgents])
+  const getProjectAgents = useCallback(
+    (projectId: string): AgentProcess[] => {
+      return projectAgents[projectId] || []
+    },
+    [projectAgents]
+  )
 
-  const sendMention = useCallback(async (
-    message: string,
-    fromAgentId: string,
-    projectId: string
-  ) => {
-    try {
-      const response = await fetch(`/api/messages/mention`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, fromAgentId, projectId })
-      })
-      
-      if (!response.ok) {
-        throw new Error(`Failed to send mention: ${response.statusText}`)
+  const sendMention = useCallback(
+    async (message: string, fromAgentId: string, projectId: string) => {
+      try {
+        const response = await fetch(`/api/messages/mention`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, fromAgentId, projectId }),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to send mention: ${response.statusText}`)
+        }
+
+        console.log(`Mention sent from ${fromAgentId}`)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error'
+        setError(message)
+        throw err
       }
-      
-      console.log(`Mention sent from ${fromAgentId}`)
-    } catch (err: any) {
-      setError(err.message)
-      throw err
-    }
-  }, [])
+    },
+    []
+  )
 
   const cleanup = useCallback(async () => {
     try {
       const response = await fetch(`/api/system/cleanup-zombies`, {
-        method: 'POST'
+        method: 'POST',
       })
-      
+
       if (!response.ok) {
         throw new Error(`Failed to cleanup zombies: ${response.statusText}`)
       }
-      
+
       const result = await response.json()
       console.log(`Cleanup complete: ${result.killedCount} zombies killed`)
       return result
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setError(message)
       throw err
     }
   }, [])
 
-  // Fetch process stats periodically
+  // Fetch process stats - disabled for now to prevent spam
+  // TODO: Move this to a singleton service or global state management
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const response = await fetch('/api/system/process-stats')
-        if (response.ok) {
-          const stats = await response.json()
-          setProcessCount(stats.processCount || 0)
-          setProjectAgents(stats.projectAgents || {})
-        }
-      } catch (err) {
-        console.error('Failed to fetch process stats:', err)
-      }
-    }
+    // Temporarily disabled periodic fetching to reduce server spam
+    // Each hook instance was creating its own timer, resulting in multiple requests
 
-    fetchStats() // Initial fetch
-    const interval = setInterval(fetchStats, 5000) // Update every 5 seconds
+    // For now, just set default values
+    setProcessCount(0)
+    setProjectAgents({})
 
-    return () => clearInterval(interval)
+    // const fetchStats = async () => {
+    //   try {
+    //     const response = await fetch('/api/system/process-stats')
+    //     if (response.ok) {
+    //       const stats = await response.json()
+    //       setProcessCount(stats.processCount || 0)
+    //       setProjectAgents(stats.projectAgents || {})
+    //     }
+    //   } catch (err) {
+    //     console.error('Failed to fetch process stats:', err)
+    //   }
+    // }
+
+    // fetchStats() // Initial fetch
+    // const interval = setInterval(fetchStats, 5000) // Update every 5 seconds
+
+    // return () => clearInterval(interval)
   }, [])
 
   return {
@@ -211,6 +227,6 @@ export function useProcessManager(): ProcessManagerHook {
     processCount,
     cleanup,
     isInitialized,
-    error
+    error,
   }
 }

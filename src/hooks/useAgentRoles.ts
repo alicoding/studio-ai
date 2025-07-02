@@ -14,7 +14,7 @@ interface AgentRoleAssignment {
  * Keeps role templates and agent assignments separate
  */
 export function useAgentRoles() {
-  const { configs } = useAgentStore() // Updated from availableConfigs
+  const { configs, updateAgentFromConfig } = useAgentStore() // Updated from availableConfigs
   const [roleAssignments, setRoleAssignments] = useState<Record<string, AgentRoleAssignment>>({})
   const [loading, setLoading] = useState(false)
 
@@ -44,6 +44,12 @@ export function useAgentRoles() {
         ...prev,
         [agentId]: assignment,
       }))
+
+      // Update the agent's role in the Zustand store
+      const roleConfig = configs.find((config) => config.id === roleId)
+      if (roleConfig) {
+        updateAgentFromConfig(agentId, roleConfig)
+      }
 
       return assignment
     } catch (error) {

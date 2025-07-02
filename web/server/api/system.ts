@@ -37,7 +37,10 @@ router.get('/process-stats', async (req, res) => {
       registryHealth: stats.registryStats.health,
     }
 
-    console.log('Process stats:', response)
+    // Only log if there are active processes to reduce spam
+    if (stats.activeProcesses > 0) {
+      console.log('Process stats:', response)
+    }
     res.json(response)
   } catch (error) {
     console.error('Failed to get process stats:', error)

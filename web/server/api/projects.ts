@@ -119,6 +119,8 @@ router.post('/:id/unarchive', async (req, res) => {
 })
 
 // GET /api/projects/:id/sessions - Get project sessions (agents)
+// DEPRECATED: This returns all JSONL files as agents which is incorrect
+// Use /api/projects/:id/agents instead
 router.get('/:id/sessions', async (req, res) => {
   try {
     const sessions = await projectService.getProjectSessions(req.params.id)
@@ -126,6 +128,38 @@ router.get('/:id/sessions', async (req, res) => {
   } catch (error) {
     console.error('Error fetching project sessions:', error)
     res.status(500).json({ error: 'Failed to fetch project sessions' })
+  }
+})
+
+// GET /api/projects/:id/agents - Get agents configured for this project
+// NEW: Returns only agents that are properly configured with tracked sessions
+router.get('/:id/agents', async (req, res) => {
+  try {
+    const agents = await projectService.getProjectAgents(req.params.id)
+    res.json({ agents })
+  } catch (error) {
+    console.error('Error fetching project agents:', error)
+    res.status(500).json({ error: 'Failed to fetch project agents' })
+  }
+})
+
+// POST /api/projects/:id/agents - Add agents to a project
+router.post('/:id/agents', async (req, res) => {
+  try {
+    const { agentIds } = req.body
+
+    if (!Array.isArray(agentIds)) {
+      return res.status(400).json({ error: 'agentIds must be an array' })
+    }
+
+    await projectService.addAgentsToProject(req.params.id, agentIds)
+
+    // Return updated agents list
+    const agents = await projectService.getProjectAgents(req.params.id)
+    res.json({ agents })
+  } catch (error) {
+    console.error('Error adding agents to project:', error)
+    res.status(500).json({ error: 'Failed to add agents to project' })
   }
 })
 
@@ -144,14 +178,10 @@ router.delete('/:id/sessions/:fileName', async (req, res) => {
 router.get('/:id/sessions/:sessionId/messages', async (req, res) => {
   try {
     const { cursor, limit = '50' } = req.query
-    const result = await projectService.getSessionMessages(
-      req.params.id,
-      req.params.sessionId,
-      {
-        cursor: cursor as string | undefined,
-        limit: parseInt(limit as string, 10)
-      }
-    )
+    const result = await projectService.getSessionMessages(req.params.id, req.params.sessionId, {
+      cursor: cursor as string | undefined,
+      limit: parseInt(limit as string, 10),
+    })
     res.json(result)
   } catch (error) {
     console.error('Error fetching session messages:', error)
@@ -164,12 +194,12 @@ router.delete('/:id/agents', async (req, res) => {
   try {
     const processManager = ProcessManager.getInstance()
     await processManager.killProject(req.params.id)
-    
+
     console.log(`All agents for project ${req.params.id} killed`)
-    
-    res.json({ 
+
+    res.json({
       message: 'Project agents killed successfully',
-      projectId: req.params.id 
+      projectId: req.params.id,
     })
   } catch (error) {
     console.error('Error killing project agents:', error)

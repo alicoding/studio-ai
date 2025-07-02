@@ -1,20 +1,39 @@
-import { useState } from 'react'
+import { useCallback, memo } from 'react'
 import { ChevronDown, ChevronRight, FileJson } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../ui/collapsible'
 import { CodeBlock } from './CodeBlock'
+import { useCollapsibleStore } from '../../../stores/collapsible'
 
-export function ToolResultBlock({ content }: { content: string | object }) {
-  const [isOpen, setIsOpen] = useState(true)
+function ToolResultBlockComponent({
+  content,
+  blockId,
+}: {
+  content: string | object
+  blockId?: string
+}) {
+  const { getOpen, setOpen } = useCollapsibleStore()
+  const isOpen = getOpen(blockId || 'default', true) // Default to open for tool results
   const contentStr = typeof content === 'string' ? content : JSON.stringify(content, null, 2)
   const isLarge = contentStr.length > 500
 
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (blockId) {
+        setOpen(blockId, open)
+      }
+    },
+    [blockId, setOpen]
+  )
+
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+    <Collapsible open={isOpen} onOpenChange={handleOpenChange}>
       <div className="my-2 p-3 bg-green-500/10 rounded-md border border-green-500/20">
-        <CollapsibleTrigger className="flex items-center gap-2 w-full text-left hover:opacity-80">
+        <CollapsibleTrigger className="flex items-center gap-2 w-full text-left hover:opacity-80 cursor-pointer">
           {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           <FileJson className="h-4 w-4 text-green-500" />
-          <span className="font-medium text-sm text-green-700 dark:text-green-400">Tool Result</span>
+          <span className="font-medium text-sm text-green-700 dark:text-green-400">
+            Tool Result
+          </span>
           {isLarge && !isOpen && (
             <span className="text-xs text-muted-foreground ml-auto">Click to expand</span>
           )}
@@ -32,3 +51,5 @@ export function ToolResultBlock({ content }: { content: string | object }) {
     </Collapsible>
   )
 }
+
+export const ToolResultBlock = memo(ToolResultBlockComponent)

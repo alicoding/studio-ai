@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { toast } from 'sonner'
+import { DeleteAgentModal } from '../components/modals/DeleteAgentModal'
 import { Sidebar } from '../components/layout/Sidebar'
 import { ProjectTabs } from '../components/projects/ProjectTabs'
 import { ViewControls } from '../components/projects/ViewControls'
-import { MessageQueue } from '../components/projects/MessageQueue'
 import { ChatPanel } from '../components/projects/ChatPanel'
 import { AgentSelectionModal } from '../components/projects/AgentSelectionModal'
 import { CreateAgentModal } from '../components/agents/CreateAgentModal'
@@ -31,6 +31,9 @@ import { SplitView } from '../components/projects/views/SplitView'
 import { GridView } from '../components/projects/views/GridView'
 import { DevelopView } from '../components/projects/views/DevelopView'
 import { CreateProjectModal } from '../components/projects/CreateProjectModal'
+import { StatusBar } from '../components/workspace/StatusBar'
+import { ErrorMonitor } from '../services/ErrorMonitor'
+import { useDiagnosticsStore } from '../stores/diagnostics'
 
 export const Route = createFileRoute('/')({
   component: ProjectsPage,
@@ -42,7 +45,43 @@ function ProjectsPage() {
   // DRY: Use shared hook for fetching projects
   const { projects } = useProjects()
 
-  // TODO Phase 3: Remove useProjectAgents hook completely, move server fetching to store
+  // Initialize diagnostic monitoring globally on app start
+  useEffect(() => {
+    console.log('[ProjectsPage] Initializing global diagnostic monitoring')
+    const monitor = ErrorMonitor.getInstance()
+    const { setDiagnostics, setMonitoring } = useDiagnosticsStore.getState()
+
+    // Set up listeners if not already done
+    if (!monitor.isMonitoring) {
+      monitor.onDiagnosticsUpdated(({ source, diagnostics }) => {
+        console.log(`[ProjectsPage] Global diagnostic update: ${diagnostics.length} for ${source}`)
+        setDiagnostics(source, diagnostics)
+      })
+
+      monitor.onMonitoringStarted(() => {
+        console.log('[ProjectsPage] Global monitoring started')
+        setMonitoring(true)
+      })
+
+      monitor.onMonitoringStopped(() => {
+        console.log('[ProjectsPage] Global monitoring stopped')
+        setMonitoring(false)
+      })
+
+      // Start monitoring Claude Studio by default
+      const projectPath = '/Users/ali/claude-swarm/claude-team/claude-studio'
+      monitor
+        .startMonitoring(projectPath)
+        .then(() => {
+          console.log('[ProjectsPage] Global monitoring initialized')
+        })
+        .catch((error) => {
+          console.error('[ProjectsPage] Failed to start global monitoring:', error)
+        })
+    }
+  }, [])
+
+  // Use project agents from configured agents
   const { agents: projectAgents, loading: loadingAgents } = useProjectAgents()
 
   // Agent roles hook
@@ -66,11 +105,21 @@ function ProjectsPage() {
     getProjectAgents: getStoreProjectAgents, // Use store getter instead of hook
   } = useAgentStore()
 
-  const { activeProjectId, messageQueue, setActiveProject, clearQueue, getOpenProjects } =
-    useProjectStore()
+  const { activeProjectId, setActiveProject, getOpenProjects } = useProjectStore()
 
   // WebSocket operations (handles event registration)
   useWebSocketOperations()
+
+  // State for single agent deletion modal
+  const [deleteModalState, setDeleteModalState] = useState<{
+    isOpen: boolean
+    agent: any | null
+    isDeleting: boolean
+  }>({
+    isOpen: false,
+    agent: null,
+    isDeleting: false,
+  })
 
   // Sync projectAgents from hook into Zustand store
   useEffect(() => {
@@ -85,13 +134,16 @@ function ProjectsPage() {
   // Get agents from Zustand store instead of useProjectAgents hook
   const storeAgents = getStoreProjectAgents(activeProjectId || '')
 
-  // Load role assignments when store agents change
+  // Memoize agent IDs to prevent infinite loops
+  const agentIds = useMemo(() => storeAgents.map((a) => a.id), [storeAgents])
+  const agentIdsString = useMemo(() => agentIds.join(','), [agentIds])
+
+  // Load role assignments when agent IDs change
   useEffect(() => {
-    if (storeAgents.length > 0) {
-      const agentIds = storeAgents.map((a) => a.id)
+    if (agentIds.length > 0) {
       loadAssignments(agentIds)
     }
-  }, [storeAgents, loadAssignments])
+  }, [agentIdsString, loadAssignments])
 
   // Merge store agents with their role assignments
   const agentsWithRoles = storeAgents.map((agent) => {
@@ -140,14 +192,6 @@ function ProjectsPage() {
     messageOps.interruptMessages()
   }
 
-  // Agent operations
-  const handleAgentPause = async (agentId: string) => {
-    const agent = agentsWithRoles.find((a) => a.id === agentId)
-    if (agent) {
-      await agentOps.toggleAgent(agentId, agent)
-    }
-  }
-
   const handleAgentClear = async (agentId: string) => {
     // Clear session without prompting - will use system default
     const result = await agentOps.clearAgentSession(agentId)
@@ -161,11 +205,40 @@ function ProjectsPage() {
     }
   }
 
-  const handleAgentRemove = async (agentId: string) => {
+  const handleAgentRemove = async (agentId: string, skipConfirm = false) => {
     const agent = projectAgents.find((a) => a.id === agentId)
     if (agent) {
-      await agentOps.removeAgentFromTeam(agentId, agent.name)
+      if (skipConfirm) {
+        // Batch deletion, skip individual modal
+        await agentOps.removeAgentFromTeam(agentId, agent.name, true)
+      } else {
+        // Single deletion, show modal
+        setDeleteModalState({
+          isOpen: true,
+          agent: agent,
+          isDeleting: false,
+        })
+      }
     }
+  }
+
+  // Handle confirmation from the single delete modal
+  const handleSingleDeleteConfirm = async () => {
+    if (!deleteModalState.agent) return
+
+    setDeleteModalState((prev) => ({ ...prev, isDeleting: true }))
+
+    await agentOps.removeAgentFromTeam(
+      deleteModalState.agent.id,
+      deleteModalState.agent.name,
+      true // Skip the old confirm dialog
+    )
+
+    setDeleteModalState({
+      isOpen: false,
+      agent: null,
+      isDeleting: false,
+    })
   }
 
   // Project operations
@@ -255,60 +328,63 @@ function ProjectsPage() {
           </div>
         </div>
       ) : (
-        <div className="flex h-[calc(100vh-90px)]">
-          <Sidebar
-            isCollapsed={layout.sidebarCollapsed}
-            isLoading={loadingAgents}
-            onAgentPause={handleAgentPause}
-            onAgentClear={handleAgentClear}
-            onAgentRemove={handleAgentRemove}
-            onAgentConvert={handleAgentConvert}
-            onAgentReassignRole={handleReassignRole}
-            onAddAgent={() => modalOps.openModal('agentSelection')}
-            onCreateAgent={() => modalOps.openModal('createAgent')}
-            onLoadTeam={() => toast.info('Load team template coming soon')}
-          />
-
-          <main className="flex-1 flex flex-col overflow-hidden">
-            <ViewControls
-              currentView={layout.viewMode}
-              selectedAgentId={selectedAgentId}
-              onViewChange={layout.setViewMode}
-              onSidebarToggle={layout.toggleSidebar}
-              onCleanupZombies={handleCleanupZombies}
+        <div className="flex flex-col h-[calc(100vh-90px)]">
+          <div className="flex flex-1 overflow-hidden">
+            <Sidebar
+              isCollapsed={layout.sidebarCollapsed}
+              isLoading={loadingAgents}
+              onAgentClear={handleAgentClear}
+              onAgentRemove={handleAgentRemove}
+              onAgentConvert={handleAgentConvert}
+              onAgentReassignRole={handleReassignRole}
+              onAddAgent={() => modalOps.openModal('agentSelection')}
+              onCreateAgent={() => modalOps.openModal('createAgent')}
+              onLoadTeam={() => toast.info('Load team template coming soon')}
             />
 
-            <div className="flex-1 overflow-hidden flex flex-col">
-              {layout.isDevelopView ? (
-                <DevelopView
-                  onTerminalInput={(command) =>
-                    console.log('Develop terminal input (UI-first):', {
-                      agentId: 'server',
-                      input: command,
-                    })
-                  }
-                />
-              ) : (
-                <div className="flex-1 flex overflow-hidden">
-                  {layout.isSingleView && <SingleView selectedAgentId={selectedAgentId} />}
-                  {layout.isSplitView && <SplitView />}
-                  {layout.isGridView && <GridView />}
-                </div>
-              )}
-            </div>
+            <main className="flex-1 flex flex-col overflow-hidden">
+              <ViewControls
+                currentView={layout.viewMode}
+                selectedAgentId={selectedAgentId}
+                onViewChange={layout.setViewMode}
+                onSidebarToggle={layout.toggleSidebar}
+                onCleanupZombies={handleCleanupZombies}
+              />
 
-            {layout.showChatPanel && (
-              <>
-                <MessageQueue items={messageQueue} onClear={clearQueue} />
+              <div className="flex-1 overflow-hidden flex flex-col">
+                {layout.isDevelopView ? (
+                  <DevelopView
+                    onTerminalInput={(command) =>
+                      console.log('Develop terminal input (UI-first):', {
+                        agentId: 'server',
+                        input: command,
+                      })
+                    }
+                  />
+                ) : (
+                  <>
+                    <div className="flex-1 flex overflow-hidden">
+                      {layout.isSingleView && <SingleView selectedAgentId={selectedAgentId} />}
+                      {layout.isSplitView && <SplitView />}
+                      {layout.isGridView && <GridView />}
+                    </div>
 
-                <ChatPanel
-                  onSendMessage={handleSendMessage}
-                  onBroadcast={handleBroadcast}
-                  onInterrupt={handleInterrupt}
-                />
-              </>
-            )}
-          </main>
+                    {/* Chat input panel */}
+                    {layout.showChatPanel && (
+                      <ChatPanel
+                        onSendMessage={handleSendMessage}
+                        onBroadcast={handleBroadcast}
+                        onInterrupt={handleInterrupt}
+                      />
+                    )}
+                  </>
+                )}
+              </div>
+            </main>
+          </div>
+
+          {/* VSCode-style status bar at bottom */}
+          <StatusBar />
         </div>
       )}
 
@@ -318,7 +394,6 @@ function ProjectsPage() {
         onClose={() => modalOps.closeModal('agentSelection')}
         onSelect={handleAddAgents}
         availableAgents={configs}
-        currentAgentIds={agentsWithRoles.map((a) => a.id)}
       />
 
       <CreateAgentModal
@@ -352,6 +427,17 @@ function ProjectsPage() {
         onClose={() => modalOps.closeModal('createProject')}
         onCreate={handleCreateProject}
       />
+
+      {/* Single Agent Delete Modal */}
+      {deleteModalState.agent && (
+        <DeleteAgentModal
+          isOpen={deleteModalState.isOpen}
+          onClose={() => setDeleteModalState({ isOpen: false, agent: null, isDeleting: false })}
+          onConfirm={handleSingleDeleteConfirm}
+          agents={[deleteModalState.agent]}
+          isDeleting={deleteModalState.isDeleting}
+        />
+      )}
     </>
   )
 }

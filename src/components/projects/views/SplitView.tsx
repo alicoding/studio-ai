@@ -52,6 +52,7 @@ export function SplitView({}: SplitViewProps) {
                   sessionId={selectedAgent.sessionId || selectedAgent.id}
                   projectId={activeProjectId}
                   agentName={selectedAgent.name}
+                  agentId={selectedAgent.id}
                 />
               </div>
             ) : (

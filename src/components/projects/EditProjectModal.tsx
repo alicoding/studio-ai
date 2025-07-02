@@ -4,13 +4,7 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 
 interface Project {
   id: string
@@ -28,11 +22,14 @@ interface EditProjectModalProps {
   isOpen: boolean
   onClose: () => void
   project: Project | null
-  onSave: (projectId: string, metadata: {
-    status?: 'active' | 'archived' | 'draft'
-    tags?: string[]
-    notes?: string
-  }) => Promise<void>
+  onSave: (
+    projectId: string,
+    metadata: {
+      status?: 'active' | 'archived' | 'draft'
+      tags?: string[]
+      notes?: string
+    }
+  ) => Promise<void>
 }
 
 export function EditProjectModal({ isOpen, onClose, project, onSave }: EditProjectModalProps) {
@@ -57,7 +54,10 @@ export function EditProjectModal({ isOpen, onClose, project, onSave }: EditProje
     try {
       await onSave(project.id, {
         status,
-        tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
+        tags: tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter((tag) => tag.length > 0),
         notes: notes.trim(),
       })
       onClose()
@@ -84,10 +84,12 @@ export function EditProjectModal({ isOpen, onClose, project, onSave }: EditProje
           </button>
 
           <h2 className="text-2xl font-bold mb-4">Edit Project Metadata</h2>
-          
+
           <div className="mb-4 p-3 bg-muted/50 rounded">
             <h3 className="font-semibold">{project.name}</h3>
-            <p className="text-sm text-muted-foreground mt-1">{project.description || 'No description'}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {project.description || 'No description'}
+            </p>
             <p className="text-xs text-muted-foreground mt-1">Path: {project.path}</p>
           </div>
         </div>
@@ -95,7 +97,10 @@ export function EditProjectModal({ isOpen, onClose, project, onSave }: EditProje
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 space-y-4">
           <div>
             <Label htmlFor="status">Project Status</Label>
-            <Select value={status} onValueChange={(value) => setStatus(value as any)}>
+            <Select
+              value={status}
+              onValueChange={(value) => setStatus(value as 'active' | 'archived' | 'draft')}
+            >
               <SelectTrigger id="status">
                 <SelectValue />
               </SelectTrigger>
@@ -136,23 +141,13 @@ export function EditProjectModal({ isOpen, onClose, project, onSave }: EditProje
               Personal notes about this project (only stored in Claude Studio)
             </p>
           </div>
-
         </form>
 
         <div className="flex gap-2 p-6 pt-4 border-t">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            disabled={isSaving}
-          >
+          <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
-          <Button 
-            type="submit" 
-            disabled={isSaving}
-            onClick={handleSubmit}
-          >
+          <Button type="submit" disabled={isSaving} onClick={handleSubmit}>
             {isSaving ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>

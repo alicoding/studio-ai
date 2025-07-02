@@ -200,13 +200,15 @@
 ## Stage 2: Process Management (Critical - Fix Zombies) ⚡ **IN PROGRESS**
 
 ### **Current Issue:** 30+ Claude zombie processes running without cleanup
+
 ### **Architecture Approach:** Follow plan.md Stage 2 - ProcessManager/ProcessRegistry/ProcessCleaner trinity
 
 - [ ] **Create lib/process/types.ts** - Define interfaces
+
   ```typescript
   interface AgentProcess {
     agentId: string
-    projectId: string  
+    projectId: string
     pid: number | null
     status: 'ready' | 'online' | 'busy' | 'offline'
     sessionId: string | null
@@ -237,7 +239,7 @@
 
 - [ ] **Agent Lifecycle Implementation (KISS)**
   - [ ] **Spawn Agent** → `ready` state (PID assigned, session created, DON'T auto-execute)
-  - [ ] **First interaction** → `online` state (idle, awaiting messages)  
+  - [ ] **First interaction** → `online` state (idle, awaiting messages)
   - [ ] **Processing message** → `busy` state (working)
   - [ ] **Complete message** → back to `online` (idle)
   - [ ] **Play/Pause button** → toggle `online` ⟷ `offline` (keep PID alive)
@@ -580,12 +582,44 @@
   - [x] ClaudeService already handles session persistence ✅
   - [x] Test: Click agent → send message → continues their session ✅
 
+### Stage 12.4: Agent Management Enhancements ✅ COMPLETED
+
+- [x] **Legacy Agent Role Assignment** ✅
+  - [x] Implement AssignRoleModal for legacy agents ✅
+  - [x] Add role persistence across page refreshes ✅
+  - [x] Update Zustand store when roles are assigned ✅
+  - [x] Fix infinite loop in useAgentRoles ✅
+  - [x] Add Sparkles icon for legacy agents without configs ✅
+
+- [x] **Agent Deletion with Session Cleanup** ✅
+  - [x] Implement proper agent deletion from projects ✅
+  - [x] Delete Claude native session files at ~/.claude/projects/{projectId}/{agentId}.jsonl ✅
+  - [x] Fix route ordering issue (DELETE /api/agents/session before /:id) ✅
+  - [x] Add comprehensive logging for debugging ✅
+  - [x] Ensure agents don't reappear after refresh ✅
+
+- [x] **Multi-Select Agent Management** ✅
+  - [x] Add selection mode toggle to sidebar ✅
+  - [x] Implement checkbox selection for agents ✅
+  - [x] Add "Select All" functionality ✅
+  - [x] Implement batch delete with confirmation modal ✅
+  - [x] Add shift+click range selection ✅
+  - [x] Prevent text selection during shift+click ✅
+  - [x] Create reusable DeleteAgentModal for both single and batch deletion ✅
+  - [x] Follow DRY principle - one deletion mechanism for all cases ✅
+
+- [x] **UI/UX Improvements** ✅
+  - [x] Replace browser alerts with proper modals ✅
+  - [x] Add loading states for async operations ✅
+  - [x] Fix WebSocket server spam by disabling periodic stats ✅
+  - [x] Maintain individual delete buttons on agent cards ✅
+  - [x] Show batch operations only in selection mode ✅
+
 - [ ] Unified Message Handling (DRY/SOLID)
   - [ ] Create src/services/MessageService.ts (Single Responsibility)
     - [ ] Centralized message formatting and validation
     - [ ] Handle all message types in one place
     - [ ] Parse and format messages consistently
-  
   - [ ] Message Types Support (Library-First Approach)
     - [ ] Plain text messages (already working)
     - [ ] @mentions → Parse and route to agents
@@ -602,20 +636,17 @@
       - [ ] Show image preview in message
       - [ ] Convert to base64 for Claude
     - [ ] Code blocks → Detect ``` and format
-    
   - [ ] Message State Management (KISS)
     - [ ] Add sent message to history immediately (optimistic update)
     - [ ] Show pending state while waiting for response
     - [ ] Update with actual response when received
     - [ ] Handle errors gracefully (show retry option)
-  
   - [ ] Real-time Updates (Use Existing MessageHistoryViewer)
     - [ ] MessageHistoryViewer already has virtual scrolling
     - [ ] Just append new messages to existing messages array
     - [ ] Use React state updates (no WebSocket needed yet)
     - [ ] Maintain scroll position at bottom for new messages
     - [ ] Only auto-scroll if user is near bottom
-  
   - [ ] Integration Points (DRY - Reuse Existing)
     - [ ] Reuse MessageParser.tsx for parsing
     - [ ] Reuse MessageBubble.tsx for display
@@ -910,6 +941,7 @@
 ## Future Platform-Specific Features
 
 ### Desktop App (Tauri/Electron)
+
 - [ ] System tray integration
 - [ ] Global hotkeys
 - [ ] Native file system access
@@ -918,13 +950,15 @@
 - [ ] OS-level theme detection
 
 ### Mobile Support
+
 - [ ] Responsive UI optimization
 - [ ] Touch gestures
 - [ ] Mobile-friendly terminal
 - [ ] Push notifications
 - [ ] Offline mode with sync
 
-### Web Enhancements  
+### Web Enhancements
+
 - [ ] PWA support
 - [ ] Browser notifications
 - [ ] Cloud sync

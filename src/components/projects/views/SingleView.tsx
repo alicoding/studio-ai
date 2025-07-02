@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { MessageHistoryViewer } from '../../messages/MessageHistoryViewer'
 import { useProjectStore, useAgentStore } from '../../../stores'
 
@@ -6,11 +7,27 @@ interface SingleViewProps {
 }
 
 export function SingleView({ selectedAgentId }: SingleViewProps) {
-  const { activeProjectId } = useProjectStore()
-  const { getAgent } = useAgentStore()
+  const activeProjectId = useProjectStore((state) => state.activeProjectId)
+  const getAgent = useAgentStore((state) => state.getAgent)
 
-  // Get the selected agent directly from Zustand store
-  const selectedAgent = selectedAgentId ? getAgent(selectedAgentId) : null
+  // Memoize the selected agent to prevent unnecessary re-renders
+  const selectedAgent = useMemo(() => {
+    return selectedAgentId ? getAgent(selectedAgentId) : null
+  }, [selectedAgentId, getAgent])
+
+  // Always call useMemo, even if we won't use the result
+  const messageHistoryViewer = useMemo(() => {
+    if (!selectedAgent || !activeProjectId) return null
+
+    return (
+      <MessageHistoryViewer
+        sessionId={selectedAgent.sessionId || selectedAgent.id}
+        projectId={activeProjectId}
+        agentName={selectedAgent.name}
+        agentId={selectedAgent.id}
+      />
+    )
+  }, [selectedAgent, activeProjectId])
 
   if (!selectedAgentId || !selectedAgent) {
     return (
@@ -43,13 +60,7 @@ export function SingleView({ selectedAgentId }: SingleViewProps) {
           {selectedAgent.name} - {selectedAgent.lastMessage}
         </span>
       </div>
-      <div className="flex-1 overflow-hidden">
-        <MessageHistoryViewer
-          sessionId={selectedAgent.sessionId || selectedAgent.id}
-          projectId={activeProjectId}
-          agentName={selectedAgent.name}
-        />
-      </div>
+      <div className="flex-1 overflow-hidden">{messageHistoryViewer}</div>
     </div>
   )
 }

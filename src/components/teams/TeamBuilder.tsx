@@ -1,15 +1,25 @@
 import { useState } from 'react'
 import { Modal } from '../shared/Modal'
 
+interface TeamAgent {
+  role: string
+  name: string
+  systemPrompt: string
+}
+
+interface AvailableAgent extends TeamAgent {
+  id: string
+}
+
+interface SelectedAgent extends TeamAgent {
+  id: string
+}
+
 interface TeamTemplate {
   id: string
   name: string
   description: string
-  agents: Array<{
-    role: string
-    name: string
-    systemPrompt: string
-  }>
+  agents: TeamAgent[]
   createdAt: string
 }
 
@@ -21,7 +31,7 @@ interface TeamBuilderProps {
 }
 
 // Mock available agent configurations
-const AVAILABLE_AGENTS = [
+const AVAILABLE_AGENTS: AvailableAgent[] = [
   { id: 'dev1', name: 'dev_agent', role: 'dev', systemPrompt: 'You are a developer...' },
   { id: 'ux1', name: 'ux_designer', role: 'ux', systemPrompt: 'You are a UX designer...' },
   { id: 'arch1', name: 'architect', role: 'architect', systemPrompt: 'You are an architect...' },
@@ -37,14 +47,7 @@ const AVAILABLE_AGENTS = [
 export function TeamBuilder({ isOpen, template, onSave, onCancel }: TeamBuilderProps) {
   const [teamName, setTeamName] = useState(template?.name || '')
   const [teamDescription, setTeamDescription] = useState(template?.description || '')
-  const [selectedAgents, setSelectedAgents] = useState<
-    Array<{
-      id: string
-      name: string
-      role: string
-      systemPrompt: string
-    }>
-  >(
+  const [selectedAgents, setSelectedAgents] = useState<SelectedAgent[]>(
     template?.agents.map((a) => ({
       id: a.name,
       name: a.name,
@@ -52,9 +55,9 @@ export function TeamBuilder({ isOpen, template, onSave, onCancel }: TeamBuilderP
       systemPrompt: a.systemPrompt,
     })) || []
   )
-  const [draggedAgent, setDraggedAgent] = useState<any>(null)
+  const [draggedAgent, setDraggedAgent] = useState<AvailableAgent | null>(null)
 
-  const handleDragStart = (e: React.DragEvent, agent: any) => {
+  const handleDragStart = (e: React.DragEvent, agent: AvailableAgent) => {
     setDraggedAgent(agent)
     e.dataTransfer.effectAllowed = 'copy'
   }

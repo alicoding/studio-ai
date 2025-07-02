@@ -5,7 +5,7 @@ import { useProjectStore } from '../../stores'
 
 // Mock the project store
 vi.mock('../../stores', () => ({
-  useProjectStore: vi.fn()
+  useProjectStore: vi.fn(),
 }))
 
 // Mock fetch
@@ -20,10 +20,11 @@ describe('useProjectAgents', () => {
 
   it('should return empty agents array when no activeProjectId', () => {
     // Arrange
-    vi.mocked(useProjectStore).mockReturnValue({
+    const mockStore: Partial<ReturnType<typeof useProjectStore>> = {
       activeProjectId: null,
-      projects: []
-    } as any)
+      projects: [],
+    }
+    vi.mocked(useProjectStore).mockReturnValue(mockStore as ReturnType<typeof useProjectStore>)
 
     // Act
     const { result } = renderHook(() => useProjectAgents())
@@ -42,24 +43,25 @@ describe('useProjectAgents', () => {
         sessionId: 'session-001',
         agentName: 'Claude Assistant',
         messageCount: 42,
-        createdAt: '2024-01-01T10:00:00Z'
+        createdAt: '2024-01-01T10:00:00Z',
       },
       {
         sessionId: 'session-002',
         agentName: null, // Test fallback name
         messageCount: 15,
-        createdAt: '2024-01-02T10:00:00Z'
-      }
+        createdAt: '2024-01-02T10:00:00Z',
+      },
     ]
 
-    vi.mocked(useProjectStore).mockReturnValue({
+    const mockStore: Partial<ReturnType<typeof useProjectStore>> = {
       activeProjectId: mockProjectId,
-      projects: []
-    } as any)
+      projects: [],
+    }
+    vi.mocked(useProjectStore).mockReturnValue(mockStore as ReturnType<typeof useProjectStore>)
 
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ sessions: mockSessions })
+      json: async () => ({ sessions: mockSessions }),
     } as Response)
 
     // Act
@@ -77,7 +79,7 @@ describe('useProjectAgents', () => {
     // Assert - After fetch
     expect(fetch).toHaveBeenCalledWith(`/api/projects/${mockProjectId}/sessions`)
     expect(result.current.agents).toHaveLength(2)
-    
+
     // Check first agent transformation
     expect(result.current.agents[0]).toEqual({
       id: 'session-001',
@@ -87,7 +89,7 @@ describe('useProjectAgents', () => {
       tokens: 0,
       maxTokens: 200000,
       lastMessage: '42 messages',
-      sessionId: 'session-001'
+      sessionId: 'session-001',
     })
 
     // Check second agent with fallback name
@@ -99,17 +101,18 @@ describe('useProjectAgents', () => {
       tokens: 0,
       maxTokens: 200000,
       lastMessage: '15 messages',
-      sessionId: 'session-002'
+      sessionId: 'session-002',
     })
   })
 
   it('should handle fetch errors gracefully', async () => {
     // Arrange
     const mockProjectId = 'project-123'
-    vi.mocked(useProjectStore).mockReturnValue({
+    const mockStore: Partial<ReturnType<typeof useProjectStore>> = {
       activeProjectId: mockProjectId,
-      projects: []
-    } as any)
+      projects: [],
+    }
+    vi.mocked(useProjectStore).mockReturnValue(mockStore as ReturnType<typeof useProjectStore>)
 
     vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'))
 
@@ -123,23 +126,21 @@ describe('useProjectAgents', () => {
 
     // Assert
     expect(result.current.agents).toEqual([])
-    expect(console.error).toHaveBeenCalledWith(
-      'Error fetching project agents:',
-      expect.any(Error)
-    )
+    expect(console.error).toHaveBeenCalledWith('Error fetching project agents:', expect.any(Error))
   })
 
   it('should handle non-ok responses', async () => {
     // Arrange
     const mockProjectId = 'project-123'
-    vi.mocked(useProjectStore).mockReturnValue({
+    const mockStore: Partial<ReturnType<typeof useProjectStore>> = {
       activeProjectId: mockProjectId,
-      projects: []
-    } as any)
+      projects: [],
+    }
+    vi.mocked(useProjectStore).mockReturnValue(mockStore as ReturnType<typeof useProjectStore>)
 
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
-      status: 404
+      status: 404,
     } as Response)
 
     // Act
@@ -156,14 +157,15 @@ describe('useProjectAgents', () => {
 
   it('should refetch when activeProjectId changes', async () => {
     // Arrange - First project
-    vi.mocked(useProjectStore).mockReturnValue({
+    const mockStore: Partial<ReturnType<typeof useProjectStore>> = {
       activeProjectId: 'project-123',
-      projects: []
-    } as any)
+      projects: [],
+    }
+    vi.mocked(useProjectStore).mockReturnValue(mockStore as ReturnType<typeof useProjectStore>)
 
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ sessions: [] })
+      json: async () => ({ sessions: [] }),
     } as Response)
 
     // Act - Initial render
@@ -176,20 +178,23 @@ describe('useProjectAgents', () => {
     expect(fetch).toHaveBeenCalledWith('/api/projects/project-123/sessions')
 
     // Arrange - Change to second project
-    vi.mocked(useProjectStore).mockReturnValue({
+    const mockStore2: Partial<ReturnType<typeof useProjectStore>> = {
       activeProjectId: 'project-456',
-      projects: []
-    } as any)
+      projects: [],
+    }
+    vi.mocked(useProjectStore).mockReturnValue(mockStore2 as ReturnType<typeof useProjectStore>)
 
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ 
-        sessions: [{
-          sessionId: 'new-session',
-          agentName: 'New Agent',
-          messageCount: 10
-        }]
-      })
+      json: async () => ({
+        sessions: [
+          {
+            sessionId: 'new-session',
+            agentName: 'New Agent',
+            messageCount: 10,
+          },
+        ],
+      }),
     } as Response)
 
     // Act - Rerender with new project

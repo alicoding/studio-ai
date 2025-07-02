@@ -2,12 +2,19 @@ import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
 
+export interface AgentInstance {
+  instanceId: string // Unique ID for this instance (e.g., "dev-agent-1234567890")
+  configId: string // Reference to the original agent config (e.g., "dev-agent")
+  addedAt: string // When this instance was added
+}
+
 export interface ProjectMetadata {
   id: string
   name?: string
   description?: string
   template?: string
-  agentIds?: string[]
+  agentIds?: string[] // Keep for backward compatibility
+  agentInstances?: AgentInstance[] // New: Support multiple instances of same agent
   createdAt: string
   updatedAt: string
   thumbnail?: string
@@ -56,15 +63,15 @@ export class StudioProjectMetadata {
     try {
       await this.ensureMetadataDir()
       const files = await fs.readdir(this.metadataDir)
-      const metadataFiles = files.filter(file => file.endsWith('.json'))
-      
+      const metadataFiles = files.filter((file) => file.endsWith('.json'))
+
       const metadata = await Promise.all(
-        metadataFiles.map(async file => {
+        metadataFiles.map(async (file) => {
           const projectId = path.basename(file, '.json')
           return this.getMetadata(projectId)
         })
       )
-      
+
       return metadata.filter(Boolean) as ProjectMetadata[]
     } catch {
       return []

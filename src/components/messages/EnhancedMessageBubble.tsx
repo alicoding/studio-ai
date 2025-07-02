@@ -37,7 +37,7 @@ interface EnhancedMessageBubbleProps {
   onDelete?: () => void
 }
 
-function renderContent(content: string | MessageContent[], role: string) {
+function renderContent(content: string | MessageContent[], role: string, messageId?: string) {
   if (typeof content === 'string') {
     // Check if this is a command message
     const commandMatch = content.match(/<command-name>([^<]+)<\/command-name>/)
@@ -56,8 +56,8 @@ function renderContent(content: string | MessageContent[], role: string) {
       )
     }
 
-    // User messages are always plain text - preserve exact formatting
-    if (role === 'user') {
+    // User messages with string content are plain text - preserve exact formatting
+    if (role === 'user' && typeof content === 'string') {
       return (
         <div className="text-sm text-foreground break-words whitespace-pre-wrap font-mono">
           {content}
@@ -86,7 +86,7 @@ function renderContent(content: string | MessageContent[], role: string) {
   if (Array.isArray(content)) {
     return (
       <div className="space-y-2">
-        {content.map((item, index) => renderContentItem(item, index))}
+        {content.map((item, index) => renderContentItem(item, index, messageId))}
       </div>
     )
   }
@@ -96,6 +96,7 @@ function renderContent(content: string | MessageContent[], role: string) {
 }
 
 export function EnhancedMessageBubble({
+  id,
   role,
   content,
   timestamp,
@@ -145,7 +146,7 @@ export function EnhancedMessageBubble({
               {role} {isMeta && '(System)'}
             </span>
           </div>
-          <div className="text-sm">{renderContent(content, role)}</div>
+          <div className="text-sm">{renderContent(content, role, id)}</div>
         </div>
       </div>
     )
@@ -220,7 +221,7 @@ export function EnhancedMessageBubble({
           </div>
         </div>
 
-        {renderContent(content, role)}
+        {renderContent(content, role, id)}
 
         {usage && (
           <div className="mt-2 text-xs text-muted-foreground">

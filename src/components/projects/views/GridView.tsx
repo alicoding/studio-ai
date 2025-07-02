@@ -55,6 +55,7 @@ export function GridView({}: GridViewProps) {
                     sessionId={selectedAgent.sessionId || selectedAgent.id}
                     projectId={activeProjectId}
                     agentName={selectedAgent.name}
+                    agentId={selectedAgent.id}
                   />
                 </div>
               ) : (

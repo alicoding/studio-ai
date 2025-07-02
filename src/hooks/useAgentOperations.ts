@@ -146,7 +146,7 @@ export function useAgentOperations() {
           console.log('Using agent role system prompt for clear session')
         } else {
           // Only fall back to default for legacy agents without proper configuration
-          let defaultPrompt = `You are ${agentName}, a ${agentRole} agent. Please stand by for instructions.`
+          let defaultPrompt = `Session cleared. You are ${agentName}, a ${agentRole} agent. Please stand by for instructions. Do not respond to this message.`
 
           try {
             const response = await fetch('/api/settings/system')
@@ -171,6 +171,8 @@ export function useAgentOperations() {
 
         console.log('Starting new session with message:', initMessage)
         const result = await sendClaudeMessage(initMessage, {
+          projectId: activeProjectId || undefined,
+          agentId: agentId,
           projectPath: activeProject.path,
           role: agentRole as 'dev' | 'ux' | 'test' | 'pm',
           forceNewSession: true,
@@ -242,8 +244,15 @@ export function useAgentOperations() {
    * Kills process and removes from UI
    */
   const removeAgentFromTeam = useCallback(
-    async (agentId: string, agentName: string): Promise<AgentOperationResult> => {
-      if (!confirm(`Remove ${agentName} from team? This will delete all session history.`)) {
+    async (
+      agentId: string,
+      agentName: string,
+      skipConfirm = false
+    ): Promise<AgentOperationResult> => {
+      if (
+        !skipConfirm &&
+        !confirm(`Remove ${agentName} from team? This will delete all session history.`)
+      ) {
         return { success: false, error: 'User cancelled' }
       }
 
@@ -314,22 +323,28 @@ export function useAgentOperations() {
       }
 
       try {
-        // Spawn agents using ProcessManager
-        for (const agentId of agentIds) {
-          const agentConfig = getConfig(agentId)
-          if (agentConfig) {
-            await processManager.spawnAgent(agentId, activeProjectId, {
-              name: agentConfig.name,
-              role: agentConfig.role,
-              systemPrompt: agentConfig.systemPrompt || '',
-              tools: agentConfig.tools || [],
-              model: agentConfig.model,
-              maxTokens: agentConfig.maxTokens,
-            })
-            console.log(`Agent ${agentId} spawned for project ${activeProjectId}`)
-          }
+        // Call the API to add agents to project metadata
+        const response = await fetch(`/api/projects/${activeProjectId}/agents`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ agentIds }),
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Failed to add agents to project')
         }
 
+        // Refresh the agent list
+        window.dispatchEvent(
+          new CustomEvent('project-agents-updated', {
+            detail: { projectId: activeProjectId },
+          })
+        )
+
+        console.log(`Added ${agentIds.length} agents to project ${activeProjectId}`)
         return { success: true }
       } catch (error) {
         console.error('Failed to add agents:', error)
@@ -339,7 +354,7 @@ export function useAgentOperations() {
         }
       }
     },
-    [activeProjectId, getConfig, processManager]
+    [activeProjectId]
   )
 
   /**

@@ -2,6 +2,14 @@ import { useState, useRef } from 'react'
 import { Terminal } from '../../terminal/Terminal'
 import { Camera, Square, Circle, ArrowBigUp, Type, Download, X } from 'lucide-react'
 
+interface Annotation {
+  type: 'rectangle' | 'circle' | 'arrow' | 'text'
+  x: number
+  y: number
+  color: string
+  id: number
+}
+
 interface DevelopViewProps {
   onTerminalInput: (command: string) => void
 }
@@ -15,7 +23,7 @@ export function DevelopView({ onTerminalInput }: DevelopViewProps) {
   const [annotationTool, setAnnotationTool] = useState<'rectangle' | 'circle' | 'arrow' | 'text'>(
     'rectangle'
   )
-  const [annotations, setAnnotations] = useState<any[]>([])
+  const [annotations, setAnnotations] = useState<Annotation[]>([])
   const previewRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -182,7 +190,7 @@ export function DevelopView({ onTerminalInput }: DevelopViewProps) {
             <select
               className="px-3 py-1 text-sm bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
               value={previewDevice}
-              onChange={(e) => setPreviewDevice(e.target.value as any)}
+              onChange={(e) => setPreviewDevice(e.target.value as 'desktop' | 'tablet' | 'mobile')}
             >
               <option value="desktop">Desktop</option>
               <option value="tablet">Tablet (768px)</option>
