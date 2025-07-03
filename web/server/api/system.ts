@@ -8,8 +8,7 @@
  */
 
 import { Router } from 'express'
-import { ProcessManager } from '../../../lib/process/ProcessManager.js'
-import { ProcessCleaner } from '../../../lib/process/ProcessCleaner.js'
+// ProcessManager and ProcessCleaner removed - using Claude SDK instances instead
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { access } from 'fs/promises'
@@ -22,25 +21,15 @@ const execAsync = promisify(exec)
 // GET /api/system/process-stats - Get current process statistics
 router.get('/process-stats', async (req, res) => {
   try {
-    const processManager = ProcessManager.getInstance()
-
-    const stats = processManager.getStats()
-
-    // Get all projects and their agents
-    const projectAgents: Record<string, any[]> = {}
-    // For now, we don't have a way to get all projects, so we'll return empty
-    // This would be populated by iterating through known projects
-
+    // No processes to track - agents are Claude SDK instances
+    // Return mock data for API compatibility
     const response = {
-      processCount: stats.activeProcesses,
-      projectAgents,
-      registryHealth: stats.registryStats.health,
+      processCount: 0,
+      projectAgents: {},
+      registryHealth: 'healthy',
+      message: 'Using Claude SDK instances (no processes)',
     }
 
-    // Only log if there are active processes to reduce spam
-    if (stats.activeProcesses > 0) {
-      console.log('Process stats:', response)
-    }
     res.json(response)
   } catch (error) {
     console.error('Failed to get process stats:', error)
@@ -51,16 +40,13 @@ router.get('/process-stats', async (req, res) => {
 // POST /api/system/cleanup-zombies - Cleanup zombie Claude processes
 router.post('/cleanup-zombies', async (req, res) => {
   try {
-    const cleaner = ProcessCleaner.getInstance()
-    const result = await cleaner.cleanupZombies()
-
+    // No processes to clean up - agents are Claude SDK instances
     const response = {
-      killedCount: result.killedProcesses.length,
-      killedProcesses: result.killedProcesses,
-      message: `Cleanup completed: ${result.killedProcesses.length} zombie processes killed`,
+      killedCount: 0,
+      killedProcesses: [],
+      message: 'No zombie processes (using Claude SDK instances)',
     }
 
-    console.log('Zombie cleanup result:', response)
     res.json(response)
   } catch (error) {
     console.error('Failed to cleanup zombies:', error)

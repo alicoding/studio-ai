@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { ProjectService } from '../services/ProjectService.js'
-import { ProcessManager } from '../../../lib/process/ProcessManager.js'
+// ProcessManager removed - using Claude SDK instances instead
 
 const router = Router()
 const projectService = new ProjectService()
@@ -211,10 +211,9 @@ router.get('/:id/sessions/:sessionId/messages', async (req, res) => {
 // DELETE /api/projects/:id/agents - Kill all agents for project
 router.delete('/:id/agents', async (req, res) => {
   try {
-    const processManager = ProcessManager.getInstance()
-    await processManager.killProject(req.params.id)
-
-    console.log(`All agents for project ${req.params.id} killed`)
+    // No processes to kill - agents are Claude SDK instances
+    // This endpoint exists for API compatibility
+    console.log(`Project ${req.params.id} agents cleared (no processes - using SDK instances)`)
 
     res.json({
       message: 'Project agents killed successfully',

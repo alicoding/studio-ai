@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
-import { ProcessManager } from '../../../lib/process/ProcessManager.js'
+// ProcessManager removed - using Claude SDK instances instead
 import { ConfigService } from '../../../src/services/ConfigService.js'
 import { AgentConfigService } from '../services/AgentConfigService.js'
 import { ProjectService } from '../services/ProjectService.js'
@@ -346,11 +346,9 @@ router.delete('/session', async (req, res) => {
 // DELETE /api/agents/:id - Kill running agent and delete configuration if exists
 router.delete('/:id', async (req, res) => {
   try {
-    // Kill running agent process first
-    const processManager = ProcessManager.getInstance()
-    await processManager.killAgent(req.params.id)
-
-    console.log(`Agent ${req.params.id} killed`)
+    // Agent processes are no longer used - agents are Claude SDK instances
+    // Just log for compatibility
+    console.log(`Agent ${req.params.id} removed (no process to kill - using SDK instances)`)
 
     // Try to delete agent configuration if it exists
     try {
@@ -376,7 +374,7 @@ router.delete('/:id', async (req, res) => {
 // POST /api/agents/:id/spawn - Spawn agent to project
 router.post('/:id/spawn', async (req, res) => {
   try {
-    const { projectId, config } = req.body
+    const { projectId } = req.body
 
     if (!projectId) {
       return res.status(400).json({ error: 'Project ID is required' })
@@ -387,17 +385,12 @@ router.post('/:id/spawn', async (req, res) => {
       return res.status(404).json({ error: 'Agent not found' })
     }
 
-    // Spawn agent using ProcessManager
-    const processManager = ProcessManager.getInstance()
-    const agentConfig = {
-      role: config?.role || agent.role,
-      systemPrompt: config?.systemPrompt || agent.systemPrompt,
-      tools: config?.tools || agent.tools,
-      model: config?.model || agent.model,
-      maxTokens: config?.maxTokens || agent.maxTokens,
-    }
+    // Agent spawning is now handled by the UI/Claude SDK
+    // Just update the project configuration to track active agents
+    console.log(`Agent ${req.params.id} added to project ${projectId}`)
 
-    await processManager.spawnAgent(req.params.id, projectId, agentConfig)
+    // Note: Actual agent instances are created on-demand when messages are sent
+    // via ClaudeService.getOrCreateAgent()
 
     // Update project to include this agent
     const project = await configService.getProject(projectId)
@@ -430,9 +423,8 @@ router.put('/:id/status', async (req, res) => {
       return res.status(400).json({ error: 'Valid status is required (online, offline)' })
     }
 
-    // Update agent status using ProcessManager
-    const processManager = ProcessManager.getInstance()
-    await processManager.setAgentStatus(req.params.id, status as 'online' | 'offline')
+    // Agent status is managed in UI state - no process to update
+    // This endpoint exists for API compatibility
 
     console.log(`Agent ${req.params.id} status updated to ${status}`)
 
