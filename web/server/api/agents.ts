@@ -7,6 +7,18 @@ import { ProcessManager } from '../../../lib/process/ProcessManager.js'
 import { ConfigService } from '../../../src/services/ConfigService.js'
 import { AgentConfigService } from '../services/AgentConfigService.js'
 import { ProjectService } from '../services/ProjectService.js'
+
+interface LegacyAgentConfig {
+  id: string
+  name: string
+  role: string
+  systemPrompt: string
+  tools: string[]
+  model: string
+  createdAt: string
+  updatedAt: string
+  usedInProjects: string[]
+}
 const router = Router()
 const configService = ConfigService.getInstance()
 const agentConfigService = AgentConfigService.getInstance()
@@ -16,20 +28,25 @@ const projectService = new ProjectService()
 router.get('/', async (req, res) => {
   try {
     const agents = await agentConfigService.getAllAgents()
-    
+
     // Get all projects from ProjectService to check which agents are being used
     const projects = await projectService.getAllProjects()
-    
+
     // Create a map of agent usage by reading project configuration files
     const agentProjectMap = new Map<string, string[]>()
-    
+
     for (const project of projects) {
       // Read the project configuration file to get agentIds
       try {
-        const projectConfigPath = path.join(os.homedir(), '.claude-studio', 'projects', `${project.id}.json`)
+        const projectConfigPath = path.join(
+          os.homedir(),
+          '.claude-studio',
+          'projects',
+          `${project.id}.json`
+        )
         const projectData = await fs.readFile(projectConfigPath, 'utf-8')
         const projectConfig = JSON.parse(projectData)
-        
+
         const agentList = projectConfig.agentIds || []
         if (Array.isArray(agentList)) {
           for (const agentId of agentList) {
@@ -39,20 +56,20 @@ router.get('/', async (req, res) => {
             agentProjectMap.get(agentId)!.push(project.id)
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // If project config doesn't exist in .claude-studio, skip it
         console.log(`No project config found for ${project.id}`)
       }
     }
-    
+
     // Add projects using info from the map
     const clientAgents = agents.map((agent) => ({
       ...agent,
       projectsUsing: agentProjectMap.get(agent.id) || [],
     }))
-    
+
     res.json(clientAgents)
-  } catch (error) {
+  } catch (_error) {
     console.error('Failed to load agents:', error)
     res.status(500).json({ error: 'Failed to load agents' })
   }
@@ -65,33 +82,38 @@ router.get('/:id', async (req, res) => {
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' })
     }
-    
+
     // Get all projects from ProjectService to check which ones use this agent
     const projects = await projectService.getAllProjects()
     const projectsUsing: string[] = []
-    
+
     for (const project of projects) {
       try {
-        const projectConfigPath = path.join(os.homedir(), '.claude-studio', 'projects', `${project.id}.json`)
+        const projectConfigPath = path.join(
+          os.homedir(),
+          '.claude-studio',
+          'projects',
+          `${project.id}.json`
+        )
         const projectData = await fs.readFile(projectConfigPath, 'utf-8')
         const projectConfig = JSON.parse(projectData)
-        
+
         const agentList = projectConfig.agentIds || []
         if (Array.isArray(agentList) && agentList.includes(req.params.id)) {
           projectsUsing.push(project.id)
         }
-      } catch (error) {
+      } catch (_error) {
         // If project config doesn't exist in .claude-studio, skip it
         console.log(`No project config found for ${project.id}`)
       }
     }
-    
+
     const clientAgent = {
       ...agent,
       projectsUsing,
     }
     res.json(clientAgent)
-  } catch (error) {
+  } catch (_error) {
     console.error('Failed to load agent:', error)
     res.status(500).json({ error: 'Failed to load agent' })
   }
@@ -131,7 +153,7 @@ router.post('/', async (req, res) => {
       projectsUsing: [],
     }
     res.status(201).json(clientAgent)
-  } catch (error) {
+  } catch (_error) {
     console.error('Failed to create agent:', error)
     res.status(500).json({ error: 'Failed to create agent' })
   }
@@ -149,12 +171,13 @@ router.put('/:id', async (req, res) => {
     }
 
     // Update in legacy configurations.json
-    const legacyConfigPath = '/Users/ali/claude-swarm/claude-team/claude-studio/data/agents/configurations.json'
+    const legacyConfigPath =
+      '/Users/ali/claude-swarm/claude-team/claude-studio/data/agents/configurations.json'
     try {
       const data = await fs.readFile(legacyConfigPath, 'utf-8')
       const configs = JSON.parse(data)
-      
-      const agentIndex = configs.findIndex((a: any) => a.id === req.params.id)
+
+      const agentIndex = configs.findIndex((a: LegacyAgentConfig) => a.id === req.params.id)
       if (agentIndex !== -1) {
         // Update the agent
         configs[agentIndex] = {
@@ -166,11 +189,11 @@ router.put('/:id', async (req, res) => {
           ...(model && { model }),
           updatedAt: new Date().toISOString(),
         }
-        
+
         // Save back to file
         await fs.writeFile(legacyConfigPath, JSON.stringify(configs, null, 2))
       }
-    } catch (error) {
+    } catch (_error) {
       console.error('Failed to update legacy config:', error)
     }
 
@@ -185,7 +208,7 @@ router.put('/:id', async (req, res) => {
         ...(maxTokens && { maxTokens }),
         ...(temperature !== undefined && { temperature }),
       })
-    } catch (error) {
+    } catch (_error) {
       // It's OK if ConfigService update fails for legacy agents
       console.log('ConfigService update failed (expected for legacy agents):', error)
     }
@@ -199,18 +222,23 @@ router.put('/:id', async (req, res) => {
     // Get project usage info
     const projects = await projectService.getAllProjects()
     const projectsUsing: string[] = []
-    
+
     for (const project of projects) {
       try {
-        const projectConfigPath = path.join(os.homedir(), '.claude-studio', 'projects', `${project.id}.json`)
+        const projectConfigPath = path.join(
+          os.homedir(),
+          '.claude-studio',
+          'projects',
+          `${project.id}.json`
+        )
         const projectData = await fs.readFile(projectConfigPath, 'utf-8')
         const projectConfig = JSON.parse(projectData)
-        
+
         const agentList = projectConfig.agentIds || []
         if (Array.isArray(agentList) && agentList.includes(req.params.id)) {
           projectsUsing.push(project.id)
         }
-      } catch (error) {
+      } catch (_error) {
         // Skip if no project config
       }
     }
@@ -220,7 +248,7 @@ router.put('/:id', async (req, res) => {
       projectsUsing,
     }
     res.json(clientAgent)
-  } catch (error) {
+  } catch (_error) {
     console.error('Failed to update agent:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     res.status(500).json({ error: 'Failed to update agent', details: errorMessage })
@@ -264,7 +292,7 @@ router.delete('/session', async (req, res) => {
       try {
         await sessionService.deleteSessionFile(projectPath, trackedSessionId)
         console.log(`Successfully deleted session file for sessionId: ${trackedSessionId}`)
-      } catch (error) {
+      } catch (_error) {
         console.error('Error deleting session file:', error)
         // Continue even if file deletion fails
       }
@@ -298,7 +326,7 @@ router.delete('/session', async (req, res) => {
           message: 'Legacy session file deleted successfully',
           path: sessionPath,
         })
-      } catch (error) {
+      } catch (_error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
           res.json({
             message: 'No session found to delete',
@@ -309,7 +337,7 @@ router.delete('/session', async (req, res) => {
         }
       }
     }
-  } catch (error) {
+  } catch (_error) {
     console.error('Failed to delete session:', error)
     res.status(500).json({ error: 'Failed to delete session' })
   }
@@ -339,7 +367,7 @@ router.delete('/:id', async (req, res) => {
     }
 
     res.json({ message: 'Agent killed successfully' })
-  } catch (error) {
+  } catch (_error) {
     console.error('Failed to kill agent:', error)
     res.status(500).json({ error: 'Failed to kill agent' })
   }
@@ -387,7 +415,7 @@ router.post('/:id/spawn', async (req, res) => {
       projectId,
       status: 'ready',
     })
-  } catch (error) {
+  } catch (_error) {
     console.error('Failed to spawn agent:', error)
     res.status(500).json({ error: 'Failed to spawn agent' })
   }
@@ -413,7 +441,7 @@ router.put('/:id/status', async (req, res) => {
       agentId: req.params.id,
       status,
     })
-  } catch (error) {
+  } catch (_error) {
     console.error('Failed to update agent status:', error)
     res.status(500).json({ error: 'Failed to update agent status' })
   }
@@ -443,7 +471,7 @@ router.post('/:id/abort', async (req, res) => {
       agentId,
       projectId,
     })
-  } catch (error) {
+  } catch (_error) {
     console.error('Failed to abort agent:', error)
     res.status(500).json({ error: 'Failed to abort agent' })
   }
@@ -469,36 +497,32 @@ router.post('/:id/clear-session', async (req, res) => {
         const { SessionService } = await import('../services/SessionService.js')
         const sessionService = SessionService.getInstance()
         const sessionPath = sessionService.getSessionPath(projectId, oldSessionId)
-        
+
         try {
           await fs.access(sessionPath)
           await fs.unlink(sessionPath)
           console.log(`Successfully deleted session file: ${sessionPath}`)
           sessionFileDeleted = true
-        } catch (error) {
+        } catch (_error) {
           console.log(`Session file not found or already deleted: ${sessionPath}`)
           sessionFileDeleted = true // File doesn't exist, which is the desired state
         }
-      } catch (error) {
+      } catch (_error) {
         console.error('Failed to import SessionService or delete session file:', error)
-        throw new Error(`Failed to clean up session file: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        throw new Error(
+          `Failed to clean up session file: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
       }
     }
 
     // Also try to clean up any legacy files
-    const legacyPath = path.join(
-      os.homedir(),
-      '.claude',
-      'projects',
-      projectId,
-      `${agentId}.jsonl`
-    )
+    const legacyPath = path.join(os.homedir(), '.claude', 'projects', projectId, `${agentId}.jsonl`)
 
     try {
       await fs.access(legacyPath)
       await fs.unlink(legacyPath)
       console.log(`Deleted legacy session file: ${legacyPath}`)
-    } catch (error) {
+    } catch (_error) {
       // Legacy file might not exist, that's ok
     }
 
@@ -509,7 +533,7 @@ router.post('/:id/clear-session', async (req, res) => {
         const { SessionService } = await import('../services/SessionService.js')
         const sessionService = SessionService.getInstance()
         await sessionService.clearSession(projectId, agentId)
-      } catch (error) {
+      } catch (_error) {
         console.error('Failed to clear session tracking:', error)
       }
     }
@@ -523,7 +547,7 @@ router.post('/:id/clear-session', async (req, res) => {
         oldSessionId: oldSessionId || null,
       },
     })
-  } catch (error) {
+  } catch (_error) {
     console.error('Failed to clear agent session:', error)
     res.status(500).json({ error: 'Failed to clear agent session' })
   }

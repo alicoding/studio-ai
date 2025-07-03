@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, Request, Response } from 'express'
 import { ConfigService } from '../../../src/services/ConfigService.js'
 
 const router = Router()
@@ -69,39 +69,39 @@ router.get('/all-hooks', async (req, res) => {
 // PUT /api/settings/system - Update system settings
 router.put('/system', async (req, res) => {
   try {
-    const { hooks, studioHooks, ...systemConfig } = req.body
-    
+    const { hooks, ...systemConfig } = req.body
+
     // Update Studio's internal config
     await configService.updateSystemConfig(systemConfig)
-    
+
     // Also write hooks to Claude Code settings.json
     if (hooks) {
       const { writeFile, readFile, mkdir } = await import('fs/promises')
       const { join, dirname } = await import('path')
       const { homedir } = await import('os')
-      
+
       const claudeSettingsPath = join(homedir(), '.claude', 'settings.json')
-      
+
       // Ensure directory exists
       await mkdir(dirname(claudeSettingsPath), { recursive: true })
-      
+
       // Read existing Claude settings
-      let claudeSettings: any = {}
+      let claudeSettings: Record<string, unknown> = {}
       try {
         const content = await readFile(claudeSettingsPath, 'utf-8')
         claudeSettings = JSON.parse(content)
       } catch {
         // File doesn't exist or is invalid
       }
-      
+
       // Update hooks while preserving other settings
       claudeSettings.hooks = hooks
-      
+
       // Write back to Claude settings
       await writeFile(claudeSettingsPath, JSON.stringify(claudeSettings, null, 2))
       console.log('Updated Claude Code hooks in', claudeSettingsPath)
     }
-    
+
     res.json({ success: true })
   } catch (error) {
     console.error('Failed to update system settings:', error)
@@ -110,7 +110,7 @@ router.put('/system', async (req, res) => {
 })
 
 // GET /api/settings/project/:projectId - Get project settings
-router.get('/project/:projectId', async (req: any, res: any) => {
+router.get('/project/:projectId', async (req: Request, res: Response) => {
   try {
     const project = await configService.getProject(req.params.projectId)
     if (!project) {

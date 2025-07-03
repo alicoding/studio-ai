@@ -127,10 +127,10 @@ router.post('/mention', async (req, res) => {
     }
 
     // Simple mention parsing - extract target agent and message content
-    const parseMentions = (msg: string): Array<{targetAgent: string, content: string}> => {
+    const parseMentions = (msg: string): Array<{ targetAgent: string; content: string }> => {
       console.log(`[DEBUG] Parsing message: "${msg}"`)
-      const mentions: Array<{targetAgent: string, content: string}> = []
-      
+      const mentions: Array<{ targetAgent: string; content: string }> = []
+
       // Handle @all broadcast
       if (msg.startsWith('@all ')) {
         const content = msg.substring(5).trim()
@@ -138,7 +138,7 @@ router.post('/mention', async (req, res) => {
         mentions.push({ targetAgent: 'all', content })
         return mentions
       }
-      
+
       // Handle single @agent mention - be more flexible with the regex
       const match = msg.match(/^@([a-zA-Z0-9\-_]+)(?:\s+(.+))?$/)
       if (match) {
@@ -149,17 +149,17 @@ router.post('/mention', async (req, res) => {
       } else {
         console.log(`[DEBUG] No mention pattern matched for: "${msg}"`)
       }
-      
+
       return mentions
     }
-    
+
     const mentions = parseMentions(message)
     const routedTargets: string[] = []
-    
+
     if (mentions.length === 0) {
       return res.status(400).json({ error: 'No valid mentions found in message' })
     }
-    
+
     console.log(`Parsing mentions from message: "${message}"`, mentions)
 
     // Get socket.io instance to emit to UI
@@ -168,7 +168,7 @@ router.post('/mention', async (req, res) => {
     // For each mention, process the target
     for (const mention of mentions) {
       const targetAgentId = mention.targetAgent
-      
+
       // Handle @all broadcast
       if (targetAgentId === 'all') {
         console.log('[Mention] Processing @all broadcast')
@@ -176,7 +176,7 @@ router.post('/mention', async (req, res) => {
         // For now, skip @all and let the BroadcastCommand handle it
         continue
       }
-      
+
       console.log(`[Mention] Processing mention to ${targetAgentId}`)
       routedTargets.push(targetAgentId)
       // First, show the user's @mention message in the target agent's chat
@@ -205,12 +205,12 @@ router.post('/mention', async (req, res) => {
       // Actually send the message to the target agent through Claude API
       try {
         console.log(`[Mention] Sending message to target agent ${targetAgentId}: "${message}"`)
-        
+
         // Use the parsed message content from mention
         const messageContent = mention.content
-        
+
         // Send the message to the target agent via Claude API
-        const claudeResponse = await claudeService.sendMessage(
+        await claudeService.sendMessage(
           `Message from @${fromAgentId}: ${messageContent}`,
           projectId,
           targetAgentId,
@@ -221,11 +221,11 @@ router.post('/mention', async (req, res) => {
           false, // don't force new session
           undefined // agent config - will be resolved
         )
-        
+
         console.log(`[Mention] Successfully delivered to ${targetAgentId}, response started`)
       } catch (error) {
         console.error(`[Mention] Failed to deliver message to ${targetAgentId}:`, error)
-        
+
         // Emit error to UI
         io.emit('agent:mention-error', {
           targetAgentId,
@@ -301,7 +301,7 @@ router.post('/abort', async (req, res) => {
     }
 
     console.log(`[API] Abort request received for agent ${agentId} in project ${projectId}`)
-    
+
     // Get the agent and abort its current operation
     const agent = await claudeService.getOrCreateAgent(projectId, agentId)
     console.log(`[API] Got agent instance, calling abort()`)
@@ -309,7 +309,7 @@ router.post('/abort', async (req, res) => {
 
     // Get socket.io instance to emit abort notification
     const io = req.app.get('io')
-    
+
     // Emit abort notification to UI
     io.emit('message:aborted', {
       sessionId: agentId,
@@ -320,11 +320,11 @@ router.post('/abort', async (req, res) => {
 
     console.log(`Aborted message for agent ${agentId} in project ${projectId}`)
 
-    res.json({ 
+    res.json({
       success: true,
       message: 'Message aborted successfully',
       agentId,
-      projectId
+      projectId,
     })
   } catch (error) {
     console.error('Error aborting message:', error)
