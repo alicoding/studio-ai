@@ -45,6 +45,7 @@ export function useProjectAgents() {
 
         // Map agents from the new endpoint
         const projectAgents: Agent[] = data.agents.map((agent: APIAgent) => {
+          console.log(`[useProjectAgents] Loading agent ${agent.id} with sessionId: ${agent.sessionId}`)
           return {
             id: agent.id,
             name: agent.name,
@@ -58,23 +59,7 @@ export function useProjectAgents() {
           }
         })
 
-        // Add numbering to agents with the same role for clarity
-        const roleCount: Record<string, number> = {}
-        const roleTotals: Record<string, number> = {}
-
-        // First, count total agents per role
-        projectAgents.forEach((agent) => {
-          roleTotals[agent.role] = (roleTotals[agent.role] || 0) + 1
-        })
-
-        // Then, add numbers to agents with duplicate roles
-        projectAgents.forEach((agent) => {
-          if (roleTotals[agent.role] > 1) {
-            roleCount[agent.role] = (roleCount[agent.role] || 0) + 1
-            agent.name = `${agent.name} #${roleCount[agent.role]}`
-          }
-        })
-
+        // No need to add numbering - custom names are preserved from team templates
         // No need to fetch role assignments - already included in agent data
 
         setAgents(projectAgents)

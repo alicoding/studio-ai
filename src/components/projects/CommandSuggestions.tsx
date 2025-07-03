@@ -1,4 +1,4 @@
-import { Terminal, FileText, Settings, HelpCircle, Hash, Users } from 'lucide-react'
+import { Terminal, FileText, Settings, HelpCircle, Hash, Users, Plus, Zap, Trash2 } from 'lucide-react'
 
 interface Command {
   name: string
@@ -42,6 +42,18 @@ const HASH_COMMANDS: Command[] = [
     usage: '#broadcast [message]'
   },
   {
+    name: '#spawn',
+    description: 'Create a new agent with specified role',
+    icon: Plus,
+    usage: '#spawn [role]'
+  },
+  {
+    name: '#interrupt',
+    description: 'Interrupt a busy agent',
+    icon: Zap,
+    usage: '#interrupt @agent'
+  },
+  {
     name: '#help',
     description: 'Show help information',
     icon: Hash,
@@ -52,6 +64,12 @@ const HASH_COMMANDS: Command[] = [
     description: 'Clear the conversation',
     icon: Terminal,
     usage: '#clear'
+  },
+  {
+    name: '#cleanup',
+    description: 'Remove legacy agents and recreate with readable names',
+    icon: Trash2,
+    usage: '#cleanup [yes]'
   }
 ]
 

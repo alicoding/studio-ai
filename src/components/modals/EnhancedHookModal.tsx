@@ -33,49 +33,63 @@ interface EnhancedHookModalProps {
   defaultScope?: HookScope
 }
 
-const CLAUDE_CODE_EVENTS: Array<{ value: ClaudeCodeEvent; label: string; description: string }> = [
-  { value: 'PreToolUse', label: 'Pre Tool Use', description: 'Before any tool execution' },
-  { value: 'PostToolUse', label: 'Post Tool Use', description: 'After tool completion' },
-  { value: 'Notification', label: 'Notification', description: 'During notifications' },
-  { value: 'Stop', label: 'Stop', description: 'When Claude Code finishes' },
+const CLAUDE_CODE_EVENTS: Array<{ 
+  value: ClaudeCodeEvent
+  label: string
+  description: string
+  supportsMatcher: boolean
+}> = [
+  { value: 'PreToolUse', label: 'Pre Tool Use', description: 'Before any tool execution', supportsMatcher: true },
+  { value: 'PostToolUse', label: 'Post Tool Use', description: 'After tool completion', supportsMatcher: true },
+  { value: 'Notification', label: 'Notification', description: 'During notifications', supportsMatcher: true },
+  { value: 'Stop', label: 'Stop', description: 'When Claude Code finishes', supportsMatcher: false },
 ]
 
+// Helper to get event config
+const getEventConfig = (event: HookEvent) => {
+  const claudeEvent = CLAUDE_CODE_EVENTS.find(e => e.value === event)
+  const studioEvent = STUDIO_EVENTS.find(e => e.value === event)
+  return claudeEvent || studioEvent || { supportsMatcher: true }
+}
+
+// These are conceptual - not supported by Claude Code's native system
 const STUDIO_EVENTS: Array<{ value: StudioEvent; label: string; description: string }> = [
-  { value: 'AgentMessage', label: 'Agent Message', description: 'When agents communicate' },
+  { value: 'AgentMessage', label: 'Agent Message', description: '(Conceptual) When agents communicate' },
   {
     value: 'TypeCheckFailed',
     label: 'Type Check Failed',
-    description: 'TypeScript errors detected',
+    description: '(Conceptual) TypeScript errors detected',
   },
-  { value: 'LintError', label: 'Lint Error', description: 'ESLint/other linting errors' },
+  { value: 'LintError', label: 'Lint Error', description: '(Conceptual) ESLint/other linting errors' },
   {
     value: 'FileConflict',
     label: 'File Conflict',
-    description: 'Multiple agents editing same file',
+    description: '(Conceptual) Multiple agents editing same file',
   },
   {
     value: 'ToolValidation',
     label: 'Tool Validation',
-    description: 'Before tool execution validation',
+    description: '(Conceptual) Before tool execution validation',
   },
   {
     value: 'SessionCompaction',
     label: 'Session Compaction',
-    description: 'When session needs compaction',
+    description: '(Conceptual) When session needs compaction',
   },
-  { value: 'AgentHandoff', label: 'Agent Handoff', description: 'Switching between agents' },
+  { value: 'AgentHandoff', label: 'Agent Handoff', description: '(Conceptual) Switching between agents' },
 ]
 
 const HOOK_TYPES = [
-  { value: 'command', label: 'Command', icon: Terminal, description: 'Execute shell commands' },
+  { value: 'command', label: 'Command', icon: Terminal, description: 'Execute shell commands (Only supported type)' },
   {
     value: 'validation',
     label: 'Validation',
     icon: Shield,
-    description: 'Validate before actions',
+    description: '(Conceptual) Validate before actions',
+    disabled: true,
   },
-  { value: 'notification', label: 'Notification', icon: Bell, description: 'Send notifications' },
-  { value: 'studio', label: 'Studio Action', icon: Zap, description: 'Trigger studio actions' },
+  { value: 'notification', label: 'Notification', icon: Bell, description: '(Conceptual) Send notifications', disabled: true },
+  { value: 'studio', label: 'Studio Action', icon: Zap, description: '(Conceptual) Trigger studio actions', disabled: true },
 ] as const
 
 export function EnhancedHookModal({
@@ -216,10 +230,11 @@ export function EnhancedHookModal({
     }
 
     // Build hook object based on type
+    const eventConfig = getEventConfig(formData.event)
     const baseHook = {
       id: hook?.id || `hook-${Date.now()}`,
       event: formData.event,
-      matcher: formData.matcher || '*',
+      matcher: eventConfig.supportsMatcher ? (formData.matcher || '*') : '*',
       scope: formData.scope,
       enabled: formData.enabled,
       description: formData.description,
@@ -308,16 +323,18 @@ export function EnhancedHookModal({
           <div className="space-y-2">
             <Label>Hook Type</Label>
             <div className="grid grid-cols-2 gap-2">
-              {HOOK_TYPES.map(({ value, label, icon: Icon, description }) => (
+              {HOOK_TYPES.map(({ value, label, icon: Icon, description, disabled }) => (
                 <div
                   key={value}
-                  className={`p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                    formData.type === value
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-muted-foreground/50'
+                  className={`p-3 rounded-lg border-2 transition-colors ${
+                    disabled 
+                      ? 'opacity-50 cursor-not-allowed border-border' 
+                      : formData.type === value
+                      ? 'border-primary bg-primary/10 cursor-pointer'
+                      : 'border-border hover:border-muted-foreground/50 cursor-pointer'
                   }`}
                   onClick={() =>
-                    setFormData((prev) => ({
+                    !disabled && setFormData((prev) => ({
                       ...prev,
                       type: value as 'command' | 'validation' | 'notification' | 'studio',
                     }))
@@ -363,16 +380,23 @@ export function EnhancedHookModal({
             <Label>Event</Label>
             <Select
               value={formData.event}
-              onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, event: value as HookEvent }))
-              }
+              onValueChange={(value) => {
+                const event = value as HookEvent
+                const eventConfig = getEventConfig(event)
+                setFormData((prev) => ({ 
+                  ...prev, 
+                  event,
+                  // Clear matcher if event doesn't support it
+                  matcher: eventConfig.supportsMatcher ? prev.matcher : undefined
+                }))
+              }}
             >
               <SelectTrigger className={errors.event ? 'border-red-500' : ''}>
                 <SelectValue placeholder="Select event" />
               </SelectTrigger>
               <SelectContent>
                 <div className="font-medium text-xs text-muted-foreground px-2 py-1">
-                  Claude Code Events
+                  Claude Code Events (Native Support)
                 </div>
                 {CLAUDE_CODE_EVENTS.map((event) => (
                   <SelectItem key={event.value} value={event.value}>
@@ -382,43 +406,82 @@ export function EnhancedHookModal({
                     </div>
                   </SelectItem>
                 ))}
-                <div className="font-medium text-xs text-muted-foreground px-2 py-1 pt-2">
-                  Studio Events
-                </div>
-                {STUDIO_EVENTS.map((event) => (
-                  <SelectItem key={event.value} value={event.value}>
-                    <div>
-                      <div className="font-medium">{event.label}</div>
-                      <div className="text-xs text-muted-foreground">{event.description}</div>
+                
+                {/* Show Studio Intelligence examples as info text, not selectable items */}
+                {formData.type === 'command' && (
+                  <>
+                    <div className="border-t my-2" />
+                    <div className="px-2 py-2 space-y-2">
+                      <div className="font-medium text-xs text-muted-foreground">
+                        Studio Intelligence Examples:
+                      </div>
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <div>• <strong>TypeScript/Lint Checks</strong> → Use PostToolUse event with Write|Edit|MultiEdit matcher</div>
+                        <div>• <strong>File Lock Warnings</strong> → Use PreToolUse event with Write|Edit|MultiEdit matcher</div>
+                        <div>• <strong>Session Summary/Logging</strong> → Use Stop event (runs before response ends)</div>
+                      </div>
                     </div>
-                  </SelectItem>
-                ))}
+                  </>
+                )}
+                
+                {/* Show conceptual events as disabled */}
+                {formData.type !== 'command' && (
+                  <>
+                    <div className="border-t my-2" />
+                    <div className="font-medium text-xs text-red-600 px-2 py-1">
+                      Conceptual Events (Not Implemented)
+                    </div>
+                    {STUDIO_EVENTS.map((event) => (
+                      <SelectItem key={event.value} value={event.value} disabled>
+                        <div className="opacity-50">
+                          <div className="font-medium">{event.label}</div>
+                          <div className="text-xs text-muted-foreground">{event.description}</div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
               </SelectContent>
             </Select>
             {errors.event && <p className="text-sm text-red-500">{errors.event}</p>}
           </div>
 
-          {/* Tool Matcher */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Label>Tool/Pattern Matcher</Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <HelpCircle className="w-4 h-4 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Pattern to match specific tools or agents. Use * for all.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+          {/* Tool Matcher - Show based on event config */}
+          {getEventConfig(formData.event).supportsMatcher && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label>Tool Name Matcher</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-md">
+                      <div className="space-y-2">
+                        <p>Pattern to match Claude Code tool names:</p>
+                        <ul className="text-xs space-y-1">
+                          <li>• <code>Write</code> - Single tool</li>
+                          <li>• <code>Write|Edit|MultiEdit</code> - Multiple tools</li>
+                          <li>• <code>Web.*</code> - Regex pattern</li>
+                          <li>• <code>*</code> - All tools</li>
+                        </ul>
+                        <p className="text-xs mt-2">Common tools: Task, Bash, Read, Write, Edit, MultiEdit, WebSearch, etc.</p>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <Input
+                value={formData.matcher}
+                onChange={(e) => setFormData((prev) => ({ ...prev, matcher: e.target.value }))}
+                placeholder="Write|Edit|MultiEdit"
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Examples: Write, Edit|MultiEdit, mcp__.*, * (all tools)
+              </p>
             </div>
-            <Input
-              value={formData.matcher}
-              onChange={(e) => setFormData((prev) => ({ ...prev, matcher: e.target.value }))}
-              placeholder="* (all tools/agents)"
-            />
-          </div>
+          )}
 
           {/* Description */}
           <div className="space-y-2">

@@ -1,5 +1,6 @@
 import { Menu, Square, Grid3X3, SplitSquareHorizontal, Code, Trash2 } from 'lucide-react'
 import { Button } from '../ui/button'
+import { useAgentStore } from '../../stores'
 
 type ViewMode = 'single' | 'split' | 'grid' | 'develop'
 
@@ -25,6 +26,11 @@ export function ViewControls({
   onSidebarToggle,
   onCleanupZombies,
 }: ViewControlsProps) {
+  // Get the selected agent to show its name
+  const selectedAgent = useAgentStore(state => 
+    selectedAgentId ? state.agents.find(a => a.id === selectedAgentId) : null
+  )
+
   return (
     <div className="flex items-center gap-2 p-2 bg-card border-b">
       <button
@@ -53,7 +59,7 @@ export function ViewControls({
       </div>
 
       <span className="text-muted-foreground text-sm ml-auto">
-        {selectedAgentId ? `→ ${selectedAgentId}` : '→ No agent selected'}
+        {selectedAgent ? `→ ${selectedAgent.name}` : '→ No agent selected'}
       </span>
 
       {onCleanupZombies && (

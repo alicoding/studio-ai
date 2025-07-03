@@ -16,6 +16,7 @@ import systemRouter from './api/system.js'
 import settingsRouter from './api/settings.js'
 import studioIntelligenceRouter from './api/studio-intelligence.js'
 import diagnosticsRouter from './api/diagnostics.js'
+import screenshotRouter from './api/screenshot.js'
 
 // Import WebSocket handler
 import { setupWebSocket } from './websocket.js'
@@ -65,6 +66,7 @@ app.use('/api/system', systemRouter)
 app.use('/api/settings', settingsRouter)
 app.use('/api/studio-intelligence', studioIntelligenceRouter)
 app.use('/api/diagnostics', diagnosticsRouter)
+app.use('/api/screenshot', screenshotRouter)
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

@@ -58,10 +58,30 @@ export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanel
         onSendMessage(message) // Don't trim here to preserve formatting
         setMessage('')
         setShowMentions(false)
+        setShowCommands(null)
       }
     } else if (e.key === 'Escape') {
       e.preventDefault()
       onInterrupt()
+    }
+  }
+
+  // Helper function to get readable agent info
+  const getAgentDisplayInfo = (agent: any) => {
+    // Check if agent has readable ID (new format: dev1, ux1, etc.)
+    if (agent.id.match(/^[a-z]+\d+$/)) {
+      return {
+        displayName: agent.name || `${agent.role.charAt(0).toUpperCase() + agent.role.slice(1)} ${agent.id.match(/\d+$/)?.[0] || '1'}`,
+        mentionId: agent.id,
+        isReadable: true
+      }
+    }
+    
+    // Legacy agent - show truncated ID with suggestion
+    return {
+      displayName: `${agent.name || agent.role} (legacy)`,
+      mentionId: agent.id,
+      isReadable: false
     }
   }
 
@@ -70,6 +90,7 @@ export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanel
     words[words.length - 1] = `@${agentId}`
     setMessage(words.join(' ') + ' ')
     setShowMentions(false)
+    setShowCommands(null)
     inputRef.current?.focus()
   }
 
@@ -78,12 +99,27 @@ export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanel
     words[words.length - 1] = command
     setMessage(words.join(' ') + ' ')
     setShowCommands(null)
+    setShowMentions(false)
     inputRef.current?.focus()
   }
 
-  const filteredAgents = agents.filter(
-    (agent) => agent.status !== 'offline' && agent.id.toLowerCase().includes(mentionFilter)
-  )
+  const filteredAgents = agents.filter((agent) => {
+    if (!mentionFilter) return true
+    
+    const filter = mentionFilter.toLowerCase()
+    const agentId = agent.id.toLowerCase()
+    const agentName = (agent.name || '').toLowerCase()
+    const agentRole = agent.role.toLowerCase()
+    
+    // Match against multiple fields for better UX
+    return (
+      agentId.includes(filter) ||
+      agentName.includes(filter) ||
+      agentRole.includes(filter) ||
+      // Support partial matching for readable IDs (e.g., "or" matches "orchestrator1")
+      (agent.id.match(/^[a-z]+\d+$/) && agentRole.startsWith(filter))
+    )
+  })
 
   const statusColors: Record<string, string> = {
     ready: '#10b981',
@@ -108,7 +144,7 @@ export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanel
         />
         <div className="flex items-center justify-between mt-2">
           <span className="text-xs text-muted-foreground">
-            ESC to interrupt • Enter to send • Shift+Enter for new line
+            ESC to interrupt current agent • Enter to send • Shift+Enter for new line
           </span>
           <button
             className="text-xs px-3 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
@@ -125,20 +161,36 @@ export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanel
 
       {showMentions && (
         <div className="absolute bottom-full left-0 right-0 bg-popover border border-border rounded-md shadow-lg mb-2 mx-4 max-h-48 overflow-y-auto">
-          {filteredAgents.map((agent) => (
-            <div
-              key={agent.id}
-              className="flex items-center gap-2 px-3 py-2 hover:bg-secondary cursor-pointer transition-colors"
-              onClick={() => completeMention(agent.id)}
-            >
-              <span
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: statusColors[agent.status] }}
-              ></span>
-              <span className="font-medium">@{agent.id}</span>
-              <span className="text-xs text-muted-foreground">({agent.role})</span>
+          {filteredAgents.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              No agents found matching "{mentionFilter}"
             </div>
-          ))}
+          ) : (
+            filteredAgents.map((agent) => {
+              const { displayName, mentionId, isReadable } = getAgentDisplayInfo(agent)
+              return (
+                <div
+                  key={agent.id}
+                  className="flex items-center gap-2 px-3 py-2 hover:bg-secondary cursor-pointer transition-colors"
+                  onClick={() => completeMention(mentionId)}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full"
+                    style={{ backgroundColor: statusColors[agent.status] }}
+                  ></span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">@{isReadable ? mentionId : mentionId.substring(0, 15) + '...'}</span>
+                      {!isReadable && (
+                        <span className="text-xs bg-yellow-100 text-yellow-800 px-1 rounded">legacy</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{displayName} • {agent.status}</div>
+                  </div>
+                </div>
+              )
+            })
+          )}
         </div>
       )}
     </div>

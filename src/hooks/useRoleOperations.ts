@@ -24,7 +24,7 @@ interface LegacyAgentSelection {
 
 export function useRoleOperations() {
   const { configs } = useAgentStore() // Updated from availableConfigs
-  const { assignRole, roleAssignments } = useAgentRoles()
+  const { assignRole, roleAssignments, loadAssignments } = useAgentRoles()
 
   // Local state for selected legacy agent
   const [selectedLegacyAgent, setSelectedLegacyAgent] = useState<Agent | null>(null)
@@ -34,19 +34,27 @@ export function useRoleOperations() {
    * Start agent conversion process
    * Opens role assignment modal for legacy agent
    */
-  const startAgentConversion = useCallback((agent: Agent) => {
+  const startAgentConversion = useCallback(async (agent: Agent) => {
+    // Ensure role assignments are loaded for this agent
+    console.log('Loading role assignments for agent conversion:', agent.id)
+    await loadAssignments([agent.id])
+    
     setSelectedLegacyAgent(agent)
     setShowAssignRole(true)
-  }, [])
+  }, [loadAssignments])
 
   /**
    * Start role reassignment process
    * Opens role assignment modal for agent with existing role
    */
-  const startRoleReassignment = useCallback((agent: Agent) => {
+  const startRoleReassignment = useCallback(async (agent: Agent) => {
+    // Ensure role assignments are loaded for this agent
+    console.log('Loading role assignments for agent reassignment:', agent.id)
+    await loadAssignments([agent.id])
+    
     setSelectedLegacyAgent(agent)
     setShowAssignRole(true)
-  }, [])
+  }, [loadAssignments])
 
   /**
    * Assign role to agent
@@ -72,8 +80,6 @@ export function useRoleOperations() {
 
         // Assign the role to the agent
         await assignRole(selectedLegacyAgent.id, roleId, customTools)
-
-        console.log(`Agent ${selectedLegacyAgent.name} assigned role ${roleConfig.name}`)
 
         // Clear selection
         setSelectedLegacyAgent(null)
@@ -101,16 +107,27 @@ export function useRoleOperations() {
   }, [])
 
   /**
-   * Get current role assignment for agent
+   * Get current role assignment for agent (returns config)
    */
   const getAgentRoleAssignment = useCallback(
     (agentId: string) => {
       const assignment = roleAssignments[agentId]
       if (!assignment) return null
 
-      return configs.find((c) => c.id === assignment.roleId)
+      return configs.find((c) => c.id === assignment.roleId) || null
     },
     [roleAssignments, configs]
+  )
+
+  /**
+   * Get raw role assignment data for agent
+   * SOLID: Separate method for different data needs
+   */
+  const getAgentRoleAssignmentData = useCallback(
+    (agentId: string) => {
+      return roleAssignments[agentId] || null
+    },
+    [roleAssignments]
   )
 
   /**
@@ -142,6 +159,7 @@ export function useRoleOperations() {
 
     // Queries
     getAgentRoleAssignment,
+    getAgentRoleAssignmentData,
     hasRoleAssignment,
     getLegacyAgentSelection,
 

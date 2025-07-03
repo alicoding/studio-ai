@@ -159,7 +159,26 @@ router.post('/:id/agents', async (req, res) => {
     res.json({ agents })
   } catch (error) {
     console.error('Error adding agents to project:', error)
-    res.status(500).json({ error: 'Failed to add agents to project' })
+    const errorMessage = error instanceof Error ? error.message : 'Failed to add agents to project'
+    // Return 400 for validation errors, 500 for other errors
+    const statusCode = errorMessage.includes('No valid agent configurations') ? 400 : 500
+    res.status(statusCode).json({ error: errorMessage })
+  }
+})
+
+// DELETE /api/projects/:id/agents/:agentInstanceId - Remove an agent from a project
+router.delete('/:id/agents/:agentInstanceId', async (req, res) => {
+  try {
+    const { id: projectId, agentInstanceId } = req.params
+
+    await projectService.removeAgentFromProject(projectId, agentInstanceId)
+
+    // Return updated agents list
+    const agents = await projectService.getProjectAgents(projectId)
+    res.json({ agents })
+  } catch (error) {
+    console.error('Error removing agent from project:', error)
+    res.status(500).json({ error: 'Failed to remove agent from project' })
   }
 })
 

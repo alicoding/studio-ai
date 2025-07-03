@@ -1,9 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
-import { Settings, Globe, FolderOpen, Users, Webhook } from 'lucide-react'
+import { Settings, Globe, FolderOpen, Users, Webhook, Keyboard } from 'lucide-react'
 import { PageLayout } from '../components/ui/page-layout'
 import { SystemSettingsTab } from '../components/settings/SystemSettingsTab'
 import { HooksSettingsTab } from '../components/settings/HooksSettingsTab'
+import { KeyboardShortcutsTab } from '../components/settings/KeyboardShortcutsTab'
 import { PlaceholderTab } from '../components/settings/PlaceholderTab'
 import { useSettings } from '../hooks/useSettings'
 
@@ -34,10 +35,14 @@ function SettingsPage() {
       description="Configure Claude Studio at system, project, team, and agent levels"
     >
       <Tabs defaultValue="system" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="system" className="flex items-center gap-2">
             <Settings className="w-4 h-4" />
             System
+          </TabsTrigger>
+          <TabsTrigger value="shortcuts" className="flex items-center gap-2">
+            <Keyboard className="w-4 h-4" />
+            Shortcuts
           </TabsTrigger>
           <TabsTrigger value="hooks" className="flex items-center gap-2">
             <Webhook className="w-4 h-4" />
@@ -70,12 +75,18 @@ function SettingsPage() {
           />
         </TabsContent>
 
+        <TabsContent value="shortcuts" className="space-y-6">
+          <KeyboardShortcutsTab />
+        </TabsContent>
+
         <TabsContent value="hooks" className="space-y-6">
           <HooksSettingsTab
             hooks={hooks}
             onAddHook={addHook}
             onUpdateHook={updateHook}
             onRemoveHook={removeHook}
+            onSave={saveSystemSettings}
+            saving={saving}
             studioIntelligenceStatus={studioIntelligenceStatus}
           />
         </TabsContent>

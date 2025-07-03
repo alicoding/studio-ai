@@ -45,7 +45,7 @@ export function Sidebar({
   onLoadTeam,
 }: SidebarProps) {
   // Get data directly from Zustand stores
-  const { selectedAgentId, configs, setSelectedAgent, getProjectAgents, moveAgentToPosition } =
+  const { selectedAgentId, configs, setSelectedAgent, getProjectAgents, moveAgentToPosition, clearingAgentId } =
     useAgentStore()
   const { activeProjectId } = useProjectStore()
 
@@ -251,6 +251,7 @@ export function Sidebar({
                       }
                       isSelectionMode={isSelectionMode}
                       isDragDisabled={isSelectionMode} // Disable drag during selection mode
+                      isClearing={clearingAgentId === agent.id}
                     />
                   )
                 })}

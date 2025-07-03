@@ -1,63 +1,75 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Modal } from '../shared/Modal'
-
-interface TeamAgent {
-  role: string
-  name: string
-  systemPrompt: string
-}
-
-interface AvailableAgent extends TeamAgent {
-  id: string
-}
-
-interface SelectedAgent extends TeamAgent {
-  id: string
-}
-
-interface TeamTemplate {
-  id: string
-  name: string
-  description: string
-  agents: TeamAgent[]
-  createdAt: string
-}
+import { useAgentStore } from '../../stores'
+import { TeamTemplate, TeamAgent, TeamBuilderAgent } from '../../types/teams'
 
 interface TeamBuilderProps {
   isOpen: boolean
   template?: TeamTemplate | null
-  onSave: (template: TeamTemplate) => void
+  onSave: (template: Omit<TeamTemplate, 'id' | 'createdAt' | 'updatedAt'>) => void
   onCancel: () => void
 }
 
-// Mock available agent configurations
-const AVAILABLE_AGENTS: AvailableAgent[] = [
-  { id: 'dev1', name: 'dev_agent', role: 'dev', systemPrompt: 'You are a developer...' },
-  { id: 'ux1', name: 'ux_designer', role: 'ux', systemPrompt: 'You are a UX designer...' },
-  { id: 'arch1', name: 'architect', role: 'architect', systemPrompt: 'You are an architect...' },
-  { id: 'test1', name: 'qa_engineer', role: 'tester', systemPrompt: 'You are a QA engineer...' },
-  {
-    id: 'orch1',
-    name: 'orchestrator',
-    role: 'orchestrator',
-    systemPrompt: 'You are an orchestrator...',
-  },
-]
 
 export function TeamBuilder({ isOpen, template, onSave, onCancel }: TeamBuilderProps) {
-  const [teamName, setTeamName] = useState(template?.name || '')
-  const [teamDescription, setTeamDescription] = useState(template?.description || '')
-  const [selectedAgents, setSelectedAgents] = useState<SelectedAgent[]>(
-    template?.agents.map((a) => ({
-      id: a.name,
-      name: a.name,
-      role: a.role,
-      systemPrompt: a.systemPrompt,
-    })) || []
-  )
-  const [draggedAgent, setDraggedAgent] = useState<AvailableAgent | null>(null)
+  const { configs, setAgentConfigs } = useAgentStore()
+  const [teamName, setTeamName] = useState('')
+  const [teamDescription, setTeamDescription] = useState('')
+  const [selectedAgents, setSelectedAgents] = useState<TeamBuilderAgent[]>([])
+  const [draggedAgent, setDraggedAgent] = useState<TeamBuilderAgent | null>(null)
+  
+  // Reset form when template changes
+  useEffect(() => {
+    if (template) {
+      setTeamName(template.name)
+      setTeamDescription(template.description)
+      // Map template agents to builder agents - need to match with available configs
+      const builderAgents: TeamBuilderAgent[] = template.agents
+        .map((agent, index) => {
+          const config = configs.find(c => c.id === agent.configId || c.role === agent.role)
+          if (config) {
+            // Create unique instance ID for each agent
+            const instanceId = `${config.id}_edit_${index}_${Date.now()}`
+            return {
+              id: instanceId, // Unique instance ID
+              name: agent.name || config.name,
+              role: config.role,
+              systemPrompt: config.systemPrompt,
+              configId: config.id, // Store original config ID
+            }
+          }
+          return null
+        })
+        .filter(Boolean) as TeamBuilderAgent[]
+      setSelectedAgents(builderAgents)
+    } else {
+      setTeamName('')
+      setTeamDescription('')
+      setSelectedAgents([])
+    }
+  }, [template, configs])
+  
+  // Load agent configs when modal opens (if not already loaded)
+  useEffect(() => {
+    if (isOpen && configs.length === 0) {
+      fetch('/api/agents')
+        .then(res => res.json())
+        .then(data => {
+          setAgentConfigs(data)
+        })
+        .catch(err => console.error('Failed to load agents:', err))
+    }
+  }, [isOpen, configs.length, setAgentConfigs])
+  
+  // Convert configs to available agents
+  const availableAgents: TeamBuilderAgent[] = configs.map(config => ({
+    id: config.id,
+    name: config.name,
+    role: config.role,
+    systemPrompt: config.systemPrompt,
+  }))
 
-  const handleDragStart = (e: React.DragEvent, agent: AvailableAgent) => {
+  const handleDragStart = (e: React.DragEvent, agent: TeamBuilderAgent) => {
     setDraggedAgent(agent)
     e.dataTransfer.effectAllowed = 'copy'
   }
@@ -69,14 +81,17 @@ export function TeamBuilder({ isOpen, template, onSave, onCancel }: TeamBuilderP
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
-    if (draggedAgent && !selectedAgents.find((a) => a.id === draggedAgent.id)) {
+    if (draggedAgent) {
+      // Allow duplicate roles - create a unique instance ID for each dropped agent
+      const instanceId = `${draggedAgent.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       setSelectedAgents([
         ...selectedAgents,
         {
-          id: draggedAgent.id,
+          id: instanceId, // Unique instance ID
           name: draggedAgent.name,
           role: draggedAgent.role,
           systemPrompt: draggedAgent.systemPrompt || '',
+          configId: draggedAgent.id, // Store the original config ID
         },
       ])
     }
@@ -93,19 +108,24 @@ export function TeamBuilder({ isOpen, template, onSave, onCancel }: TeamBuilderP
       return
     }
 
-    const newTemplate: TeamTemplate = {
-      id: template?.id || `team-${Date.now()}`,
+    // Convert selected agents to team agents with proper configId reference
+    const teamAgents: TeamAgent[] = selectedAgents.map((agent) => ({
+      role: agent.role,
+      name: agent.name, // Include name for display
+      configId: agent.configId || agent.id, // Use configId if available (for duplicates), otherwise use id
+      customizations: {
+        // Empty for now, can be extended later
+      }
+    }))
+
+    // Create the team template without id, createdAt, updatedAt (backend will handle)
+    const teamData = {
       name: teamName,
       description: teamDescription,
-      agents: selectedAgents.map((a) => ({
-        role: a.role,
-        name: a.name,
-        systemPrompt: a.systemPrompt,
-      })),
-      createdAt: template?.createdAt || new Date().toISOString(),
+      agents: teamAgents,
     }
 
-    onSave(newTemplate)
+    onSave(teamData)
   }
 
   return (
@@ -144,8 +164,9 @@ export function TeamBuilder({ isOpen, template, onSave, onCancel }: TeamBuilderP
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <h3 className="text-sm font-semibold text-foreground">Available Agents</h3>
+            <p className="text-xs text-muted-foreground">Drag agents to add them. You can add the same agent multiple times.</p>
             <div className="space-y-2 max-h-64 overflow-y-auto p-2 border border-border rounded-md bg-card">
-              {AVAILABLE_AGENTS.map((agent) => (
+              {availableAgents.map((agent) => (
                 <div
                   key={agent.id}
                   className="flex items-center gap-2 p-2 bg-secondary rounded-md cursor-move hover:bg-secondary/80 transition-colors"
@@ -188,39 +209,49 @@ export function TeamBuilder({ isOpen, template, onSave, onCancel }: TeamBuilderP
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {selectedAgents.map((agent) => (
-                    <div
-                      key={agent.id}
-                      className="flex items-center justify-between p-2 bg-secondary rounded-md"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="px-2 py-1 rounded text-xs font-medium text-white"
-                          style={{
-                            backgroundColor:
-                              agent.role === 'dev'
-                                ? '#10b981'
-                                : agent.role === 'ux'
-                                  ? '#f59e0b'
-                                  : agent.role === 'architect'
-                                    ? '#3b82f6'
-                                    : agent.role === 'tester'
-                                      ? '#ef4444'
-                                      : '#9333ea',
-                          }}
-                        >
-                          {agent.role}
-                        </span>
-                        <span className="text-sm text-foreground">{agent.name}</span>
-                      </div>
-                      <button
-                        className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
-                        onClick={() => handleRemoveAgent(agent.id)}
+                  {selectedAgents.map((agent, index) => {
+                    // Count how many agents with same role appear before this one
+                    const sameRoleCount = selectedAgents
+                      .slice(0, index)
+                      .filter(a => a.role === agent.role && a.configId === agent.configId).length
+                    const displayName = sameRoleCount > 0 
+                      ? `${agent.name} (${sameRoleCount + 1})` 
+                      : agent.name
+
+                    return (
+                      <div
+                        key={agent.id}
+                        className="flex items-center justify-between p-2 bg-secondary rounded-md"
                       >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="px-2 py-1 rounded text-xs font-medium text-white"
+                            style={{
+                              backgroundColor:
+                                agent.role === 'dev'
+                                  ? '#10b981'
+                                  : agent.role === 'ux'
+                                    ? '#f59e0b'
+                                    : agent.role === 'architect'
+                                      ? '#3b82f6'
+                                      : agent.role === 'tester'
+                                        ? '#ef4444'
+                                        : '#9333ea',
+                            }}
+                          >
+                            {agent.role}
+                          </span>
+                          <span className="text-sm text-foreground">{displayName}</span>
+                        </div>
+                        <button
+                          className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
+                          onClick={() => handleRemoveAgent(agent.id)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

@@ -151,6 +151,15 @@ export class SessionService {
   }
 
   /**
+   * Get session file path for a given project and sessionId
+   */
+  getSessionPath(projectId: string, sessionId: string): string {
+    // Convert projectId to Claude directory path format
+    const claudeDir = path.join(os.homedir(), '.claude', 'projects', projectId)
+    return path.join(claudeDir, `${sessionId}.jsonl`)
+  }
+
+  /**
    * Check if a session file exists
    */
   async sessionExists(projectPath: string, sessionId: string): Promise<boolean> {

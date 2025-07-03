@@ -1,14 +1,4 @@
-interface TeamTemplate {
-  id: string
-  name: string
-  description: string
-  agents: Array<{
-    role: string
-    name: string
-    systemPrompt: string
-  }>
-  createdAt: string
-}
+import { TeamTemplate } from '../../types/teams'
 
 interface TeamTemplateCardProps {
   template: TeamTemplate

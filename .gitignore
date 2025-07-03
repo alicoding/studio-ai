@@ -42,3 +42,4 @@ debug-*.js
 
 # Auto-generated files
 src/routeTree.gen.ts
+.tanstack/

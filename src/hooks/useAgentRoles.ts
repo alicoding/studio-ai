@@ -36,10 +36,12 @@ export function useAgentRoles() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to assign role')
+        const errorText = await response.text()
+        throw new Error(`Failed to assign role: ${response.status} - ${errorText}`)
       }
 
       const assignment = await response.json()
+      
       setRoleAssignments((prev) => ({
         ...prev,
         [agentId]: assignment,
@@ -70,6 +72,7 @@ export function useAgentRoles() {
           if (response.ok) {
             const data = await response.json()
             if (data) {
+              console.log(`Loaded assignment for ${agentId}:`, data)
               assignments[agentId] = data
             }
           }
@@ -79,6 +82,7 @@ export function useAgentRoles() {
       })
     )
 
+    console.log('All loaded assignments:', assignments)
     setRoleAssignments(assignments)
     setLoading(false)
   }, [])

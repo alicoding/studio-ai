@@ -1,16 +1,5 @@
 import { useRef } from 'react'
-
-interface TeamTemplate {
-  id: string
-  name: string
-  description: string
-  agents: Array<{
-    role: string
-    name: string
-    systemPrompt: string
-  }>
-  createdAt: string
-}
+import { TeamTemplate } from '../../types/teams'
 
 interface TeamExportImportProps {
   onImport: (template: TeamTemplate) => void

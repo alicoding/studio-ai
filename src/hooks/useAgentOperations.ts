@@ -23,12 +23,14 @@ export function useAgentOperations() {
   const { sendMessage: sendClaudeMessage } = useClaudeMessages()
 
   const {
+    agents,
     updateAgentStatus,
     updateAgentSessionId,
     updateAgentTokens,
     updateAgentMessage,
     removeAgent,
     getConfig,
+    setClearingAgent,
   } = useAgentStore()
 
   const { activeProjectId, projects } = useProjectStore()
@@ -114,118 +116,121 @@ export function useAgentOperations() {
       agentId: string,
       customPrompt?: string
     ): Promise<AgentOperationResult & { newSessionId?: string }> => {
-      console.log('Clearing agent session (starting fresh session):', agentId)
+      console.log('Clearing agent session (resetting to fresh state):', agentId)
+
+      // Set clearing state to prevent spam clicking and show loading
+      setClearingAgent(agentId)
+      updateAgentMessage(agentId, 'Clearing context...')
 
       try {
-        // Step 1: Clear the current sessionId
+        // Step 1: Get the old sessionId before clearing
+        const agent = agents.find(a => a.id === agentId)
+        const oldSessionId = agent?.sessionId || ''
+
+        // Step 2: First abort any running Claude agent to prevent final messages
+        try {
+          await fetch(`/api/agents/${agentId}/abort`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectId: activeProjectId,
+            }),
+          })
+        } catch (error) {
+          console.warn('Failed to abort agent (might not be running):', error)
+          // Continue anyway - agent might not be running
+        }
+
+        // Step 3: Clear the current sessionId (empty string = no session yet)
         updateAgentSessionId(agentId, '')
 
-        // Step 2: Get project info for new session
-        const activeProject = projects.find((p) => p.id === activeProjectId)
-        if (!activeProject) {
-          return {
-            success: false,
-            error: 'No active project',
+        // Step 4: Reset agent state to fresh (like just added to project)
+        updateAgentTokens(agentId, 0) // Reset tokens to 0
+        updateAgentMessage(agentId, 'Ready') // Reset to initial state message
+
+        // Step 5: Immediately clear the UI message history
+        window.dispatchEvent(
+          new CustomEvent('agent-session-cleared', {
+            detail: {
+              agentId,
+              oldSessionId,
+              newSessionId: '', // No new session - agent is fresh
+              projectPath: projects.find((p) => p.id === activeProjectId)?.path || '',
+            },
+          })
+        )
+
+        // Step 6: Clean up the backend session/files - WAIT for completion
+        // This is critical - we must ensure files are actually deleted
+        try {
+          const response = await fetch(`/api/agents/${agentId}/clear-session`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectId: activeProjectId,
+              oldSessionId,
+            }),
+          })
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            console.error('Backend session cleanup failed:', response.status, errorText)
+            throw new Error(`Backend cleanup failed: ${response.status}`)
           }
+
+          console.log('Backend session cleanup completed successfully')
+        } catch (error) {
+          console.error('Failed to clean up backend session:', error)
+          // Don't continue on backend failure - this causes the reported bug
+          throw new Error(`Backend cleanup failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
 
-        // Step 3: Find agent config or use defaults
-        const agentConfig = getConfig(agentId)
-        const agentName = agentConfig?.name || `Agent ${agentId.slice(0, 8)}`
-        const agentRole = agentConfig?.role || 'dev'
+        // Step 7: Emit event to refresh agents from server (optional)
+        window.dispatchEvent(
+          new CustomEvent('session-compacted', {
+            detail: {
+              agentId,
+              sessionId: '', // No session
+              reason: 'session-cleared',
+            },
+          })
+        )
 
-        // Step 4: Determine the prompt to use
-        let initMessage: string
-
+        // If custom prompt provided, send it as the first message in the new session
         if (customPrompt) {
-          // Use custom prompt if provided
-          initMessage = customPrompt
-        } else if (agentConfig?.systemPrompt) {
-          // Use the agent's configured system prompt (role configuration)
-          initMessage = agentConfig.systemPrompt
-          console.log('Using agent role system prompt for clear session')
-        } else {
-          // Only fall back to default for legacy agents without proper configuration
-          let defaultPrompt = `Session cleared. You are ${agentName}, a ${agentRole} agent. Please stand by for instructions. Do not respond to this message.`
+          console.log('Sending custom prompt as first message:', customPrompt)
+          const result = await sendClaudeMessage(customPrompt, {
+            projectId: activeProjectId || undefined,
+            agentId: agentId,
+            projectPath: projects.find((p) => p.id === activeProjectId)?.path,
+            role: agent?.role as 'dev' | 'ux' | 'test' | 'pm',
+            forceNewSession: true,
+          })
 
-          try {
-            const response = await fetch('/api/settings/system')
-            if (response.ok) {
-              const settings = await response.json()
-              if (settings.defaultClearSessionPrompt) {
-                // Replace placeholders in the prompt
-                defaultPrompt = settings.defaultClearSessionPrompt
-                  .replace('{agentName}', agentName)
-                  .replace('{agentRole}', agentRole)
-              }
+          if (result && result.sessionId) {
+            updateAgentSessionId(agentId, result.sessionId)
+            return {
+              success: true,
+              newSessionId: result.sessionId,
             }
-          } catch (error) {
-            console.warn('Failed to load system settings, using default prompt:', error)
-          }
-
-          initMessage = defaultPrompt
-          console.log('Using default clear session prompt for legacy agent')
-        }
-
-        // Step 5: Start fresh session with initialization message
-
-        console.log('Starting new session with message:', initMessage)
-        const result = await sendClaudeMessage(initMessage, {
-          projectId: activeProjectId || undefined,
-          agentId: agentId,
-          projectPath: activeProject.path,
-          role: agentRole as 'dev' | 'ux' | 'test' | 'pm',
-          forceNewSession: true,
-        })
-
-        if (result && result.sessionId) {
-          // Step 5: Update with new session ID
-          updateAgentSessionId(agentId, result.sessionId)
-          console.log('New session started:', result.sessionId)
-
-          // Step 6: Reset agent state for fresh session
-          updateAgentTokens(agentId, 0) // Reset tokens to 0 for fresh session
-          updateAgentMessage(agentId, 'Session cleared - fresh start') // Update last message
-
-          // Step 7: Emit event to clear message history in UI
-          window.dispatchEvent(
-            new CustomEvent('agent-session-cleared', {
-              detail: {
-                agentId,
-                oldSessionId: '', // We cleared it already
-                newSessionId: result.sessionId,
-                projectPath: activeProject.path,
-              },
-            })
-          )
-
-          // Step 8: Emit event to refresh agents from server
-          window.dispatchEvent(
-            new CustomEvent('session-compacted', {
-              detail: {
-                agentId,
-                sessionId: result.sessionId,
-                reason: 'session-cleared',
-              },
-            })
-          )
-
-          return {
-            success: true,
-            newSessionId: result.sessionId,
           }
         }
 
         return {
-          success: false,
-          error: 'Failed to start new session',
+          success: true,
+          newSessionId: '', // No session - agent is fresh
         }
       } catch (error) {
         console.error('Failed to clear agent session:', error)
+        // Reset agent message on error
+        updateAgentMessage(agentId, 'Error clearing context')
         return {
           success: false,
           error: error instanceof Error ? error.message : 'Failed to clear session',
         }
+      } finally {
+        // Always clear the loading state
+        setClearingAgent(null)
       }
     },
     [
@@ -236,12 +241,13 @@ export function useAgentOperations() {
       updateAgentSessionId,
       updateAgentTokens,
       updateAgentMessage,
+      setClearingAgent,
     ]
   )
 
   /**
    * Remove agent from team
-   * Kills process and removes from UI
+   * Removes agent from project metadata and cleans up sessions
    */
   const removeAgentFromTeam = useCallback(
     async (
@@ -256,52 +262,41 @@ export function useAgentOperations() {
         return { success: false, error: 'User cancelled' }
       }
 
+      if (!activeProjectId) {
+        return { success: false, error: 'No active project' }
+      }
+
       try {
-        // Step 1: Kill the agent process if it exists
-        console.log(`Step 1: Killing agent process for ${agentId}`)
-        await processManager.killAgent(agentId)
-        console.log(`Step 1 complete: Agent process killed`)
+        // Call the new API endpoint to remove agent from project
+        // This handles removing from metadata and cleaning up sessions
+        console.log(`Removing agent ${agentId} from project ${activeProjectId}`)
+        
+        const response = await fetch(`/api/projects/${activeProjectId}/agents/${agentId}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        })
 
-        // Step 2: Delete the Claude native session file
-        if (activeProjectId) {
-          try {
-            console.log(
-              `Step 2: Deleting session file for agent ${agentId} in project ${activeProjectId}`
-            )
-            const response = await fetch('/api/agents/session', {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                projectId: activeProjectId,
-                agentId: agentId,
-              }),
-            })
-
-            if (!response.ok) {
-              console.warn('Failed to delete Claude session file:', await response.text())
-            } else {
-              const result = await response.json()
-              console.log(`Step 2 complete:`, result.message)
-            }
-          } catch (error) {
-            console.error('Error in step 2 (session file deletion):', error)
-            // Continue with removal even if session file deletion fails
-          }
-        } else {
-          console.log('Step 2 skipped: No active project ID')
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Failed to remove agent from project')
         }
 
-        // Step 3: Remove from Zustand store (UI state)
-        console.log(`Step 3: Removing agent from UI state`)
+        // Remove from UI store
         removeAgent(agentId)
-        console.log(`Step 3 complete: Agent removed from UI`)
 
-        console.log(`All steps complete: Agent ${agentId} fully removed`)
+        // Refresh the agent list
+        window.dispatchEvent(
+          new CustomEvent('project-agents-updated', {
+            detail: { projectId: activeProjectId },
+          })
+        )
+
+        console.log(`Agent ${agentId} successfully removed from project`)
         return { success: true }
       } catch (error) {
         console.error(`Failed to remove agent ${agentId}:`, error)
 
-        // Still remove from UI store even if process kill fails
+        // Still remove from UI store even if API call fails
         removeAgent(agentId)
 
         return {
@@ -310,26 +305,33 @@ export function useAgentOperations() {
         }
       }
     },
-    [processManager, removeAgent, activeProjectId]
+    [removeAgent, activeProjectId]
   )
 
   /**
    * Add multiple agents to project
    */
   const addAgentsToProject = useCallback(
-    async (agentIds: string[]): Promise<AgentOperationResult> => {
+    async (agentIds: string[] | Array<{ configId: string; name?: string }>): Promise<AgentOperationResult> => {
       if (!activeProjectId) {
         return { success: false, error: 'No active project' }
       }
 
       try {
+        // Normalize input to always have configId and optional name
+        const agentData = agentIds.map(agent => 
+          typeof agent === 'string' 
+            ? { configId: agent } 
+            : agent
+        )
+
         // Call the API to add agents to project metadata
         const response = await fetch(`/api/projects/${activeProjectId}/agents`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ agentIds }),
+          body: JSON.stringify({ agentIds: agentData }),
         })
 
         if (!response.ok) {

@@ -1,6 +1,7 @@
-import { Trash2, X, Sparkles, UserCog, CheckSquare, Square, GripVertical } from 'lucide-react'
+import { Trash2, X, Sparkles, UserCog, CheckSquare, Square, GripVertical, Loader2 } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { useEffect, useState } from 'react'
 
 interface AgentInfo {
   id: string
@@ -24,6 +25,7 @@ interface AgentCardProps {
   hasConfig?: boolean
   isSelectionMode?: boolean
   isDragDisabled?: boolean
+  isClearing?: boolean
   projectPath?: string
 }
 
@@ -44,6 +46,31 @@ const roleDisplayNames: Record<string, string> = {
   'Legacy Agent': 'Legacy Agent',
 }
 
+// Simple inline typing indicator
+function TypingIndicator({ agentName: _agentName }: { agentName: string }) {
+  const [dots, setDots] = useState('.')
+  const [elapsedTime, setElapsedTime] = useState(0)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDots(d => d.length >= 3 ? '.' : d + '.')
+      setElapsedTime(t => t + 1)
+    }, 500)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <div className="flex items-center gap-1">
+      <Sparkles className="w-3 h-3 animate-pulse text-primary" />
+      <span>Typing{dots}</span>
+      <span className="text-[10px] opacity-60">
+        ({elapsedTime}s · ESC to interrupt)
+      </span>
+    </div>
+  )
+}
+
 export function AgentCard({
   agent,
   isSelected,
@@ -56,6 +83,7 @@ export function AgentCard({
   hasConfig = false,
   isSelectionMode = false,
   isDragDisabled = false,
+  isClearing = false,
 }: AgentCardProps) {
   const tokenPercentage = (agent.tokens / agent.maxTokens) * 100
 
@@ -143,11 +171,18 @@ export function AgentCard({
             ></div>
           </div>
           <span className="text-muted-foreground text-xs">
-            {Math.round(agent.tokens / 1000)}K / {agent.maxTokens / 1000}K tokens
+            {agent.tokens < 1000 
+              ? `${agent.tokens} / ${agent.maxTokens / 1000}K tokens`
+              : `${Math.round(agent.tokens / 1000)}K / ${agent.maxTokens / 1000}K tokens`
+            }
           </span>
         </div>
         <div className="text-muted-foreground text-xs line-clamp-2 min-h-[2rem]">
-          {agent.lastMessage || (agent.status === 'offline' ? 'Offline' : 'Ready')}
+          {agent.status === 'busy' ? (
+            <TypingIndicator agentName={agent.name} />
+          ) : (
+            agent.lastMessage || (agent.status === 'offline' ? 'Offline' : 'Ready')
+          )}
         </div>
       </div>
 
@@ -178,14 +213,25 @@ export function AgentCard({
             </button>
           )}
           <button
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md transition-all"
+            className={`p-2 rounded-md transition-all ${
+              isClearing
+                ? 'text-blue-500 bg-blue-500/10 cursor-not-allowed'
+                : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+            }`}
             onClick={(e) => {
               e.stopPropagation()
-              onClear()
+              if (!isClearing) {
+                onClear()
+              }
             }}
-            title="Clear session"
+            disabled={isClearing}
+            title={isClearing ? 'Clearing context...' : 'Clear session'}
           >
-            <Trash2 className="w-4 h-4" />
+            {isClearing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Trash2 className="w-4 h-4" />
+            )}
           </button>
           <button
             className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-all ml-auto"

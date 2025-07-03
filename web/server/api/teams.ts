@@ -30,48 +30,8 @@ interface TeamTemplate {
 const TEAMS_DIR = path.join(__dirname, '../../../data/teams')
 const TEAMS_FILE = path.join(TEAMS_DIR, 'templates.json')
 
-// Default team templates
-const DEFAULT_TEMPLATES: TeamTemplate[] = [
-  {
-    id: 'prototype-team',
-    name: 'Prototype Team',
-    description: 'Quick prototyping and proof of concept development',
-    agents: [{ role: 'orchestrator' }, { role: 'dev' }, { role: 'ux' }],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    isDefault: true,
-  },
-  {
-    id: 'backend-team',
-    name: 'Backend Team',
-    description: 'API development and backend infrastructure',
-    agents: [
-      { role: 'architect' },
-      { role: 'dev', customizations: { systemPromptAdditions: 'Focus on backend development' } },
-      { role: 'dev', customizations: { systemPromptAdditions: 'Focus on database design' } },
-      { role: 'tester' },
-    ],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    isDefault: true,
-  },
-  {
-    id: 'fullstack-team',
-    name: 'Full Stack Team',
-    description: 'Complete web application development',
-    agents: [
-      { role: 'orchestrator' },
-      { role: 'architect' },
-      { role: 'dev', customizations: { systemPromptAdditions: 'Focus on frontend' } },
-      { role: 'dev', customizations: { systemPromptAdditions: 'Focus on backend' } },
-      { role: 'ux' },
-      { role: 'tester' },
-    ],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    isDefault: true,
-  },
-]
+// Start with empty templates - users will create their own based on available agents
+const DEFAULT_TEMPLATES: TeamTemplate[] = []
 
 // Ensure data directory exists and initialize with defaults
 async function ensureDataDir() {
@@ -83,7 +43,7 @@ async function ensureDataDir() {
       // Initialize with default templates
       await fs.writeFile(TEAMS_FILE, JSON.stringify(DEFAULT_TEMPLATES, null, 2), 'utf-8')
     }
-  } catch {
+  } catch (error) {
     console.error('Error creating teams directory:', error)
   }
 }
@@ -94,7 +54,7 @@ async function loadTeams(): Promise<TeamTemplate[]> {
     await ensureDataDir()
     const data = await fs.readFile(TEAMS_FILE, 'utf-8')
     return JSON.parse(data)
-  } catch {
+  } catch (error) {
     console.error('Error loading teams:', error)
     return DEFAULT_TEMPLATES
   }
@@ -111,7 +71,7 @@ router.get('/', async (req, res) => {
   try {
     const teams = await loadTeams()
     res.json(teams)
-  } catch {
+  } catch (error) {
     res.status(500).json({ error: 'Failed to load teams' })
   }
 })
@@ -127,7 +87,7 @@ router.get('/:id', async (req, res) => {
     }
 
     res.json(team)
-  } catch {
+  } catch (error) {
     res.status(500).json({ error: 'Failed to load team' })
   }
 })
@@ -157,7 +117,7 @@ router.post('/', async (req, res) => {
     await saveTeams(teams)
 
     res.status(201).json(newTeam)
-  } catch {
+  } catch (error) {
     res.status(500).json({ error: 'Failed to create team' })
   }
 })
@@ -189,7 +149,7 @@ router.put('/:id', async (req, res) => {
 
     await saveTeams(teams)
     res.json(teams[index])
-  } catch {
+  } catch (error) {
     res.status(500).json({ error: 'Failed to update team' })
   }
 })
@@ -212,7 +172,7 @@ router.delete('/:id', async (req, res) => {
     await saveTeams(filteredTeams)
 
     res.json({ message: 'Team template deleted successfully' })
-  } catch {
+  } catch (error) {
     res.status(500).json({ error: 'Failed to delete team' })
   }
 })
@@ -246,7 +206,7 @@ router.post('/:id/spawn', async (req, res) => {
       projectId,
       agents: spawnedAgents,
     })
-  } catch {
+  } catch (error) {
     res.status(500).json({ error: 'Failed to spawn team' })
   }
 })
@@ -276,7 +236,7 @@ router.post('/:id/clone', async (req, res) => {
     await saveTeams(teams)
 
     res.status(201).json(clonedTeam)
-  } catch {
+  } catch (error) {
     res.status(500).json({ error: 'Failed to clone team' })
   }
 })
@@ -304,7 +264,7 @@ router.post('/import', async (req, res) => {
     await saveTeams(teams)
 
     res.status(201).json(importedTeam)
-  } catch {
+  } catch (error) {
     res.status(500).json({ error: 'Failed to import team' })
   }
 })

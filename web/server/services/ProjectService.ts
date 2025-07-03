@@ -1,7 +1,7 @@
 import { ClaudeProjectScanner } from './ClaudeProjectScanner.js'
 import { StudioProjectMetadata } from './StudioProjectMetadata.js'
 import { SessionService } from './SessionService.js'
-import { ConfigService } from '../../../src/services/ConfigService.js'
+import { AgentConfigService } from './AgentConfigService.js'
 import type { ClaudeProject, ProjectMetadata } from '../types/project.js'
 import fs from 'fs/promises'
 import path from 'path'
@@ -19,13 +19,13 @@ export class ProjectService {
   private claudeScanner: ClaudeProjectScanner
   private studioMetadata: StudioProjectMetadata
   private sessionService: SessionService
-  private configService: ConfigService
+  private agentConfigService: AgentConfigService
 
   constructor() {
     this.claudeScanner = new ClaudeProjectScanner()
     this.studioMetadata = new StudioProjectMetadata()
     this.sessionService = SessionService.getInstance()
-    this.configService = ConfigService.getInstance()
+    this.agentConfigService = AgentConfigService.getInstance()
   }
 
   async getAllProjects(): Promise<EnrichedProject[]> {
@@ -135,20 +135,104 @@ export class ProjectService {
   }
 
   /**
-   * Add agents to a project
-   * Creates unique instances for each agent, allowing multiple instances of the same role
+   * Remove an agent instance from a project
+   * Removes the agent from project metadata and cleans up session data
    */
-  async addAgentsToProject(projectId: string, agentIds: string[]): Promise<void> {
+  async removeAgentFromProject(projectId: string, agentInstanceId: string): Promise<void> {
     try {
       // Get existing metadata
       const metadata = await this.studioMetadata.getMetadata(projectId)
+      if (!metadata) {
+        throw new Error('Project metadata not found')
+      }
 
-      // Create agent instances with unique IDs
-      const newInstances = agentIds.map((configId) => ({
-        instanceId: `${configId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        configId: configId,
-        addedAt: new Date().toISOString(),
-      }))
+      // Remove from agentInstances if it exists
+      if (metadata.agentInstances) {
+        metadata.agentInstances = metadata.agentInstances.filter(
+          instance => instance.instanceId !== agentInstanceId
+        )
+      }
+
+      // Also check and remove from legacy agentIds if it's there
+      if (metadata.agentIds) {
+        metadata.agentIds = metadata.agentIds.filter(id => id !== agentInstanceId)
+      }
+
+      // Delete associated session files
+      try {
+        // Get tracked session ID before clearing
+        const trackedSessionId = await this.sessionService.getSession(projectId, agentInstanceId)
+        
+        if (trackedSessionId) {
+          const project = await this.claudeScanner.getProject(projectId)
+          if (project) {
+            try {
+              await this.sessionService.deleteSessionFile(project.path, trackedSessionId)
+              console.log(`Deleted session file for agent ${agentInstanceId}`)
+            } catch (error) {
+              console.warn('Error deleting session file:', error)
+            }
+          }
+        }
+        
+        // Clear session tracking
+        await this.sessionService.clearSession(projectId, agentInstanceId)
+      } catch (sessionError) {
+        console.warn('Error cleaning up session for removed agent:', sessionError)
+        // Continue with removal even if session cleanup fails
+      }
+
+      // Save updated metadata
+      await this.studioMetadata.saveMetadata({
+        ...metadata,
+        updatedAt: new Date().toISOString(),
+      })
+
+      console.log(`Agent instance ${agentInstanceId} removed from project ${projectId}`)
+    } catch (error) {
+      console.error('Error removing agent from project:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Add agents to a project
+   * Creates unique instances for each agent, allowing multiple instances of the same role
+   */
+  async addAgentsToProject(projectId: string, agentIds: string[] | Array<{ configId: string; name?: string }>): Promise<void> {
+    try {
+      // Validate that agent configs exist
+      const agentData = agentIds.map(agent => typeof agent === 'string' ? { configId: agent } : agent)
+      const validConfigs: Array<{ configId: string; name?: string }> = []
+      
+      for (const agent of agentData) {
+        const config = await this.agentConfigService.getAgent(agent.configId)
+        if (config) {
+          validConfigs.push(agent)
+        } else {
+          console.warn(`Skipping agent with non-existent configId: ${agent.configId}`)
+        }
+      }
+      
+      if (validConfigs.length === 0) {
+        throw new Error('No valid agent configurations found')
+      }
+      
+      // Get existing metadata
+      const metadata = await this.studioMetadata.getMetadata(projectId)
+
+      // Create agent instances with unique IDs (using validated configs)
+      const newInstances = validConfigs.map((agent) => {
+        const configId = typeof agent === 'string' ? agent : agent.configId
+        const customName = typeof agent === 'string' ? undefined : agent.name
+        
+        return {
+          instanceId: `${configId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          configId: configId,
+          customName: customName,
+          addedAt: new Date().toISOString(),
+        }
+      })
 
       if (!metadata) {
         // Create new metadata if it doesn't exist
@@ -157,11 +241,13 @@ export class ProjectService {
           throw new Error('Project not found')
         }
 
+        const configIds = validConfigs.map(agent => agent.configId)
+        
         await this.studioMetadata.saveMetadata({
           id: projectId,
           name: project.name,
           agentInstances: newInstances,
-          agentIds: agentIds, // Keep for backward compatibility
+          agentIds: configIds, // Keep for backward compatibility
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         })
@@ -172,7 +258,8 @@ export class ProjectService {
 
         // Also update legacy agentIds for backward compatibility
         const existingAgentIds = metadata.agentIds || []
-        const uniqueAgentIds = [...new Set([...existingAgentIds, ...agentIds])]
+        const newConfigIds = validConfigs.map(agent => agent.configId)
+        const uniqueAgentIds = [...new Set([...existingAgentIds, ...newConfigIds])]
 
         await this.studioMetadata.saveMetadata({
           ...metadata,
@@ -206,24 +293,24 @@ export class ProjectService {
       }
 
       // Handle both legacy agentIds and new agentInstances
-      let agentEntries: Array<{ instanceId: string; configId: string }> = []
+      let agentEntries: Array<{ instanceId: string; configId: string; customName?: string }> = []
 
-      // Add legacy agents if they exist
-      if (projectMetadata.agentIds && projectMetadata.agentIds.length > 0) {
-        agentEntries.push(
-          ...projectMetadata.agentIds.map((id) => ({
-            instanceId: id,
-            configId: id,
-          }))
-        )
-      }
-
-      // Add new agent instances
+      // Prefer new agentInstances if they exist
       if (projectMetadata.agentInstances && projectMetadata.agentInstances.length > 0) {
         agentEntries.push(
           ...projectMetadata.agentInstances.map((instance) => ({
             instanceId: instance.instanceId,
             configId: instance.configId,
+            customName: instance.customName,
+          }))
+        )
+      } else if (projectMetadata.agentIds && projectMetadata.agentIds.length > 0) {
+        // Only use legacy agentIds if no agentInstances exist
+        // This prevents duplicates when both arrays contain data
+        agentEntries.push(
+          ...projectMetadata.agentIds.map((id) => ({
+            instanceId: id,
+            configId: id,
           }))
         )
       }
@@ -235,8 +322,11 @@ export class ProjectService {
       // Get agent configurations
       const agentConfigs = await Promise.all(
         agentEntries.map(async (entry) => {
-          const config = await this.configService.getAgent(entry.configId)
-          return config ? { ...config, instanceId: entry.instanceId } : null
+          const config = await this.agentConfigService.getAgent(entry.configId)
+          if (!config) {
+            console.warn(`Agent configuration not found for configId: ${entry.configId}`)
+          }
+          return config ? { ...config, instanceId: entry.instanceId, customName: entry.customName } : null
         })
       )
 
@@ -250,13 +340,14 @@ export class ProjectService {
 
             // Get tracked sessionId for this project+agent instance
             const sessionId = await this.sessionService.getSession(projectId, instanceId)
+            console.log(`[ProjectService] Agent ${instanceId} has tracked sessionId: ${sessionId}`)
 
             // If no session, agent hasn't been used yet
             if (!sessionId) {
               return {
                 id: instanceId, // Use instance ID
                 configId: config.id, // Keep reference to original config
-                name: config.name,
+                name: (config as any).customName || config.name,
                 role: config.role,
                 status: 'offline' as const,
                 sessionId: null,
@@ -275,7 +366,7 @@ export class ProjectService {
               return {
                 id: instanceId, // Use instance ID
                 configId: config.id, // Keep reference to original config
-                name: config.name,
+                name: (config as any).customName || config.name,
                 role: config.role,
                 status: 'offline' as const,
                 sessionId: sessionId,
@@ -316,7 +407,7 @@ export class ProjectService {
             return {
               id: instanceId, // Use instance ID
               configId: config.id, // Keep reference to original config
-              name: config.name,
+              name: (config as any).customName || config.name,
               role: config.role,
               status: 'offline' as const, // All sessions are historical
               sessionId: sessionId,

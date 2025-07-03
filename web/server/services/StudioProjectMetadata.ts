@@ -5,6 +5,7 @@ import os from 'os'
 export interface AgentInstance {
   instanceId: string // Unique ID for this instance (e.g., "dev-agent-1234567890")
   configId: string // Reference to the original agent config (e.g., "dev-agent")
+  customName?: string // Optional custom name for this instance (e.g., "Senior Dev (2)")
   addedAt: string // When this instance was added
 }
 

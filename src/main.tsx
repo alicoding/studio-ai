@@ -26,3 +26,8 @@ if (!rootElement.innerHTML) {
     </React.StrictMode>
   )
 }
+
+// HMR code to preserve app state
+if (import.meta.hot) {
+  import.meta.hot.accept()
+}

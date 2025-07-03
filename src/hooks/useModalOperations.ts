@@ -14,6 +14,7 @@ interface ModalState {
   createAgent: boolean
   createProject: boolean
   assignRole: boolean
+  teamSelection: boolean
 }
 
 interface ModalOperations {
@@ -31,12 +32,14 @@ interface ModalOperations {
   isCreateAgentOpen: boolean
   isCreateProjectOpen: boolean
   isAssignRoleOpen: boolean
+  isTeamSelectionOpen: boolean
   
   // Convenience setters
   setAgentSelectionOpen: (open: boolean) => void
   setCreateAgentOpen: (open: boolean) => void
   setCreateProjectOpen: (open: boolean) => void
   setAssignRoleOpen: (open: boolean) => void
+  setTeamSelectionOpen: (open: boolean) => void
 }
 
 export function useModalOperations(): ModalOperations {
@@ -45,6 +48,7 @@ export function useModalOperations(): ModalOperations {
     createAgent: false,
     createProject: false,
     assignRole: false,
+    teamSelection: false,
   })
 
   /**
@@ -86,6 +90,7 @@ export function useModalOperations(): ModalOperations {
       createAgent: false,
       createProject: false,
       assignRole: false,
+      teamSelection: false,
     })
   }, [])
 
@@ -117,6 +122,13 @@ export function useModalOperations(): ModalOperations {
     setModals(prev => ({ ...prev, assignRole: open }))
   }, [])
 
+  /**
+   * Convenience setter for team selection modal
+   */
+  const setTeamSelectionOpen = useCallback((open: boolean) => {
+    setModals(prev => ({ ...prev, teamSelection: open }))
+  }, [])
+
   return {
     // State
     modals,
@@ -132,11 +144,13 @@ export function useModalOperations(): ModalOperations {
     isCreateAgentOpen: modals.createAgent,
     isCreateProjectOpen: modals.createProject,
     isAssignRoleOpen: modals.assignRole,
+    isTeamSelectionOpen: modals.teamSelection,
     
     // Convenience setters
     setAgentSelectionOpen,
     setCreateAgentOpen,
     setCreateProjectOpen,
     setAssignRoleOpen,
+    setTeamSelectionOpen,
   }
 }

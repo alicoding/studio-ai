@@ -19,7 +19,7 @@ interface WebSocketEventData {
 
 export function useWebSocketOperations() {
   const { socket } = useWebSocket()
-  const { updateAgentStatus } = useAgentStore()
+  const { updateAgentStatus, updateAgentTokens } = useAgentStore()
 
   /**
    * Handle agent status updates
@@ -37,11 +37,59 @@ export function useWebSocketOperations() {
     }
 
     // Register event handler
-    socket.on('agent:status', handleAgentStatusUpdate)
+    socket.on('agent:status-changed', handleAgentStatusUpdate)
 
     // Cleanup
     return () => {
-      socket.off('agent:status', handleAgentStatusUpdate)
+      socket.off('agent:status-changed', handleAgentStatusUpdate)
+    }
+  }, [socket, updateAgentStatus])
+
+  /**
+   * Handle agent token usage updates
+   */
+  useEffect(() => {
+    if (!socket) return
+
+    const handleTokenUsageUpdate = (data: { agentId: string; tokens: number; maxTokens: number }) => {
+      console.log('Agent token usage update:', data)
+      
+      if (data.agentId && typeof data.tokens === 'number') {
+        updateAgentTokens(data.agentId, data.tokens, data.maxTokens)
+      }
+    }
+
+    // Register event handler
+    socket.on('agent:token-usage', handleTokenUsageUpdate)
+
+    // Cleanup
+    return () => {
+      socket.off('agent:token-usage', handleTokenUsageUpdate)
+    }
+  }, [socket, updateAgentTokens])
+
+  /**
+   * Handle message aborted events
+   * Updates agent status when message is aborted via ESC key
+   */
+  useEffect(() => {
+    if (!socket) return
+
+    const handleMessageAborted = (data: { agentId: string; projectId: string }) => {
+      console.log('Message aborted event received:', data)
+      
+      if (data.agentId) {
+        // Update agent status back to online when message is aborted
+        updateAgentStatus(data.agentId, 'online')
+      }
+    }
+
+    // Register event handler
+    socket.on('message:aborted', handleMessageAborted)
+
+    // Cleanup
+    return () => {
+      socket.off('message:aborted', handleMessageAborted)
     }
   }, [socket, updateAgentStatus])
 

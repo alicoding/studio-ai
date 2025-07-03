@@ -9,8 +9,10 @@ import { ChatPanel } from '../components/projects/ChatPanel'
 import { AgentSelectionModal } from '../components/projects/AgentSelectionModal'
 import { CreateAgentModal } from '../components/agents/CreateAgentModal'
 import { AssignRoleModal } from '../components/agents/AssignRoleModal'
+import { TeamSelectionModal } from '../components/modals/TeamSelectionModal'
 import { Button } from '../components/ui/button'
 import { Plus } from 'lucide-react'
+import { TeamTemplate } from '../types/teams'
 
 import { useAgentStore, useProjectStore } from '../stores'
 import { useProjects } from '../hooks/useProjects'
@@ -25,6 +27,7 @@ import { useRoleOperations } from '../hooks/useRoleOperations'
 import { useModalOperations } from '../hooks/useModalOperations'
 import { useWorkspaceLayout } from '../hooks/useWorkspaceLayout'
 import { useWebSocketOperations } from '../hooks/useWebSocketOperations'
+import { useWorkspaceShortcuts } from '../hooks/useShortcuts'
 
 import { SingleView } from '../components/projects/views/SingleView'
 import { SplitView } from '../components/projects/views/SplitView'
@@ -110,6 +113,30 @@ function ProjectsPage() {
   // WebSocket operations (handles event registration)
   useWebSocketOperations()
 
+  // Get only the open projects for workspace tabs
+  const openProjects = getOpenProjects()
+
+  // Message handling functions
+  const handleBroadcast = () => {
+    messageOps.broadcastMessage()
+  }
+
+  const handleInterrupt = () => {
+    messageOps.interruptMessages()
+  }
+
+  // Set up workspace shortcuts
+  useWorkspaceShortcuts({
+    'interrupt-agents': handleInterrupt,
+    'broadcast-message': handleBroadcast,
+    'clear-context': () => {
+      if (selectedAgentId) {
+        handleAgentClear(selectedAgentId)
+      }
+    },
+    'new-project': () => modalOps.openModal('createProject')
+  }, openProjects.length > 0) // Only enable when workspace is active
+
   // State for single agent deletion modal
   const [deleteModalState, setDeleteModalState] = useState<{
     isOpen: boolean
@@ -140,7 +167,9 @@ function ProjectsPage() {
 
   // Load role assignments when agent IDs change
   useEffect(() => {
+    console.log('Role assignments loading check:', { agentIdsLength: agentIds.length, agentIds })
     if (agentIds.length > 0) {
+      console.log('Loading role assignments for agents:', agentIds)
       loadAssignments(agentIds)
     }
   }, [agentIdsString, loadAssignments])
@@ -153,9 +182,6 @@ function ProjectsPage() {
       role: roleConfig?.role || agent.role,
     }
   })
-
-  // Get only the open projects for workspace tabs
-  const openProjects = getOpenProjects()
 
   // Get active project details
   const activeProject = projects.find((p) => p.id === activeProjectId)
@@ -184,24 +210,21 @@ function ProjectsPage() {
     }
   }
 
-  const handleBroadcast = () => {
-    messageOps.broadcastMessage()
-  }
-
-  const handleInterrupt = () => {
-    messageOps.interruptMessages()
-  }
-
   const handleAgentClear = async (agentId: string) => {
     // Clear session without prompting - will use system default
-    const result = await agentOps.clearAgentSession(agentId)
+    try {
+      const result = await agentOps.clearAgentSession(agentId)
 
-    if (result.success) {
-      toast.success(
-        `Session cleared${result.newSessionId ? ` - New session: ${result.newSessionId.slice(0, 8)}...` : ''}`
-      )
-    } else if (result.error) {
-      toast.error(`Failed to clear session: ${result.error}`)
+      if (result.success) {
+        toast.success('Context cleared - agent is now ready for new conversation')
+      } else if (result.error) {
+        toast.error(`Failed to clear context: ${result.error}`)
+      }
+    } catch (error) {
+      // Handle errors thrown by improved backend validation
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      toast.error(`Failed to clear context: ${errorMessage}`)
+      console.error('Agent clear error:', error)
     }
   }
 
@@ -272,10 +295,7 @@ function ProjectsPage() {
     // Use Zustand getter for more reliable agent lookup
     const agent = getStoreProjectAgents(activeProjectId || '').find((a) => a.id === agentId)
     if (agent) {
-      console.log('Starting agent conversion for:', agent)
       roleOps.startAgentConversion(agent)
-    } else {
-      console.error('Agent not found for conversion:', agentId)
     }
   }
 
@@ -283,10 +303,7 @@ function ProjectsPage() {
     // Use Zustand getter for more reliable agent lookup
     const agent = getStoreProjectAgents(activeProjectId || '').find((a) => a.id === agentId)
     if (agent) {
-      console.log('Starting role reassignment for:', agent)
       roleOps.startRoleReassignment(agent)
-    } else {
-      console.error('Agent not found for role reassignment:', agentId)
     }
   }
 
@@ -298,6 +315,49 @@ function ProjectsPage() {
     const result = projectOps.createProject(projectData)
     if (result.success) {
       modalOps.closeModal('createProject')
+    }
+  }
+
+  const handleLoadTeam = async (team: TeamTemplate) => {
+    if (!activeProjectId) {
+      toast.error('Please select a project first')
+      return
+    }
+
+    // Get unique agent configs from the team
+    const configIds = [...new Set(team.agents.map(agent => agent.configId).filter(Boolean))]
+    
+    if (configIds.length === 0) {
+      toast.error('This team template has no valid agent configurations')
+      return
+    }
+
+    // Add all agents from the team to the project with their custom names
+    const agentsToAdd = team.agents
+      .filter(agent => agent.configId)
+      .map(agent => ({
+        configId: agent.configId!,
+        name: agent.name
+      }))
+    
+    if (agentsToAdd.length > 0) {
+      try {
+        console.log('Adding agents to project:', agentsToAdd)
+        const result = await agentOps.addAgentsToProject(agentsToAdd)
+        
+        if (result.success) {
+          modalOps.closeModal('teamSelection')
+          toast.success(`Loaded team "${team.name}" with ${team.agents.length} agents`)
+        } else {
+          toast.error(result.error || 'Failed to add agents to project')
+          console.error('Failed to add agents:', result.error)
+        }
+      } catch (error) {
+        console.error('Failed to add agents:', error)
+        toast.error('An error occurred while loading the team')
+      }
+    } else {
+      toast.error('No valid agents to add from this team')
     }
   }
 
@@ -339,7 +399,7 @@ function ProjectsPage() {
               onAgentReassignRole={handleReassignRole}
               onAddAgent={() => modalOps.openModal('agentSelection')}
               onCreateAgent={() => modalOps.openModal('createAgent')}
-              onLoadTeam={() => toast.info('Load team template coming soon')}
+              onLoadTeam={() => modalOps.openModal('teamSelection')}
             />
 
             <main className="flex-1 flex flex-col overflow-hidden">
@@ -408,9 +468,9 @@ function ProjectsPage() {
         agentName={roleOps.selectedLegacyAgent?.name || ''}
         agentId={roleOps.selectedLegacyAgent?.id || ''}
         availableRoles={configs}
-        currentAgentConfig={
+        currentAgentAssignment={
           roleOps.selectedLegacyAgent
-            ? roleOps.getAgentRoleAssignment(roleOps.selectedLegacyAgent.id) || undefined
+            ? roleOps.getAgentRoleAssignmentData(roleOps.selectedLegacyAgent.id) || undefined
             : undefined
         }
         onAssignRole={handleAssignRole}
@@ -428,6 +488,12 @@ function ProjectsPage() {
         onCreate={handleCreateProject}
       />
 
+      <TeamSelectionModal
+        isOpen={modalOps.isTeamSelectionOpen}
+        onClose={() => modalOps.closeModal('teamSelection')}
+        onSelectTeam={handleLoadTeam}
+      />
+
       {/* Single Agent Delete Modal */}
       {deleteModalState.agent && (
         <DeleteAgentModal
@@ -438,6 +504,7 @@ function ProjectsPage() {
           isDeleting={deleteModalState.isDeleting}
         />
       )}
+
     </>
   )
 }

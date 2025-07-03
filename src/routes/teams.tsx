@@ -1,26 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { TeamTemplateCard } from '../components/teams/TeamTemplateCard'
 import { TeamBuilder } from '../components/teams/TeamBuilder'
 import { TeamExportImport } from '../components/teams/TeamExportImport'
 import { PageLayout } from '../components/layout/PageLayout'
-// import { useAgentStore } from '../stores'
+import { useTeams } from '../hooks/useTeams'
+import { TeamTemplate } from '../types/teams'
+import { useProjectStore, useAgentStore } from '../stores'
+import { toast } from 'sonner'
 
 export const Route = createFileRoute('/teams')({
   component: TeamsPage,
 })
-
-interface TeamTemplate {
-  id: string
-  name: string
-  description: string
-  agents: Array<{
-    role: string
-    name: string
-    systemPrompt: string
-  }>
-  createdAt: string
-}
 
 // Test component that throws error during render
 function ErrorTest() {
@@ -28,77 +19,49 @@ function ErrorTest() {
   return null
 }
 
-const MOCK_TEMPLATES: TeamTemplate[] = [
-  {
-    id: 'prototype',
-    name: 'Prototype Team',
-    description: 'Quick UI/UX prototyping team with designer and developer',
-    agents: [
-      { role: 'ux', name: 'ux_designer', systemPrompt: 'You are a UX designer...' },
-      { role: 'dev', name: 'frontend_dev', systemPrompt: 'You are a frontend developer...' },
-    ],
-    createdAt: '2024-01-15',
-  },
-  {
-    id: 'backend',
-    name: 'Backend Team',
-    description: 'Full backend development team with architect and developers',
-    agents: [
-      {
-        role: 'architect',
-        name: 'system_architect',
-        systemPrompt: 'You are a system architect...',
-      },
-      { role: 'dev', name: 'backend_dev', systemPrompt: 'You are a backend developer...' },
-      { role: 'tester', name: 'qa_engineer', systemPrompt: 'You are a QA engineer...' },
-    ],
-    createdAt: '2024-01-10',
-  },
-  {
-    id: 'fullstack',
-    name: 'Full Stack Team',
-    description: 'Complete development team for full-stack applications',
-    agents: [
-      { role: 'orchestrator', name: 'project_lead', systemPrompt: 'You are a project lead...' },
-      {
-        role: 'architect',
-        name: 'tech_architect',
-        systemPrompt: 'You are a technical architect...',
-      },
-      { role: 'dev', name: 'frontend_dev', systemPrompt: 'You are a frontend developer...' },
-      { role: 'dev', name: 'backend_dev', systemPrompt: 'You are a backend developer...' },
-      { role: 'tester', name: 'qa_specialist', systemPrompt: 'You are a QA specialist...' },
-    ],
-    createdAt: '2024-01-05',
-  },
-]
-
 function TeamsPage() {
-  const [templates, setTemplates] = useState(MOCK_TEMPLATES)
+  const { teams, loading, createTeam, updateTeam, cloneTeam, exportTeam, importTeam, spawnTeam } = useTeams()
+  const { activeProjectId } = useProjectStore()
+  const { configs, setAgentConfigs } = useAgentStore()
   const [showBuilder, setShowBuilder] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<TeamTemplate | null>(null)
   const [showError, setShowError] = useState(false)
+  
+  // Load agent configs if not already loaded
+  useEffect(() => {
+    if (configs.length === 0) {
+      fetch('/api/agents')
+        .then(res => res.json())
+        .then(data => {
+          setAgentConfigs(data)
+        })
+        .catch(err => console.error('Failed to load agents:', err))
+    }
+  }, [configs.length, setAgentConfigs])
 
-  const handleUseTemplate = (id: string) => {
-    console.log('Using template:', id)
-    // TODO: Spawn team from template
-  }
-
-  const handleCloneTemplate = (id: string) => {
-    const template = templates.find((t) => t.id === id)
-    if (template) {
-      const cloned = {
-        ...template,
-        id: `${template.id}-copy-${Date.now()}`,
-        name: `${template.name} (Copy)`,
-        createdAt: new Date().toISOString(),
+  const handleUseTemplate = async (id: string) => {
+    if (!activeProjectId) {
+      toast.error('Please select a project first')
+      return
+    }
+    
+    try {
+      const result = await spawnTeam(id, activeProjectId)
+      if (result) {
+        toast.success(`Team spawned successfully with ${result.agents.length} agents`)
       }
-      setTemplates([...templates, cloned])
+    } catch (error) {
+      console.error('Failed to spawn team:', error)
+      toast.error('Failed to spawn team')
     }
   }
 
+  const handleCloneTemplate = async (id: string) => {
+    await cloneTeam(id)
+  }
+
   const handleEditTemplate = (id: string) => {
-    const template = templates.find((t) => t.id === id)
+    const template = teams.find((t) => t.id === id)
     if (template) {
       setEditingTemplate(template)
       setShowBuilder(true)
@@ -106,31 +69,24 @@ function TeamsPage() {
   }
 
   const handleExportTemplate = (id: string) => {
-    const template = templates.find((t) => t.id === id)
+    const template = teams.find((t) => t.id === id)
     if (template) {
-      const json = JSON.stringify(template, null, 2)
-      const blob = new Blob([json], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `${template.id}-team.json`
-      a.click()
-      URL.revokeObjectURL(url)
+      exportTeam(template)
     }
   }
 
-  const handleSaveTemplate = (template: TeamTemplate) => {
+  const handleSaveTemplate = async (template: Omit<TeamTemplate, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingTemplate) {
-      setTemplates(templates.map((t) => (t.id === editingTemplate.id ? template : t)))
+      await updateTeam(editingTemplate.id, template)
     } else {
-      setTemplates([...templates, template])
+      await createTeam(template)
     }
     setShowBuilder(false)
     setEditingTemplate(null)
   }
 
-  const handleImportTemplate = (template: TeamTemplate) => {
-    setTemplates([...templates, template])
+  const handleImportTemplate = async (template: TeamTemplate) => {
+    await importTeam(template)
   }
 
   return (
@@ -161,18 +117,24 @@ function TeamsPage() {
 
         {showError && <ErrorTest />}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto">
-          {templates.map((template) => (
-            <TeamTemplateCard
-              key={template.id}
-              template={template}
-              onUse={handleUseTemplate}
-              onClone={handleCloneTemplate}
-              onEdit={handleEditTemplate}
-              onExport={handleExportTemplate}
-            />
-          ))}
-        </div>
+        {loading ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <p className="text-sm">Loading team templates...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 overflow-y-auto">
+            {teams.map((template) => (
+              <TeamTemplateCard
+                key={template.id}
+                template={template}
+                onUse={handleUseTemplate}
+                onClone={handleCloneTemplate}
+                onEdit={handleEditTemplate}
+                onExport={handleExportTemplate}
+              />
+            ))}
+          </div>
+        )}
 
         <TeamBuilder
           isOpen={showBuilder}

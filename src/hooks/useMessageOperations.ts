@@ -15,6 +15,7 @@ import { isInteractiveOnlyCommand, getCommandErrorMessage } from '../config/comm
 import { CommandService } from '../services/CommandService'
 import type { Agent } from '../stores/agents'
 import type { Project } from '../stores/projects'
+import { toast } from 'sonner'
 
 interface MessageResult {
   success: boolean
@@ -37,7 +38,7 @@ export function useMessageOperations() {
 
   const { selectedAgentId, updateAgentSessionId } = useAgentStore()
 
-  const { activeProjectId, addToQueue, clearQueue } = useProjectStore()
+  const { activeProjectId, addToQueue } = useProjectStore()
 
   /**
    * Handle @mention messages
@@ -101,6 +102,9 @@ export function useMessageOperations() {
       try {
         const result = await commandService.executeCommand(message, context)
 
+        console.log('[Command] Execution result:', { type: result.type, hasContent: !!result.content, hasAction: !!result.action })
+        console.log('[Command] Context:', { selectedAgentId, sessionId: selectedAgent?.sessionId, hasAgent: !!selectedAgent })
+
         // Handle command result
         if (result.type === 'error') {
           return { success: false, error: result.content }
@@ -112,12 +116,17 @@ export function useMessageOperations() {
         }
 
         // Send command output as a system message to display in chat
-        if (result.content && selectedAgent?.sessionId) {
+        if (result.content) {
+          // Use agentId for WebSocket routing consistency
+          const effectiveSessionId = selectedAgentId || 'system'
+          
+          console.log('[Command] Sending system message with sessionId (agentId):', effectiveSessionId)
+          
           await fetch('/api/messages/system', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              sessionId: selectedAgent.sessionId,
+              sessionId: effectiveSessionId,
               content: result.content,
               type: 'command-response',
               role: 'system',
@@ -127,7 +136,7 @@ export function useMessageOperations() {
 
         return {
           success: true,
-          sessionId: selectedAgent?.sessionId,
+          sessionId: selectedAgent?.sessionId || selectedAgentId || undefined,
         }
       } catch (error) {
         console.error('Command execution failed:', error)
@@ -232,12 +241,50 @@ export function useMessageOperations() {
   }, [])
 
   /**
-   * Interrupt/clear message queue
+   * Interrupt/abort ongoing Claude message for the currently selected agent only
    */
-  const interruptMessages = useCallback(() => {
-    clearQueue()
-    console.log('Queue clear (UI-first):', selectedAgentId)
-  }, [clearQueue, selectedAgentId])
+  const interruptMessages = useCallback(async () => {
+    // Only abort if we have a selected agent
+    if (!activeProjectId || !selectedAgentId) {
+      console.log('No active agent to interrupt')
+      return
+    }
+
+    // Get the selected agent to check if it's busy
+    const agents = useAgentStore.getState().getProjectAgents(activeProjectId)
+    const selectedAgent = agents.find(a => a.id === selectedAgentId)
+    
+    if (!selectedAgent || selectedAgent.status !== 'busy') {
+      console.log('Selected agent is not busy, nothing to interrupt')
+      return
+    }
+
+    try {
+      console.log(`Aborting message for selected agent ${selectedAgentId} in project ${activeProjectId}`)
+      
+      const response = await fetch('/api/messages/abort', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: activeProjectId,
+          agentId: selectedAgentId,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        console.error('Failed to abort message:', error)
+        toast.error('Failed to interrupt message')
+      } else {
+        const result = await response.json()
+        console.log('Message aborted successfully:', result)
+        toast.success(`Interrupted ${selectedAgent.name}`)
+      }
+    } catch (error) {
+      console.error('Error aborting message:', error)
+      toast.error('Error interrupting message')
+    }
+  }, [selectedAgentId, activeProjectId])
 
   return {
     sendMessage,

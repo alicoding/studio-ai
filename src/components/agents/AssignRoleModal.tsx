@@ -7,6 +7,7 @@ import { Checkbox } from '../ui/checkbox'
 import { Sparkles, Plus } from 'lucide-react'
 import { CLAUDE_CODE_TOOLS } from '../../lib/tools/toolRegistry'
 import { ModalLayout } from '../ui/modal-layout'
+import { useRoleResolver } from '../../hooks/useRoleResolver'
 
 interface AgentConfig {
   id: string
@@ -17,13 +18,21 @@ interface AgentConfig {
   model: string
 }
 
+interface AgentRoleAssignment {
+  agentId: string
+  roleId: string
+  customTools?: string[]
+  assignedAt: string
+  updatedAt: string
+}
+
 interface AssignRoleModalProps {
   isOpen: boolean
   onClose: () => void
   agentName: string
   agentId: string
   availableRoles: AgentConfig[]
-  currentAgentConfig?: AgentConfig
+  currentAgentAssignment?: AgentRoleAssignment
   onAssignRole: (roleId: string, customTools?: string[]) => void
   onCreateRole: () => void
   isReassignment?: boolean
@@ -35,17 +44,21 @@ export function AssignRoleModal({
   isOpen,
   onClose,
   agentName,
+  agentId,
   availableRoles,
-  currentAgentConfig,
+  currentAgentAssignment,
   onAssignRole,
   onCreateRole,
   isReassignment = false,
   currentRole,
 }: AssignRoleModalProps) {
-  // For reassignment, find which role template is currently assigned
-  const currentRoleTemplate = currentAgentConfig 
-    ? availableRoles.find(r => r.id === currentAgentConfig.id)
-    : null
+  // SOLID: Use dedicated resolver for role logic
+  const roleResolution = useRoleResolver(
+    agentId,
+    currentRole,
+    availableRoles,
+    currentAgentAssignment || null
+  )
   
   const [selectedRole, setSelectedRole] = useState<string>('')
   const [customizeTools, setCustomizeTools] = useState(false)
@@ -54,17 +67,18 @@ export function AssignRoleModal({
   // Initialize selected role when modal opens
   React.useEffect(() => {
     if (isOpen) {
-      if (currentRoleTemplate) {
-        // Select the role template that matches the agent's current role
-        setSelectedRole(currentRoleTemplate.id)
-        // Set the agent's actual tools, not the template's
-        setSelectedTools(currentAgentConfig?.tools || currentRoleTemplate.tools)
+      if (roleResolution.roleTemplate) {
+        // KISS: Simple state setting based on resolution
+        setSelectedRole(roleResolution.roleTemplate.id)
+        setCustomizeTools(roleResolution.hasCustomTools)
+        setSelectedTools(roleResolution.currentTools)
       } else {
         setSelectedRole('')
+        setCustomizeTools(false)
+        setSelectedTools([])
       }
-      setCustomizeTools(false)
     }
-  }, [isOpen, currentRoleTemplate, currentAgentConfig])
+  }, [isOpen, roleResolution])
 
   const handleAssign = () => {
     if (selectedRole === 'new') {
@@ -107,19 +121,25 @@ export function AssignRoleModal({
             <RadioGroup value={selectedRole} onValueChange={setSelectedRole}>
               {availableRoles.map((role) => (
                 <div key={role.id} className={`flex items-start space-x-3 py-2 rounded-md px-2 ${
-                  currentRoleTemplate?.id === role.id ? 'bg-primary/5 border border-primary/20' : ''
+                  roleResolution.roleTemplate?.id === role.id ? 'bg-primary/5 border border-primary/20' : ''
                 }`}>
                   <RadioGroupItem value={role.id} id={role.id} className="mt-1" />
                   <Label htmlFor={role.id} className="flex-1 cursor-pointer">
                     <div className="font-medium flex items-center gap-2">
                       {role.name}
-                      {currentRoleTemplate?.id === role.id && (
-                        <span className="text-xs text-primary">(Current)</span>
+                      {roleResolution.roleTemplate?.id === role.id && (
+                        <span className="text-xs text-primary">
+                          (Current{roleResolution.hasCustomTools ? ' - Customized' : ''})
+                        </span>
                       )}
                     </div>
                     <div className="text-sm text-muted-foreground">{role.role}</div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      Tools: {role.tools.join(', ')}
+                      Tools: {
+                        roleResolution.roleTemplate?.id === role.id && roleResolution.hasCustomTools
+                          ? roleResolution.currentTools.join(', ') || 'None selected'
+                          : role.tools.join(', ')
+                      }
                     </div>
                   </Label>
                 </div>
@@ -148,7 +168,11 @@ export function AssignRoleModal({
                   onCheckedChange={(checked) => {
                     setCustomizeTools(checked as boolean)
                     if (checked && selectedRoleConfig) {
-                      setSelectedTools(selectedRoleConfig.tools)
+                      // Only set to template tools if no existing customization
+                      if (!roleResolution.hasCustomTools) {
+                        setSelectedTools(selectedRoleConfig.tools)
+                      }
+                      // If hasCustomTools is true, keep current selectedTools (preserves existing customization)
                     }
                   }}
                 />

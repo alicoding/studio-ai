@@ -20,6 +20,8 @@ import {
   Bell,
   Zap,
   ChevronRight,
+  Save,
+  Loader2,
 } from 'lucide-react'
 import { EnhancedHookModal } from '../modals/EnhancedHookModal'
 import { Badge } from '../ui/badge'
@@ -32,6 +34,8 @@ interface HooksSettingsTabProps {
   onAddHook: (hook: Hook) => void
   onUpdateHook: (hook: Hook) => void
   onRemoveHook: (hookId: string) => void
+  onSave?: () => void
+  saving?: boolean
   studioIntelligenceStatus?: {
     initialized: boolean
     activeHooks: string[]
@@ -238,11 +242,14 @@ export function HooksSettingsTab({
   onAddHook,
   onUpdateHook,
   onRemoveHook,
+  onSave,
+  saving = false,
   studioIntelligenceStatus,
 }: HooksSettingsTabProps) {
   const [editingHook, setEditingHook] = useState<Hook | null>(null)
   const [showHookModal, setShowHookModal] = useState(false)
   const [defaultScope, setDefaultScope] = useState<HookScope>('studio')
+  const [currentTab, setCurrentTab] = useState<HookScope>('studio')
 
   const handleAddHook = (scope: HookScope) => {
     setDefaultScope(scope)
@@ -311,7 +318,7 @@ export function HooksSettingsTab({
             </div>
           )}
 
-          <Tabs defaultValue="studio" className="space-y-4">
+          <Tabs defaultValue="studio" className="space-y-4" onValueChange={(value) => setCurrentTab(value as HookScope)}>
             <div className="flex items-center justify-between">
               <TabsList>
                 <TabsTrigger value="studio" className="flex items-center gap-2">
@@ -343,7 +350,7 @@ export function HooksSettingsTab({
                 </TabsTrigger>
               </TabsList>
 
-              <Button onClick={() => handleAddHook('studio')}>
+              <Button onClick={() => handleAddHook(currentTab)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Hook
               </Button>
@@ -439,6 +446,25 @@ export function HooksSettingsTab({
               </div>
             </div>
           </div>
+
+          {/* Save Button */}
+          {onSave && (
+            <div className="flex justify-end pt-4 border-t">
+              <Button onClick={onSave} disabled={saving}>
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Hook Settings
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

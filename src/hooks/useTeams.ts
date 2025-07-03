@@ -1,88 +1,205 @@
-import { useState, useEffect } from 'react'
-import { useWebSocket } from './useWebSocket'
-
-interface TeamTemplate {
-  id: string
-  name: string
-  description: string
-  agents: Array<{
-    role: string
-    name: string
-    systemPrompt: string
-  }>
-  createdAt: string
-}
-
-interface ActiveTeam {
-  projectId: string
-  teamId: string
-  agents: string[]
-}
+import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
+import { 
+  TeamTemplate, 
+  CreateTeamRequest, 
+  UpdateTeamRequest, 
+  SpawnTeamResponse 
+} from '../types/teams'
 
 export function useTeams() {
-  const [templates, setTemplates] = useState<TeamTemplate[]>([])
-  const [activeTeams, setActiveTeams] = useState<ActiveTeam[]>([])
-  const { on, off, emit } = useWebSocket()
+  const [teams, setTeams] = useState<TeamTemplate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
+  // Fetch all teams
+  const fetchTeams = useCallback(async () => {
+    try {
+      setLoading(true)
+      const response = await fetch('/api/teams')
+      if (!response.ok) {
+        throw new Error('Failed to fetch teams')
+      }
+      const data = await response.json()
+      setTeams(data)
+      setError(null)
+    } catch (err) {
+      console.error('Error fetching teams:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch teams')
+      toast.error('Failed to load team templates')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Create a new team
+  const createTeam = useCallback(async (team: CreateTeamRequest) => {
+    try {
+      const response = await fetch('/api/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(team),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to create team')
+      }
+      
+      const newTeam = await response.json()
+      setTeams(prev => [...prev, newTeam])
+      toast.success('Team template created successfully')
+      return newTeam
+    } catch (err) {
+      console.error('Error creating team:', err)
+      toast.error('Failed to create team template')
+      throw err
+    }
+  }, [])
+
+  // Update a team
+  const updateTeam = useCallback(async (id: string, updates: UpdateTeamRequest) => {
+    try {
+      const response = await fetch(`/api/teams/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to update team')
+      }
+      
+      const updatedTeam = await response.json()
+      setTeams(prev => prev.map(t => t.id === id ? updatedTeam : t))
+      toast.success('Team template updated successfully')
+      return updatedTeam
+    } catch (err) {
+      console.error('Error updating team:', err)
+      toast.error('Failed to update team template')
+      throw err
+    }
+  }, [])
+
+  // Delete a team
+  const deleteTeam = useCallback(async (id: string) => {
+    try {
+      const response = await fetch(`/api/teams/${id}`, {
+        method: 'DELETE',
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete team')
+      }
+      
+      setTeams(prev => prev.filter(t => t.id !== id))
+      toast.success('Team template deleted successfully')
+    } catch (err) {
+      console.error('Error deleting team:', err)
+      toast.error('Failed to delete team template')
+      throw err
+    }
+  }, [])
+
+  // Clone a team
+  const cloneTeam = useCallback(async (id: string, name?: string) => {
+    try {
+      const response = await fetch(`/api/teams/${id}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to clone team')
+      }
+      
+      const clonedTeam = await response.json()
+      setTeams(prev => [...prev, clonedTeam])
+      toast.success('Team template cloned successfully')
+      return clonedTeam
+    } catch (err) {
+      console.error('Error cloning team:', err)
+      toast.error('Failed to clone team template')
+      throw err
+    }
+  }, [])
+
+  // Spawn a team to a project
+  const spawnTeam = useCallback(async (teamId: string, projectId: string): Promise<SpawnTeamResponse | null> => {
+    try {
+      const response = await fetch(`/api/teams/${teamId}/spawn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId }),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to spawn team')
+      }
+      
+      const result = await response.json()
+      toast.success('Team spawned successfully')
+      return result
+    } catch (err) {
+      console.error('Error spawning team:', err)
+      toast.error('Failed to spawn team')
+      throw err
+    }
+  }, [])
+
+  // Import a team from JSON
+  const importTeam = useCallback(async (teamData: TeamTemplate) => {
+    try {
+      const response = await fetch('/api/teams/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ team: teamData }),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to import team')
+      }
+      
+      const importedTeam = await response.json()
+      setTeams(prev => [...prev, importedTeam])
+      toast.success('Team template imported successfully')
+      return importedTeam
+    } catch (err) {
+      console.error('Error importing team:', err)
+      toast.error('Failed to import team template')
+      throw err
+    }
+  }, [])
+
+  // Export a team to JSON
+  const exportTeam = useCallback((team: TeamTemplate) => {
+    const json = JSON.stringify(team, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${team.id}-team.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Team template exported')
+  }, [])
+
+  // Fetch teams on mount
   useEffect(() => {
-    const handleInitialState = (data: { templates: TeamTemplate[]; activeTeams: ActiveTeam[] }) => {
-      setTemplates(data.templates)
-      setActiveTeams(data.activeTeams)
-    }
-
-    const handleTemplateCreated = (template: TeamTemplate) => {
-      setTemplates((prev) => [...prev, template])
-    }
-
-    const handleTemplateUpdated = (template: TeamTemplate) => {
-      setTemplates((prev) => prev.map((t) => (t.id === template.id ? template : t)))
-    }
-
-    const handleTemplateDeleted = (templateId: string) => {
-      setTemplates((prev) => prev.filter((t) => t.id !== templateId))
-    }
-
-    const handleTeamSpawned = (team: ActiveTeam) => {
-      setActiveTeams((prev) => [...prev, team])
-    }
-
-    on('teams:initial-state', handleInitialState)
-    on('team:template-created', handleTemplateCreated)
-    on('team:template-updated', handleTemplateUpdated)
-    on('team:template-deleted', handleTemplateDeleted)
-    on('team:spawned', handleTeamSpawned)
-
-    return () => {
-      off('teams:initial-state', handleInitialState)
-      off('team:template-created', handleTemplateCreated)
-      off('team:template-updated', handleTemplateUpdated)
-      off('team:template-deleted', handleTemplateDeleted)
-      off('team:spawned', handleTeamSpawned)
-    }
-  }, [on, off])
-
-  const createTemplate = (template: Omit<TeamTemplate, 'id' | 'createdAt'>) => {
-    emit('team:create-template', template)
-  }
-
-  const updateTemplate = (id: string, updates: Partial<TeamTemplate>) => {
-    emit('team:update-template', { id, ...updates })
-  }
-
-  const deleteTemplate = (id: string) => {
-    emit('team:delete-template', id)
-  }
-
-  const spawnTeam = (templateId: string, projectId: string) => {
-    emit('team:spawn', { templateId, projectId })
-  }
+    fetchTeams()
+  }, [fetchTeams])
 
   return {
-    templates,
-    activeTeams,
-    createTemplate,
-    updateTemplate,
-    deleteTemplate,
+    teams,
+    loading,
+    error,
+    createTeam,
+    updateTeam,
+    deleteTeam,
+    cloneTeam,
     spawnTeam,
+    importTeam,
+    exportTeam,
+    refetch: fetchTeams,
   }
 }

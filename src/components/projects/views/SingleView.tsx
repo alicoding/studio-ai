@@ -9,19 +9,36 @@ interface SingleViewProps {
 export function SingleView({ selectedAgentId }: SingleViewProps) {
   const activeProjectId = useProjectStore((state) => state.activeProjectId)
   const getAgent = useAgentStore((state) => state.getAgent)
+  const agents = useAgentStore((state) => state.agents)
+  
+  // Check if agents have been loaded yet
+  const agentsLoaded = agents.length > 0
 
   // Memoize the selected agent to prevent unnecessary re-renders
   const selectedAgent = useMemo(() => {
-    return selectedAgentId ? getAgent(selectedAgentId) : null
-  }, [selectedAgentId, getAgent])
+    const agent = selectedAgentId ? getAgent(selectedAgentId) : null
+    console.log('[SingleView] Selected agent:', {
+      agentId: selectedAgentId,
+      agent: agent,
+      agentsLoaded,
+      agentsCount: agents.length,
+      sessionId: agent?.sessionId,
+      fallbackId: agent?.id,
+    })
+    return agent
+  }, [selectedAgentId, getAgent, agentsLoaded, agents.length])
 
   // Always call useMemo, even if we won't use the result
   const messageHistoryViewer = useMemo(() => {
     if (!selectedAgent || !activeProjectId) return null
 
+    const sessionId = selectedAgent.sessionId || selectedAgent.id
+    console.log('[SingleView] Creating MessageHistoryViewer with sessionId:', sessionId)
+    
     return (
       <MessageHistoryViewer
-        sessionId={selectedAgent.sessionId || selectedAgent.id}
+        key={`${selectedAgent.id}-${sessionId}`} // Force re-mount when sessionId changes
+        sessionId={sessionId}
         projectId={activeProjectId}
         agentName={selectedAgent.name}
         agentId={selectedAgent.id}
@@ -29,7 +46,22 @@ export function SingleView({ selectedAgentId }: SingleViewProps) {
     )
   }, [selectedAgent, activeProjectId])
 
-  if (!selectedAgentId || !selectedAgent) {
+  // Show loading state if we have a selectedAgentId but agents haven't loaded yet
+  if (selectedAgentId && !agentsLoaded) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-background">
+        <div className="text-center space-y-2">
+          <h3 className="text-lg font-semibold text-foreground">Loading Agent...</h3>
+          <p className="text-muted-foreground">
+            Initializing workspace
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show "No Agent Selected" only if there's truly no selection
+  if (!selectedAgentId || (!selectedAgent && agentsLoaded)) {
     return (
       <div className="flex-1 flex items-center justify-center bg-background">
         <div className="text-center space-y-2">
@@ -57,7 +89,7 @@ export function SingleView({ selectedAgentId }: SingleViewProps) {
     <div className="flex-1 flex flex-col bg-background">
       <div className="border-b bg-muted/30 px-4 py-2">
         <span className="text-sm font-medium text-foreground">
-          {selectedAgent.name} - {selectedAgent.lastMessage}
+          {selectedAgent?.name} - {selectedAgent?.lastMessage || 'No messages yet'}
         </span>
       </div>
       <div className="flex-1 overflow-hidden">{messageHistoryViewer}</div>

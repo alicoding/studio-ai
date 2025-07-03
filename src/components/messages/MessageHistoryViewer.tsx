@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { VariableSizeList as List } from 'react-window'
 import { EnhancedMessageBubble } from './EnhancedMessageBubble'
+import { TypingIndicator } from './TypingIndicator'
 import { Loader2 } from 'lucide-react'
 import { useWebSocket } from '../../hooks/useWebSocket'
+import { useAgentStore } from '../../stores'
 
 interface ToolResultContent {
   type: 'tool_result'
@@ -83,7 +85,14 @@ function enrichMessagesWithToolResults(messages: Message[]): Message[] {
         if (typeof item === 'object' && 'type' in item && item.type === 'tool_result') {
           const toolResult = item as ToolResultContent
           if (toolResult.tool_use_id) {
-            toolResultMap.set(toolResult.tool_use_id, toolResult.content || '')
+            // Handle case where content might be an object with {type, text} structure
+            let contentStr = ''
+            if (typeof toolResult.content === 'string') {
+              contentStr = toolResult.content
+            } else if (typeof toolResult.content === 'object' && toolResult.content && 'text' in toolResult.content) {
+              contentStr = (toolResult.content as any).text || ''
+            }
+            toolResultMap.set(toolResult.tool_use_id, contentStr)
           }
         }
       })
@@ -142,9 +151,16 @@ export function MessageHistoryViewer({
   const hasUserScrolled = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const [containerHeight, setContainerHeight] = useState(600)
+  const [agentTypingStartTime, setAgentTypingStartTime] = useState<number | null>(null)
+  const loadedSessionRef = useRef<string | null>(null)
 
   // Get WebSocket connection
   const { socket } = useWebSocket()
+  
+  // Get agent status
+  const agent = useAgentStore((state) => 
+    state.agents.find(a => a.id === agentId)
+  )
 
   // Get item size
   const getItemSize = useCallback((index: number) => {
@@ -161,12 +177,17 @@ export function MessageHistoryViewer({
 
   // Reset everything when session changes
   useEffect(() => {
+    console.log('📍 SessionId changed to:', sessionId)
     setMessages([])
     setHasMore(true)
     cursorRef.current = null
     itemHeights.current = {}
     hasUserScrolled.current = false
     setError(null)
+    // Reset loaded session ref when session changes
+    if (loadedSessionRef.current !== sessionId) {
+      loadedSessionRef.current = null
+    }
   }, [sessionId])
 
   // Track container height
@@ -188,6 +209,15 @@ export function MessageHistoryViewer({
       resizeObserver.disconnect()
     }
   }, [])
+
+  // Track when agent starts/stops typing
+  useEffect(() => {
+    if (agent?.status === 'busy' && !agentTypingStartTime) {
+      setAgentTypingStartTime(Date.now())
+    } else if (agent?.status !== 'busy' && agentTypingStartTime) {
+      setAgentTypingStartTime(null)
+    }
+  }, [agent?.status, agentTypingStartTime])
 
   // Listen for new messages via WebSocket
   useEffect(() => {
@@ -320,12 +350,30 @@ export function MessageHistoryViewer({
     }
   }, [sessionId, projectId, loading, hasMore, messages.length])
 
-  // Load initial messages
+  // Load initial messages when sessionId or projectId changes
   useEffect(() => {
-    if (sessionId && projectId && messages.length === 0) {
+    console.log('📍 Message loading effect triggered:', {
+      sessionId,
+      projectId,
+      messagesLength: messages.length,
+      loading,
+      hasSessionId: !!sessionId,
+      hasProjectId: !!projectId,
+      loadedSession: loadedSessionRef.current,
+    })
+    
+    // Check if we need to load messages for this session
+    const needsLoad = sessionId && 
+                     projectId && 
+                     !loading &&
+                     (messages.length === 0 || loadedSessionRef.current !== sessionId)
+    
+    if (needsLoad) {
+      console.log('📍 Loading messages for session:', sessionId, '(was:', loadedSessionRef.current, ')')
+      loadedSessionRef.current = sessionId
       loadMoreMessages()
     }
-  }, [sessionId, projectId, messages.length, loadMoreMessages])
+  }, [sessionId, projectId, loading, loadMoreMessages]) // Include loadMoreMessages for React rules
 
   // Listen for session clear events
   useEffect(() => {
@@ -333,15 +381,13 @@ export function MessageHistoryViewer({
       const { agentId: clearedAgentId, oldSessionId, newSessionId } = event.detail
 
       // Check if this is the session we're viewing
-      // The sessionId prop could be either the agent ID or the actual session ID
-      const isThisSession =
-        sessionId === clearedAgentId ||
-        sessionId === oldSessionId ||
-        (oldSessionId === '' && sessionId === clearedAgentId)
+      // Compare using the agentId prop which is the agent instance ID
+      const isThisSession = agentId === clearedAgentId
 
       if (isThisSession) {
         console.log('🗑️ Session cleared, resetting message history for:', {
           sessionId,
+          agentId,
           clearedAgentId,
           oldSessionId,
           newSessionId,
@@ -351,6 +397,7 @@ export function MessageHistoryViewer({
         setError(null)
         cursorRef.current = null
         itemHeights.current = {}
+        loadedSessionRef.current = null
 
         // Reset list if available
         if (listRef.current) {
@@ -364,7 +411,7 @@ export function MessageHistoryViewer({
     return () => {
       window.removeEventListener('agent-session-cleared', handleSessionCleared as EventListener)
     }
-  }, [sessionId])
+  }, [sessionId, agentId])
 
   // Always scroll to bottom when messages change
   useEffect(() => {
@@ -513,11 +560,14 @@ export function MessageHistoryViewer({
 
   const itemCount = loading && messages.length === 0 ? 1 : enrichedMessages.length
 
+  const isTyping = agent?.status === 'busy' && agentTypingStartTime
+  const typingIndicatorHeight = 72 // Approximate height of typing indicator (p-4 + content + border)
+
   return (
     <div ref={containerRef} className="h-full bg-background relative">
       <List
         ref={listRef}
-        height={containerHeight}
+        height={isTyping ? containerHeight - typingIndicatorHeight : containerHeight}
         itemCount={itemCount}
         itemSize={getItemSize}
         onScroll={handleScroll}
@@ -529,6 +579,15 @@ export function MessageHistoryViewer({
       >
         {Row}
       </List>
+      {isTyping && (
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-background border-t border-border">
+          <TypingIndicator 
+            agentName={agentName || agent.name} 
+            startTime={agentTypingStartTime}
+            tokenCount={agent.tokens}
+          />
+        </div>
+      )}
     </div>
   )
 }

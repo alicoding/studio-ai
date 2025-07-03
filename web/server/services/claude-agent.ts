@@ -23,6 +23,7 @@ export interface AgentConfig {
 export class ClaudeAgent {
   private agent: Agent
   private abortController?: AbortController
+  private isAborted: boolean = false
   private sessionId?: string
   private onSessionUpdate?: (sessionId: string) => void
   private config?: AgentConfig
@@ -65,6 +66,23 @@ export class ClaudeAgent {
   ): Promise<string> {
     try {
       this.agent.status = 'busy'
+      this.isAborted = false // Reset abort flag
+      
+      // Clear session IDs if forcing new session
+      if (forceNewSession) {
+        console.log('Forcing new session - clearing existing session IDs')
+        this.sessionId = undefined
+        this.agent.sessionId = null
+      }
+      
+      // Emit status update via WebSocket
+      if (io && sessionId) {
+        io.emit('agent:status-changed', { 
+          agentId: this.agent.id, 
+          status: 'busy' 
+        })
+      }
+      
       console.log('Sending message to Claude SDK:', content)
       console.log('Project path:', projectPath)
       console.log('Current sessionId:', this.sessionId)
@@ -74,6 +92,7 @@ export class ClaudeAgent {
 
       // Create abort controller for this request
       this.abortController = new AbortController()
+      console.log(`[ClaudeAgent] Created new AbortController for agent ${this.agent.id}`)
 
       const messages: SDKMessage[] = []
       let resultText = ''
@@ -95,12 +114,13 @@ export class ClaudeAgent {
       console.log('Query options:', JSON.stringify(queryOptions, null, 2))
 
       // Query returns an async generator that yields messages
-      for await (const message of query({
-        prompt: content,
-        abortController: this.abortController,
-        options: queryOptions,
-      })) {
-        console.log('Received message:', message.type, {
+      try {
+        for await (const message of query({
+          prompt: content,
+          abortController: this.abortController,
+          options: queryOptions,
+        })) {
+          console.log('Received message:', message.type, {
           type: message.type,
           parentUuid: (message as any).parentUuid,
           sessionId: (message as any).sessionId,
@@ -126,8 +146,14 @@ export class ClaudeAgent {
           console.error('Claude query failed:', message)
         }
 
+        // Check if we've been aborted before processing messages
+        if (this.isAborted) {
+          console.log(`[ClaudeAgent] Skipping message processing - agent ${this.agent.id} was aborted`)
+          break
+        }
+
         // Emit all messages through WebSocket if io is provided
-        if (io && sessionId) {
+        if (io && sessionId && !this.isAborted) {
           // ALWAYS use agent instance ID for consistent WebSocket routing
           // This eliminates timing issues with Claude session ID updates
           const effectiveSessionId = sessionId // sessionId = agent instance ID
@@ -168,11 +194,22 @@ export class ClaudeAgent {
         }
 
         // Extract text from assistant messages
-        if (message.type === 'assistant' && message.message?.content) {
+        if (message.type === 'assistant' && message.message?.content && !this.isAborted) {
           for (const content of message.message.content) {
             if (content.type === 'text') {
               resultText += content.text
             }
+          }
+          
+          // Emit token usage update if available
+          if (message.message?.usage && io && sessionId) {
+            const totalTokens = (message.message.usage.input_tokens || 0) + 
+                               (message.message.usage.output_tokens || 0)
+            io.emit('agent:token-usage', {
+              agentId: this.agent.id,
+              tokens: totalTokens,
+              maxTokens: this.config?.maxTokens || 200000
+            })
           }
         }
 
@@ -200,6 +237,20 @@ export class ClaudeAgent {
           // Session ID is already handled above for all message types
         }
       }
+      } catch (error) {
+        // Check if this is an abort error from the for-await loop
+        if (this.isAborted || (error instanceof Error && error.name === 'AbortError')) {
+          console.log(`[ClaudeAgent] Query loop was aborted for agent ${this.agent.id}`)
+          throw new Error('Query was aborted by user')
+        }
+        throw error
+      }
+
+      // Check if aborted before throwing errors
+      if (this.isAborted) {
+        console.log(`[ClaudeAgent] Query was aborted, not processing errors`)
+        throw new Error('Query was aborted by user')
+      }
 
       // Throw error if we encountered one during processing
       if (hasError) {
@@ -210,12 +261,44 @@ export class ClaudeAgent {
       console.log('Session ID after query:', this.sessionId)
 
       this.agent.status = 'online'
+      
+      // Emit status update via WebSocket
+      if (io && sessionId) {
+        io.emit('agent:status-changed', { 
+          agentId: this.agent.id, 
+          status: 'online' 
+        })
+      }
+      
+      // Clear abort controller after completion
+      this.abortController = undefined
+      console.log(`[ClaudeAgent] Cleared AbortController for agent ${this.agent.id} after successful completion`)
+      
       // Session ID is already updated in the result handler above
 
       return resultText
     } catch (error) {
       this.agent.status = 'online'
+      
+      // Emit status update via WebSocket
+      if (io && sessionId) {
+        io.emit('agent:status-changed', { 
+          agentId: this.agent.id, 
+          status: 'online' 
+        })
+      }
+      
+      // Clear abort controller after error
+      this.abortController = undefined
+      console.log(`[ClaudeAgent] Cleared AbortController for agent ${this.agent.id} after error`)
+      
       console.error('Error in Claude query:', error)
+
+      // Check if this is an abort error
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log(`[ClaudeAgent] Query was aborted for agent ${this.agent.id}`)
+        throw new Error('Query was aborted by user')
+      }
 
       // Provide more detailed error information
       if (error instanceof Error) {
@@ -229,8 +312,15 @@ export class ClaudeAgent {
   }
 
   abort(): void {
+    console.log(`[ClaudeAgent] Abort called for agent ${this.agent.id}`)
+    this.isAborted = true // Set abort flag immediately
+    
     if (this.abortController) {
+      console.log(`[ClaudeAgent] AbortController exists, calling abort()`)
       this.abortController.abort()
+      console.log(`[ClaudeAgent] Abort signal sent`)
+    } else {
+      console.log(`[ClaudeAgent] No AbortController found - agent might not be processing a message`)
     }
   }
 

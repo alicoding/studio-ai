@@ -213,14 +213,29 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// Get project path from environment or current directory
-const projectPath = process.env.PROJECT_PATH || process.cwd();
-const file = process.env.FILE_PATH;
-
-// Only run if TypeScript is available
-if (!file || !file.endsWith('.ts') && !file.endsWith('.tsx')) {
+// Parse the JSON input from stdin
+let input;
+try {
+  const inputData = fs.readFileSync(0, 'utf-8');
+  input = JSON.parse(inputData);
+} catch (error) {
+  // If no valid JSON input, exit silently
   process.exit(0);
 }
+
+// Get the file path from tool input
+const filePath = input.tool_input?.file_path;
+if (!filePath) {
+  process.exit(0);
+}
+
+// Only run on TypeScript files
+if (!filePath.endsWith('.ts') && !filePath.endsWith('.tsx')) {
+  process.exit(0);
+}
+
+// Get project path from environment or current directory
+const projectPath = process.env.PROJECT_PATH || process.cwd();
 
 // Check if project uses TypeScript
 const hasTypeScript = fs.existsSync(path.join(projectPath, 'tsconfig.json'));
@@ -229,13 +244,13 @@ if (!hasTypeScript) {
 }
 
 try {
-  // Try different TypeScript commands
+  // Try to typecheck just this specific file
   const commands = [
-    'npx tsc --noEmit',
+    \`npx tsc --noEmit \${filePath}\`,
+    \`npx tsc --noEmit --skipLibCheck \${filePath}\`,
+    'npx tsc --noEmit', // fallback to full project check
     'npm run typecheck',
-    'npm run tsc',
-    'yarn tsc --noEmit',
-    'yarn typecheck'
+    'yarn tsc --noEmit'
   ];
   
   let output = '';
@@ -256,15 +271,29 @@ try {
     }
   }
   
-  // Parse errors and warnings
-  const errorCount = (output.match(/error TS/g) || []).length;
+  // Parse errors specific to this file
+  const lines = output.split('\\n');
+  const fileErrors = lines.filter(line => line.includes(filePath) && line.includes('error TS'));
   
-  if (errorCount > 0) {
-    console.error(\`TypeScript: \${errorCount} errors found\`);
-    // In future, we'll update agent card here
+  if (fileErrors.length > 0) {
+    console.error(\`TypeScript errors in \${path.basename(filePath)}:\`);
+    fileErrors.forEach(error => console.error(error));
+    
+    // Exit code 2 to show errors to Claude
+    process.exit(2);
   }
 } catch (error) {
-  // Silently fail if TypeScript check doesn't work
+  // If the file has TypeScript errors, show them
+  if (error.stdout && error.stdout.includes(filePath)) {
+    const lines = error.stdout.split('\\n');
+    const fileErrors = lines.filter(line => line.includes(filePath));
+    if (fileErrors.length > 0) {
+      console.error(\`TypeScript errors in \${path.basename(filePath)}:\`);
+      fileErrors.forEach(error => console.error(error));
+      process.exit(2);
+    }
+  }
+  // Otherwise silently continue
   process.exit(0);
 }
 `
