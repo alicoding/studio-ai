@@ -5,66 +5,7 @@ import { Badge } from '../ui/badge'
 import { Separator } from '../ui/separator'
 import { Keyboard, RotateCcw, Save } from 'lucide-react'
 import { toast } from 'sonner'
-
-interface KeyboardShortcut {
-  id: string
-  name: string
-  description: string
-  defaultKeys: string
-  currentKeys: string
-  category: 'global' | 'workspace' | 'modal'
-}
-
-const DEFAULT_SHORTCUTS: KeyboardShortcut[] = [
-  {
-    id: 'component-inspector',
-    name: 'Component Inspector',
-    description: 'Open component inspector to capture and analyze UI elements',
-    defaultKeys: 'Cmd+Shift+I',
-    currentKeys: 'Cmd+Shift+I',
-    category: 'global'
-  },
-  {
-    id: 'interrupt-agents',
-    name: 'Interrupt Agents',
-    description: 'Stop all running agent operations',
-    defaultKeys: 'Escape',
-    currentKeys: 'Escape',
-    category: 'workspace'
-  },
-  {
-    id: 'broadcast-message',
-    name: 'Broadcast Message',
-    description: 'Send message to all agents',
-    defaultKeys: 'Cmd+Shift+Enter',
-    currentKeys: 'Cmd+Shift+Enter',
-    category: 'workspace'
-  },
-  {
-    id: 'clear-context',
-    name: 'Clear Agent Context',
-    description: 'Clear selected agent\'s conversation context',
-    defaultKeys: 'Cmd+K',
-    currentKeys: 'Cmd+K',
-    category: 'workspace'
-  },
-  {
-    id: 'new-project',
-    name: 'New Project',
-    description: 'Create a new project',
-    defaultKeys: 'Cmd+N',
-    currentKeys: 'Cmd+N',
-    category: 'global'
-  },
-  {
-    id: 'close-modal',
-    name: 'Close Modal',
-    description: 'Close any open modal or dialog',
-    defaultKeys: 'Escape',
-    currentKeys: 'Escape',
-    category: 'modal'
-  }
-]
+import { useShortcutsStore, type KeyboardShortcut } from '../../stores/shortcuts'
 
 interface KeyRecorderProps {
   isRecording: boolean
@@ -173,62 +114,32 @@ function KeyRecorder({ isRecording, currentKeys, onRecord, onCancel }: KeyRecord
 }
 
 export function KeyboardShortcutsTab() {
-  const [shortcuts, setShortcuts] = useState<KeyboardShortcut[]>(DEFAULT_SHORTCUTS)
+  const { shortcuts, updateShortcut, resetShortcut, resetAllShortcuts } = useShortcutsStore()
   const [recordingId, setRecordingId] = useState<string | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
 
-  // Load shortcuts from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('claude-studio-shortcuts')
-    if (saved) {
-      try {
-        const savedShortcuts = JSON.parse(saved)
-        setShortcuts(savedShortcuts)
-      } catch (error) {
-        console.error('Failed to load shortcuts:', error)
-      }
-    }
-  }, [])
-
   const handleRecord = (shortcutId: string, newKeys: string) => {
-    setShortcuts(prev => prev.map(shortcut => 
-      shortcut.id === shortcutId 
-        ? { ...shortcut, currentKeys: newKeys }
-        : shortcut
-    ))
+    updateShortcut(shortcutId, newKeys)
     setRecordingId(null)
     setHasChanges(true)
     toast.success(`Shortcut updated: ${newKeys}`)
   }
 
   const handleReset = (shortcutId: string) => {
-    setShortcuts(prev => prev.map(shortcut => 
-      shortcut.id === shortcutId 
-        ? { ...shortcut, currentKeys: shortcut.defaultKeys }
-        : shortcut
-    ))
+    resetShortcut(shortcutId)
     setHasChanges(true)
     toast.success('Shortcut reset to default')
   }
 
   const handleResetAll = () => {
-    setShortcuts(prev => prev.map(shortcut => ({
-      ...shortcut,
-      currentKeys: shortcut.defaultKeys
-    })))
+    resetAllShortcuts()
     setHasChanges(true)
     toast.success('All shortcuts reset to defaults')
   }
 
   const handleSave = () => {
-    localStorage.setItem('claude-studio-shortcuts', JSON.stringify(shortcuts))
+    // Changes are already persisted automatically by Zustand
     setHasChanges(false)
-    
-    // Dispatch event to notify other components of shortcut changes
-    window.dispatchEvent(new CustomEvent('shortcuts-updated', { 
-      detail: { shortcuts } 
-    }))
-    
     toast.success('Keyboard shortcuts saved!')
   }
 

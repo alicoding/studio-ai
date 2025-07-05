@@ -97,13 +97,20 @@ export function useRoleResolver(
  * DRY: Centralized role matching logic
  */
 function findRoleByString(roleString: string, availableRoles: AgentConfig[]): AgentConfig | null {
+  if (!roleString || !availableRoles || availableRoles.length === 0) {
+    return null
+  }
+  
   const normalized = roleString.toLowerCase()
   
-  return availableRoles.find(role => 
-    role.role.toLowerCase() === normalized || 
-    role.id.toLowerCase() === normalized ||
-    role.name.toLowerCase() === normalized
-  ) || null
+  return availableRoles.find(role => {
+    if (!role) return false
+    return (
+      role.role?.toLowerCase() === normalized || 
+      role.id?.toLowerCase() === normalized ||
+      role.name?.toLowerCase() === normalized
+    )
+  }) || null
 }
 
 /**

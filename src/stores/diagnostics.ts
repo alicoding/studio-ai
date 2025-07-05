@@ -6,8 +6,7 @@
  * Library First: Built on Zustand like other stores
  */
 
-import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
+import { createPersistentStore } from './createPersistentStore'
 
 export interface Diagnostic {
   id: string
@@ -72,17 +71,9 @@ interface DiagnosticsState {
   getDiagnosticsByFile: (file: string) => Diagnostic[]
 }
 
-// Persist monitoring state across page reloads
-const MONITORING_STATE_KEY = 'claude-studio-diagnostics-monitoring'
-
-export const useDiagnosticsStore = create<DiagnosticsState>()(
-  devtools(
-    (set, get) => {
-      // Load initial monitoring state from localStorage
-      const savedMonitoring = localStorage.getItem(MONITORING_STATE_KEY)
-      const initialMonitoring = savedMonitoring === 'true'
-
-      return {
+export const useDiagnosticsStore = createPersistentStore<DiagnosticsState>(
+  'diagnostics',
+  (set, get) => ({
         // Initial state
         diagnostics: new Map(),
         errorCount: 0,
@@ -90,7 +81,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>()(
         coverage: null,
         testResults: null,
         buildStatus: 'idle',
-        isMonitoring: initialMonitoring,
+        isMonitoring: false,
         lastUpdate: null,
 
         // Actions
@@ -175,11 +166,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>()(
         setCoverage: (coverage) => set({ coverage, lastUpdate: new Date() }),
         setTestResults: (testResults) => set({ testResults, lastUpdate: new Date() }),
         setBuildStatus: (buildStatus) => set({ buildStatus, lastUpdate: new Date() }),
-        setMonitoring: (isMonitoring) => {
-          // Persist monitoring state
-          localStorage.setItem(MONITORING_STATE_KEY, isMonitoring.toString())
-          set({ isMonitoring })
-        },
+        setMonitoring: (isMonitoring) => set({ isMonitoring }),
 
         // Computed getters
         getAllDiagnostics: () => {
@@ -205,10 +192,16 @@ export const useDiagnosticsStore = create<DiagnosticsState>()(
             .getAllDiagnostics()
             .filter((d) => d.file === file)
         },
-      }
-    },
-    {
-      name: 'diagnostics-store',
-    }
-  )
+    }),
+  {
+    version: 1,
+    partialize: (state) => ({
+      // Only persist monitoring preference
+      isMonitoring: state.isMonitoring,
+      // Don't persist:
+      // - diagnostics (will be re-fetched)
+      // - counts (calculated from diagnostics)
+      // - coverage/test results (temporary data)
+    })
+  }
 )

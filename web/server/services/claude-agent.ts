@@ -1,7 +1,8 @@
 // Local Claude Agent implementation using Claude Code SDK
 // KISS: Basic agent that can respond to messages
 
-import { query, type SDKMessage } from '@anthropic-ai/claude-code'
+import { query, type SDKMessage, type SDKAssistantMessage } from '@anthropic-ai/claude-code'
+import type { Server } from 'socket.io'
 
 export type Role = 'dev' | 'ux' | 'test' | 'pm'
 
@@ -18,6 +19,8 @@ export interface AgentConfig {
   model?: string
   temperature?: number
   maxTokens?: number
+  maxTurns?: number
+  verbose?: boolean
 }
 
 export class ClaudeAgent {
@@ -39,6 +42,8 @@ export class ClaudeAgent {
     this.sessionId = sessionId || undefined
     // Store configuration
     this.config = configOverrides
+    console.log(`[SYSTEM PROMPT DEBUG] ClaudeAgent created with config:`, configOverrides)
+    console.log(`[SYSTEM PROMPT DEBUG] System prompt:`, configOverrides?.systemPrompt)
   }
 
   setSessionUpdateCallback(callback: (sessionId: string) => void): void {
@@ -60,7 +65,7 @@ export class ClaudeAgent {
   async sendMessage(
     content: string,
     projectPath?: string,
-    io?: any,
+    io?: Server,
     sessionId?: string,
     forceNewSession?: boolean
   ): Promise<string> {
@@ -89,6 +94,7 @@ export class ClaudeAgent {
       console.log('Agent sessionId:', this.agent.sessionId)
       console.log('Force new session:', forceNewSession)
       console.log('Agent config:', this.config)
+      console.log('[SYSTEM PROMPT DEBUG] Agent system prompt:', this.config?.systemPrompt)
 
       // Create abort controller for this request
       this.abortController = new AbortController()
@@ -99,19 +105,22 @@ export class ClaudeAgent {
       let hasError = false
       let errorMessage = ''
 
-      // Build query options
+      // Build query options from agent configuration
       const queryOptions = {
-        maxTurns: 3, // Limit turns for safety
+        maxTurns: this.config?.maxTurns || 3, // Use configured maxTurns or default to 3
         outputFormat: 'stream-json', // Use streaming JSON format
-        verbose: true, // Enable verbose mode to see all system messages and debug issues
+        verbose: this.config?.verbose !== false, // Default to true unless explicitly set to false
         cwd: projectPath || process.cwd(), // Set working directory to project path
         resume: forceNewSession ? undefined : this.sessionId || this.agent.sessionId || undefined, // Don't resume if forcing new session
         allowedTools: this.config?.tools ? this.formatToolsForSDK(this.config.tools) : undefined, // Pass allowed tools in CLI format
         model: this.mapToValidModel(this.config?.model), // Use valid Claude Code model name
         customSystemPrompt: this.config?.systemPrompt, // Pass agent's system prompt
+        temperature: this.config?.temperature, // Pass configured temperature if set
+        maxTokens: this.config?.maxTokens, // Pass configured max tokens if set
       }
 
       console.log('Query options:', JSON.stringify(queryOptions, null, 2))
+      console.log('[SYSTEM PROMPT DEBUG] customSystemPrompt being passed to SDK:', queryOptions.customSystemPrompt)
 
       // Query returns an async generator that yields messages
       try {
@@ -122,27 +131,21 @@ export class ClaudeAgent {
         })) {
           console.log('Received message:', message.type, {
           type: message.type,
-          parentUuid: (message as any).parentUuid,
-          sessionId: (message as any).sessionId,
-          uuid: (message as any).uuid,
-          hasSession: !!(message as any).session_id || !!(message as any).sessionId,
-          hasContent: !!(message as any).message?.content,
+          sessionId: 'session_id' in message ? message.session_id : undefined,
+          hasSession: 'session_id' in message,
+          hasContent: 'message' in message && !!message.message,
           contentLength:
-            message.type === 'assistant' ? JSON.stringify(message.message?.content).length : 0,
+            message.type === 'assistant' ? JSON.stringify((message as SDKAssistantMessage).message?.content).length : 0,
         })
         messages.push(message)
 
-        // Check for error messages
-        if (message.type === 'error') {
-          hasError = true
-          errorMessage = message.error || 'Unknown error occurred'
-          console.error('Claude SDK error:', message)
-        }
+        // Note: There is no 'error' type in SDKMessage union
+        // Errors are handled via result messages with error subtypes
 
         // Check for result with error
-        if (message.type === 'result' && message.subtype === 'error') {
+        if (message.type === 'result' && (message.subtype === 'error_max_turns' || message.subtype === 'error_during_execution')) {
           hasError = true
-          errorMessage = message.error || message.result || 'Query failed'
+          errorMessage = 'Query failed: ' + message.subtype
           console.error('Claude query failed:', message)
         }
 
@@ -169,7 +172,7 @@ export class ClaudeAgent {
                 role: message.type,
                 content: content,
                 timestamp: new Date().toISOString(),
-                isMeta: message.isMeta || false,
+                isMeta: false, // SDK messages don't have isMeta property
                 isStreaming: true, // Indicate this is a streaming message
                 ...(message.type === 'assistant' && {
                   model: message.message?.model,
@@ -179,18 +182,8 @@ export class ClaudeAgent {
             })
           }
 
-          // Emit error messages to UI
-          if (message.type === 'error') {
-            io.emit('message:new', {
-              sessionId: effectiveSessionId,
-              message: {
-                role: 'system',
-                content: `Error: ${message.error || 'Unknown error'}`,
-                timestamp: new Date().toISOString(),
-                type: 'error',
-              },
-            })
-          }
+          // Note: There is no 'error' type in SDKMessage union
+          // Errors are handled via result messages with error subtypes
         }
 
         // Extract text from assistant messages
@@ -213,14 +206,13 @@ export class ClaudeAgent {
           }
         }
 
-        // Extract sessionId from ANY message type to track checkpoints
-        const messageSessionId = (message as any).sessionId || (message as any).session_id
+        // Extract sessionId from message to track checkpoints
+        const messageSessionId = 'session_id' in message ? message.session_id : undefined
         if (messageSessionId && messageSessionId !== this.sessionId) {
           console.log('📍 Session checkpoint update:', {
             from: this.sessionId,
             to: messageSessionId,
             messageType: message.type,
-            parentUuid: (message as any).parentUuid,
           })
           this.sessionId = messageSessionId
           this.agent.sessionId = messageSessionId
@@ -297,6 +289,12 @@ export class ClaudeAgent {
       // Check if this is an abort error
       if (error instanceof Error && error.name === 'AbortError') {
         console.log(`[ClaudeAgent] Query was aborted for agent ${this.agent.id}`)
+        throw new Error('Query was aborted by user')
+      }
+
+      // Check if this is a process exit error from interruption
+      if (error instanceof Error && error.message.includes('process exited with code 143')) {
+        console.log(`[ClaudeAgent] Process was terminated (SIGTERM) for agent ${this.agent.id}`)
         throw new Error('Query was aborted by user')
       }
 

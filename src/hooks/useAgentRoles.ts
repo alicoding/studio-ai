@@ -60,31 +60,37 @@ export function useAgentRoles() {
     }
   }
 
-  // Load all role assignments
-  const loadAssignments = useCallback(async (agentIds: string[]) => {
+  // Load all role assignments using batch API (fixes N+1 query problem)
+  const loadAssignments = useCallback(async (agentIds: string[], projectId?: string) => {
+    if (agentIds.length === 0) {
+      setRoleAssignments({})
+      return
+    }
+
     setLoading(true)
-    const assignments: Record<string, AgentRoleAssignment> = {}
-
-    await Promise.all(
-      agentIds.map(async (agentId) => {
-        try {
-          const response = await fetch(`/api/agent-roles/${agentId}`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data) {
-              console.log(`Loaded assignment for ${agentId}:`, data)
-              assignments[agentId] = data
-            }
-          }
-        } catch {
-          // Agent has no role assigned, that's ok
-        }
+    
+    try {
+      // Use batch endpoint for efficient loading
+      const response = await fetch('/api/agent-roles/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentIds, projectId }),
       })
-    )
 
-    console.log('All loaded assignments:', assignments)
-    setRoleAssignments(assignments)
-    setLoading(false)
+      if (response.ok) {
+        const assignments = await response.json()
+        console.log('Batch loaded assignments:', assignments)
+        setRoleAssignments(assignments || {})
+      } else {
+        console.error('Failed to load role assignments:', response.status)
+        setRoleAssignments({})
+      }
+    } catch (error) {
+      console.error('Error loading role assignments:', error)
+      setRoleAssignments({})
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   return {

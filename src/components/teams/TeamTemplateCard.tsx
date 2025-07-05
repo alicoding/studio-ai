@@ -38,7 +38,7 @@ export function TeamTemplateCard({
       <div className="flex items-start justify-between">
         <h3 className="text-lg font-semibold text-foreground">{template.name}</h3>
         <span className="text-xs text-muted-foreground">
-          Created {new Date(template.createdAt).toLocaleDateString()}
+          Created {template.createdAt ? new Date(template.createdAt).toLocaleDateString() : 'Unknown'}
         </span>
       </div>
 

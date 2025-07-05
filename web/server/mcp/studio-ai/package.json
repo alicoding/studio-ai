@@ -1,0 +1,23 @@
+{
+  "name": "studio-ai-mcp",
+  "version": "1.0.0",
+  "description": "Configurable AI MCP server for Claude Studio",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "openai": "^4.20.0",
+    "@anthropic-ai/sdk": "^0.24.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0"
+  }
+}

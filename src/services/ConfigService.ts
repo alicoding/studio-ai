@@ -1,6 +1,13 @@
-import * as fs from 'fs/promises'
-import * as path from 'path'
-import * as os from 'os'
+/**
+ * Configuration Service - Uses Unified Storage
+ * 
+ * SOLID: Single responsibility for configuration management
+ * DRY: One service for all config needs
+ * KISS: Simple interface, complex storage abstracted
+ * Library-First: Uses unified storage instead of direct file access
+ */
+
+import { ClientStorage } from '../lib/storage/client'
 
 // Configuration types
 export interface SystemConfig {
@@ -9,7 +16,20 @@ export interface SystemConfig {
   apiEndpoint: string
   theme: 'light' | 'dark'
   telemetry: boolean
+  enableTelemetry?: boolean
   defaultClearSessionPrompt: string
+  hooks?: Record<string, unknown>
+  studioHooks?: unknown[]
+  mcpServers?: MCPServer[]
+}
+
+export interface MCPServer {
+  id: string
+  name: string
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+  enabled: boolean
 }
 
 export interface MasterConfig {
@@ -44,6 +64,8 @@ export interface AgentConfig {
   tools: string[]
   maxTokens: number
   temperature: number
+  maxTurns?: number
+  verbose?: boolean
   created: string
 }
 
@@ -64,16 +86,28 @@ export interface AgentSession {
 
 /**
  * Centralized configuration management service
- * Single source of truth for all Claude Studio configurations
+ * Now uses unified storage instead of JSON files
  */
 export class ConfigService {
   private static instance: ConfigService
-  private configDir: string
-  private configPath: string
+  
+  // Storage instances
+  private systemStorage: ClientStorage
+  private projectStorage: ClientStorage
+  private agentStorage: ClientStorage
+  private teamStorage: ClientStorage
+  private sessionStorage: ClientStorage
+  
+  private initialized = false
 
   private constructor() {
-    this.configDir = path.join(os.homedir(), '.claude-studio')
-    this.configPath = path.join(this.configDir, 'config.json')
+    
+    // Initialize storage instances using client API
+    this.systemStorage = new ClientStorage({ namespace: 'system-config', type: 'config' })
+    this.projectStorage = new ClientStorage({ namespace: 'projects', type: 'config' })
+    this.agentStorage = new ClientStorage({ namespace: 'agents', type: 'config' })
+    this.teamStorage = new ClientStorage({ namespace: 'teams', type: 'config' })
+    this.sessionStorage = new ClientStorage({ namespace: 'sessions', type: 'session' })
   }
 
   static getInstance(): ConfigService {
@@ -83,290 +117,289 @@ export class ConfigService {
     return ConfigService.instance
   }
 
-  // Initialize config directory structure
+  // Initialize with default config if needed
   async initialize(): Promise<void> {
+    if (this.initialized) return
+    
     try {
-      // Create directory structure
-      await fs.mkdir(this.configDir, { recursive: true })
-      await fs.mkdir(path.join(this.configDir, 'projects'), { recursive: true })
-      await fs.mkdir(path.join(this.configDir, 'agents'), { recursive: true })
-      await fs.mkdir(path.join(this.configDir, 'teams'), { recursive: true })
-
-      // Create default config if it doesn't exist
-      try {
-        await fs.access(this.configPath)
-      } catch {
-        const defaultConfig: MasterConfig = {
-          version: '1.0.0',
-          systemConfig: {
-            claudeCodePath: '/usr/local/bin/claude',
-            defaultWorkspacePath: path.join(os.homedir(), 'projects'),
-            apiEndpoint: 'http://localhost:3000',
-            theme: 'dark',
-            telemetry: false,
-            defaultClearSessionPrompt: 'You are an AI assistant. Please stand by for instructions.',
+      // Check if config exists
+      const config = await this.systemStorage.get<SystemConfig>('config')
+      
+      if (!config) {
+        // Create default config
+        const defaultConfig: SystemConfig = {
+          claudeCodePath: '/usr/local/bin/claude',
+          defaultWorkspacePath: '~/projects',
+          apiEndpoint: 'http://localhost:3456',
+          theme: 'dark',
+          telemetry: false,
+          enableTelemetry: true,
+          defaultClearSessionPrompt: 'Session cleared. You are an AI assistant. Please stand by for instructions. Do not respond to this message.',
+          hooks: {
+            PreToolUse: [],
+            PostToolUse: [],
+            Notification: [],
+            Stop: []
           },
-          projects: [],
-          agents: [],
-          teams: [],
+          studioHooks: []
         }
-        await this.saveMasterConfig(defaultConfig)
+        
+        await this.systemStorage.set('config', defaultConfig)
+        await this.systemStorage.set('version', '1.0.0')
+        
+        // Initialize empty arrays for refs
+        await this.systemStorage.set('project-refs', [])
+        await this.systemStorage.set('agent-refs', [])
+        await this.systemStorage.set('team-refs', [])
       }
+      
+      this.initialized = true
     } catch (error) {
-      console.error('Failed to initialize config directory:', error)
+      console.error('Failed to initialize config service:', error)
       throw error
     }
   }
 
   // Master config operations
   async getConfig(): Promise<MasterConfig> {
-    try {
-      const data = await fs.readFile(this.configPath, 'utf-8')
-      return JSON.parse(data)
-    } catch (error) {
-      console.error('Failed to read master config:', error)
-      throw error
+    await this.initialize()
+    
+    const [config, version, projectRefs, agentRefs, teamRefs] = await Promise.all([
+      this.systemStorage.get<SystemConfig>('config'),
+      this.systemStorage.get<string>('version'),
+      this.systemStorage.get<string[]>('project-refs'),
+      this.systemStorage.get<string[]>('agent-refs'),
+      this.systemStorage.get<string[]>('team-refs')
+    ])
+    
+    return {
+      version: version || '1.0.0',
+      systemConfig: config!,
+      projects: projectRefs || [],
+      agents: agentRefs || [],
+      teams: teamRefs || []
     }
   }
 
   async updateSystemConfig(systemConfig: Partial<SystemConfig>): Promise<void> {
-    const config = await this.getConfig()
-    config.systemConfig = { ...config.systemConfig, ...systemConfig }
-    await this.saveMasterConfig(config)
-  }
-
-  private async saveMasterConfig(config: MasterConfig): Promise<void> {
-    await fs.writeFile(this.configPath, JSON.stringify(config, null, 2))
+    await this.initialize()
+    
+    const currentConfig = await this.systemStorage.get<SystemConfig>('config')
+    const updatedConfig = { ...currentConfig!, ...systemConfig }
+    
+    await this.systemStorage.set('config', updatedConfig)
   }
 
   // Project operations
   async createProject(
     project: Omit<ProjectConfig, 'created' | 'lastModified'>
   ): Promise<ProjectConfig> {
+    await this.initialize()
+    
     const now = new Date().toISOString()
     const fullProject: ProjectConfig = {
       ...project,
       created: now,
       lastModified: now,
     }
-
-    const projectDir = path.join(this.configDir, 'projects', project.id)
-    await fs.mkdir(projectDir, { recursive: true })
-    await fs.mkdir(path.join(projectDir, 'sessions'), { recursive: true })
-    await fs.writeFile(path.join(projectDir, 'project.json'), JSON.stringify(fullProject, null, 2))
-
-    // Update master config
-    const config = await this.getConfig()
-    if (!config.projects.includes(project.id)) {
-      config.projects.push(project.id)
-      await this.saveMasterConfig(config)
+    
+    // Store project
+    await this.projectStorage.set(project.id, fullProject)
+    
+    // Update project refs
+    const refs = await this.systemStorage.get<string[]>('project-refs') || []
+    if (!refs.includes(project.id)) {
+      refs.push(project.id)
+      await this.systemStorage.set('project-refs', refs)
     }
-
+    
     return fullProject
   }
 
-  async getProject(id: string): Promise<ProjectConfig | null> {
-    try {
-      const data = await fs.readFile(
-        path.join(this.configDir, 'projects', id, 'project.json'),
-        'utf-8'
-      )
-      return JSON.parse(data)
-    } catch {
-      return null
-    }
+  async getProject(projectId: string): Promise<ProjectConfig | null> {
+    await this.initialize()
+    return await this.projectStorage.get<ProjectConfig>(projectId)
   }
 
-  async updateProject(id: string, updates: Partial<ProjectConfig>): Promise<void> {
-    const project = await this.getProject(id)
-    if (!project) throw new Error(`Project ${id} not found`)
-
-    const updated = {
+  async updateProject(
+    projectId: string,
+    updates: Partial<ProjectConfig>
+  ): Promise<void> {
+    await this.initialize()
+    
+    const project = await this.getProject(projectId)
+    if (!project) throw new Error(`Project ${projectId} not found`)
+    
+    const updatedProject = {
       ...project,
       ...updates,
       lastModified: new Date().toISOString(),
     }
-    await fs.writeFile(
-      path.join(this.configDir, 'projects', id, 'project.json'),
-      JSON.stringify(updated, null, 2)
+    
+    await this.projectStorage.set(projectId, updatedProject)
+  }
+
+  async deleteProject(projectId: string): Promise<void> {
+    await this.initialize()
+    
+    // Delete project
+    await this.projectStorage.delete(projectId)
+    
+    // Update refs
+    const refs = await this.systemStorage.get<string[]>('project-refs') || []
+    const filtered = refs.filter((id: string) => id !== projectId)
+    await this.systemStorage.set('project-refs', filtered)
+    
+    // Delete associated sessions
+    await this.sessionStorage.delete(`project-${projectId}`)
+  }
+
+  async listProjects(): Promise<ProjectConfig[]> {
+    await this.initialize()
+    
+    const refs = await this.systemStorage.get<string[]>('project-refs') || []
+    const projects = await Promise.all(
+      refs.map((id: string) => this.getProject(id))
     )
-  }
-
-  async deleteProject(id: string): Promise<void> {
-    await fs.rm(path.join(this.configDir, 'projects', id), { recursive: true })
-
-    const config = await this.getConfig()
-    config.projects = config.projects.filter((p) => p !== id)
-    await this.saveMasterConfig(config)
-  }
-
-  async getAllProjects(): Promise<ProjectConfig[]> {
-    const config = await this.getConfig()
-    const projects = await Promise.all(config.projects.map((id) => this.getProject(id)))
+    
     return projects.filter((p): p is ProjectConfig => p !== null)
   }
 
   // Agent operations
   async createAgent(agent: Omit<AgentConfig, 'created'>): Promise<AgentConfig> {
+    await this.initialize()
+    
     const fullAgent: AgentConfig = {
       ...agent,
       created: new Date().toISOString(),
     }
-
-    await fs.writeFile(
-      path.join(this.configDir, 'agents', `${agent.id}.json`),
-      JSON.stringify(fullAgent, null, 2)
-    )
-
-    const config = await this.getConfig()
-    if (!config.agents.includes(agent.id)) {
-      config.agents.push(agent.id)
-      await this.saveMasterConfig(config)
+    
+    // Store agent
+    await this.agentStorage.set(agent.id, fullAgent)
+    
+    // Update refs
+    const refs = await this.systemStorage.get<string[]>('agent-refs') || []
+    if (!refs.includes(agent.id)) {
+      refs.push(agent.id)
+      await this.systemStorage.set('agent-refs', refs)
     }
-
+    
     return fullAgent
   }
 
-  async getAgent(id: string): Promise<AgentConfig | null> {
-    try {
-      const data = await fs.readFile(path.join(this.configDir, 'agents', `${id}.json`), 'utf-8')
-      return JSON.parse(data)
-    } catch {
-      return null
-    }
+  async getAgent(agentId: string): Promise<AgentConfig | null> {
+    await this.initialize()
+    return await this.agentStorage.get<AgentConfig>(agentId)
   }
 
-  async updateAgent(id: string, updates: Partial<AgentConfig>): Promise<void> {
-    const agent = await this.getAgent(id)
-    if (!agent) throw new Error(`Agent ${id} not found`)
+  async updateAgent(agentId: string, updates: Partial<AgentConfig>): Promise<void> {
+    await this.initialize()
+    
+    const agent = await this.getAgent(agentId)
+    if (!agent) throw new Error(`Agent ${agentId} not found`)
+    
+    await this.agentStorage.set(agentId, { ...agent, ...updates })
+  }
 
-    const updated = { ...agent, ...updates }
-    await fs.writeFile(
-      path.join(this.configDir, 'agents', `${id}.json`),
-      JSON.stringify(updated, null, 2)
+  async deleteAgent(agentId: string): Promise<void> {
+    await this.initialize()
+    
+    // Delete agent
+    await this.agentStorage.delete(agentId)
+    
+    // Update refs
+    const refs = await this.systemStorage.get<string[]>('agent-refs') || []
+    const filtered = refs.filter((id: string) => id !== agentId)
+    await this.systemStorage.set('agent-refs', filtered)
+  }
+
+  async listAgents(): Promise<AgentConfig[]> {
+    await this.initialize()
+    
+    const refs = await this.systemStorage.get<string[]>('agent-refs') || []
+    const agents = await Promise.all(
+      refs.map((id: string) => this.getAgent(id))
     )
-  }
-
-  async deleteAgent(id: string): Promise<void> {
-    await fs.unlink(path.join(this.configDir, 'agents', `${id}.json`))
-
-    const config = await this.getConfig()
-    config.agents = config.agents.filter((a) => a !== id)
-    await this.saveMasterConfig(config)
-  }
-
-  async getAllAgents(): Promise<AgentConfig[]> {
-    const config = await this.getConfig()
-    const agents = await Promise.all(config.agents.map((id) => this.getAgent(id)))
+    
     return agents.filter((a): a is AgentConfig => a !== null)
   }
 
   // Team operations
   async createTeam(team: Omit<TeamConfig, 'created'>): Promise<TeamConfig> {
+    await this.initialize()
+    
     const fullTeam: TeamConfig = {
       ...team,
       created: new Date().toISOString(),
     }
-
-    await fs.writeFile(
-      path.join(this.configDir, 'teams', `${team.id}.json`),
-      JSON.stringify(fullTeam, null, 2)
-    )
-
-    const config = await this.getConfig()
-    if (!config.teams.includes(team.id)) {
-      config.teams.push(team.id)
-      await this.saveMasterConfig(config)
+    
+    // Store team
+    await this.teamStorage.set(team.id, fullTeam)
+    
+    // Update refs
+    const refs = await this.systemStorage.get<string[]>('team-refs') || []
+    if (!refs.includes(team.id)) {
+      refs.push(team.id)
+      await this.systemStorage.set('team-refs', refs)
     }
-
+    
     return fullTeam
   }
 
-  async getTeam(id: string): Promise<TeamConfig | null> {
-    try {
-      const data = await fs.readFile(path.join(this.configDir, 'teams', `${id}.json`), 'utf-8')
-      return JSON.parse(data)
-    } catch {
-      return null
-    }
+  async getTeam(teamId: string): Promise<TeamConfig | null> {
+    await this.initialize()
+    return await this.teamStorage.get<TeamConfig>(teamId)
   }
 
-  async getAllTeams(): Promise<TeamConfig[]> {
-    const config = await this.getConfig()
-    const teams = await Promise.all(config.teams.map((id) => this.getTeam(id)))
+  async deleteTeam(teamId: string): Promise<void> {
+    await this.initialize()
+    
+    // Delete team
+    await this.teamStorage.delete(teamId)
+    
+    // Update refs
+    const refs = await this.systemStorage.get<string[]>('team-refs') || []
+    const filtered = refs.filter((id: string) => id !== teamId)
+    await this.systemStorage.set('team-refs', filtered)
+  }
+
+  async listTeams(): Promise<TeamConfig[]> {
+    await this.initialize()
+    
+    const refs = await this.systemStorage.get<string[]>('team-refs') || []
+    const teams = await Promise.all(
+      refs.map((id: string) => this.getTeam(id))
+    )
+    
     return teams.filter((t): t is TeamConfig => t !== null)
   }
 
-  // Session management (links to Claude native sessions)
-  async linkClaudeSession(projectId: string, agentId: string, sessionId: string): Promise<void> {
-    const sessionPath = path.join(
-      this.configDir,
-      'projects',
-      projectId,
-      'sessions',
-      `${agentId}.json`
-    )
-    const session: AgentSession = {
-      projectId,
-      agentId,
-      sessionId,
-      claudeSessionPath: path.join(os.homedir(), '.claude', sessionId),
-    }
-    await fs.writeFile(sessionPath, JSON.stringify(session, null, 2))
+  // Session operations
+  async saveSession(projectId: string, sessions: AgentSession[]): Promise<void> {
+    await this.initialize()
+    await this.sessionStorage.set(`project-${projectId}`, sessions)
   }
 
-  async getAgentSession(projectId: string, agentId: string): Promise<AgentSession | null> {
-    try {
-      const data = await fs.readFile(
-        path.join(this.configDir, 'projects', projectId, 'sessions', `${agentId}.json`),
-        'utf-8'
-      )
-      return JSON.parse(data)
-    } catch {
-      return null
-    }
+  async getProjectSessions(projectId: string): Promise<AgentSession[] | null> {
+    await this.initialize()
+    return await this.sessionStorage.get(`project-${projectId}`)
   }
 
-  // Utility methods
-  async exportConfig(): Promise<string> {
-    const config = await this.getConfig()
-    const projects = await this.getAllProjects()
-    const agents = await this.getAllAgents()
-    const teams = await this.getAllTeams()
-
-    return JSON.stringify(
-      {
-        config,
-        projects,
-        agents,
-        teams,
-      },
-      null,
-      2
-    )
-  }
-
-  async importConfig(data: string): Promise<void> {
-    const imported = JSON.parse(data)
-
-    // Validate structure
-    if (!imported.config || !imported.projects || !imported.agents || !imported.teams) {
-      throw new Error('Invalid config export format')
-    }
-
-    // Import in order
-    await this.saveMasterConfig(imported.config)
-
-    for (const agent of imported.agents) {
-      await this.createAgent(agent)
-    }
-
-    for (const team of imported.teams) {
-      await this.createTeam(team)
-    }
-
-    for (const project of imported.projects) {
-      await this.createProject(project)
-    }
+  // Cleanup utilities
+  async clearAll(): Promise<void> {
+    await this.initialize()
+    
+    // Clear all storage namespaces
+    await Promise.all([
+      this.systemStorage.clear(),
+      this.projectStorage.clear(),
+      this.agentStorage.clear(),
+      this.teamStorage.clear(),
+      this.sessionStorage.clear()
+    ])
+    
+    // Re-initialize with defaults
+    this.initialized = false
+    await this.initialize()
   }
 }

@@ -5,6 +5,7 @@ import { ErrorBoundary } from '../components/shared/ErrorBoundary'
 import { Toaster } from '../components/ui/sonner'
 import { DevWrapper } from '../components/DevWrapper'
 import { GlobalScreenshotHandler } from '../components/workspace/GlobalScreenshotHandler'
+import { GlobalChat } from '../components/chat/GlobalChat'
 
 function RootComponent() {
   return (
@@ -18,6 +19,7 @@ function RootComponent() {
         </div>
         <Toaster position="bottom-right" />
         <GlobalScreenshotHandler />
+        <GlobalChat />
         <TanStackRouterDevtools />
       </DevWrapper>
     </ErrorBoundary>

@@ -1,5 +1,4 @@
-import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
+import { createPersistentStore } from './createPersistentStore'
 
 // Runtime state - changes frequently during agent operation
 export interface Agent {
@@ -39,6 +38,7 @@ interface AgentState {
   agents: Agent[]
   selectedAgentId: string | null
   clearingAgentId: string | null // Track which agent is being cleared
+  agentOrder: { id: string; order: number }[] // Persisted agent ordering
 
   // Configuration state (changes rarely)
   configs: AgentConfig[] // Renamed from availableConfigs for clarity
@@ -89,24 +89,15 @@ interface AgentState {
 
 // No mock data - will load from server
 
-// Helper to restore selectedAgentId from localStorage
-const getInitialSelectedAgentId = (): string | null => {
-  try {
-    return localStorage.getItem('claudeStudio:selectedAgentId') || null
-  } catch (error) {
-    console.warn('Failed to restore selectedAgentId from localStorage:', error)
-    return null
-  }
-}
-
-export const useAgentStore = create<AgentState>()(
-  devtools(
-    (set, get) => ({
+export const useAgentStore = createPersistentStore<AgentState>(
+  'agents',
+  (set, get) => ({
       // Initial state
       agents: [],
-      selectedAgentId: getInitialSelectedAgentId(), // Restore immediately on store creation
+      selectedAgentId: null,
       configs: [], // Renamed from availableConfigs
       clearingAgentId: null,
+      agentOrder: [],
 
       // Actions
       setAgents: (agents) => {
@@ -125,29 +116,12 @@ export const useAgentStore = create<AgentState>()(
             const currentSelectedId = state.selectedAgentId
             const isSelectedAgentValid = currentSelectedId && agents.some(agent => agent.id === currentSelectedId)
             
-            // Try to restore from localStorage if we don't have a selected agent
-            let finalSelectedId = currentSelectedId
-            if (!currentSelectedId && agents.length > 0) {
-              try {
-                const savedSelectedAgentId = localStorage.getItem('claudeStudio:selectedAgentId')
-                console.log('[AgentStore] No current selection, checking localStorage:', savedSelectedAgentId)
-                if (savedSelectedAgentId && agents.some(agent => agent.id === savedSelectedAgentId)) {
-                  console.log('[AgentStore] Restoring selected agent from localStorage:', savedSelectedAgentId)
-                  finalSelectedId = savedSelectedAgentId
-                }
-              } catch (error) {
-                console.warn('Failed to restore selected agent from localStorage:', error)
-              }
-            }
-            
             return { 
               agents: agentsWithOrder,
               // Only clear selectedAgentId if it's invalid and we have agents
-              selectedAgentId: agents.length > 0 && !isSelectedAgentValid && !finalSelectedId ? null : finalSelectedId
+              selectedAgentId: agents.length > 0 && !isSelectedAgentValid ? null : currentSelectedId
             }
-          },
-          false,
-          'setAgents'
+          }
         )
         // Load saved order after setting agents
         get().loadAgentOrder()
@@ -164,9 +138,7 @@ export const useAgentStore = create<AgentState>()(
             return {
               agents: [...state.agents, agentWithOrder],
             }
-          },
-          false,
-          'addAgent'
+          }
         )
         // Save to localStorage after adding agent
         get().saveAgentOrder()
@@ -180,19 +152,8 @@ export const useAgentStore = create<AgentState>()(
               selectedAgentId: state.selectedAgentId === agentId ? null : state.selectedAgentId,
             }
             
-            // If we cleared the selectedAgentId, update localStorage
-            if (state.selectedAgentId === agentId) {
-              try {
-                localStorage.removeItem('claudeStudio:selectedAgentId')
-              } catch (error) {
-                console.warn('Failed to clear selectedAgentId from localStorage:', error)
-              }
-            }
-            
             return newState
-          },
-          false,
-          'removeAgent'
+          }
         )
         // Save to localStorage after removing agent
         get().saveAgentOrder()
@@ -202,9 +163,7 @@ export const useAgentStore = create<AgentState>()(
         set(
           (state) => ({
             agents: state.agents.map((a) => (a.id === agentId ? { ...a, status } : a)),
-          }),
-          false,
-          'updateAgentStatus'
+          })
         ),
 
       updateAgentTokens: (agentId, tokens, maxTokens) =>
@@ -219,36 +178,28 @@ export const useAgentStore = create<AgentState>()(
                   }
                 : a
             ),
-          }),
-          false,
-          'updateAgentTokens'
+          })
         ),
 
       updateAgentMessage: (agentId, lastMessage) =>
         set(
           (state) => ({
             agents: state.agents.map((a) => (a.id === agentId ? { ...a, lastMessage } : a)),
-          }),
-          false,
-          'updateAgentMessage'
+          })
         ),
 
       updateAgentSessionId: (agentId, sessionId) =>
         set(
           (state) => ({
             agents: state.agents.map((a) => (a.id === agentId ? { ...a, sessionId } : a)),
-          }),
-          false,
-          'updateAgentSessionId'
+          })
         ),
 
       updateAgentRole: (agentId, role) =>
         set(
           (state) => ({
             agents: state.agents.map((a) => (a.id === agentId ? { ...a, role } : a)),
-          }),
-          false,
-          'updateAgentRole'
+          })
         ),
 
       updateAgentFromConfig: (agentId, config) =>
@@ -264,23 +215,11 @@ export const useAgentStore = create<AgentState>()(
                   }
                 : a
             ),
-          }),
-          false,
-          'updateAgentFromConfig'
+          })
         ),
 
       setSelectedAgent: (agentId) => {
-        set({ selectedAgentId: agentId }, false, 'setSelectedAgent')
-        // Save selected agent to localStorage
-        try {
-          if (agentId) {
-            localStorage.setItem('claudeStudio:selectedAgentId', agentId)
-          } else {
-            localStorage.removeItem('claudeStudio:selectedAgentId')
-          }
-        } catch (error) {
-          console.warn('Failed to save selected agent to localStorage:', error)
-        }
+        set({ selectedAgentId: agentId })
       },
 
       // Agent ordering actions
@@ -288,9 +227,7 @@ export const useAgentStore = create<AgentState>()(
         set(
           (state) => ({
             agents: state.agents.map((a) => (a.id === agentId ? { ...a, order: newOrder } : a)),
-          }),
-          false,
-          'reorderAgent'
+          })
         )
         // Save to localStorage after reordering
         get().saveAgentOrder()
@@ -311,9 +248,7 @@ export const useAgentStore = create<AgentState>()(
                 return a
               }),
             }
-          },
-          false,
-          'swapAgentOrder'
+          }
         )
         // Save to localStorage after reordering
         get().saveAgentOrder()
@@ -346,9 +281,7 @@ export const useAgentStore = create<AgentState>()(
                 return updated || a
               }),
             }
-          },
-          false,
-          'moveAgentToPosition'
+          }
         )
         // Save to localStorage after reordering
         get().saveAgentOrder()
@@ -364,61 +297,46 @@ export const useAgentStore = create<AgentState>()(
                 return { ...a, order: newOrder }
               }),
             }
-          },
-          false,
-          'normalizeAgentOrder'
+          }
         ),
 
       saveAgentOrder: () => {
         const state = get()
-        try {
-          const agentOrder = state.agents.map((agent) => ({
-            id: agent.id,
-            order: agent.order,
-          }))
-          localStorage.setItem('claudeStudio:agentOrder', JSON.stringify(agentOrder))
-        } catch (error) {
-          console.warn('Failed to save agent order to localStorage:', error)
-        }
+        const agentOrder = state.agents.map((agent) => ({
+          id: agent.id,
+          order: agent.order,
+        }))
+        set({ agentOrder })
       },
 
       loadAgentOrder: () => {
-        try {
-          const savedOrder = localStorage.getItem('claudeStudio:agentOrder')
-          if (savedOrder) {
-            const agentOrder: { id: string; order: number }[] = JSON.parse(savedOrder)
-            set(
-              (state) => {
-                // Create a map of saved orders
-                const orderMap = new Map(agentOrder.map((item) => [item.id, item.order]))
+        const state = get()
+        if (state.agentOrder.length > 0) {
+          set(
+            (state) => {
+              // Create a map of saved orders
+              const orderMap = new Map(state.agentOrder.map((item) => [item.id, item.order]))
 
-                return {
-                  agents: state.agents.map((agent) => ({
-                    ...agent,
-                    order: orderMap.get(agent.id) ?? agent.order,
-                  })),
-                }
-              },
-              false,
-              'loadAgentOrder'
-            )
-          }
-        } catch (error) {
-          console.warn('Failed to load agent order from localStorage:', error)
+              return {
+                agents: state.agents.map((agent) => ({
+                  ...agent,
+                  order: orderMap.get(agent.id) ?? agent.order,
+                })),
+              }
+            }
+          )
         }
       },
 
       // Session clearing actions
-      setClearingAgent: (agentId) => set({ clearingAgentId: agentId }, false, 'setClearingAgent'),
+      setClearingAgent: (agentId) => set({ clearingAgentId: agentId }),
 
       clearAgentSession: (agentId) =>
         set(
           (state) => ({
             agents: state.agents.map((a) => (a.id === agentId ? { ...a, sessionId: '' } : a)),
             clearingAgentId: null,
-          }),
-          false,
-          'clearAgentSession'
+          })
         ),
 
       // Config actions
@@ -426,30 +344,24 @@ export const useAgentStore = create<AgentState>()(
         set(
           (state) => ({
             configs: [...state.configs, config],
-          }),
-          false,
-          'addAgentConfig'
+          })
         ),
 
       updateAgentConfig: (config) =>
         set(
           (state) => ({
             configs: state.configs.map((c) => (c.id === config.id ? config : c)),
-          }),
-          false,
-          'updateAgentConfig'
+          })
         ),
 
       removeAgentConfig: (configId) =>
         set(
           (state) => ({
             configs: state.configs.filter((c) => c.id !== configId),
-          }),
-          false,
-          'removeAgentConfig'
+          })
         ),
 
-      setAgentConfigs: (configs) => set({ configs }, false, 'setAgentConfigs'),
+      setAgentConfigs: (configs) => set({ configs }),
 
       // Utility actions
       sendMessage: (from, to, content) => {
@@ -522,13 +434,16 @@ export const useAgentStore = create<AgentState>()(
             agents: [],
             selectedAgentId: null,
             configs: [],
-          },
-          false,
-          'clearAll'
-        ),
+          }
+        )
     }),
-    {
-      name: 'agent-store',
-    }
-  )
+  {
+    partialize: (state) => ({
+      selectedAgentId: state.selectedAgentId,
+      agents: state.agents,
+      configs: state.configs,
+      clearingAgentId: state.clearingAgentId,
+      agentOrder: state.agentOrder
+    })
+  }
 )

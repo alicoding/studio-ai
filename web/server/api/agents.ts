@@ -1,12 +1,12 @@
-import { Router } from 'express'
+import { Router, Request, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
 // ProcessManager removed - using Claude SDK instances instead
-import { ConfigService } from '../../../src/services/ConfigService.js'
-import { AgentConfigService } from '../services/AgentConfigService.js'
-import { ProjectService } from '../services/ProjectService.js'
+import { ServerConfigService } from '../services/ServerConfigService'
+import { AgentConfigService } from '../services/AgentConfigService'
+import { ProjectService } from '../services/ProjectService'
 
 interface LegacyAgentConfig {
   id: string
@@ -19,8 +19,9 @@ interface LegacyAgentConfig {
   updatedAt: string
   usedInProjects: string[]
 }
+
 const router = Router()
-const configService = ConfigService.getInstance()
+const configService = ServerConfigService.getInstance()
 const agentConfigService = AgentConfigService.getInstance()
 const projectService = new ProjectService()
 
@@ -62,21 +63,23 @@ router.get('/', async (req, res) => {
       }
     }
 
-    // Add projects using info from the map
-    const clientAgents = agents.map((agent) => ({
-      ...agent,
-      projectsUsing: agentProjectMap.get(agent.id) || [],
-    }))
+    // Add projects using info from the map and filter out invalid agents
+    const clientAgents = agents
+      .filter((agent) => agent && agent.id && agent.name && agent.role) // Filter out invalid agents
+      .map((agent) => ({
+        ...agent,
+        projectsUsing: agentProjectMap.get(agent.id) || [],
+      }))
 
     res.json(clientAgents)
   } catch (_error) {
-    console.error('Failed to load agents:', error)
+    console.error('Failed to load agents:', _error)
     res.status(500).json({ error: 'Failed to load agents' })
   }
 })
 
 // GET /api/agents/:id - Get specific agent configuration
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
     const agent = await agentConfigService.getAgent(req.params.id)
     if (!agent) {
@@ -114,15 +117,15 @@ router.get('/:id', async (req, res) => {
     }
     res.json(clientAgent)
   } catch (_error) {
-    console.error('Failed to load agent:', error)
+    console.error('Failed to load agent:', _error)
     res.status(500).json({ error: 'Failed to load agent' })
   }
 })
 
 // POST /api/agents - Create new agent configuration
-router.post('/', async (req, res) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
-    const { id, name, role, systemPrompt, tools, model } = req.body
+    const { id, name, role, systemPrompt, tools, model, maxTokens, temperature, maxTurns, verbose } = req.body
 
     // Validation
     if (!name || !role || !systemPrompt) {
@@ -144,8 +147,11 @@ router.post('/', async (req, res) => {
       systemPrompt,
       tools: tools || ['read', 'write', 'bash'],
       model: model || 'claude-3-opus',
-      maxTokens: 200000,
-      temperature: 0.7,
+      maxTokens: maxTokens || 200000,
+      temperature: temperature ?? 0.7,
+      maxTurns: maxTurns || 3,
+      verbose: verbose ?? true,
+      created: new Date().toISOString(),
     })
 
     const clientAgent = {
@@ -154,13 +160,13 @@ router.post('/', async (req, res) => {
     }
     res.status(201).json(clientAgent)
   } catch (_error) {
-    console.error('Failed to create agent:', error)
+    console.error('Failed to create agent:', _error)
     res.status(500).json({ error: 'Failed to create agent' })
   }
 })
 
 // PUT /api/agents/:id - Update agent configuration
-router.put('/:id', async (req, res) => {
+router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { name, role, systemPrompt, tools, model, maxTokens, temperature } = req.body
 
@@ -194,7 +200,7 @@ router.put('/:id', async (req, res) => {
         await fs.writeFile(legacyConfigPath, JSON.stringify(configs, null, 2))
       }
     } catch (_error) {
-      console.error('Failed to update legacy config:', error)
+      console.error('Failed to update legacy config:', _error)
     }
 
     // Also try to update via ConfigService (for non-legacy agents)
@@ -210,7 +216,7 @@ router.put('/:id', async (req, res) => {
       })
     } catch (_error) {
       // It's OK if ConfigService update fails for legacy agents
-      console.log('ConfigService update failed (expected for legacy agents):', error)
+      console.log('ConfigService update failed (expected for legacy agents):', _error)
     }
 
     // Get the updated agent
@@ -249,15 +255,15 @@ router.put('/:id', async (req, res) => {
     }
     res.json(clientAgent)
   } catch (_error) {
-    console.error('Failed to update agent:', error)
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('Failed to update agent:', _error)
+    const errorMessage = _error instanceof Error ? _error.message : 'Unknown error'
     res.status(500).json({ error: 'Failed to update agent', details: errorMessage })
   }
 })
 
 // DELETE /api/agents/session - Delete Claude native session file
 // This must be defined BEFORE the /:id route to avoid route matching issues
-router.delete('/session', async (req, res) => {
+router.delete('/session', async (req: Request, res: Response) => {
   try {
     const { projectId, agentId } = req.body
 
@@ -271,31 +277,16 @@ router.delete('/session', async (req, res) => {
     })
 
     // Import SessionService
-    const { SessionService } = await import('../services/SessionService.js')
+    const { SessionService } = await import('../services/SessionService')
     const sessionService = SessionService.getInstance()
 
     // Get the tracked sessionId for this agent
     const trackedSessionId = await sessionService.getSession(projectId, agentId)
 
     if (trackedSessionId) {
-      // Delete using the tracked sessionId
-      // The projectId might be either the Claude directory name or the original path
-      // We need to handle both cases
-      let projectPath = projectId
-
-      // If projectId looks like a Claude directory name (starts with dash),
-      // try to convert it back to a path
-      if (projectId.startsWith('-')) {
-        projectPath = projectId.replace(/-/g, '/')
-      }
-
-      try {
-        await sessionService.deleteSessionFile(projectPath, trackedSessionId)
-        console.log(`Successfully deleted session file for sessionId: ${trackedSessionId}`)
-      } catch (_error) {
-        console.error('Error deleting session file:', error)
-        // Continue even if file deletion fails
-      }
+      // Note: We can't delete Claude's session files directly anymore
+      // Claude manages its own session files
+      console.log(`Session file management is handled by Claude for sessionId: ${trackedSessionId}`)
 
       // Clear the session tracking
       await sessionService.clearSession(projectId, agentId)
@@ -327,24 +318,24 @@ router.delete('/session', async (req, res) => {
           path: sessionPath,
         })
       } catch (_error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        if ((_error as NodeJS.ErrnoException).code === 'ENOENT') {
           res.json({
             message: 'No session found to delete',
             path: sessionPath,
           })
         } else {
-          throw error
+          throw _error
         }
       }
     }
   } catch (_error) {
-    console.error('Failed to delete session:', error)
+    console.error('Failed to delete session:', _error)
     res.status(500).json({ error: 'Failed to delete session' })
   }
 })
 
 // DELETE /api/agents/:id - Kill running agent and delete configuration if exists
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req: Request, res: Response) => {
   try {
     // Agent processes are no longer used - agents are Claude SDK instances
     // Just log for compatibility
@@ -366,13 +357,13 @@ router.delete('/:id', async (req, res) => {
 
     res.json({ message: 'Agent killed successfully' })
   } catch (_error) {
-    console.error('Failed to kill agent:', error)
+    console.error('Failed to kill agent:', _error)
     res.status(500).json({ error: 'Failed to kill agent' })
   }
 })
 
 // POST /api/agents/:id/spawn - Spawn agent to project
-router.post('/:id/spawn', async (req, res) => {
+router.post('/:id/spawn', async (req: Request, res: Response) => {
   try {
     const { projectId } = req.body
 
@@ -409,13 +400,13 @@ router.post('/:id/spawn', async (req, res) => {
       status: 'ready',
     })
   } catch (_error) {
-    console.error('Failed to spawn agent:', error)
+    console.error('Failed to spawn agent:', _error)
     res.status(500).json({ error: 'Failed to spawn agent' })
   }
 })
 
 // PUT /api/agents/:id/status - Set agent status
-router.put('/:id/status', async (req, res) => {
+router.put('/:id/status', async (req: Request, res: Response) => {
   try {
     const { status } = req.body
 
@@ -434,13 +425,13 @@ router.put('/:id/status', async (req, res) => {
       status,
     })
   } catch (_error) {
-    console.error('Failed to update agent status:', error)
+    console.error('Failed to update agent status:', _error)
     res.status(500).json({ error: 'Failed to update agent status' })
   }
 })
 
 // POST /api/agents/:id/abort - Abort running Claude agent to prevent final messages
-router.post('/:id/abort', async (req, res) => {
+router.post('/:id/abort', async (req: Request, res: Response) => {
   try {
     const agentId = req.params.id
     const { projectId } = req.body
@@ -452,7 +443,7 @@ router.post('/:id/abort', async (req, res) => {
     console.log(`Aborting Claude agent ${agentId} in project ${projectId}`)
 
     // Import ClaudeService to abort the agent
-    const { ClaudeService } = await import('../services/ClaudeService.js')
+    const { ClaudeService } = await import('../services/ClaudeService')
     const claudeService = new ClaudeService()
 
     // Remove/abort the agent to prevent any final messages
@@ -464,13 +455,13 @@ router.post('/:id/abort', async (req, res) => {
       projectId,
     })
   } catch (_error) {
-    console.error('Failed to abort agent:', error)
+    console.error('Failed to abort agent:', _error)
     res.status(500).json({ error: 'Failed to abort agent' })
   }
 })
 
 // POST /api/agents/:id/clear-session - Clear agent session and clean up files
-router.post('/:id/clear-session', async (req, res) => {
+router.post('/:id/clear-session', async (req: Request, res: Response) => {
   try {
     const agentId = req.params.id
     const { projectId, oldSessionId } = req.body
@@ -486,9 +477,11 @@ router.post('/:id/clear-session', async (req, res) => {
     if (oldSessionId) {
       try {
         // Import SessionService dynamically to avoid module resolution issues
-        const { SessionService } = await import('../services/SessionService.js')
+        const { SessionService } = await import('../services/SessionService')
         const sessionService = SessionService.getInstance()
-        const sessionPath = sessionService.getSessionPath(projectId, oldSessionId)
+        // SessionService no longer provides direct file access
+        // Claude manages session files internally
+        const sessionPath = sessionService.getClaudeSessionPath(projectId, oldSessionId)
 
         try {
           await fs.access(sessionPath)
@@ -500,9 +493,9 @@ router.post('/:id/clear-session', async (req, res) => {
           sessionFileDeleted = true // File doesn't exist, which is the desired state
         }
       } catch (_error) {
-        console.error('Failed to import SessionService or delete session file:', error)
+        console.error('Failed to import SessionService or delete session file:', _error)
         throw new Error(
-          `Failed to clean up session file: ${error instanceof Error ? error.message : 'Unknown error'}`
+          `Failed to clean up session file: ${_error instanceof Error ? _error.message : 'Unknown error'}`
         )
       }
     }
@@ -522,11 +515,11 @@ router.post('/:id/clear-session', async (req, res) => {
     if (oldSessionId) {
       try {
         // Import SessionService dynamically to avoid module resolution issues
-        const { SessionService } = await import('../services/SessionService.js')
+        const { SessionService } = await import('../services/SessionService')
         const sessionService = SessionService.getInstance()
         await sessionService.clearSession(projectId, agentId)
       } catch (_error) {
-        console.error('Failed to clear session tracking:', error)
+        console.error('Failed to clear session tracking:', _error)
       }
     }
 
@@ -540,7 +533,7 @@ router.post('/:id/clear-session', async (req, res) => {
       },
     })
   } catch (_error) {
-    console.error('Failed to clear agent session:', error)
+    console.error('Failed to clear agent session:', _error)
     res.status(500).json({ error: 'Failed to clear agent session' })
   }
 })

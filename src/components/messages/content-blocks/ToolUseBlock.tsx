@@ -5,6 +5,7 @@ import { CodeBlock } from './CodeBlock'
 import { useCollapsibleStore } from '../../../stores/collapsible'
 import { ToolFormatterRegistry } from '../../../services/tools/ToolFormatters'
 import { renderToolExpandedContent, renderToolResultContent } from './ToolRenderers'
+import type { BaseToolInput, ToolResult } from '../../../services/tools/types'
 
 
 interface ToolUseBlockProps {
@@ -34,11 +35,20 @@ function ToolUseBlockComponent({ name, input, blockId, result }: ToolUseBlockPro
   )
 
   // Format tool display using the formatter
-  const getToolDisplay = () => formatter.formatDisplay(name, input)
+  const getToolDisplay = () => {
+    // Safe cast - formatter will handle unknown input gracefully
+    return formatter.formatDisplay(name, input as BaseToolInput)
+  }
   
   // Format result using the formatter
-  const getResultText = (result: any): string => {
-    return formatter.formatResult(result)
+  const getResultText = (result: string | undefined): string => {
+    if (!result) return ''
+    // Convert string result to ToolResult format
+    const toolResult: ToolResult<string> = {
+      text: result,
+      success: true
+    }
+    return formatter.formatResult(toolResult)
   }
   
   // Clean result if formatter provides a cleaner
@@ -87,7 +97,7 @@ function ToolUseBlockComponent({ name, input, blockId, result }: ToolUseBlockPro
             <div className="mt-2 space-y-2">
               {/* Try custom renderer first, fall back to JSON */}
               {(() => {
-                if (formatter.shouldShowCustomExpandedContent?.(input)) {
+                if (formatter.shouldShowCustomExpandedContent?.(input as BaseToolInput)) {
                   const customContent = renderToolExpandedContent({ name, input })
                   if (customContent) return customContent
                 }
@@ -107,7 +117,11 @@ function ToolUseBlockComponent({ name, input, blockId, result }: ToolUseBlockPro
                   </div>
                   <div className="bg-background/50 p-2 rounded">
                     {(() => {
-                      if (formatter.shouldShowCustomResultContent?.(result)) {
+                      const toolResult: ToolResult<string> = {
+                        text: result,
+                        success: true
+                      }
+                      if (formatter.shouldShowCustomResultContent?.(toolResult)) {
                         const customContent = renderToolResultContent({ 
                           name, 
                           result, 

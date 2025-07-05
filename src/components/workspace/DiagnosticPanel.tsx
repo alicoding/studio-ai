@@ -14,15 +14,34 @@ import { useDiagnostics } from '../../hooks/useDiagnostics'
 import { useDiagnosticStatus } from '../../hooks/useDiagnosticStatus'
 import { useProjectAgents } from '../../hooks/useProjectAgents'
 import { useMessageOperations } from '../../hooks/useMessageOperations'
-import { useProjectStore } from '../../stores'
+import { useProjectStore, useAgentStore } from '../../stores'
 import { cn } from '../../lib/utils'
 import type { Diagnostic } from '../../stores/diagnostics'
+import type { Agent } from '../../stores/agents'
+
+// Diagnostic item styles following UI patterns
+const diagnosticStyles = {
+  container: (type: 'error' | 'warning' | 'info', isSelectMode = false) => cn(
+    "flex items-start justify-between p-3 rounded border-l-4 text-sm transition-colors",
+    type === 'error' && !isSelectMode && "border-l-destructive bg-destructive/10",
+    type === 'warning' && !isSelectMode && "border-l-warning bg-warning/10",
+    type === 'error' && isSelectMode && "border-l-destructive bg-destructive/5",
+    type === 'warning' && isSelectMode && "border-l-warning bg-warning/5"
+  ),
+  icon: (type: 'error' | 'warning' | 'info') => cn(
+    "h-3 w-3 flex-shrink-0",
+    type === 'error' ? "text-destructive" : "text-warning"
+  ),
+  badge: "text-xs",
+  sendButton: "h-8 px-2"
+}
 
 export function DiagnosticPanel() {
   const { errorDiagnostics, warningDiagnostics, errorCount, warningCount, isMonitoring } =
     useDiagnostics()
 
   const diagnosticStatus = useDiagnosticStatus()
+  const { agents } = useProjectAgents()
 
   // Show helpful guidance when not monitoring or no diagnostics
   if (!isMonitoring) {
@@ -35,19 +54,19 @@ export function DiagnosticPanel() {
         {/* Show specific configuration issues if we have any */}
         {diagnosticStatus.issues.length > 0 ? (
           <div className="text-xs space-y-2">
-            <div className="font-medium text-red-600">Configuration Issues:</div>
+            <div className="font-medium text-destructive">Configuration Issues:</div>
             <ul className="space-y-1">
               {diagnosticStatus.issues.map((issue, index) => (
-                <li key={index} className="text-red-600">
+                <li key={index} className="text-destructive">
                   • {issue}
                 </li>
               ))}
             </ul>
 
-            <div className="font-medium text-blue-600 mt-3">Suggested Fixes:</div>
+            <div className="font-medium text-primary mt-3">Suggested Fixes:</div>
             <ul className="space-y-1">
               {diagnosticStatus.suggestions.map((suggestion, index) => (
-                <li key={index} className="text-blue-600">
+                <li key={index} className="text-primary">
                   • {suggestion}
                 </li>
               ))}
@@ -58,20 +77,20 @@ export function DiagnosticPanel() {
             <div className="font-medium">To enable diagnostics, ensure your project has:</div>
             <ul className="space-y-1 text-muted-foreground">
               <li>
-                • <code>tsconfig.json</code> file for TypeScript checking
+                • <code className="bg-secondary px-1 rounded">tsconfig.json</code> file for TypeScript checking
               </li>
               <li>
-                • <code>.eslintrc.js</code> or <code>eslint.config.js</code> for ESLint
+                • <code className="bg-secondary px-1 rounded">.eslintrc.js</code> or <code className="bg-secondary px-1 rounded">eslint.config.js</code> for ESLint
               </li>
               <li>
-                • <code>npm run type-check</code> script in package.json
+                • <code className="bg-secondary px-1 rounded">npm run type-check</code> script in package.json
               </li>
               <li>
-                • <code>npm run lint</code> script in package.json
+                • <code className="bg-secondary px-1 rounded">npm run lint</code> script in package.json
               </li>
             </ul>
             <div className="mt-2">
-              <strong>Quick fix:</strong> Run <code>npm install typescript eslint --save-dev</code>
+              <strong>Quick fix:</strong> Run <code className="bg-secondary px-1 rounded">npm install typescript eslint --save-dev</code>
             </div>
           </div>
         )}
@@ -92,22 +111,22 @@ export function DiagnosticPanel() {
     <div className="space-y-2 p-4">
       {/* Errors first */}
       {errorDiagnostics.map((diagnostic) => (
-        <DiagnosticItem key={diagnostic.id} diagnostic={diagnostic} />
+        <DiagnosticItem key={diagnostic.id} diagnostic={diagnostic} agents={agents} />
       ))}
 
       {/* Then warnings */}
       {warningDiagnostics.map((diagnostic) => (
-        <DiagnosticItem key={diagnostic.id} diagnostic={diagnostic} />
+        <DiagnosticItem key={diagnostic.id} diagnostic={diagnostic} agents={agents} />
       ))}
     </div>
   )
 }
 
-function DiagnosticItem({ diagnostic }: { diagnostic: Diagnostic }) {
+function DiagnosticItem({ diagnostic, agents }: { diagnostic: Diagnostic; agents: Agent[] }) {
   const [showAgentSelect, setShowAgentSelect] = useState(false)
-  const { agents } = useProjectAgents()
   const { sendMessage } = useMessageOperations()
   const { projects, activeProjectId } = useProjectStore()
+  const { selectedAgentId, setSelectedAgent } = useAgentStore()
 
   const activeProject = projects.find((p) => p.id === activeProjectId)
 
@@ -133,78 +152,74 @@ Please help me resolve this ${diagnostic.type}.`
 
     const message = formatDiagnosticMessage(diagnostic)
 
-    // Create a mention message to route to specific agent
-    const mentionMessage = `@${targetAgent.name} ${message}`
-    const result = await sendMessage(mentionMessage, agents, activeProject)
+    // Temporarily set the selected agent to send the message
+    const previousSelectedAgent = selectedAgentId
+    setSelectedAgent(agentId)
 
-    if (result.success) {
-      setShowAgentSelect(false)
+    try {
+      // Send the message (it will use the selected agent)
+      const result = await sendMessage(message, agents, activeProject)
+
+      if (result.success) {
+        setShowAgentSelect(false)
+      }
+    } finally {
+      // Restore the previous selected agent
+      setSelectedAgent(previousSelectedAgent)
     }
   }
 
   if (showAgentSelect) {
     return (
-      <div
-        className={cn(
-          'p-3 rounded border-l-4 text-sm',
-          diagnostic.type === 'error'
-            ? 'border-l-red-500 bg-red-50 dark:bg-red-950/10'
-            : 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/10'
-        )}
-      >
-        <div className="mb-2">
-          <span className="text-xs font-medium">Send diagnostic to agent:</span>
-        </div>
-        <div className="space-y-1">
-          {agents.map((agent) => (
+      <div className={diagnosticStyles.container(diagnostic.type, true)}>
+        <div className="w-full">
+          <div className="mb-2">
+            <span className="text-xs font-medium">Send diagnostic to agent:</span>
+          </div>
+          <div className="space-y-1">
+            {agents.map((agent) => (
+              <Button
+                key={agent.id}
+                size="sm"
+                variant="ghost"
+                className="w-full justify-start h-8 px-2"
+                onClick={() => sendToAgent(agent.id)}
+              >
+                <span className="truncate">{agent.name}</span>
+                <Badge variant="outline" className={cn("ml-auto", diagnosticStyles.badge)}>
+                  {agent.role}
+                </Badge>
+              </Button>
+            ))}
             <Button
-              key={agent.id}
               size="sm"
               variant="ghost"
-              className="w-full justify-start h-8 px-2"
-              onClick={() => sendToAgent(agent.id)}
+              className="w-full h-8 px-2 text-muted-foreground"
+              onClick={() => setShowAgentSelect(false)}
             >
-              <span className="truncate">{agent.name}</span>
-              <Badge variant="outline" className="ml-auto text-xs">
-                {agent.role}
-              </Badge>
+              Cancel
             </Button>
-          ))}
-          <Button
-            size="sm"
-            variant="ghost"
-            className="w-full h-8 px-2 text-muted-foreground"
-            onClick={() => setShowAgentSelect(false)}
-          >
-            Cancel
-          </Button>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div
-      className={cn(
-        'flex items-start justify-between p-3 rounded border-l-4 text-sm',
-        diagnostic.type === 'error'
-          ? 'border-l-red-500 bg-red-50 dark:bg-red-950/10'
-          : 'border-l-yellow-500 bg-yellow-50 dark:bg-yellow-950/10'
-      )}
-    >
+    <div className={diagnosticStyles.container(diagnostic.type)}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           {diagnostic.type === 'error' ? (
-            <Bug className="h-3 w-3 text-red-500 flex-shrink-0" />
+            <Bug className={diagnosticStyles.icon('error')} />
           ) : (
-            <AlertTriangle className="h-3 w-3 text-yellow-500 flex-shrink-0" />
+            <AlertTriangle className={diagnosticStyles.icon('warning')} />
           )}
 
           <span className="font-mono text-xs text-muted-foreground">
             {diagnostic.file}:{diagnostic.line}:{diagnostic.column}
           </span>
 
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className={diagnosticStyles.badge}>
             {diagnostic.source}
           </Badge>
         </div>
@@ -220,7 +235,7 @@ Please help me resolve this ${diagnostic.type}.`
         <Button
           size="sm"
           variant="ghost"
-          className="h-8 px-2"
+          className={diagnosticStyles.sendButton}
           onClick={() => setShowAgentSelect(true)}
         >
           <Send className="h-3 w-3 mr-1" />

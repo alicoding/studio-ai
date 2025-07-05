@@ -164,15 +164,8 @@ export class ProjectService {
         const trackedSessionId = await this.sessionService.getSession(projectId, agentInstanceId)
         
         if (trackedSessionId) {
-          const project = await this.claudeScanner.getProject(projectId)
-          if (project) {
-            try {
-              await this.sessionService.deleteSessionFile(project.path, trackedSessionId)
-              console.log(`Deleted session file for agent ${agentInstanceId}`)
-            } catch (error) {
-              console.warn('Error deleting session file:', error)
-            }
-          }
+          // Session files are now managed by Claude itself
+          console.log(`Session ${trackedSessionId} for agent ${agentInstanceId} will be cleaned up by Claude`)
         }
         
         // Clear session tracking
@@ -336,7 +329,7 @@ export class ProjectService {
           .filter((config) => config !== null)
           .map(async (config) => {
             // Use instanceId for this specific agent instance
-            const instanceId = (config as any).instanceId
+            const instanceId = (config as { instanceId: string; customName?: string }).instanceId
 
             // Get tracked sessionId for this project+agent instance
             const sessionId = await this.sessionService.getSession(projectId, instanceId)
@@ -347,7 +340,7 @@ export class ProjectService {
               return {
                 id: instanceId, // Use instance ID
                 configId: config.id, // Keep reference to original config
-                name: (config as any).customName || config.name,
+                name: (config as { instanceId: string; customName?: string }).customName || config.name,
                 role: config.role,
                 status: 'offline' as const,
                 sessionId: null,
@@ -358,63 +351,74 @@ export class ProjectService {
               }
             }
 
-            // Check if session file exists
-            const sessionExists = await this.sessionService.sessionExists(project.path, sessionId)
-
-            if (!sessionExists) {
-              // Session was tracked but file is missing
-              return {
-                id: instanceId, // Use instance ID
-                configId: config.id, // Keep reference to original config
-                name: (config as any).customName || config.name,
-                role: config.role,
-                status: 'offline' as const,
-                sessionId: sessionId,
-                messageCount: 0,
-                totalTokens: 0,
-                lastMessage: 'Session file missing',
-                hasSession: false,
-              }
-            }
-
-            // Load session messages to get stats
-            const messages = await this.sessionService.loadSessionMessages(project.path, sessionId)
-
-            // Calculate stats from messages
-            let lastMessage = 'No messages'
+            // Session tracking is now handled by Claude directly
+            // We just track the session ID in our unified storage
+            const hasSession = !!sessionId
+            
+            // Read token usage from JSONL file if session exists
+            let lastMessage = hasSession ? 'Session active' : 'No messages yet'
+            let messageCount = 0
             let totalTokens = 0
-            let lastUsage: any = null
-
-            for (const msg of messages) {
-              if (msg.type === 'user' && msg.message?.content) {
-                const content = msg.message.content
-                lastMessage = typeof content === 'string' ? content : content[0]?.text || 'Message'
+            
+            if (sessionId) {
+              try {
+                const projectPath = path.join(os.homedir(), '.claude', 'projects', projectId)
+                const sessionFile = path.join(projectPath, `${sessionId}.jsonl`)
+                
+                // Check if file exists
+                const fileExists = await fs.access(sessionFile).then(() => true).catch(() => false)
+                
+                if (fileExists) {
+                  const content = await fs.readFile(sessionFile, 'utf-8')
+                  const lines = content.split('\n').filter(line => line.trim())
+                  
+                  // Count messages and find last usage
+                  let lastUsage = null
+                  for (const line of lines) {
+                    try {
+                      const data = JSON.parse(line)
+                      if (data.type === 'user' || data.type === 'assistant') {
+                        messageCount++
+                      }
+                      
+                      // Track token usage from assistant messages
+                      if (data.type === 'assistant' && data.message?.usage) {
+                        lastUsage = data.message.usage
+                        // Calculate total tokens from the usage
+                        const inputTokens = (lastUsage.input_tokens || 0) + 
+                                          (lastUsage.cache_read_input_tokens || 0) + 
+                                          (lastUsage.cache_creation_input_tokens || 0)
+                        const outputTokens = lastUsage.output_tokens || 0
+                        totalTokens = inputTokens + outputTokens
+                      }
+                      
+                      // Get last user message for display
+                      if (data.type === 'user' && data.message?.content) {
+                        const content = data.message.content
+                        const text = typeof content === 'string' ? content : content[0]?.text || 'Message'
+                        lastMessage = text.substring(0, 100) + (text.length > 100 ? '...' : '')
+                      }
+                    } catch (_e) {
+                      // Skip invalid lines
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(`Error reading session file for ${sessionId}:`, error)
               }
-
-              if (msg.type === 'assistant' && msg.message?.usage) {
-                lastUsage = msg.message.usage
-              }
-            }
-
-            // Calculate current context size from the last usage
-            if (lastUsage) {
-              totalTokens =
-                (lastUsage.input_tokens || 0) +
-                (lastUsage.cache_creation_input_tokens || 0) +
-                (lastUsage.cache_read_input_tokens || 0)
             }
 
             return {
               id: instanceId, // Use instance ID
               configId: config.id, // Keep reference to original config
-              name: (config as any).customName || config.name,
+              name: (config as { instanceId: string; customName?: string }).customName || config.name,
               role: config.role,
               status: 'offline' as const, // All sessions are historical
               sessionId: sessionId,
-              messageCount: messages.length,
+              messageCount: messageCount,
               totalTokens: totalTokens,
               lastMessage: lastMessage,
-              hasSession: true,
+              hasSession: hasSession,
               maxTokens: config.maxTokens || 200000,
             }
           })
@@ -445,7 +449,12 @@ export class ProjectService {
           let lastActivity: Date | undefined
           let currentContextTokens = 0
           let lastMessage: string | undefined
-          let lastUsage: any = null
+          let lastUsage: {
+            input_tokens?: number
+            cache_read_input_tokens?: number
+            cache_creation_input_tokens?: number
+            output_tokens?: number
+          } | null = null
 
           try {
             const content = await fs.readFile(filePath, 'utf-8')

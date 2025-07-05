@@ -1,5 +1,6 @@
 import { ClaudeAgent, type Role, type AgentConfig } from './claude-agent.js'
 import { SessionService } from './SessionService.js'
+import type { Server } from 'socket.io'
 
 // SOLID: Single Responsibility - Handle Claude interactions
 // DRY: Reuse existing ClaudeAgent instead of duplicating query logic
@@ -26,9 +27,9 @@ export class ClaudeService {
       let config = agentConfig
       if (!config) {
         try {
-          // Dynamic import to avoid module resolution issues
-          const { ConfigService } = await import('../../../src/services/ConfigService')
-          const configService = ConfigService.getInstance()
+          // Use server-side config service
+          const { ServerAgentConfigService } = await import('./ServerAgentConfigService')
+          const configService = ServerAgentConfigService.getInstance()
 
           // Handle both legacy agentIds and new instance IDs
           const configId =
@@ -37,6 +38,8 @@ export class ClaudeService {
               : agentId
 
           const storedConfig = await configService.getAgent(configId)
+          console.log(`[SYSTEM PROMPT DEBUG] Loading config for configId: ${configId}`)
+          console.log(`[SYSTEM PROMPT DEBUG] Stored config:`, storedConfig)
           if (storedConfig) {
             config = {
               systemPrompt: storedConfig.systemPrompt,
@@ -45,6 +48,7 @@ export class ClaudeService {
               maxTokens: storedConfig.maxTokens,
               temperature: storedConfig.temperature,
             }
+            console.log(`[SYSTEM PROMPT DEBUG] Final config with system prompt:`, config)
           }
         } catch (error) {
           console.error('Failed to load agent configuration:', error)
@@ -73,8 +77,8 @@ export class ClaudeService {
     agentId: string,
     projectPath?: string,
     role: Role = 'dev',
-    onStream?: (data: any) => void,
-    io?: any,
+    onStream?: (data: string) => void,
+    io?: Server,
     forceNewSession?: boolean,
     agentConfig?: AgentConfig
   ): Promise<{ response: string; sessionId: string | null }> {

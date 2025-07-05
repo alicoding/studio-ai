@@ -1,18 +1,23 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
-import { Settings, Globe, FolderOpen, Users, Webhook, Keyboard } from 'lucide-react'
+import { Settings, Globe, FolderOpen, Users, Webhook, Keyboard, HardDrive, Brain, Network } from 'lucide-react'
 import { PageLayout } from '../components/ui/page-layout'
 import { SystemSettingsTab } from '../components/settings/SystemSettingsTab'
 import { HooksSettingsTab } from '../components/settings/HooksSettingsTab'
 import { KeyboardShortcutsTab } from '../components/settings/KeyboardShortcutsTab'
 import { PlaceholderTab } from '../components/settings/PlaceholderTab'
+import { StorageManagement } from '../components/settings/StorageManagement'
+import { AICapabilitiesTab } from '../components/settings/AICapabilitiesTab'
+import { OrchestrationTab } from '../components/settings/OrchestrationTab'
+import { MCPTab } from '../components/settings/MCPTab'
 import { useSettings } from '../hooks/useSettings'
+import { memo, useCallback } from 'react'
 
-export const Route = createFileRoute('/settings')({
-  component: SettingsPage,
-})
-
-function SettingsPage() {
+const SettingsPage = memo(() => {
+  const navigate = useNavigate()
+  const { tab } = Route.useSearch()
+  const activeTab = tab || 'system'
+  
   const {
     systemConfig,
     hooks,
@@ -29,16 +34,32 @@ function SettingsPage() {
     studioIntelligenceStatus,
   } = useSettings()
 
+  const handleTabChange = useCallback((value: string) => {
+    navigate({ to: '/settings', search: { tab: value } })
+  }, [navigate])
+
   return (
     <PageLayout
       title="Settings"
       description="Configure Claude Studio at system, project, team, and agent levels"
     >
-      <Tabs defaultValue="system" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
+      <Tabs 
+        value={activeTab}
+        className="space-y-4"
+        onValueChange={handleTabChange}
+      >
+        <TabsList className="flex flex-wrap gap-1 h-auto p-1 bg-muted/50">
           <TabsTrigger value="system" className="flex items-center gap-2">
             <Settings className="w-4 h-4" />
             System
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="flex items-center gap-2">
+            <Brain className="w-4 h-4" />
+            AI
+          </TabsTrigger>
+          <TabsTrigger value="orchestration" className="flex items-center gap-2">
+            <Network className="w-4 h-4" />
+            Orchestration
           </TabsTrigger>
           <TabsTrigger value="shortcuts" className="flex items-center gap-2">
             <Keyboard className="w-4 h-4" />
@@ -60,6 +81,10 @@ function SettingsPage() {
             <Globe className="w-4 h-4" />
             MCP Servers
           </TabsTrigger>
+          <TabsTrigger value="storage" className="flex items-center gap-2">
+            <HardDrive className="w-4 h-4" />
+            Storage
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="system" className="space-y-6">
@@ -73,6 +98,14 @@ function SettingsPage() {
             onSave={saveSystemSettings}
             onDetectPath={detectClaudePath}
           />
+        </TabsContent>
+
+        <TabsContent value="ai" className="space-y-6">
+          <AICapabilitiesTab />
+        </TabsContent>
+
+        <TabsContent value="orchestration" className="space-y-6">
+          <OrchestrationTab />
         </TabsContent>
 
         <TabsContent value="shortcuts" className="space-y-6">
@@ -113,15 +146,24 @@ function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="mcp" className="space-y-6">
-          <PlaceholderTab
-            title="MCP Server Configuration"
-            description="Configure Model Context Protocol servers for enhanced capabilities"
-            icon={Globe}
-            placeholderText="MCP server configuration coming soon"
-            subText="Connect to databases, APIs, and other services through MCP"
-          />
+          <MCPTab />
+        </TabsContent>
+
+        <TabsContent value="storage" className="space-y-6">
+          <StorageManagement />
         </TabsContent>
       </Tabs>
     </PageLayout>
   )
-}
+})
+
+SettingsPage.displayName = 'SettingsPage'
+
+export const Route = createFileRoute('/settings')({
+  component: SettingsPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      tab: (search.tab as string) || 'system'
+    }
+  }
+})

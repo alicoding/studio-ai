@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { DeleteAgentModal } from '../components/modals/DeleteAgentModal'
 import { Sidebar } from '../components/layout/Sidebar'
@@ -14,10 +14,9 @@ import { Button } from '../components/ui/button'
 import { Plus } from 'lucide-react'
 import { TeamTemplate } from '../types/teams'
 
-import { useAgentStore, useProjectStore } from '../stores'
-import { useProjects } from '../hooks/useProjects'
-import { useProjectAgents } from '../hooks/useProjectAgents'
+import { useAgentStore, useProjectStore, type Agent } from '../stores'
 import { useAgentRoles } from '../hooks/useAgentRoles'
+import { useWorkspaceData, type ProjectAgent } from '../hooks/useWorkspaceData'
 
 // SOLID: Modular operation hooks
 import { useAgentOperations } from '../hooks/useAgentOperations'
@@ -42,50 +41,77 @@ export const Route = createFileRoute('/')({
   component: ProjectsPage,
 })
 
+interface ProjectData {
+  name: string
+  description?: string
+  workspacePath?: string
+}
+
 function ProjectsPage() {
   const navigate = useNavigate()
 
-  // DRY: Use shared hook for fetching projects
-  const { projects } = useProjects()
+  // Zustand stores - get these first
+  const { activeProjectId, setActiveProject, getOpenProjects } = useProjectStore()
 
-  // Initialize diagnostic monitoring globally on app start
+  // DRY: Use optimized workspace data hook for all workspace data
+  const { data: workspaceData, loading: workspaceLoading } = useWorkspaceData({
+    includeAgents: true,
+    includeRoles: true,
+    autoRefresh: false // Disable auto-refresh to prevent constant updates
+  })
+  
+  // Extract data from workspace hook with memoization
+  const projects = useMemo(() => workspaceData?.projects || [], [workspaceData?.projects])
+  const agentConfigs = useMemo(() => workspaceData?.agentConfigs || [], [workspaceData?.agentConfigs])
+  const projectAgents = useMemo(() => workspaceData?.projectAgents || {}, [workspaceData?.projectAgents])
+
+  // Sync projects to Zustand store when they load
+  const { setProjects } = useProjectStore()
   useEffect(() => {
-    console.log('[ProjectsPage] Initializing global diagnostic monitoring')
-    const monitor = ErrorMonitor.getInstance()
-    const { setDiagnostics, setMonitoring } = useDiagnosticsStore.getState()
+    if (projects.length > 0) {
+      // Map workspace projects to store format
+      const storeProjects = projects.map(p => ({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        path: p.workspacePath || '',
+        createdAt: new Date().toISOString(),
+        sessionCount: 0,
+        status: 'active' as const,
+        lastModified: new Date().toISOString(),
+        tags: [],
+        favorite: false
+      }))
+      setProjects(storeProjects)
+    }
+  }, [projects, setProjects])
 
-    // Set up listeners if not already done
-    if (!monitor.isMonitoring) {
-      monitor.onDiagnosticsUpdated(({ source, diagnostics }) => {
-        console.log(`[ProjectsPage] Global diagnostic update: ${diagnostics.length} for ${source}`)
-        setDiagnostics(source, diagnostics)
-      })
+  // Initialize diagnostic monitoring globally on app start (singleton pattern)
+  const diagnosticsInitialized = useRef(false)
+  useEffect(() => {
+    if (!diagnosticsInitialized.current) {
+      diagnosticsInitialized.current = true
+      console.log('[ProjectsPage] Initializing global diagnostic monitoring')
+      const monitor = ErrorMonitor.getInstance()
+      const { setDiagnostics, setMonitoring } = useDiagnosticsStore.getState()
 
-      monitor.onMonitoringStarted(() => {
-        console.log('[ProjectsPage] Global monitoring started')
-        setMonitoring(true)
-      })
-
-      monitor.onMonitoringStopped(() => {
-        console.log('[ProjectsPage] Global monitoring stopped')
-        setMonitoring(false)
-      })
-
-      // Start monitoring Claude Studio by default
-      const projectPath = '/Users/ali/claude-swarm/claude-team/claude-studio'
-      monitor
-        .startMonitoring(projectPath)
-        .then(() => {
-          console.log('[ProjectsPage] Global monitoring initialized')
+      // Set up listeners if not already connected
+      if (!monitor.isConnected) {
+        monitor.onDiagnosticsUpdated(({ source, diagnostics }) => {
+          console.log(`[ProjectsPage] Global diagnostic update: ${diagnostics.length} for ${source}`)
+          setDiagnostics(source, diagnostics)
         })
-        .catch((error) => {
-          console.error('[ProjectsPage] Failed to start global monitoring:', error)
-        })
+        
+        setMonitoring(true) // We're monitoring as soon as connected
+      }
     }
   }, [])
 
-  // Use project agents from configured agents
-  const { agents: projectAgents, loading: loadingAgents } = useProjectAgents()
+  // Get current project agents from workspace data with memoization
+  const currentProjectAgents = useMemo(() => 
+    activeProjectId ? (projectAgents[activeProjectId] || []) : []
+  , [projectAgents, activeProjectId])
+  const loadingAgents = workspaceLoading
 
   // Agent roles hook
   const { loadAssignments, getAgentRole } = useAgentRoles()
@@ -108,13 +134,16 @@ function ProjectsPage() {
     getProjectAgents: getStoreProjectAgents, // Use store getter instead of hook
   } = useAgentStore()
 
-  const { activeProjectId, setActiveProject, getOpenProjects } = useProjectStore()
-
   // WebSocket operations (handles event registration)
   useWebSocketOperations()
 
   // Get only the open projects for workspace tabs
   const openProjects = getOpenProjects()
+
+  // Get raw openProjectIds from store to check restoration status
+  const openProjectIds = useProjectStore(state => state.openProjects)
+
+
 
   // Message handling functions
   const handleBroadcast = () => {
@@ -140,7 +169,7 @@ function ProjectsPage() {
   // State for single agent deletion modal
   const [deleteModalState, setDeleteModalState] = useState<{
     isOpen: boolean
-    agent: any | null
+    agent: ProjectAgent | null
     isDeleting: boolean
   }>({
     isOpen: false,
@@ -148,31 +177,45 @@ function ProjectsPage() {
     isDeleting: false,
   })
 
-  // Sync projectAgents from hook into Zustand store
+  // Sync project agents from workspace data into Zustand store
   useEffect(() => {
-    if (projectAgents.length > 0) {
-      setAgents(projectAgents)
-    } else if (projectAgents.length === 0 && !loadingAgents) {
+    if (currentProjectAgents.length > 0) {
+      const agentsWithOrder: Agent[] = currentProjectAgents.map((agent, index) => ({
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+        status: agent.status,
+        tokens: agent.totalTokens,
+        maxTokens: 200000,
+        lastMessage: agent.lastMessage,
+        sessionId: agent.sessionId || undefined,
+        order: index
+      }))
+      setAgents(agentsWithOrder)
+    } else if (currentProjectAgents.length === 0 && !loadingAgents) {
       // Clear agents when no agents found (not loading)
       setAgents([])
     }
-  }, [projectAgents, loadingAgents, setAgents])
+  }, [currentProjectAgents, loadingAgents, setAgents])
 
   // Get agents from Zustand store instead of useProjectAgents hook
   const storeAgents = getStoreProjectAgents(activeProjectId || '')
 
   // Memoize agent IDs to prevent infinite loops
   const agentIds = useMemo(() => storeAgents.map((a) => a.id), [storeAgents])
-  const agentIdsString = useMemo(() => agentIds.join(','), [agentIds])
 
-  // Load role assignments when agent IDs change
+  // Load role assignments when agent IDs change (using string comparison to prevent loops)
+  const agentIdsString = useMemo(() => agentIds.join(','), [agentIds])
+  const [loadedAgentIds, setLoadedAgentIds] = useState<string>('')
+  
   useEffect(() => {
-    console.log('Role assignments loading check:', { agentIdsLength: agentIds.length, agentIds })
-    if (agentIds.length > 0) {
+    // Only load if agent IDs have actually changed and we haven't loaded them yet
+    if (agentIdsString !== loadedAgentIds && agentIds.length > 0) {
       console.log('Loading role assignments for agents:', agentIds)
       loadAssignments(agentIds)
+      setLoadedAgentIds(agentIdsString)
     }
-  }, [agentIdsString, loadAssignments])
+  }, [agentIdsString, loadedAgentIds, agentIds, loadAssignments])
 
   // Merge store agents with their role assignments
   const agentsWithRoles = storeAgents.map((agent) => {
@@ -186,25 +229,31 @@ function ProjectsPage() {
   // Get active project details
   const activeProject = projects.find((p) => p.id === activeProjectId)
 
-  // Load agent configs from server on mount
+  // Sync agent configs from workspace data into Zustand store
   useEffect(() => {
-    const loadAgentConfigs = async () => {
-      try {
-        const response = await fetch('/api/agents')
-        if (response.ok) {
-          const configs = await response.json()
-          setAgentConfigs(configs)
-        }
-      } catch (error) {
-        console.error('Failed to load agent configs:', error)
-      }
+    if (agentConfigs.length > 0) {
+      setAgentConfigs(agentConfigs.map(config => ({
+        ...config,
+        projectsUsing: []
+      })))
     }
-    loadAgentConfigs()
-  }, [setAgentConfigs])
+  }, [agentConfigs, setAgentConfigs])
 
   // Message handling
   const handleSendMessage = async (message: string) => {
-    const result = await messageOps.sendMessage(message, agentsWithRoles, activeProject)
+    // Convert workspace Project to store Project format
+    const storeProject = activeProject ? {
+      ...activeProject,
+      path: activeProject.workspacePath || '',
+      createdAt: new Date().toISOString(),
+      sessionCount: 0,
+      status: 'active' as const,
+      lastModified: new Date().toISOString(),
+      tags: [],
+      favorite: false
+    } : undefined
+    
+    const result = await messageOps.sendMessage(message, agentsWithRoles, storeProject)
     if (!result.success && result.error) {
       toast.error(result.error)
     }
@@ -229,7 +278,7 @@ function ProjectsPage() {
   }
 
   const handleAgentRemove = async (agentId: string, skipConfirm = false) => {
-    const agent = projectAgents.find((a) => a.id === agentId)
+    const agent = currentProjectAgents.find((a) => a.id === agentId)
     if (agent) {
       if (skipConfirm) {
         // Batch deletion, skip individual modal
@@ -276,7 +325,7 @@ function ProjectsPage() {
     }
   }
 
-  const handleCreateAgent = (agentConfig: any) => {
+  const handleCreateAgent = (agentConfig: import('../stores').AgentConfig) => {
     addAgentConfig(agentConfig)
     modalOps.closeModal('createAgent')
   }
@@ -311,7 +360,7 @@ function ProjectsPage() {
     await roleOps.assignRoleToAgent(roleId, customTools)
   }
 
-  const handleCreateProject = (projectData: any) => {
+  const handleCreateProject = (projectData: ProjectData) => {
     const result = projectOps.createProject(projectData)
     if (result.success) {
       modalOps.closeModal('createProject')
@@ -361,6 +410,14 @@ function ProjectsPage() {
     }
   }
 
+  // Handle file selection from search results
+  const handleFileSelect = (filePath: string) => {
+    // For now, just show a toast with the selected file
+    // This will be enhanced in Phase 2 with actual code viewer
+    toast.info(`Selected file: ${filePath.split('/').pop()}`)
+    console.log('File selected from search:', filePath)
+  }
+
   return (
     <>
       <ProjectTabs
@@ -371,7 +428,15 @@ function ProjectsPage() {
         onProjectClose={handleCloseProject}
       />
 
-      {openProjects.length === 0 ? (
+      {openProjectIds.length > 0 && openProjects.length === 0 && projects.length === 0 ? (
+        // Show loading state when we have persisted project IDs but projects haven't loaded yet
+        <div className="flex items-center justify-center h-[calc(100vh-90px)]">
+          <div className="text-center">
+            <h2 className="text-2xl font-semibold mb-4">Loading workspace...</h2>
+            <p className="text-muted-foreground">Restoring your open projects</p>
+          </div>
+        </div>
+      ) : openProjects.length === 0 ? (
         <div className="flex items-center justify-center h-[calc(100vh-90px)]">
           <div className="text-center">
             <h2 className="text-2xl font-semibold mb-4">No projects open</h2>
@@ -400,6 +465,7 @@ function ProjectsPage() {
               onAddAgent={() => modalOps.openModal('agentSelection')}
               onCreateAgent={() => modalOps.openModal('createAgent')}
               onLoadTeam={() => modalOps.openModal('teamSelection')}
+              onFileSelect={handleFileSelect}
             />
 
             <main className="flex-1 flex flex-col overflow-hidden">
@@ -433,7 +499,6 @@ function ProjectsPage() {
                     {layout.showChatPanel && (
                       <ChatPanel
                         onSendMessage={handleSendMessage}
-                        onBroadcast={handleBroadcast}
                         onInterrupt={handleInterrupt}
                       />
                     )}

@@ -1,5 +1,4 @@
-import { create } from 'zustand'
-import { devtools, persist } from 'zustand/middleware'
+import { createPersistentStore } from './createPersistentStore'
 
 export interface Project {
   id: string
@@ -90,10 +89,9 @@ interface ProjectState {
 // Mock data will be replaced by real data from the API
 const MOCK_PROJECTS: Project[] = []
 
-export const useProjectStore = create<ProjectState>()(
-  devtools(
-    persist(
-      (set, get) => ({
+export const useProjectStore = createPersistentStore<ProjectState>(
+  'projects',
+  (set, get) => ({
         // Initial state
         projects: MOCK_PROJECTS,
         openProjects: [], // No projects open initially
@@ -107,26 +105,24 @@ export const useProjectStore = create<ProjectState>()(
         error: null,
 
         // Project actions
-        setProjects: (projects) => set({ projects }, false, 'setProjects'),
+        setProjects: (projects) => set({ projects }),
 
         fetchProjects: async () => {
-          set({ isLoading: true, error: null }, false, 'fetchProjects.start')
+          set({ isLoading: true, error: null })
           try {
             const response = await fetch('/api/projects')
             if (!response.ok) {
               throw new Error(`HTTP error! status: ${response.status}`)
             }
             const projects = await response.json()
-            set({ projects, isLoading: false, error: null }, false, 'fetchProjects.success')
+            set({ projects, isLoading: false, error: null })
           } catch (error) {
             console.error('Failed to fetch projects:', error)
             set(
               {
                 isLoading: false,
                 error: error instanceof Error ? error.message : 'Failed to fetch projects',
-              },
-              false,
-              'fetchProjects.error'
+              }
             )
           }
         },
@@ -135,18 +131,14 @@ export const useProjectStore = create<ProjectState>()(
           set(
             (state) => ({
               projects: [project, ...state.projects],
-            }),
-            false,
-            'addProject'
+            })
           ),
 
         updateProject: (projectId, updates) =>
           set(
             (state) => ({
               projects: state.projects.map((p) => (p.id === projectId ? { ...p, ...updates } : p)),
-            }),
-            false,
-            'updateProject'
+            })
           ),
 
         updateProjectMetadata: async (projectId, metadata) => {
@@ -169,9 +161,7 @@ export const useProjectStore = create<ProjectState>()(
             set(
               (state) => ({
                 projects: state.projects.map((p) => (p.id === projectId ? updatedProject : p)),
-              }),
-              false,
-              'updateProjectMetadata'
+              })
             )
           } catch (error) {
             console.error('Failed to update project metadata:', error)
@@ -194,13 +184,11 @@ export const useProjectStore = create<ProjectState>()(
                 openProjects: newOpenProjects,
                 activeProjectId: newActiveId,
               }
-            },
-            false,
-            'removeProject'
+            }
           ),
 
         setActiveProject: (projectId) =>
-          set({ activeProjectId: projectId }, false, 'setActiveProject'),
+          set({ activeProjectId: projectId }),
 
         // Queue actions
         addToQueue: (item) =>
@@ -215,9 +203,7 @@ export const useProjectStore = create<ProjectState>()(
                   status: 'pending' as const,
                 },
               ],
-            }),
-            false,
-            'addToQueue'
+            })
           ),
 
         updateQueueItem: (itemId, updates) =>
@@ -226,35 +212,29 @@ export const useProjectStore = create<ProjectState>()(
               messageQueue: state.messageQueue.map((item) =>
                 item.id === itemId ? { ...item, ...updates } : item
               ),
-            }),
-            false,
-            'updateQueueItem'
+            })
           ),
 
         removeFromQueue: (itemId) =>
           set(
             (state) => ({
               messageQueue: state.messageQueue.filter((item) => item.id !== itemId),
-            }),
-            false,
-            'removeFromQueue'
+            })
           ),
 
-        clearQueue: () => set({ messageQueue: [] }, false, 'clearQueue'),
+        clearQueue: () => set({ messageQueue: [] }),
 
         // UI actions
-        setViewMode: (mode) => set({ viewMode: mode }, false, 'setViewMode'),
+        setViewMode: (mode) => set({ viewMode: mode }),
 
         setSidebarCollapsed: (collapsed) =>
-          set({ sidebarCollapsed: collapsed }, false, 'setSidebarCollapsed'),
+          set({ sidebarCollapsed: collapsed }),
 
         toggleSidebar: () =>
           set(
             (state) => ({
               sidebarCollapsed: !state.sidebarCollapsed,
-            }),
-            false,
-            'toggleSidebar'
+            })
           ),
 
         // Agent management per project
@@ -265,9 +245,7 @@ export const useProjectStore = create<ProjectState>()(
                 ...state.projectAgents,
                 [projectId]: agentIds,
               },
-            }),
-            false,
-            'setProjectAgents'
+            })
           ),
 
         getActiveProjectAgents: () => {
@@ -277,9 +255,9 @@ export const useProjectStore = create<ProjectState>()(
         },
 
         setChatCollapsed: (collapsed) =>
-          set({ chatCollapsed: collapsed }, false, 'setChatCollapsed'),
+          set({ chatCollapsed: collapsed }),
         toggleChat: () =>
-          set((state) => ({ chatCollapsed: !state.chatCollapsed }), false, 'toggleChat'),
+          set((state) => ({ chatCollapsed: !state.chatCollapsed })),
 
         clearAll: () =>
           set(
@@ -291,9 +269,7 @@ export const useProjectStore = create<ProjectState>()(
               viewMode: 'single',
               sidebarCollapsed: false,
               chatCollapsed: false,
-            },
-            false,
-            'clearAll'
+            }
           ),
 
         // Workspace tab actions
@@ -309,9 +285,7 @@ export const useProjectStore = create<ProjectState>()(
               }
               // Just make it active if already open
               return { activeProjectId: projectId }
-            },
-            false,
-            'openProjectInWorkspace'
+            }
           ),
 
         closeProjectInWorkspace: (projectId) =>
@@ -327,9 +301,7 @@ export const useProjectStore = create<ProjectState>()(
                 openProjects: newOpenProjects,
                 activeProjectId: newActiveId,
               }
-            },
-            false,
-            'closeProjectInWorkspace'
+            }
           ),
 
         getOpenProjects: () => {
@@ -337,19 +309,13 @@ export const useProjectStore = create<ProjectState>()(
           return state.projects.filter((p) => state.openProjects.includes(p.id))
         },
       }),
-      {
-        name: 'claude-studio-projects',
-        partialize: (state) => ({
-          openProjects: state.openProjects,
-          activeProjectId: state.activeProjectId,
-          viewMode: state.viewMode,
-          sidebarCollapsed: state.sidebarCollapsed,
-          chatCollapsed: state.chatCollapsed,
-        }),
-      }
-    ),
-    {
-      name: 'project-store',
-    }
-  )
+  {
+    partialize: (state) => ({
+      openProjects: state.openProjects,
+      activeProjectId: state.activeProjectId,
+      viewMode: state.viewMode,
+      sidebarCollapsed: state.sidebarCollapsed,
+      chatCollapsed: state.chatCollapsed,
+    })
+  }
 )

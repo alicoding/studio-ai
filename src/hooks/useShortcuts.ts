@@ -1,68 +1,9 @@
-import { useEffect, useState, useCallback } from 'react'
-
-interface KeyboardShortcut {
-  id: string
-  name: string
-  description: string
-  defaultKeys: string
-  currentKeys: string
-  category: 'global' | 'workspace' | 'modal'
-}
+import { useEffect, useCallback } from 'react'
+import { useShortcutsStore } from '../stores/shortcuts'
 
 interface ShortcutHandlers {
   [key: string]: () => void
 }
-
-const DEFAULT_SHORTCUTS: KeyboardShortcut[] = [
-  {
-    id: 'component-inspector',
-    name: 'Component Inspector',
-    description: 'Open component inspector to capture and analyze UI elements',
-    defaultKeys: 'Cmd+Shift+I',
-    currentKeys: 'Cmd+Shift+I',
-    category: 'global'
-  },
-  {
-    id: 'interrupt-agents',
-    name: 'Interrupt Agents',
-    description: 'Stop all running agent operations',
-    defaultKeys: 'Escape',
-    currentKeys: 'Escape',
-    category: 'workspace'
-  },
-  {
-    id: 'broadcast-message',
-    name: 'Broadcast Message',
-    description: 'Send message to all agents',
-    defaultKeys: 'Cmd+Shift+Enter',
-    currentKeys: 'Cmd+Shift+Enter',
-    category: 'workspace'
-  },
-  {
-    id: 'clear-context',
-    name: 'Clear Agent Context',
-    description: 'Clear selected agent\'s conversation context',
-    defaultKeys: 'Cmd+K',
-    currentKeys: 'Cmd+K',
-    category: 'workspace'
-  },
-  {
-    id: 'new-project',
-    name: 'New Project',
-    description: 'Create a new project',
-    defaultKeys: 'Cmd+N',
-    currentKeys: 'Cmd+N',
-    category: 'global'
-  },
-  {
-    id: 'close-modal',
-    name: 'Close Modal',
-    description: 'Close any open modal or dialog',
-    defaultKeys: 'Escape',
-    currentKeys: 'Escape',
-    category: 'modal'
-  }
-]
 
 function parseShortcut(shortcut: string): {
   metaKey: boolean
@@ -123,32 +64,7 @@ function isShortcutMatch(event: KeyboardEvent, shortcut: string): boolean {
 }
 
 export function useShortcuts(handlers: ShortcutHandlers, enabled: boolean = true) {
-  const [shortcuts, setShortcuts] = useState<KeyboardShortcut[]>(DEFAULT_SHORTCUTS)
-
-  // Load shortcuts from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('claude-studio-shortcuts')
-    if (saved) {
-      try {
-        const savedShortcuts = JSON.parse(saved)
-        setShortcuts(savedShortcuts)
-      } catch (error) {
-        console.error('Failed to load shortcuts:', error)
-      }
-    }
-  }, [])
-
-  // Listen for shortcut updates
-  useEffect(() => {
-    const handleShortcutsUpdated = (event: CustomEvent) => {
-      setShortcuts(event.detail.shortcuts)
-    }
-
-    window.addEventListener('shortcuts-updated', handleShortcutsUpdated as EventListener)
-    return () => {
-      window.removeEventListener('shortcuts-updated', handleShortcutsUpdated as EventListener)
-    }
-  }, [])
+  const { shortcuts, getShortcut: getShortcutFromStore } = useShortcutsStore()
 
   // Handle keyboard events
   useEffect(() => {
@@ -186,9 +102,9 @@ export function useShortcuts(handlers: ShortcutHandlers, enabled: boolean = true
   }, [shortcuts, handlers, enabled])
 
   const getShortcut = useCallback((id: string): string | undefined => {
-    const shortcut = shortcuts.find(s => s.id === id)
+    const shortcut = getShortcutFromStore(id)
     return shortcut?.currentKeys
-  }, [shortcuts])
+  }, [getShortcutFromStore])
 
   return {
     shortcuts,

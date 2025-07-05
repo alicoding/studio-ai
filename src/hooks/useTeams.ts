@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
+import { studioApi } from '../services/api'
 import { 
   TeamTemplate, 
   CreateTeamRequest, 
@@ -16,11 +17,7 @@ export function useTeams() {
   const fetchTeams = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/teams')
-      if (!response.ok) {
-        throw new Error('Failed to fetch teams')
-      }
-      const data = await response.json()
+      const data = await studioApi.teams.getAll()
       setTeams(data)
       setError(null)
     } catch (err) {
@@ -35,17 +32,7 @@ export function useTeams() {
   // Create a new team
   const createTeam = useCallback(async (team: CreateTeamRequest) => {
     try {
-      const response = await fetch('/api/teams', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(team),
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to create team')
-      }
-      
-      const newTeam = await response.json()
+      const newTeam = await studioApi.teams.create(team)
       setTeams(prev => [...prev, newTeam])
       toast.success('Team template created successfully')
       return newTeam
@@ -59,17 +46,7 @@ export function useTeams() {
   // Update a team
   const updateTeam = useCallback(async (id: string, updates: UpdateTeamRequest) => {
     try {
-      const response = await fetch(`/api/teams/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to update team')
-      }
-      
-      const updatedTeam = await response.json()
+      const updatedTeam = await studioApi.teams.update(id, updates)
       setTeams(prev => prev.map(t => t.id === id ? updatedTeam : t))
       toast.success('Team template updated successfully')
       return updatedTeam
@@ -83,14 +60,7 @@ export function useTeams() {
   // Delete a team
   const deleteTeam = useCallback(async (id: string) => {
     try {
-      const response = await fetch(`/api/teams/${id}`, {
-        method: 'DELETE',
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete team')
-      }
-      
+      await studioApi.teams.delete(id)
       setTeams(prev => prev.filter(t => t.id !== id))
       toast.success('Team template deleted successfully')
     } catch (err) {
@@ -103,17 +73,7 @@ export function useTeams() {
   // Clone a team
   const cloneTeam = useCallback(async (id: string, name?: string) => {
     try {
-      const response = await fetch(`/api/teams/${id}/clone`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to clone team')
-      }
-      
-      const clonedTeam = await response.json()
+      const clonedTeam = await studioApi.teams.clone(id, name)
       setTeams(prev => [...prev, clonedTeam])
       toast.success('Team template cloned successfully')
       return clonedTeam
@@ -127,17 +87,7 @@ export function useTeams() {
   // Spawn a team to a project
   const spawnTeam = useCallback(async (teamId: string, projectId: string): Promise<SpawnTeamResponse | null> => {
     try {
-      const response = await fetch(`/api/teams/${teamId}/spawn`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId }),
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to spawn team')
-      }
-      
-      const result = await response.json()
+      const result = await studioApi.teams.spawn(teamId, projectId)
       toast.success('Team spawned successfully')
       return result
     } catch (err) {
@@ -150,17 +100,7 @@ export function useTeams() {
   // Import a team from JSON
   const importTeam = useCallback(async (teamData: TeamTemplate) => {
     try {
-      const response = await fetch('/api/teams/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ team: teamData }),
-      })
-      
-      if (!response.ok) {
-        throw new Error('Failed to import team')
-      }
-      
-      const importedTeam = await response.json()
+      const importedTeam = await studioApi.teams.import(teamData)
       setTeams(prev => [...prev, importedTeam])
       toast.success('Team template imported successfully')
       return importedTeam

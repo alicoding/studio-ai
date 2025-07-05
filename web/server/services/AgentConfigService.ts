@@ -1,4 +1,4 @@
-import { ConfigService } from '../../../src/services/ConfigService.js'
+import { ServerConfigService } from './ServerConfigService'
 import fs from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -24,11 +24,11 @@ interface LegacyAgentConfig {
  */
 export class AgentConfigService {
   private static instance: AgentConfigService
-  private configService: ConfigService
+  private configService: ServerConfigService
   private legacyConfigPath: string
 
   private constructor() {
-    this.configService = ConfigService.getInstance()
+    this.configService = ServerConfigService.getInstance()
     // Path to legacy configurations
     this.legacyConfigPath = path.join(__dirname, '../../../data/agents/configurations.json')
   }
@@ -86,7 +86,7 @@ export class AgentConfigService {
 
     // Get from ConfigService
     try {
-      const configAgents = await this.configService.getAllAgents()
+      const configAgents = await this.configService.listAgents()
       for (const agent of configAgents) {
         agents.push(agent)
         seenIds.add(agent.id)

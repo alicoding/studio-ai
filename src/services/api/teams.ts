@@ -1,64 +1,25 @@
-// SOLID: Single Responsibility - API calls only
-// Library First: Using native fetch API
+/**
+ * MIGRATED: Now uses centralized API client with ky
+ * 
+ * SOLID: Single Responsibility - API calls only
+ * DRY: Eliminates duplicate HTTP boilerplate
+ * KISS: Simple delegation to centralized client
+ * Library-First: Built on ky via StudioApiProvider
+ */
+
+import { studioApi } from './index'
+
+// Backwards compatibility export - delegates to centralized client
 export const teamsApi = {
-  async getAll() {
-    const response = await fetch('/api/teams')
-    if (!response.ok) throw new Error('Failed to fetch teams')
-    return response.json()
-  },
-
-  async create(data: { name: string; description: string; agents: any[] }) {
-    const response = await fetch('/api/teams', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!response.ok) throw new Error('Failed to create team')
-    return response.json()
-  },
-
-  async update(id: string, data: any) {
-    const response = await fetch(`/api/teams/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!response.ok) throw new Error('Failed to update team')
-    return response.json()
-  },
-
-  async delete(id: string) {
-    const response = await fetch(`/api/teams/${id}`, { method: 'DELETE' })
-    if (!response.ok) throw new Error('Failed to delete team')
-  },
-
-  async clone(id: string, name?: string) {
-    const response = await fetch(`/api/teams/${id}/clone`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    })
-    if (!response.ok) throw new Error('Failed to clone team')
-    return response.json()
-  },
-
-  async spawn(teamId: string, projectId: string) {
-    const response = await fetch(`/api/teams/${teamId}/spawn`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId }),
-    })
-    if (!response.ok) throw new Error('Failed to spawn team')
-    return response.json()
-  },
-
-  async import(team: any) {
-    const response = await fetch('/api/teams/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ team }),
-    })
-    if (!response.ok) throw new Error('Failed to import team')
-    return response.json()
-  },
+  getAll: () => studioApi.teams.getAll(),
+  create: (data: { name: string; description: string; agents: any[] }) => 
+    studioApi.teams.create(data),
+  update: (id: string, data: any) => studioApi.teams.update(id, data),
+  delete: (id: string) => studioApi.teams.delete(id),
+  clone: (id: string, name?: string) => studioApi.teams.clone(id, name),
+  spawn: (teamId: string, projectId: string) => studioApi.teams.spawn(teamId, projectId),
+  import: (team: any) => studioApi.teams.import(team),
 }
+
+// Extended operations available through centralized client
+export const extendedTeamsApi = studioApi.teams

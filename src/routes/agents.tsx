@@ -53,6 +53,11 @@ function AgentsPage() {
   }, [setAgentConfigs])
 
   const filteredAgents = agents.filter((agent) => {
+    // Safety check for agent properties
+    if (!agent || !agent.name || !agent.role) {
+      return false
+    }
+    
     const matchesSearch =
       agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       agent.role.toLowerCase().includes(searchQuery.toLowerCase())

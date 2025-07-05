@@ -5,28 +5,49 @@ import { Server } from 'socket.io'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
+import createGracefulShutdown from 'http-graceful-shutdown'
 
 // Import API routes
-import agentsRouter from './api/agents.js'
-import agentRolesRouter from './api/agent-roles.js'
-import projectsRouter from './api/projects.js'
-import teamsRouter from './api/teams.js'
-import messagesRouter from './api/messages.js'
-import systemRouter from './api/system.js'
-import settingsRouter from './api/settings.js'
-import studioIntelligenceRouter from './api/studio-intelligence.js'
-import diagnosticsRouter from './api/diagnostics.js'
-import screenshotRouter from './api/screenshot.js'
+import agentsRouter from './api/agents'
+import agentRolesRouter from './api/agent-roles'
+import projectsRouter from './api/projects'
+import teamsRouter from './api/teams'
+import messagesRouter from './api/messages'
+import systemRouter from './api/system'
+import settingsRouter from './api/settings'
+import studioIntelligenceRouter from './api/studio-intelligence'
+import diagnosticsRouter from './api/diagnostics'
+import screenshotRouter from './api/screenshot'
+import aiRouter from './api/ai'
+import langchainRouter from './api/langchain'
+import storageRouter from './api/storage'
+import workspaceRouter from './api/workspace'
+import messagesBatchRouter from './api/messages-batch'
+import settingsMcpRouter from './api/settings-mcp'
+import mcpConfigRouter from './api/mcp-config'
+import searchRouter from './api/search'
 
 // Import WebSocket handler
-import { setupWebSocket } from './websocket.js'
+import { setupWebSocket } from './websocket'
 
-// Import process management
-import { ProcessManager } from '../../lib/process/ProcessManager.js'
-import { ProcessCleaner } from '../../lib/process/ProcessCleaner.js'
+// Process management removed - using Claude SDK instances instead
+
+// Global error handlers to prevent server crashes
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error)
+  // Don't exit the process - let it continue running
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+  // Don't exit the process - let it continue running
+})
 
 // Import Studio Intelligence
-import { StudioIntelligence } from './services/studio-intelligence/StudioIntelligence.js'
+import { StudioIntelligence } from './services/studio-intelligence/StudioIntelligence'
+
+// Import Project Diagnostics
+import { projectDiagnostics } from './services/ProjectDiagnostics'
 
 // Load environment variables
 dotenv.config()
@@ -62,11 +83,19 @@ app.use('/api/agent-roles', agentRolesRouter)
 app.use('/api/projects', projectsRouter)
 app.use('/api/teams', teamsRouter)
 app.use('/api/messages', messagesRouter)
+app.use('/api/messages/batch', messagesBatchRouter)
 app.use('/api/system', systemRouter)
 app.use('/api/settings', settingsRouter)
+app.use('/api/settings/mcp', settingsMcpRouter)
+app.use('/api/mcp-config', mcpConfigRouter)
 app.use('/api/studio-intelligence', studioIntelligenceRouter)
 app.use('/api/diagnostics', diagnosticsRouter)
 app.use('/api/screenshot', screenshotRouter)
+app.use('/api/ai', aiRouter)
+app.use('/api/langchain', langchainRouter)
+app.use('/api/storage', storageRouter)
+app.use('/api/workspace', workspaceRouter)
+app.use('/api/search', searchRouter)
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -81,7 +110,7 @@ app.get('/api/health', (req, res) => {
 setupWebSocket(io)
 
 // Error handling middleware
-app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: Error & { status?: number }, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Server error:', err)
   res.status(err.status || 500).json({
     error: err.message || 'Internal server error',
@@ -94,21 +123,13 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' })
 })
 
-// Initialize Process Management System
-async function initializeProcessManagement() {
+// Initialize Project Diagnostics
+async function initializeProjectDiagnostics() {
   try {
-    const processManager = ProcessManager.getInstance()
-    await processManager.initialize()
-    console.log('✅ ProcessManager initialized')
-
-    // Cleanup any zombie processes on startup
-    const cleaner = ProcessCleaner.getInstance()
-    const cleanup = await cleaner.cleanupZombies()
-    if (cleanup.killedProcesses.length > 0) {
-      console.log(`🧹 Cleaned up ${cleanup.killedProcesses.length} zombie processes`)
-    }
+    console.log('🔍 Project Diagnostics initialized (watchers start on demand)')
+    // ProjectDiagnostics starts watchers when projects are selected
   } catch (error) {
-    console.error('Failed to initialize process management:', error)
+    console.error('Failed to initialize project diagnostics:', error)
   }
 }
 
@@ -130,33 +151,40 @@ httpServer.listen(PORT, async () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`)
   console.log(`📡 WebSocket listening on ws://localhost:${PORT}`)
 
-  // Initialize process management after server starts
-  await initializeProcessManagement()
+  // Initialize project diagnostics
+  await initializeProjectDiagnostics()
 
   // Initialize Studio Intelligence (smart defaults)
   await initializeStudioIntelligence()
 })
 
-// Graceful shutdown
-const gracefulShutdown = async () => {
-  console.log('Shutting down gracefully...')
+// Setup graceful shutdown using the library
+createGracefulShutdown(httpServer, {
+  signals: 'SIGINT SIGTERM',
+  timeout: 30000, // 30 seconds timeout
+  development: process.env.NODE_ENV !== 'production',
+  onShutdown: async () => {
+    console.log('🛑 Shutting down gracefully...')
+    
+    // Stop all diagnostic watchers
+    try {
+      await projectDiagnostics.stopAll()
+      console.log('✅ All diagnostic watchers stopped')
+    } catch (error) {
+      console.error('Error during diagnostics cleanup:', error)
+    }
 
-  // Cleanup all processes
-  try {
-    const processManager = ProcessManager.getInstance()
-    await processManager.shutdown()
-    console.log('✅ All processes cleaned up')
-  } catch (error) {
-    console.error('Error during process cleanup:', error)
+    // Close all WebSocket connections
+    try {
+      io.disconnectSockets()
+      console.log('✅ All WebSocket connections closed')
+    } catch (error) {
+      console.error('Error closing WebSocket connections:', error)
+    }
+  },
+  finally: () => {
+    console.log('✅ Server shutdown complete')
   }
-
-  httpServer.close(() => {
-    console.log('Server closed')
-    process.exit(0)
-  })
-}
-
-process.on('SIGTERM', gracefulShutdown)
-process.on('SIGINT', gracefulShutdown)
+})
 
 export { app, io }

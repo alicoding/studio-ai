@@ -53,34 +53,38 @@ const getEventConfig = (event: HookEvent) => {
 }
 
 // These are conceptual - not supported by Claude Code's native system
-const STUDIO_EVENTS: Array<{ value: StudioEvent; label: string; description: string }> = [
-  { value: 'AgentMessage', label: 'Agent Message', description: '(Conceptual) When agents communicate' },
+const STUDIO_EVENTS: Array<{ value: StudioEvent; label: string; description: string; supportsMatcher: boolean }> = [
+  { value: 'AgentMessage', label: 'Agent Message', description: '(Conceptual) When agents communicate', supportsMatcher: true },
   {
     value: 'TypeCheckFailed',
     label: 'Type Check Failed',
     description: '(Conceptual) TypeScript errors detected',
+    supportsMatcher: true
   },
-  { value: 'LintError', label: 'Lint Error', description: '(Conceptual) ESLint/other linting errors' },
+  { value: 'LintError', label: 'Lint Error', description: '(Conceptual) ESLint/other linting errors', supportsMatcher: true },
   {
     value: 'FileConflict',
     label: 'File Conflict',
     description: '(Conceptual) Multiple agents editing same file',
+    supportsMatcher: true
   },
   {
     value: 'ToolValidation',
     label: 'Tool Validation',
     description: '(Conceptual) Before tool execution validation',
+    supportsMatcher: true
   },
   {
     value: 'SessionCompaction',
     label: 'Session Compaction',
     description: '(Conceptual) When session needs compaction',
+    supportsMatcher: false
   },
-  { value: 'AgentHandoff', label: 'Agent Handoff', description: '(Conceptual) Switching between agents' },
+  { value: 'AgentHandoff', label: 'Agent Handoff', description: '(Conceptual) Switching between agents', supportsMatcher: true },
 ]
 
 const HOOK_TYPES = [
-  { value: 'command', label: 'Command', icon: Terminal, description: 'Execute shell commands (Only supported type)' },
+  { value: 'command', label: 'Command', icon: Terminal, description: 'Execute shell commands (Only supported type)', disabled: false },
   {
     value: 'validation',
     label: 'Validation',

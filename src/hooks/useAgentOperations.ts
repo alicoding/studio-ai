@@ -4,13 +4,14 @@
  * SOLID: Single Responsibility - Only handles agent lifecycle operations
  * DRY: Centralizes all agent operation logic
  * KISS: Simple interface for complex agent operations
- * Library-First: Leverages ProcessManager and stores
+ * Library-First: Uses centralized API client with ky
  */
 
 import { useCallback } from 'react'
 import { useAgentStore, useProjectStore } from '../stores'
 import { useProcessManager } from './useProcessManager'
 import { useClaudeMessages } from './useClaudeMessages'
+import { studioApi } from '../services/api'
 import type { Agent } from '../stores/agents'
 
 interface AgentOperationResult {
@@ -129,13 +130,7 @@ export function useAgentOperations() {
 
         // Step 2: First abort any running Claude agent to prevent final messages
         try {
-          await fetch(`/api/agents/${agentId}/abort`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              projectId: activeProjectId,
-            }),
-          })
+          await studioApi.agents.abort(agentId, activeProjectId!)
         } catch (error) {
           console.warn('Failed to abort agent (might not be running):', error)
           // Continue anyway - agent might not be running
@@ -163,21 +158,7 @@ export function useAgentOperations() {
         // Step 6: Clean up the backend session/files - WAIT for completion
         // This is critical - we must ensure files are actually deleted
         try {
-          const response = await fetch(`/api/agents/${agentId}/clear-session`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              projectId: activeProjectId,
-              oldSessionId,
-            }),
-          })
-
-          if (!response.ok) {
-            const errorText = await response.text()
-            console.error('Backend session cleanup failed:', response.status, errorText)
-            throw new Error(`Backend cleanup failed: ${response.status}`)
-          }
-
+          await studioApi.agents.clearSession(agentId, activeProjectId!, oldSessionId)
           console.log('Backend session cleanup completed successfully')
         } catch (error) {
           console.error('Failed to clean up backend session:', error)
@@ -271,15 +252,7 @@ export function useAgentOperations() {
         // This handles removing from metadata and cleaning up sessions
         console.log(`Removing agent ${agentId} from project ${activeProjectId}`)
         
-        const response = await fetch(`/api/projects/${activeProjectId}/agents/${agentId}`, {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-        })
-
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.error || 'Failed to remove agent from project')
-        }
+        await studioApi.projects.removeAgent(activeProjectId, agentId)
 
         // Remove from UI store
         removeAgent(agentId)
@@ -318,26 +291,15 @@ export function useAgentOperations() {
       }
 
       try {
-        // Normalize input to always have configId and optional name
-        const agentData = agentIds.map(agent => 
+        // Extract agent IDs from the input
+        const agentIdStrings = agentIds.map(agent => 
           typeof agent === 'string' 
-            ? { configId: agent } 
-            : agent
+            ? agent 
+            : agent.configId
         )
 
         // Call the API to add agents to project metadata
-        const response = await fetch(`/api/projects/${activeProjectId}/agents`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ agentIds: agentData }),
-        })
-
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.error || 'Failed to add agents to project')
-        }
+        await studioApi.projects.addAgents(activeProjectId, agentIdStrings)
 
         // Refresh the agent list
         window.dispatchEvent(

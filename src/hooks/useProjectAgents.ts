@@ -1,25 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useProjectStore, useAgentStore } from '../stores'
+import { studioApi } from '../services/api'
 import type { Agent } from '../stores/agents'
-
-interface APIAgent {
-  id: string
-  name: string
-  role: string
-  status: string
-  totalTokens?: number
-  claudeSessionId?: string
-  sessionStartedAt?: string
-  totalMessages?: number
-  systemPrompt?: string
-  tools?: string[]
-  model?: string
-  projectPath?: string
-  maxTokens?: number
-  lastMessage?: string
-  sessionId?: string
-  hasSession?: boolean
-}
 
 /**
  * Hook to get agents for the active project
@@ -39,31 +21,31 @@ export function useProjectAgents() {
 
     setLoading(true)
     try {
-      const response = await fetch(`/api/projects/${activeProjectId}/agents`)
-      if (response.ok) {
-        const data = await response.json()
+      const data = await studioApi.projects.getAgents(activeProjectId)
 
-        // Map agents from the new endpoint
-        const projectAgents: Agent[] = data.agents.map((agent: APIAgent) => {
-          console.log(`[useProjectAgents] Loading agent ${agent.id} with sessionId: ${agent.sessionId}`)
+      // Map agents from the new endpoint
+      const projectAgents: Agent[] = data.map((agentInstance, index) => {
+          console.log(`[useProjectAgents] Loading agent ${agentInstance.id} with sessionId: ${agentInstance.sessionId}`)
+          // We need to get the full agent data from the configs
+          const config = configs.find(c => c.id === agentInstance.agentId)
           return {
-            id: agent.id,
-            name: agent.name,
-            role: agent.role,
-            status: agent.status,
-            tokens: agent.totalTokens || 0,
-            maxTokens: agent.maxTokens || 200000,
-            lastMessage: agent.lastMessage || 'No messages yet',
-            sessionId: agent.sessionId,
-            hasSession: agent.hasSession || false,
+            id: agentInstance.id,
+            name: config?.name || agentInstance.agentId,
+            role: config?.role || 'Agent',
+            status: agentInstance.status === 'active' ? 'online' : 
+                    agentInstance.status === 'processing' ? 'busy' : 'offline',
+            tokens: 0, // TODO: Get from session
+            maxTokens: config?.maxTokens || 200000,
+            lastMessage: 'No messages yet',
+            sessionId: agentInstance.sessionId,
+            order: index,
           }
         })
 
-        // No need to add numbering - custom names are preserved from team templates
-        // No need to fetch role assignments - already included in agent data
+      // No need to add numbering - custom names are preserved from team templates
+      // No need to fetch role assignments - already included in agent data
 
-        setAgents(projectAgents)
-      }
+      setAgents(projectAgents)
     } catch (error) {
       console.error('Error fetching project agents:', error)
       setAgents([])

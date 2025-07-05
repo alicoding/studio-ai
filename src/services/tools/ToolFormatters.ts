@@ -1,29 +1,46 @@
+import type { 
+  BaseToolInput, 
+  ToolResult,
+  BashToolInput,
+  ReadToolInput,
+  WriteToolInput,
+  EditToolInput,
+  LSToolInput,
+  GlobToolInput,
+  GrepToolInput,
+  TaskToolInput,
+  TodoWriteInput,
+  WebFetchInput,
+  WebSearchInput
+} from './types'
+
 // Tool formatter interface for consistent tool display and result formatting
-export interface ToolFormatter {
+export interface ToolFormatter<TInput extends BaseToolInput = BaseToolInput, TResult = unknown> {
   // Format the tool name and primary parameter for display
-  formatDisplay(name: string, input: any): string
+  formatDisplay(name: string, input: TInput): string
   
   // Format the result for display (both collapsed and expanded views)
-  formatResult(result: any): string
+  formatResult(result: ToolResult<TResult>): string
   
   // Clean/process the result text if needed
   cleanResult?(text: string): string
   
   // Check if this tool should show custom expanded content
-  shouldShowCustomExpandedContent?(input: any): boolean
+  shouldShowCustomExpandedContent?(input: TInput): boolean
   
   // Check if this tool should show custom result content  
-  shouldShowCustomResultContent?(result: any): boolean
+  shouldShowCustomResultContent?(result: ToolResult<TResult>): boolean
   
   // Check if this tool should show the ⎿ connector in collapsed view
   shouldShowResultConnector?(): boolean
 }
 
 // Base formatter with default implementations
-export abstract class BaseToolFormatter implements ToolFormatter {
-  abstract formatDisplay(name: string, input: any): string
+export abstract class BaseToolFormatter<TInput extends BaseToolInput = BaseToolInput, TResult = unknown> 
+  implements ToolFormatter<TInput, TResult> {
+  abstract formatDisplay(name: string, input: TInput): string
   
-  formatResult(result: any): string {
+  formatResult(result: ToolResult<TResult>): string {
     if (typeof result === 'string') {
       return result
     }
@@ -46,14 +63,14 @@ export abstract class BaseToolFormatter implements ToolFormatter {
 }
 
 // Individual tool formatters
-class BashFormatter extends BaseToolFormatter {
-  formatDisplay(name: string, input: any): string {
+class BashFormatter extends BaseToolFormatter<BashToolInput> {
+  formatDisplay(name: string, input: BashToolInput): string {
     return input?.command ? `${name}(${input.command})` : name
   }
 }
 
-class ReadFormatter extends BaseToolFormatter {
-  formatDisplay(name: string, input: any): string {
+class ReadFormatter extends BaseToolFormatter<ReadToolInput, string> {
+  formatDisplay(name: string, input: ReadToolInput): string {
     if (input?.file_path) {
       const fileName = input.file_path.split('/').pop() || input.file_path
       return `${name}(${fileName})`
@@ -61,7 +78,7 @@ class ReadFormatter extends BaseToolFormatter {
     return name
   }
   
-  formatResult(result: any): string {
+  formatResult(result: ToolResult<string>): string {
     const text = super.formatResult(result)
     if (!text) return ''
     
@@ -85,8 +102,8 @@ class ReadFormatter extends BaseToolFormatter {
   }
 }
 
-class FilePathFormatter extends BaseToolFormatter {
-  formatDisplay(name: string, input: any): string {
+class FilePathFormatter extends BaseToolFormatter<WriteToolInput | EditToolInput> {
+  formatDisplay(name: string, input: WriteToolInput | EditToolInput): string {
     if (input?.file_path) {
       const fileName = input.file_path.split('/').pop() || input.file_path
       return `${name}(${fileName})`
@@ -95,8 +112,8 @@ class FilePathFormatter extends BaseToolFormatter {
   }
 }
 
-class LSFormatter extends BaseToolFormatter {
-  formatDisplay(name: string, input: any): string {
+class LSFormatter extends BaseToolFormatter<LSToolInput> {
+  formatDisplay(name: string, input: LSToolInput): string {
     if (input?.path) {
       const dirName = input.path.split('/').pop() || input.path || '.'
       return `${name}(${dirName})`
@@ -105,14 +122,14 @@ class LSFormatter extends BaseToolFormatter {
   }
 }
 
-class GlobFormatter extends BaseToolFormatter {
-  formatDisplay(name: string, input: any): string {
+class GlobFormatter extends BaseToolFormatter<GlobToolInput> {
+  formatDisplay(name: string, input: GlobToolInput): string {
     return input?.pattern ? `${name}(${input.pattern})` : name
   }
 }
 
-class GrepFormatter extends BaseToolFormatter {
-  formatDisplay(name: string, input: any): string {
+class GrepFormatter extends BaseToolFormatter<GrepToolInput> {
+  formatDisplay(name: string, input: GrepToolInput): string {
     if (input?.pattern) {
       const pattern = input.pattern.length > 30 
         ? input.pattern.substring(0, 30) + '...' 
@@ -123,19 +140,19 @@ class GrepFormatter extends BaseToolFormatter {
   }
 }
 
-class TaskFormatter extends BaseToolFormatter {
-  formatDisplay(name: string, input: any): string {
+class TaskFormatter extends BaseToolFormatter<TaskToolInput> {
+  formatDisplay(name: string, input: TaskToolInput): string {
     return input?.description ? `${name}(${input.description})` : name
   }
 }
 
-class TodoReadFormatter extends BaseToolFormatter {
-  formatDisplay(name: string, _input: any): string {
+class TodoReadFormatter extends BaseToolFormatter<BaseToolInput> {
+  formatDisplay(name: string, _input: BaseToolInput): string {
     // TodoRead doesn't take input parameters
     return name.replace('TodoRead', 'Read Todos')
   }
   
-  formatResult(result: any): string {
+  formatResult(result: ToolResult<unknown>): string {
     // For TodoRead, show the todos in a nice format
     const text = super.formatResult(result)
     if (!text) return 'No todos found'
@@ -178,7 +195,7 @@ class TodoReadFormatter extends BaseToolFormatter {
     return text
   }
   
-  shouldShowCustomResultContent(result: any): boolean {
+  shouldShowCustomResultContent(result: ToolResult<unknown>): boolean {
     if (!result) return false
     
     try {
@@ -200,8 +217,8 @@ class TodoReadFormatter extends BaseToolFormatter {
   }
 }
 
-class TodoWriteFormatter extends BaseToolFormatter {
-  formatDisplay(_name: string, input: any): string {
+class TodoWriteFormatter extends BaseToolFormatter<TodoWriteInput> {
+  formatDisplay(_name: string, input: TodoWriteInput): string {
     // Show the number of todos being updated
     if (input?.todos && Array.isArray(input.todos)) {
       const count = input.todos.length
@@ -210,25 +227,26 @@ class TodoWriteFormatter extends BaseToolFormatter {
     return 'Update Todos'
   }
   
-  formatResult(result: any): string {
+  formatResult(result: ToolResult<string>): string {
     // For collapsed view, we can show a simple success message
-    if (result && typeof result === 'string' && result.includes('success')) {
+    const text = super.formatResult(result)
+    if (text && text.includes('success')) {
       return '✓ Todos updated successfully'
     }
     return 'Todos updated'
   }
   
-  shouldShowCustomExpandedContent(input: any): boolean {
+  shouldShowCustomExpandedContent(input: TodoWriteInput): boolean {
     return !!(input?.todos && Array.isArray(input.todos))
   }
   
-  shouldShowCustomResultContent(_result: any): boolean {
+  shouldShowCustomResultContent(_result: ToolResult<string>): boolean {
     return false // Use default text display
   }
 }
 
-class WebFetchFormatter extends BaseToolFormatter {
-  formatDisplay(name: string, input: any): string {
+class WebFetchFormatter extends BaseToolFormatter<WebFetchInput> {
+  formatDisplay(name: string, input: WebFetchInput): string {
     if (input?.url) {
       try {
         const url = new URL(input.url)
@@ -244,8 +262,8 @@ class WebFetchFormatter extends BaseToolFormatter {
   }
 }
 
-class WebSearchFormatter extends BaseToolFormatter {
-  formatDisplay(name: string, input: any): string {
+class WebSearchFormatter extends BaseToolFormatter<WebSearchInput> {
+  formatDisplay(name: string, input: WebSearchInput): string {
     if (input?.query) {
       const query = input.query.length > 30 
         ? input.query.substring(0, 30) + '...' 
@@ -256,15 +274,15 @@ class WebSearchFormatter extends BaseToolFormatter {
   }
 }
 
-class DefaultFormatter extends BaseToolFormatter {
-  formatDisplay(name: string, _input: any): string {
+class DefaultFormatter extends BaseToolFormatter<BaseToolInput> {
+  formatDisplay(name: string, _input: BaseToolInput): string {
     return name
   }
 }
 
 // Tool formatter registry
 export class ToolFormatterRegistry {
-  private static formatters: Map<string, ToolFormatter> = new Map([
+  private static formatters: Map<string, ToolFormatter<BaseToolInput, unknown>> = new Map<string, ToolFormatter<BaseToolInput, unknown>>([
     ['Bash', new BashFormatter()],
     ['Read', new ReadFormatter()],
     ['Write', new FilePathFormatter()],

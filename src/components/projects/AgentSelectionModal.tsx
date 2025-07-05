@@ -38,6 +38,11 @@ export function AgentSelectionModal({
   const filteredAgents = availableAgents.filter((agent) => {
     // No longer filter out agents already in the project - allow multiple instances
 
+    // Safety check for agent properties
+    if (!agent || !agent.name || !agent.role) {
+      return false
+    }
+
     // Search filter
     const matchesSearch =
       agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

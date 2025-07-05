@@ -8,8 +8,9 @@ CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -E 'src/
 
 if [ -n "$CHANGED_FILES" ]; then
     echo "📝 Source files changed, rebuilding semantic index..."
-    npm run build-semantic-index --silent || echo "⚠️  Semantic index build not configured yet"
-    echo "✅ Semantic index update complete"
+    # Run in background to not block git operations
+    (npm run build-semantic-index --silent || echo "⚠️  Semantic index build failed") &
+    echo "✅ Semantic index update started in background"
 else
     echo "ℹ️  No source changes, skipping semantic index rebuild"
 fi

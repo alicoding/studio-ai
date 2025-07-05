@@ -4,15 +4,17 @@
  * SOLID: Single Responsibility - Only handles message operations
  * DRY: Centralizes message routing logic
  * KISS: Simple interface for complex message handling
- * Library-First: Uses ProcessManager, ClaudeMessages, and stores
+ * Library-First: Uses centralized API client with ky
  */
 
 import { useCallback } from 'react'
 import { useAgentStore, useProjectStore } from '../stores'
 import { useClaudeMessages } from './useClaudeMessages'
 import { useProcessManager } from './useProcessManager'
+import { useAICommands } from './useAICommands'
 import { isInteractiveOnlyCommand, getCommandErrorMessage } from '../config/commands'
 import { CommandService } from '../services/CommandService'
+import { studioApi } from '../services/api'
 import type { Agent } from '../stores/agents'
 import type { Project } from '../stores/projects'
 import { toast } from 'sonner'
@@ -35,6 +37,7 @@ interface MessageOptions {
 export function useMessageOperations() {
   const processManager = useProcessManager()
   const { sendMessage: sendClaudeMessage } = useClaudeMessages()
+  const { isAICommand, executeAICommand } = useAICommands()
 
   const { selectedAgentId, updateAgentSessionId } = useAgentStore()
 
@@ -77,7 +80,7 @@ export function useMessageOperations() {
 
   /**
    * Handle #command messages
-   * Uses CommandService for all command logic
+   * Checks for AI commands first, then falls back to regular commands
    */
   const handleCommand = useCallback(
     async (message: string): Promise<MessageResult> => {
@@ -88,6 +91,34 @@ export function useMessageOperations() {
         }
       }
 
+      // Check if this is an AI command first
+      if (await isAICommand(message)) {
+        if (!selectedAgentId) {
+          return {
+            success: false,
+            error: 'Please select an agent to use AI commands',
+          }
+        }
+
+        const agents = useAgentStore.getState().getProjectAgents(activeProjectId)
+        const selectedAgent = agents.find((a) => a.id === selectedAgentId)
+
+        console.log('[Command] Executing AI command:', message)
+        
+        const result = await executeAICommand(
+          message,
+          selectedAgentId,
+          selectedAgent?.sessionId
+        )
+
+        return {
+          success: result.success,
+          error: result.error,
+          sessionId: result.sessionId || selectedAgent?.sessionId || selectedAgentId || undefined,
+        }
+      }
+
+      // Fall back to regular command handling
       const commandService = CommandService.getInstance()
       const agents = useAgentStore.getState().getProjectAgents(activeProjectId)
       const selectedAgent = agents.find((a) => a.id === selectedAgentId)
@@ -122,15 +153,10 @@ export function useMessageOperations() {
           
           console.log('[Command] Sending system message with sessionId (agentId):', effectiveSessionId)
           
-          await fetch('/api/messages/system', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sessionId: effectiveSessionId,
-              content: result.content,
-              type: 'command-response',
-              role: 'system',
-            }),
+          await studioApi.messages.sendSystem({
+            sessionId: effectiveSessionId,
+            content: result.content,
+            type: 'command-response',
           })
         }
 
@@ -146,7 +172,7 @@ export function useMessageOperations() {
         }
       }
     },
-    [activeProjectId, selectedAgentId]
+    [activeProjectId, selectedAgentId, isAICommand, executeAICommand]
   )
 
   /**
@@ -262,24 +288,13 @@ export function useMessageOperations() {
     try {
       console.log(`Aborting message for selected agent ${selectedAgentId} in project ${activeProjectId}`)
       
-      const response = await fetch('/api/messages/abort', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId: activeProjectId,
-          agentId: selectedAgentId,
-        }),
+      await studioApi.messages.abort({
+        projectId: activeProjectId,
+        agentId: selectedAgentId,
       })
-
-      if (!response.ok) {
-        const error = await response.json()
-        console.error('Failed to abort message:', error)
-        toast.error('Failed to interrupt message')
-      } else {
-        const result = await response.json()
-        console.log('Message aborted successfully:', result)
-        toast.success(`Interrupted ${selectedAgent.name}`)
-      }
+      
+      console.log('Message aborted successfully')
+      toast.success(`Interrupted ${selectedAgent.name}`)
     } catch (error) {
       console.error('Error aborting message:', error)
       toast.error('Error interrupting message')

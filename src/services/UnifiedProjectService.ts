@@ -6,8 +6,8 @@
  * KISS: Simple bridge pattern
  */
 
-import { ConfigService, ProjectConfig } from './ConfigService.js'
-import { ProjectService as ClaudeProjectService, EnrichedProject } from '../../web/server/services/ProjectService.js'
+import { ConfigService, ProjectConfig } from './ConfigService'
+import { ProjectService as ClaudeProjectService, EnrichedProject } from '../../web/server/services/ProjectService'
 
 export interface UnifiedProject extends ProjectConfig {
   // Add Claude native project info if available
@@ -39,13 +39,13 @@ export class UnifiedProjectService {
    */
   async getAllProjects(): Promise<UnifiedProject[]> {
     // Get Studio projects
-    const studioProjects = await this.configService.getAllProjects()
+    const studioProjects = await this.configService.listProjects()
     
     // Get native Claude projects
     const claudeProjects = await this.claudeProjectService.getAllProjects()
     
     // Create a map for quick lookup
-    const studioProjectMap = new Map(studioProjects.map(p => [p.workspacePath, p]))
+    const studioProjectMap = new Map(studioProjects.map((p: any) => [p.workspacePath, p]))
     const unifiedProjects: UnifiedProject[] = []
     
     // First, add all Studio projects

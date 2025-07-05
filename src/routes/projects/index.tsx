@@ -4,7 +4,7 @@ import { ProjectCard } from '../../components/projects/ProjectCard'
 import { CreateProjectModal } from '../../components/projects/CreateProjectModal'
 import { EditProjectModal } from '../../components/projects/EditProjectModal'
 import { PageLayout } from '../../components/layout/PageLayout'
-import { useProjectStore } from '../../stores'
+import { useProjectStore, type Project } from '../../stores'
 import { useProjects } from '../../hooks/useProjects'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
@@ -23,7 +23,7 @@ function ProjectsListingPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [editingProject, setEditingProject] = useState<any>(null)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
 
   const filteredProjects = projects.filter(
     (project) =>
@@ -50,7 +50,7 @@ function ProjectsListingPage() {
     setShowCreateModal(false)
   }
 
-  const isSystemProject = (project: any) => {
+  const isSystemProject = (project: Project) => {
     // Check if it's a system-level project that shouldn't be deleted
     if (!project.path) return false
     
@@ -120,7 +120,7 @@ function ProjectsListingPage() {
     }
   }
 
-  const handleSaveProjectMetadata = async (projectId: string, metadata: any) => {
+  const handleSaveProjectMetadata = async (projectId: string, metadata: Partial<Project>) => {
     await updateProjectMetadata(projectId, metadata)
     // Projects will be refreshed automatically by the shared hook
   }

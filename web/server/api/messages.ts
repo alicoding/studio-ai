@@ -1,13 +1,21 @@
-import { Router } from 'express'
-import { ClaudeService } from '../services/ClaudeService.js'
-import type { Role } from '../../../../src/types.js'
+import { Router, Request, Response } from 'express'
+import { ClaudeService } from '../services/ClaudeService'
+import type { Role } from '../services/claude-agent'
+import { getResponseTracker } from '../services/ResponseTracker'
+import { ProjectResolver } from '../services/ProjectResolver'
+import { ProjectService } from '../services/ProjectService'
+import { createDefaultConfig } from '../schemas/orchestration'
 
 const router = Router()
 const claudeService = new ClaudeService()
+const projectService = new ProjectService()
+// TODO: Load orchestration config from storage/settings
+const orchestrationConfig = createDefaultConfig()
+const projectResolver = new ProjectResolver(projectService, orchestrationConfig)
 
 // POST /api/messages - Send a message to Claude
 // KISS: Simple endpoint that delegates to service
-router.post('/', async (req, res) => {
+router.post('/', async (req: Request, res: Response) => {
   try {
     const {
       content,
@@ -46,8 +54,8 @@ router.post('/', async (req, res) => {
     // Get agent configuration dynamically
     let agentConfig = undefined
     try {
-      const { ConfigService } = await import('../../../src/services/ConfigService')
-      const configService = ConfigService.getInstance()
+      const { ServerAgentConfigService } = await import('../services/ServerAgentConfigService')
+      const configService = ServerAgentConfigService.getInstance()
 
       // Handle both legacy agentIds and new instance IDs
       const configId =
@@ -77,7 +85,7 @@ router.post('/', async (req, res) => {
       projectId,
       agentId,
       projectPath,
-      role as Role,
+      role as Role | undefined,
       undefined,
       io,
       forceNewSession,
@@ -96,7 +104,20 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('Error sending message:', error)
 
-    // Provide detailed error information
+    // Handle abort errors gracefully - don't crash the server
+    if (error instanceof Error && (
+      error.message.includes('aborted') || 
+      error.message.includes('Query was aborted') ||
+      error.name === 'AbortError'
+    )) {
+      console.log('Request was aborted by user - returning 409 status')
+      return res.status(409).json({
+        error: 'Request was aborted',
+        code: 'ABORTED'
+      })
+    }
+
+    // Provide detailed error information for other errors
     let errorMessage = 'Failed to send message'
     let errorDetails = 'Unknown error'
 
@@ -118,13 +139,32 @@ router.post('/', async (req, res) => {
 })
 
 // POST /api/messages/mention - Route @mention message to agents
-router.post('/mention', async (req, res) => {
+router.post('/mention', async (req: Request, res: Response) => {
   try {
-    const { message, fromAgentId, projectId } = req.body
+    const { message, fromAgentId, projectId, targetProjectId, wait, timeout } = req.body
 
     if (!message || !fromAgentId || !projectId) {
       return res.status(400).json({ error: 'Message, fromAgentId, and projectId are required' })
     }
+
+    // Validate cross-project permission if targetProjectId is specified
+    const actualTargetProjectId = targetProjectId || projectId
+    if (targetProjectId && targetProjectId !== projectId) {
+      try {
+        await projectResolver.resolveProjectContext({
+          sourceProjectId: projectId,
+          targetProjectId: targetProjectId,
+          userId: fromAgentId, // Using fromAgentId as userId for now
+          action: 'mention'
+        })
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Cross-project access denied'
+        return res.status(403).json({ error: errorMessage })
+      }
+    }
+
+    // Get response tracker for wait mode
+    const responseTracker = wait ? getResponseTracker() : null
 
     // Simple mention parsing - extract target agent and message content
     const parseMentions = (msg: string): Array<{ targetAgent: string; content: string }> => {
@@ -155,6 +195,8 @@ router.post('/mention', async (req, res) => {
 
     const mentions = parseMentions(message)
     const routedTargets: string[] = []
+    // Store response promises for wait mode
+    const trackedResponses = new Map<string, Promise<unknown>>()
 
     if (mentions.length === 0) {
       return res.status(400).json({ error: 'No valid mentions found in message' })
@@ -183,7 +225,7 @@ router.post('/mention', async (req, res) => {
       console.log(`[Mention] Emitting user message to sessionId: ${targetAgentId}`)
       io.emit('message:new', {
         sessionId: targetAgentId, // Use target agent ID for WebSocket routing
-        projectId: projectId,
+        projectId: actualTargetProjectId, // Use target project for cross-project routing
         agentId: targetAgentId,
         message: {
           role: 'user',
@@ -198,9 +240,43 @@ router.post('/mention', async (req, res) => {
         targetAgentId,
         fromAgentId,
         message,
-        projectId,
+        projectId: actualTargetProjectId, // Use target project for cross-project routing
+        sourceProjectId: projectId, // Include source project for context
         timestamp: new Date().toISOString(),
       })
+
+      // Track response if in wait mode
+      let correlationId: string | undefined
+      
+      if (responseTracker && wait) {
+        const tracked = await responseTracker.trackResponse(
+          targetAgentId,
+          actualTargetProjectId, // Use target project for tracking
+          timeout
+        )
+        correlationId = tracked.correlationId
+        // Store the promise for later collection
+        trackedResponses.set(targetAgentId, tracked.promise)
+        
+        // Include correlation ID in the message for response tracking
+        io.emit('agent:mention-received', {
+          targetAgentId,
+          fromAgentId,
+          message,
+          projectId,
+          correlationId,
+          timestamp: new Date().toISOString(),
+        })
+      } else {
+        // Non-wait mode - just emit the mention
+        io.emit('agent:mention-received', {
+          targetAgentId,
+          fromAgentId,
+          message,
+          projectId,
+          timestamp: new Date().toISOString(),
+        })
+      }
 
       // Actually send the message to the target agent through Claude API
       try {
@@ -210,7 +286,7 @@ router.post('/mention', async (req, res) => {
         const messageContent = mention.content
 
         // Send the message to the target agent via Claude API
-        await claudeService.sendMessage(
+        const result = await claudeService.sendMessage(
           `Message from @${fromAgentId}: ${messageContent}`,
           projectId,
           targetAgentId,
@@ -223,8 +299,27 @@ router.post('/mention', async (req, res) => {
         )
 
         console.log(`[Mention] Successfully delivered to ${targetAgentId}, response started`)
+        
+        // In wait mode, store the result for response tracking
+        if (correlationId && responseTracker) {
+          // The response from Claude is the actual agent response
+          responseTracker.resolveResponse(correlationId, {
+            from: targetAgentId,
+            content: result.response,
+            sessionId: result.sessionId,
+            timestamp: new Date().toISOString()
+          })
+        }
       } catch (error) {
         console.error(`[Mention] Failed to deliver message to ${targetAgentId}:`, error)
+        
+        // Reject the tracked response if in wait mode
+        if (correlationId && responseTracker) {
+          responseTracker.rejectResponse(
+            correlationId, 
+            error instanceof Error ? error : new Error('Failed to deliver message')
+          )
+        }
 
         // Emit error to UI
         io.emit('agent:mention-error', {
@@ -237,12 +332,52 @@ router.post('/mention', async (req, res) => {
       }
     }
 
-    res.json({
-      message: 'Mention routed successfully',
-      fromAgentId,
-      projectId,
-      targets: routedTargets,
-    })
+    // In wait mode, collect all responses
+    if (wait && responseTracker) {
+      const responses: Record<string, unknown> = {}
+      const errors: Record<string, string> = {}
+      
+      // Collect all response promises
+      const responsePromises: Array<{ agentId: string; promise: Promise<unknown> }> = []
+      
+      for (const targetAgentId of routedTargets) {
+        // Get the promise from our tracked responses map
+        const promise = trackedResponses.get(targetAgentId)
+        if (promise) {
+          responsePromises.push({ agentId: targetAgentId, promise })
+        }
+      }
+      
+      // Wait for all responses or timeouts
+      for (const { agentId, promise } of responsePromises) {
+        try {
+          const response = await promise
+          responses[agentId] = response
+        } catch (error) {
+          errors[agentId] = error instanceof Error ? error.message : 'Unknown error'
+        }
+      }
+      
+      // Return aggregated responses
+      res.json({
+        message: 'Mention processed with responses',
+        fromAgentId,
+        projectId,
+        targets: routedTargets,
+        wait: true,
+        responses,
+        errors: Object.keys(errors).length > 0 ? errors : undefined
+      })
+    } else {
+      // Non-wait mode - return immediately
+      res.json({
+        message: 'Mention routed successfully',
+        fromAgentId,
+        projectId,
+        targets: routedTargets,
+        wait: false
+      })
+    }
   } catch (error) {
     console.error('Error routing mention:', error)
     res.status(500).json({ error: 'Failed to route mention' })
@@ -262,7 +397,7 @@ router.delete('/sessions/:projectId/:agentId', async (req, res) => {
 })
 
 // POST /api/messages/system - Send a system message to the chat
-router.post('/system', async (req, res) => {
+router.post('/system', async (req: Request, res: Response) => {
   try {
     const { sessionId, content, type = 'system' } = req.body
 
@@ -292,7 +427,7 @@ router.post('/system', async (req, res) => {
 })
 
 // POST /api/messages/abort - Abort an ongoing message for a specific agent
-router.post('/abort', async (req, res) => {
+router.post('/abort', async (req: Request, res: Response) => {
   try {
     const { projectId, agentId } = req.body
 

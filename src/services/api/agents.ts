@@ -1,39 +1,22 @@
-// SOLID: Single Responsibility - API calls only
+/**
+ * MIGRATED: Now uses centralized API client with ky
+ * 
+ * SOLID: Single Responsibility - API calls only
+ * DRY: Reuses HTTP client logic from StudioApiProvider
+ * KISS: Simple delegation to centralized client
+ * Library-First: Built on ky via StudioApiProvider
+ */
+
+import { studioApi } from './index'
+
+// Backwards compatibility export - delegates to centralized client
 export const agentsApi = {
-  async getAll() {
-    const response = await fetch('/api/agents')
-    if (!response.ok) throw new Error('Failed to fetch agents')
-    return response.json()
-  },
-
-  async get(id: string) {
-    const response = await fetch(`/api/agents/${id}`)
-    if (!response.ok) throw new Error('Failed to fetch agent')
-    return response.json()
-  },
-
-  async create(data: any) {
-    const response = await fetch('/api/agents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!response.ok) throw new Error('Failed to create agent')
-    return response.json()
-  },
-
-  async update(id: string, data: any) {
-    const response = await fetch(`/api/agents/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!response.ok) throw new Error('Failed to update agent')
-    return response.json()
-  },
-
-  async delete(id: string) {
-    const response = await fetch(`/api/agents/${id}`, { method: 'DELETE' })
-    if (!response.ok) throw new Error('Failed to delete agent')
-  },
+  getAll: () => studioApi.agents.getAll(),
+  get: (id: string) => studioApi.agents.get(id),
+  create: (data: any) => studioApi.agents.create(data),
+  update: (id: string, data: any) => studioApi.agents.update(id, data),
+  delete: (id: string) => studioApi.agents.delete(id),
 }
+
+// Extended operations available through centralized client
+export const extendedAgentsApi = studioApi.agents

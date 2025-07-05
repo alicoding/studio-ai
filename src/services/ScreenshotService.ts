@@ -2,6 +2,55 @@ import * as domtoimage from 'dom-to-image-more'
 import { toast } from 'sonner'
 import { saveAs } from 'file-saver'
 
+interface ReactFiber {
+  elementType?: {
+    name?: string
+    displayName?: string
+    $$typeof?: symbol
+    type?: {
+      name?: string
+      displayName?: string
+    }
+    render?: {
+      name?: string
+    }
+    _payload?: {
+      value?: {
+        name?: string
+      }
+      _result?: {
+        name?: string
+      }
+    }
+    toString?: () => string
+  } | ((...args: unknown[]) => unknown)
+  type?: {
+    name?: string
+    displayName?: string
+  } | ((...args: unknown[]) => unknown)
+  memoizedProps?: Record<string, unknown>
+  memoizedState?: unknown
+  _debugSource?: {
+    fileName: string
+    lineNumber: number
+    columnNumber?: number
+  }
+  _debugOwner?: {
+    elementType?: {
+      name?: string
+      displayName?: string
+    }
+  }
+  alternate?: {
+    elementType?: {
+      name?: string
+    }
+  }
+  return?: ReactFiber
+  stateNode?: unknown
+  tag?: number
+}
+
 interface ElementInfo {
   tagName: string
   id?: string
@@ -12,8 +61,8 @@ interface ElementInfo {
   textContent?: string
   reactComponent?: {
     name: string
-    props?: any
-    state?: any
+    props?: Record<string, unknown>
+    state?: unknown
     source?: {
       fileName: string
       lineNumber: number
@@ -416,19 +465,20 @@ export class ScreenshotService {
     const fiberKey = Object.keys(element).find(key => key.startsWith('__reactInternalInstance') || key.startsWith('__reactFiber'))
     
     if (fiberKey) {
-      const fiber = (element as any)[fiberKey]
+      const fiber = ((element as unknown) as Record<string, unknown>)[fiberKey] as ReactFiber
       if (fiber && fiber.elementType) {
         // Enhanced component name detection
         let componentName = 'Unknown'
         
         // Try multiple ways to get the component name
-        if (fiber.elementType.name) {
+        if (typeof fiber.elementType === 'object' && fiber.elementType.name) {
           componentName = fiber.elementType.name
-        } else if (fiber.elementType.displayName) {
+        } else if (typeof fiber.elementType === 'object' && fiber.elementType.displayName) {
           componentName = fiber.elementType.displayName
         } else if (fiber.type && typeof fiber.type === 'function') {
           // Try to get name from the type property
-          componentName = fiber.type.name || fiber.type.displayName || 'Unknown'
+          const typeFunc = fiber.type as { name?: string; displayName?: string }
+          componentName = typeFunc.name || typeFunc.displayName || 'Unknown'
         } else if (fiber._debugOwner && fiber._debugOwner.elementType) {
           // Try to get from debug owner
           componentName = fiber._debugOwner.elementType.name || fiber._debugOwner.elementType.displayName || 'Unknown'
@@ -440,10 +490,10 @@ export class ScreenshotService {
             fiber,
             elementType: fiber.elementType,
             type: fiber.type,
-            hasName: !!fiber.elementType?.name,
-            hasDisplayName: !!fiber.elementType?.displayName,
+            hasName: typeof fiber.elementType === 'object' ? !!fiber.elementType?.name : false,
+            hasDisplayName: typeof fiber.elementType === 'object' ? !!fiber.elementType?.displayName : false,
             elementTypeType: typeof fiber.elementType,
-            elementTypeConstructorName: fiber.elementType?.constructor?.name,
+            elementTypeConstructorName: typeof fiber.elementType === 'object' ? fiber.elementType?.constructor?.name : undefined,
             stateNode: fiber.stateNode,
             tag: fiber.tag,
             // Check if it's a host component (DOM element)
@@ -464,12 +514,12 @@ export class ScreenshotService {
         }
         
         // For memo/forwardRef components, try to get the wrapped component name
-        if (fiber.elementType.$$typeof) {
+        if (typeof fiber.elementType === 'object' && fiber.elementType.$$typeof) {
           const symbolStr = fiber.elementType.$$typeof.toString()
           if (symbolStr.includes('react.memo') || symbolStr.includes('react.forward_ref')) {
-            if (fiber.elementType.type && fiber.elementType.type.name) {
+            if (fiber.elementType.type && typeof fiber.elementType.type === 'object' && fiber.elementType.type.name) {
               componentName = fiber.elementType.type.name
-            } else if (fiber.elementType.render && fiber.elementType.render.name) {
+            } else if (fiber.elementType.render && typeof fiber.elementType.render === 'object' && fiber.elementType.render.name) {
               componentName = fiber.elementType.render.name
             }
           }
@@ -478,9 +528,9 @@ export class ScreenshotService {
         // In development, Vite might add wrappers, try to get original component
         if (componentName === 'Unknown' && import.meta.env.DEV) {
           // Check if it's a Vite HMR wrapper
-          if (fiber.elementType?._payload?.value?.name) {
+          if (typeof fiber.elementType === 'object' && fiber.elementType._payload?.value?.name) {
             componentName = fiber.elementType._payload.value.name
-          } else if (fiber.elementType?._payload?._result?.name) {
+          } else if (typeof fiber.elementType === 'object' && fiber.elementType._payload?._result?.name) {
             componentName = fiber.elementType._payload._result.name
           }
           
@@ -490,7 +540,7 @@ export class ScreenshotService {
           }
         }
         
-        const componentInfo: any = {
+        const componentInfo: ElementInfo['reactComponent'] = {
           name: componentName,
           props: fiber.memoizedProps,
           state: fiber.memoizedState
@@ -524,9 +574,13 @@ export class ScreenshotService {
         const hierarchy: string[] = []
         while (current && hierarchy.length < 5) {
           if (current.elementType && typeof current.elementType !== 'string') {
-            let name = current.elementType.name || current.elementType.displayName
+            let name: string | undefined
+            if (typeof current.elementType === 'object') {
+              name = current.elementType.name || current.elementType.displayName
+            }
             if (!name && current.type && typeof current.type === 'function') {
-              name = current.type.name || current.type.displayName
+              const typeFunc = current.type as { name?: string; displayName?: string }
+              name = typeFunc.name || typeFunc.displayName
             }
             if (name && name !== 'Unknown') hierarchy.unshift(name)
           }
@@ -556,7 +610,24 @@ export class ScreenshotService {
     return chain
   }
 
-  private async saveToClipboard(data: any) {
+  private async saveToClipboard(data: {
+    timestamp: string
+    highlights: Array<{
+      x: number
+      y: number
+      width: number
+      height: number
+      elementInfo: ElementInfo
+    }>
+    pageInfo: {
+      url: string
+      title: string
+      viewport: {
+        width: number
+        height: number
+      }
+    }
+  }) {
     try {
       const text = this.formatComponentMessage(data)
       await navigator.clipboard.writeText(text)
@@ -567,14 +638,31 @@ export class ScreenshotService {
     }
   }
 
-  private formatComponentMessage(data: any): string {
+  private formatComponentMessage(data: {
+    timestamp: string
+    highlights: Array<{
+      x: number
+      y: number
+      width: number
+      height: number
+      elementInfo: ElementInfo
+    }>
+    pageInfo: {
+      url: string
+      title: string
+      viewport: {
+        width: number
+        height: number
+      }
+    }
+  }): string {
     const parts: string[] = ['## Component Inspector Results\n']
     
     parts.push(`**Page:** ${data.pageInfo.title || 'Untitled'} - ${data.pageInfo.url}`)
     parts.push(`**Viewport:** ${data.pageInfo.viewport.width}x${data.pageInfo.viewport.height}`)
     parts.push(`**Captured:** ${new Date(data.timestamp).toLocaleString()}\n`)
     
-    data.highlights.forEach((highlight: any, index: number) => {
+    data.highlights.forEach((highlight, index) => {
       const info = highlight.elementInfo
       parts.push(`### Element ${index + 1}`)
       parts.push(`**Tag:** \`<${info.tagName}>\``)

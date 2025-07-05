@@ -1,18 +1,22 @@
 /**
  * useDiagnostics - React hook for diagnostic monitoring
  *
+ * KISS: Just connects to WebSocket and displays updates
  * Library First: Uses React hooks pattern
- * SOLID: Connects ErrorMonitor service to Zustand store
+ * SOLID: Single responsibility - UI state management
  */
 
-import { useEffect } from 'react'
-import { useDiagnosticsStore } from '../stores/diagnostics'
+import { useEffect, useMemo, useRef } from 'react'
+import { useDiagnosticsStore, type Diagnostic } from '../stores/diagnostics'
 import { ErrorMonitor } from '../services/ErrorMonitor'
 import { useProjectStore } from '../stores/projects'
 
 export function useDiagnostics() {
   const { projects, activeProjectId } = useProjectStore()
-  const currentProject = projects.find((p) => p.id === activeProjectId)
+  const currentProject = useMemo(
+    () => projects.find((p) => p.id === activeProjectId),
+    [projects, activeProjectId]
+  )
 
   const {
     diagnostics,
@@ -33,62 +37,39 @@ export function useDiagnostics() {
   } = useDiagnosticsStore()
 
   // Use global singleton monitor
-  const monitor = ErrorMonitor.getInstance()
+  const monitor = useMemo(() => ErrorMonitor.getInstance(), [])
 
-  // Start/stop monitoring based on current project
+  // Set up listeners once
   useEffect(() => {
-    // Use current project path or Claude Studio itself
-    const projectPath = currentProject?.path || '/Users/ali/claude-swarm/claude-team/claude-studio'
-
-    // Check if we're already monitoring
-    if (monitor.isMonitoring) {
-      console.log('[useDiagnostics] Already monitoring, keeping state')
-      // Ensure store reflects monitoring state
-      setMonitoring(true)
-      return
+    // Listen for diagnostic updates
+    const handler = ({ source, diagnostics }: { source: string; diagnostics: Diagnostic[] }) => {
+      console.log(`[useDiagnostics] Received ${diagnostics.length} diagnostics for ${source}`)
+      setDiagnostics(source, diagnostics)
     }
+    
+    const cleanup = monitor.onDiagnosticsUpdated(handler)
 
-    const startMonitoring = async () => {
-      // Set monitoring to true immediately to avoid flicker
-      setMonitoring(true)
-
-      try {
-        // Set up listeners only once
-        if (!monitor.isMonitoring) {
-          // Listen for diagnostic updates
-          monitor.onDiagnosticsUpdated(({ source, diagnostics }) => {
-            console.log(
-              `[useDiagnostics] Received ${diagnostics.length} diagnostics for source: ${source}`
-            )
-            setDiagnostics(source, diagnostics)
-          })
-
-          monitor.onMonitoringStarted(() => {
-            // Already set to true above
-            console.log('[useDiagnostics] Monitoring confirmed started')
-          })
-
-          monitor.onMonitoringStopped(() => {
-            setMonitoring(false)
-          })
-        }
-
-        // Start monitoring
-        console.log('[useDiagnostics] Starting monitoring for:', projectPath)
-        await monitor.startMonitoring(projectPath)
-      } catch (error) {
-        console.error('Failed to start diagnostic monitoring:', error)
-        setMonitoring(false)
-      }
-    }
-
-    startMonitoring()
-
-    // Cleanup on unmount - but don't stop monitoring since it should be global
+    // We're monitoring as soon as connected
+    setMonitoring(monitor.isConnected)
+    
+    // Cleanup function to prevent memory leaks
     return () => {
-      console.log('[useDiagnostics] Hook cleanup - keeping monitor active')
+      cleanup()
+      console.log('[useDiagnostics] Cleanup - handler removed')
     }
-  }, []) // Run only once on mount
+  }, [monitor, setDiagnostics, setMonitoring])
+
+  // Track previous project to avoid redundant switches
+  const previousProjectRef = useRef<string | null>(null)
+  
+  // Switch projects when activeProjectId changes
+  useEffect(() => {
+    if (activeProjectId && currentProject && activeProjectId !== previousProjectRef.current) {
+      console.log(`[useDiagnostics] Switching to project: ${activeProjectId} (from: ${previousProjectRef.current})`)
+      monitor.switchProject(activeProjectId, currentProject.path)
+      previousProjectRef.current = activeProjectId
+    }
+  }, [activeProjectId, currentProject, monitor])
 
   return {
     // State

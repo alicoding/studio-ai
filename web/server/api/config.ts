@@ -7,7 +7,7 @@
  */
 
 import { Router } from 'express'
-import { ConfigService } from '../../../src/services/ConfigService.js'
+import { ConfigService } from '../../../src/services/ConfigService'
 
 const router = Router()
 const configService = ConfigService.getInstance()

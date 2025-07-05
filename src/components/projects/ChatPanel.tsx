@@ -1,15 +1,17 @@
 import { useState, useRef } from 'react'
 import TextareaAutosize from 'react-textarea-autosize'
 import { CommandSuggestions } from './CommandSuggestions'
+import { MentionWaitModeControl } from '../orchestration/MentionWaitModeControl'
+import { BatchOperationsControl } from '../orchestration/BatchOperationsControl'
 import { useAgentStore, useProjectStore } from '../../stores'
+import type { Agent } from '../../stores/agents'
 
 interface ChatPanelProps {
   onSendMessage: (message: string) => void | Promise<void>
-  onBroadcast: () => void
   onInterrupt: () => void
 }
 
-export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanelProps) {
+export function ChatPanel({ onSendMessage, onInterrupt }: ChatPanelProps) {
   // Get agents from Zustand store
   const { getProjectAgents } = useAgentStore()
   const { activeProjectId } = useProjectStore()
@@ -20,6 +22,8 @@ export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanel
   const [mentionFilter, setMentionFilter] = useState('')
   const [showCommands, setShowCommands] = useState<'slash' | 'hash' | null>(null)
   const [commandFilter, setCommandFilter] = useState('')
+  const [showMentionWaitMode, setShowMentionWaitMode] = useState(false)
+  const [showBatchOperations, setShowBatchOperations] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -33,6 +37,7 @@ export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanel
       setMentionFilter(lastWord.substring(1).toLowerCase())
       setShowMentions(true)
       setShowCommands(null)
+      setShowMentionWaitMode(false)
     }
     // Check for slash commands
     else if (lastWord.startsWith('/') && lastWord.length >= 1) {
@@ -40,12 +45,8 @@ export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanel
       setShowCommands('slash')
       setShowMentions(false)
     }
-    // Check for hash commands
-    else if (lastWord.startsWith('#') && lastWord.length >= 1) {
-      setCommandFilter(lastWord.substring(1).toLowerCase())
-      setShowCommands('hash')
-      setShowMentions(false)
-    } else {
+    // Hash commands are deprecated - we use MCP instead
+    else {
       setShowMentions(false)
       setShowCommands(null)
     }
@@ -67,7 +68,7 @@ export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanel
   }
 
   // Helper function to get readable agent info
-  const getAgentDisplayInfo = (agent: any) => {
+  const getAgentDisplayInfo = (agent: Agent) => {
     // Check if agent has readable ID (new format: dev1, ux1, etc.)
     if (agent.id.match(/^[a-z]+\d+$/)) {
       return {
@@ -134,7 +135,7 @@ export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanel
         <TextareaAutosize
           ref={inputRef}
           className="w-full px-4 py-2 bg-input border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-          placeholder="Type a message, /compact, /config, /help, #commands, or @agent..."
+          placeholder="Type a message, /compact, /config, /help, or @agent..."
           value={message}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
@@ -146,12 +147,21 @@ export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanel
           <span className="text-xs text-muted-foreground">
             ESC to interrupt current agent • Enter to send • Shift+Enter for new line
           </span>
-          <button
-            className="text-xs px-3 py-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors"
-            onClick={onBroadcast}
-          >
-            #broadcast
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowMentionWaitMode(!showMentionWaitMode)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showMentionWaitMode ? 'Hide' : 'Show'} Wait Mode
+            </button>
+            <span className="text-xs text-muted-foreground">•</span>
+            <button
+              onClick={() => setShowBatchOperations(!showBatchOperations)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showBatchOperations ? 'Hide' : 'Show'} Batch
+            </button>
+          </div>
         </div>
       </div>
 
@@ -191,6 +201,33 @@ export function ChatPanel({ onSendMessage, onBroadcast, onInterrupt }: ChatPanel
               )
             })
           )}
+        </div>
+      )}
+
+      {showMentionWaitMode && (
+        <div className="absolute bottom-full left-0 right-0 mb-2 mx-4">
+          <MentionWaitModeControl
+            onSendMention={async (params) => {
+              await onSendMessage(params.message)
+              setShowMentionWaitMode(false)
+              setMessage('')
+            }}
+            className="shadow-lg"
+          />
+        </div>
+      )}
+
+      {showBatchOperations && (
+        <div className="absolute bottom-full left-0 right-0 mb-2 mx-4">
+          <BatchOperationsControl
+            onSendBatch={async (params) => {
+              // TODO: Implement batch API call
+              console.log('Batch operation:', params)
+              setShowBatchOperations(false)
+            }}
+            agents={agents}
+            className="shadow-lg"
+          />
         </div>
       )}
     </div>

@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import type { Hook, ClaudeCodeEvent } from '../types/hooks'
+import type { Hook, ClaudeCodeEvent, HookScope } from '../types/hooks'
 
 // Claude Code hook format
 interface ClaudeCodeHook {
@@ -80,10 +80,16 @@ const DEFAULT_CONFIG: SystemConfig = {
   },
 }
 
+// Cache for settings to prevent unnecessary API calls
+let settingsCache: { config: SystemConfig; hooks: Hook[]; timestamp: number } | null = null
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
 export function useSettings(): UseSettingsReturn {
-  const [systemConfig, setSystemConfig] = useState<SystemConfig>(DEFAULT_CONFIG)
-  const [hooks, setHooks] = useState<Hook[]>([])
-  const [loading, setLoading] = useState(true)
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>(
+    settingsCache?.config || DEFAULT_CONFIG
+  )
+  const [hooks, setHooks] = useState<Hook[]>(settingsCache?.hooks || [])
+  const [loading, setLoading] = useState(!settingsCache)
   const [saving, setSaving] = useState(false)
   const [detectedPaths, setDetectedPaths] = useState<string[]>([])
   const [detectingPath, setDetectingPath] = useState(false)
@@ -96,7 +102,15 @@ export function useSettings(): UseSettingsReturn {
     setSystemConfig((prev) => ({ ...prev, ...updates }))
   }, [])
 
-  const loadSystemSettings = useCallback(async () => {
+  const loadSystemSettings = useCallback(async (forceReload = false) => {
+    // Check cache first
+    if (!forceReload && settingsCache && Date.now() - settingsCache.timestamp < CACHE_DURATION) {
+      setSystemConfig(settingsCache.config)
+      setHooks(settingsCache.hooks)
+      setLoading(false)
+      return
+    }
+    
     try {
       // Load from all three native Claude Code locations
       const response = await fetch('/api/settings/all-hooks')
@@ -115,17 +129,17 @@ export function useSettings(): UseSettingsReturn {
         let hookIndex = 0
 
         // Helper to process native Claude Code hooks
-        const processNativeHooks = (hooks: any, location: string) => {
+        const processNativeHooks = (hooks: Record<string, unknown>, location: string) => {
           if (!hooks) return
 
-          Object.entries(hooks).forEach(([event, eventHooks]: [string, any]) => {
+          Object.entries(hooks).forEach(([event, eventHooks]) => {
             if (
               Array.isArray(eventHooks) &&
               ['PreToolUse', 'PostToolUse', 'Notification', 'Stop'].includes(event)
             ) {
-              eventHooks.forEach((hookConfig: any) => {
+              eventHooks.forEach((hookConfig: { matcher?: string; hooks?: Array<{ type?: string; command?: string }> }) => {
                 if (hookConfig.hooks && Array.isArray(hookConfig.hooks)) {
-                  hookConfig.hooks.forEach((hook: any) => {
+                  hookConfig.hooks.forEach((hook) => {
                     if (hook.type === 'command') {
                       // Determine source and scope
                       const isStudioHook = hook.command?.includes('.claude-studio/scripts')
@@ -144,7 +158,7 @@ export function useSettings(): UseSettingsReturn {
                         type: 'command',
                         event: event as ClaudeCodeEvent,
                         matcher: hookConfig.matcher || '*',
-                        command: hook.command,
+                        command: hook.command || '',
                         scope,
                         enabled: true,
                         source,
@@ -169,7 +183,45 @@ export function useSettings(): UseSettingsReturn {
           processNativeHooks(allHookSources.projectLocal.hooks, '.claude/settings.local.json')
         }
 
+        // Process Studio hooks (already in the right format)
+        if (allHookSources.studioHooks && Array.isArray(allHookSources.studioHooks)) {
+          allHookSources.studioHooks.forEach((hook: {
+            id?: string
+            event: ClaudeCodeEvent
+            matcher?: string
+            command: string
+            scope?: string
+            enabled?: boolean
+            description?: string
+          }) => {
+            allHooks.push({
+              id: hook.id || `studio-${hookIndex++}`,
+              type: 'command',
+              event: hook.event,
+              matcher: hook.matcher || '*',
+              command: hook.command,
+              scope: (hook.scope === 'project' || hook.scope === 'system' || hook.scope === 'studio' ? hook.scope : 'studio') as HookScope,
+              enabled: hook.enabled !== false,
+              source: 'Studio',
+              description: hook.description || 'Studio hook'
+            })
+          })
+        }
+
         setHooks(allHooks)
+        
+        // Update cache with the loaded config
+        const loadedConfig = {
+          ...DEFAULT_CONFIG,
+          ...config,
+          apiEndpoint: config.apiEndpoint || window.location.origin,
+        }
+        
+        settingsCache = {
+          config: loadedConfig,
+          hooks: allHooks,
+          timestamp: Date.now()
+        }
 
         // Check Studio Intelligence status
         const studioHooks = allHooks.filter((h) => h.source === 'Studio Intelligence')
@@ -203,7 +255,7 @@ export function useSettings(): UseSettingsReturn {
       const projectHooks = hooks.filter((h) => h.scope === 'project')
 
       // Convert system hooks to Claude Code format
-      const hooksConfig: Record<string, any[]> = {
+      const hooksConfig: Record<string, Array<{ matcher: string; hooks: Array<{ type: string; command: string }> }>> = {
         PreToolUse: [],
         PostToolUse: [],
         Notification: [],
@@ -218,16 +270,16 @@ export function useSettings(): UseSettingsReturn {
           const event = hook.event as keyof typeof hooksConfig
 
           // Find existing matcher group or create new one
-          let matcherGroup = hooksConfig[event].find((group) => group.matcher === hook.matcher)
+          let matcherGroup = hooksConfig[event]?.find((group) => group.matcher === hook.matcher)
           if (!matcherGroup) {
             matcherGroup = {
-              matcher: hook.matcher,
+              matcher: hook.matcher || '*',
               hooks: [],
             }
-            hooksConfig[event].push(matcherGroup)
+            hooksConfig[event]?.push(matcherGroup || { matcher: '*', hooks: [] })
           }
 
-          matcherGroup.hooks.push({
+          matcherGroup?.hooks.push({
             type: 'command',
             command: hook.command,
           })
@@ -282,7 +334,7 @@ export function useSettings(): UseSettingsReturn {
         }
       }
 
-      const uniquePaths = [...new Set(checkPaths)]
+      const uniquePaths = Array.from(new Set(checkPaths))
       setDetectedPaths(uniquePaths)
 
       if (uniquePaths.length > 0 && !systemConfig.claudeCodePath) {
@@ -356,10 +408,13 @@ export function useSettings(): UseSettingsReturn {
     }
   }, [])
 
-  // Load settings on mount
+  // Load settings on mount only if not cached
   useEffect(() => {
-    loadSystemSettings()
-  }, [loadSystemSettings])
+    if (!settingsCache) {
+      loadSystemSettings()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Intentionally omit loadSystemSettings to prevent re-runs
 
   return {
     // State

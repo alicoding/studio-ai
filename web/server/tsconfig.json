@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noImplicitAny": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "outDir": "./dist",
+    "rootDir": "../..",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../../src/*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "../../src/services/ConfigService.ts",
+    "../../src/types.ts"
+  ],
+  "exclude": ["node_modules", "dist", "mcp/*/node_modules"]
+}

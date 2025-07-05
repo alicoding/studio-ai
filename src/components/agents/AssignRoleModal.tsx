@@ -137,8 +137,8 @@ export function AssignRoleModal({
                     <div className="text-xs text-muted-foreground mt-1">
                       Tools: {
                         roleResolution.roleTemplate?.id === role.id && roleResolution.hasCustomTools
-                          ? roleResolution.currentTools.join(', ') || 'None selected'
-                          : role.tools.join(', ')
+                          ? (roleResolution.currentTools?.join(', ') || 'None selected')
+                          : (role.tools?.join(', ') || 'None')
                       }
                     </div>
                   </Label>

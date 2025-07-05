@@ -1,4 +1,4 @@
-import { Terminal, FileText, Settings, HelpCircle, Hash, Users, Plus, Zap, Trash2 } from 'lucide-react'
+import { FileText, Settings, HelpCircle } from 'lucide-react'
 
 interface Command {
   name: string
@@ -28,50 +28,8 @@ const SLASH_COMMANDS: Command[] = [
   }
 ]
 
-const HASH_COMMANDS: Command[] = [
-  {
-    name: '#team',
-    description: 'Show all agents in this project (who you can @mention)',
-    icon: Users,
-    usage: '#team'
-  },
-  {
-    name: '#broadcast',
-    description: 'Send message to all agents in the project',
-    icon: Users,
-    usage: '#broadcast [message]'
-  },
-  {
-    name: '#spawn',
-    description: 'Create a new agent with specified role',
-    icon: Plus,
-    usage: '#spawn [role]'
-  },
-  {
-    name: '#interrupt',
-    description: 'Interrupt a busy agent',
-    icon: Zap,
-    usage: '#interrupt @agent'
-  },
-  {
-    name: '#help',
-    description: 'Show help information',
-    icon: Hash,
-    usage: '#help'
-  },
-  {
-    name: '#clear',
-    description: 'Clear the conversation',
-    icon: Terminal,
-    usage: '#clear'
-  },
-  {
-    name: '#cleanup',
-    description: 'Remove legacy agents and recreate with readable names',
-    icon: Trash2,
-    usage: '#cleanup [yes]'
-  }
-]
+// Hash commands are deprecated - we use MCP instead
+const HASH_COMMANDS: Command[] = []
 
 interface CommandSuggestionsProps {
   filter: string

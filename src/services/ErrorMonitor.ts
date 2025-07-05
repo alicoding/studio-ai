@@ -1,9 +1,9 @@
 /**
  * ErrorMonitor - Client-side diagnostic monitoring service
  *
- * KISS: Uses WebSocket for real-time diagnostics
+ * KISS: Just listens to WebSocket updates
  * Library First: Uses socket.io-client
- * SOLID: Single responsibility - bridge between server diagnostics and client store
+ * SOLID: Single responsibility - bridge between server and store
  */
 
 import type { Diagnostic } from '../stores/diagnostics'
@@ -15,10 +15,7 @@ let globalMonitorInstance: ErrorMonitor | null = null
 type DiagnosticUpdateHandler = (data: {
   source: string
   diagnostics: Diagnostic[]
-  timestamp: Date
 }) => void
-
-type MonitoringEventHandler = (data?: any) => void
 
 export class ErrorMonitor {
   // Static method to get singleton instance
@@ -31,219 +28,91 @@ export class ErrorMonitor {
   }
   private socket: Socket | null = null
   private updateHandlers: DiagnosticUpdateHandler[] = []
-  private startHandlers: MonitoringEventHandler[] = []
-  private stopHandlers: MonitoringEventHandler[] = []
-  private currentProjectPath: string | null = null
-  isMonitoring = false // Make public for external access
+  isConnected = false
 
-  constructor() {}
+  constructor() {
+    this.connect()
+  }
 
   // Event-like API using callbacks
   onDiagnosticsUpdated(handler: DiagnosticUpdateHandler) {
     this.updateHandlers.push(handler)
-  }
-
-  onMonitoringStarted(handler: MonitoringEventHandler) {
-    this.startHandlers.push(handler)
-  }
-
-  onMonitoringStopped(handler: MonitoringEventHandler) {
-    this.stopHandlers.push(handler)
-  }
-
-  private emit(event: 'diagnostics-updated', data: Parameters<DiagnosticUpdateHandler>[0]): void
-  private emit(event: 'monitoring-started' | 'monitoring-stopped', data?: any): void
-  private emit(event: string, data?: any) {
-    if (event === 'diagnostics-updated') {
-      this.updateHandlers.forEach((handler) => handler(data))
-    } else if (event === 'monitoring-started') {
-      this.startHandlers.forEach((handler) => handler(data))
-    } else if (event === 'monitoring-stopped') {
-      this.stopHandlers.forEach((handler) => handler(data))
+    
+    // Return cleanup function
+    return () => {
+      const index = this.updateHandlers.indexOf(handler)
+      if (index > -1) {
+        this.updateHandlers.splice(index, 1)
+      }
     }
   }
 
-  async startMonitoring(projectPath: string) {
-    console.log('[ErrorMonitor] Starting monitoring for:', projectPath)
-
-    // Stop existing monitoring
-    await this.stopMonitoring()
-
-    this.currentProjectPath = projectPath
-
-    try {
-      // Start server-side monitoring
-      const startResponse = await fetch('/api/diagnostics/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath }),
-      })
-
-      if (!startResponse.ok) {
-        throw new Error(`Failed to start server monitoring: ${startResponse.statusText}`)
-      }
-
-      // Connect WebSocket if not connected
-      if (!this.socket) {
-        this.socket = io()
-        this.setupSocketListeners()
-      }
-
-      this.isMonitoring = true
-
-      // Request current diagnostics immediately
-      const diagnosticsResponse = await fetch('/api/diagnostics')
-      if (diagnosticsResponse.ok) {
-        const data = await diagnosticsResponse.json()
-        if (data.diagnostics && data.diagnostics.length > 0) {
-          console.log(`[ErrorMonitor] Initial fetch: ${data.diagnostics.length} diagnostics`)
-
-          // Process initial diagnostics immediately
-          const diagnostics = data.diagnostics.map((d: any) => ({
-            ...d,
-            timestamp: new Date(d.timestamp),
-          }))
-
-          // Group by source and emit
-          const bySource = new Map<string, Diagnostic[]>()
-          diagnostics.forEach((d: Diagnostic) => {
-            const existing = bySource.get(d.source) || []
-            existing.push(d)
-            bySource.set(d.source, existing)
-          })
-
-          bySource.forEach((diagnostics, source) => {
-            this.emit('diagnostics-updated', {
-              source,
-              diagnostics,
-              timestamp: new Date(),
-            })
-          })
-        }
-      }
-
-      this.emit('monitoring-started', { projectPath })
-      console.log('[ErrorMonitor] Monitoring started successfully with WebSocket')
-    } catch (error) {
-      console.error('Failed to start monitoring:', error)
-      this.isMonitoring = false
-    }
+  private emit(data: Parameters<DiagnosticUpdateHandler>[0]) {
+    this.updateHandlers.forEach((handler) => handler(data))
   }
 
-  async stopMonitoring() {
-    this.isMonitoring = false
-    this.currentProjectPath = null
+  private connect() {
+    if (this.socket) return
 
-    try {
-      // Stop server-side monitoring
-      await fetch('/api/diagnostics/stop', { method: 'POST' })
+    this.socket = io()
+    this.setupSocketListeners()
+    this.isConnected = true
+  }
 
-      // Disconnect socket
-      if (this.socket) {
-        this.socket.disconnect()
-        this.socket = null
-      }
-
-      this.emit('monitoring-stopped')
-    } catch (error) {
-      console.warn('Failed to stop server monitoring:', error)
+  /**
+   * Switch to monitoring a different project
+   */
+  switchProject(projectId: string, projectPath: string) {
+    if (!this.socket) {
+      this.connect()
     }
+
+    // Tell server to switch projects
+    this.socket?.emit('project:select', { projectId, projectPath })
   }
 
   private setupSocketListeners() {
     if (!this.socket) return
 
     // Listen for diagnostic updates
-    this.socket.on(
-      'diagnostics:updated',
-      (data: { source: string; diagnostics: Diagnostic[]; timestamp: string }) => {
-        console.log(
-          `[ErrorMonitor] Received WebSocket update: ${data.diagnostics.length} diagnostics for ${data.source}`
-        )
-
-        // Convert timestamp strings to Date objects
-        const diagnostics = data.diagnostics.map((d) => ({
-          ...d,
-          timestamp: new Date(d.timestamp),
-        }))
-
-        this.emit('diagnostics-updated', {
-          source: data.source,
-          diagnostics,
-          timestamp: new Date(data.timestamp),
-        })
-      }
-    )
-
-    // Listen for initial diagnostics on connection
-    this.socket.on(
-      'diagnostics:current',
-      (data: { diagnostics: Diagnostic[]; timestamp: string }) => {
-        console.log(`[ErrorMonitor] Received initial diagnostics: ${data.diagnostics.length} items`)
-
-        // Convert and group by source
-        const diagnostics = data.diagnostics.map((d) => ({
-          ...d,
-          timestamp: new Date(d.timestamp),
-        }))
-
-        // Group by source
-        const bySource = new Map<string, Diagnostic[]>()
-        diagnostics.forEach((d) => {
-          const existing = bySource.get(d.source) || []
-          existing.push(d)
-          bySource.set(d.source, existing)
-        })
-
-        // Emit updates for each source
-        bySource.forEach((diagnostics, source) => {
-          this.emit('diagnostics-updated', {
-            source,
-            diagnostics,
-            timestamp: new Date(data.timestamp),
-          })
-        })
-
-        // If no diagnostics, emit empty updates
-        if (diagnostics.length === 0) {
-          this.emit('diagnostics-updated', {
-            source: 'typescript',
-            diagnostics: [],
-            timestamp: new Date(),
-          })
-          this.emit('diagnostics-updated', {
-            source: 'eslint',
-            diagnostics: [],
-            timestamp: new Date(),
-          })
-        }
-      }
-    )
-
-    // Listen for monitoring events
-    this.socket.on('diagnostics:monitoring-started', (data) => {
-      console.log('[ErrorMonitor] WebSocket: monitoring started', data)
-      if (data.projectPath === this.currentProjectPath) {
-        this.emit('monitoring-started', data)
-      }
+    this.socket.on('diagnostics:updated', (data: { source: string; diagnostics: Diagnostic[] }) => {
+      console.log(`[ErrorMonitor] Received ${data.diagnostics.length} diagnostics for ${data.source}`)
+      this.emit(data)
     })
 
-    this.socket.on('diagnostics:monitoring-stopped', () => {
-      console.log('[ErrorMonitor] WebSocket: monitoring stopped')
-      this.emit('monitoring-stopped')
+    // Listen for initial diagnostics on connection
+    this.socket.on('diagnostics:current', (data: { diagnostics: Diagnostic[] }) => {
+      console.log(`[ErrorMonitor] Received initial diagnostics: ${data.diagnostics.length} items`)
+
+      // Group by source
+      const bySource = new Map<string, Diagnostic[]>()
+      data.diagnostics.forEach((d) => {
+        const existing = bySource.get(d.source) || []
+        existing.push(d)
+        bySource.set(d.source, existing)
+      })
+
+      // Emit updates for each source
+      bySource.forEach((diagnostics, source) => {
+        this.emit({ source, diagnostics })
+      })
+
+      // If no diagnostics, emit empty updates
+      if (data.diagnostics.length === 0) {
+        this.emit({ source: 'typescript', diagnostics: [] })
+        this.emit({ source: 'eslint', diagnostics: [] })
+      }
     })
 
     // Connection events
     this.socket.on('connect', () => {
       console.log('[ErrorMonitor] WebSocket connected')
+      this.isConnected = true
     })
 
     this.socket.on('disconnect', () => {
       console.log('[ErrorMonitor] WebSocket disconnected')
-    })
-
-    this.socket.on('error', (error) => {
-      console.error('[ErrorMonitor] WebSocket error:', error)
+      this.isConnected = false
     })
   }
 }

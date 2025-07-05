@@ -1,5 +1,5 @@
 import { Server, Socket } from 'socket.io'
-import { diagnosticService } from './services/DiagnosticService.js'
+import { projectDiagnostics } from './services/ProjectDiagnostics'
 
 interface AgentInfo {
   id: string
@@ -12,7 +12,34 @@ interface AgentInfo {
 interface ProjectInfo {
   id: string
   name: string
+  path: string
   agents: string[] // agent IDs
+}
+
+interface ProjectData {
+  id: string
+  name: string
+  description?: string
+  workspacePath?: string
+}
+
+interface AgentConfig {
+  id: string
+  name: string
+  role: string
+  systemPrompt?: string
+  tools?: string[]
+  model?: string
+  maxTokens?: number
+  temperature?: number
+}
+
+interface RoleAssignment {
+  id: string
+  projectId: string
+  role: string
+  agentConfigId: string
+  customTools?: string[]
 }
 
 // In-memory stores (will be replaced with proper storage later)
@@ -22,16 +49,13 @@ const activeProjects = new Map<string, ProjectInfo>()
 
 export function setupWebSocket(io: Server) {
   // Listen for diagnostic updates from the service
-  diagnosticService.on('diagnostics-updated', (data) => {
+  projectDiagnostics.on('diagnostics:updated', (data) => {
+    // Only emit to clients in the active project room
     io.emit('diagnostics:updated', data)
   })
 
-  diagnosticService.on('monitoring-started', (data) => {
-    io.emit('diagnostics:monitoring-started', data)
-  })
-
-  diagnosticService.on('monitoring-stopped', () => {
-    io.emit('diagnostics:monitoring-stopped')
+  projectDiagnostics.on('diagnostics:summary', (data) => {
+    io.emit('diagnostics:summary', data)
   })
 
   io.on('connection', (socket: Socket) => {
@@ -45,7 +69,7 @@ export function setupWebSocket(io: Server) {
     })
 
     // Send current diagnostics immediately
-    const currentDiagnostics = diagnosticService.getCurrentDiagnostics()
+    const currentDiagnostics = projectDiagnostics.getCurrentDiagnostics()
     socket.emit('diagnostics:current', {
       diagnostics: currentDiagnostics,
       timestamp: new Date(),
@@ -84,9 +108,13 @@ export function setupWebSocket(io: Server) {
     )
 
     // Project-related events
-    socket.on('project:select', (projectId: string) => {
-      socket.join(`project:${projectId}`)
-      socket.emit('project:selected', projectId)
+    socket.on('project:select', async (data: { projectId: string; projectPath: string }) => {
+      socket.join(`project:${data.projectId}`)
+      
+      // Switch diagnostics to this project
+      await projectDiagnostics.switchProject(data.projectId, data.projectPath)
+      
+      socket.emit('project:selected', data.projectId)
     })
 
     socket.on('project:leave', (projectId: string) => {
@@ -108,7 +136,7 @@ export function setupWebSocket(io: Server) {
     })
 
     // Command events
-    socket.on('command:execute', (data: { command: string; args?: any }) => {
+    socket.on('command:execute', (data: { command: string; args?: unknown }) => {
       console.log(`Executing command: ${data.command}`, data.args)
       // Integration point: Stage 7 - Command System
       // const result = await CommandParser.parseAndExecute(data.command, data.args);
@@ -167,10 +195,34 @@ export function updateAgentStatus(agentId: string, status: AgentInfo['status']) 
   }
 }
 
-export function broadcastToProject(projectId: string, event: string, data: any) {
+export function broadcastToProject(projectId: string, event: string, data: unknown) {
   connectedClients.forEach((socket) => {
     if (socket.rooms.has(`project:${projectId}`)) {
       socket.emit(event, data)
     }
   })
+}
+
+// Broadcast workspace data changes
+export function broadcastWorkspaceUpdate(event: string, data: unknown) {
+  connectedClients.forEach((socket) => {
+    socket.emit(event, data)
+  })
+}
+
+// Specific workspace update events
+export function notifyProjectCreated(project: ProjectData) {
+  broadcastWorkspaceUpdate('workspace:project-created', project)
+}
+
+export function notifyProjectUpdated(projectId: string, updates: Partial<ProjectData>) {
+  broadcastWorkspaceUpdate('workspace:project-updated', { projectId, updates })
+}
+
+export function notifyAgentConfigChanged(agentId: string, config: AgentConfig) {
+  broadcastWorkspaceUpdate('workspace:agent-config-changed', { agentId, config })
+}
+
+export function notifyRoleAssignmentChanged(projectId: string, roleAssignments: RoleAssignment[]) {
+  broadcastWorkspaceUpdate('workspace:role-assignment-changed', { projectId, roleAssignments })
 }
