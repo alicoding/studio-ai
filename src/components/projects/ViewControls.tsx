@@ -1,7 +1,7 @@
-import { Menu, Square, Grid3X3, SplitSquareHorizontal, Code } from 'lucide-react'
+import { Menu, Square, Grid3X3, SplitSquareHorizontal } from 'lucide-react'
 import { useAgentStore } from '../../stores'
 
-type ViewMode = 'single' | 'split' | 'grid' | 'develop'
+type ViewMode = 'single' | 'split' | 'grid'
 
 interface ViewControlsProps {
   currentView: ViewMode
@@ -14,7 +14,6 @@ const viewIcons = {
   single: Square,
   split: SplitSquareHorizontal,
   grid: Grid3X3,
-  develop: Code,
 }
 
 export function ViewControls({

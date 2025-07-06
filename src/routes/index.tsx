@@ -31,7 +31,6 @@ import { useWorkspaceShortcuts } from '../hooks/useShortcuts'
 import { SingleView } from '../components/projects/views/SingleView'
 import { SplitView } from '../components/projects/views/SplitView'
 import { GridView } from '../components/projects/views/GridView'
-import { DevelopView } from '../components/projects/views/DevelopView'
 import { CreateProjectModal } from '../components/projects/CreateProjectModal'
 import { ErrorMonitor } from '../services/ErrorMonitor'
 import { useDiagnosticsStore } from '../stores/diagnostics'
@@ -472,28 +471,15 @@ function ProjectsPage() {
               />
 
               <div className="flex-1 overflow-hidden flex flex-col">
-                {layout.isDevelopView ? (
-                  <DevelopView
-                    onTerminalInput={(command) =>
-                      console.log('Develop terminal input (UI-first):', {
-                        agentId: 'server',
-                        input: command,
-                      })
-                    }
-                  />
-                ) : (
-                  <>
-                    <div className="flex-1 flex overflow-hidden">
-                      {layout.isSingleView && <SingleView selectedAgentId={selectedAgentId} />}
-                      {layout.isSplitView && <SplitView />}
-                      {layout.isGridView && <GridView />}
-                    </div>
+                <div className="flex-1 flex overflow-hidden">
+                  {layout.isSingleView && <SingleView selectedAgentId={selectedAgentId} />}
+                  {layout.isSplitView && <SplitView />}
+                  {layout.isGridView && <GridView />}
+                </div>
 
-                    {/* Chat input panel */}
-                    {layout.showChatPanel && (
-                      <ChatPanel onSendMessage={handleSendMessage} onInterrupt={handleInterrupt} />
-                    )}
-                  </>
+                {/* Chat input panel */}
+                {layout.showChatPanel && (
+                  <ChatPanel onSendMessage={handleSendMessage} onInterrupt={handleInterrupt} />
                 )}
               </div>
             </main>
