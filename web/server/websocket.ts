@@ -1,5 +1,4 @@
 import { Server, Socket } from 'socket.io'
-import { projectDiagnostics } from './services/ProjectDiagnostics'
 
 interface AgentInfo {
   id: string
@@ -48,16 +47,6 @@ const activeAgents = new Map<string, AgentInfo>()
 const activeProjects = new Map<string, ProjectInfo>()
 
 export function setupWebSocket(io: Server) {
-  // Listen for diagnostic updates from the service
-  projectDiagnostics.on('diagnostics:updated', (data) => {
-    // Only emit to clients in the active project room
-    io.emit('diagnostics:updated', data)
-  })
-
-  projectDiagnostics.on('diagnostics:summary', (data) => {
-    io.emit('diagnostics:summary', data)
-  })
-
   io.on('connection', (socket: Socket) => {
     console.log(`Client connected: ${socket.id}`)
     connectedClients.set(socket.id, socket)
@@ -66,13 +55,6 @@ export function setupWebSocket(io: Server) {
     socket.emit('initial-state', {
       agents: Array.from(activeAgents.values()),
       projects: Array.from(activeProjects.values()),
-    })
-
-    // Send current diagnostics immediately
-    const currentDiagnostics = projectDiagnostics.getCurrentDiagnostics()
-    socket.emit('diagnostics:current', {
-      diagnostics: currentDiagnostics,
-      timestamp: new Date(),
     })
 
     // Handle client disconnect
@@ -110,10 +92,7 @@ export function setupWebSocket(io: Server) {
     // Project-related events
     socket.on('project:select', async (data: { projectId: string; projectPath: string }) => {
       socket.join(`project:${data.projectId}`)
-      
-      // Switch diagnostics to this project
-      await projectDiagnostics.switchProject(data.projectId, data.projectPath)
-      
+
       socket.emit('project:selected', data.projectId)
     })
 

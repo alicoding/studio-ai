@@ -16,7 +16,6 @@ import messagesRouter from './api/messages'
 import systemRouter from './api/system'
 import settingsRouter from './api/settings'
 import studioIntelligenceRouter from './api/studio-intelligence'
-import diagnosticsRouter from './api/diagnostics'
 import screenshotRouter from './api/screenshot'
 import aiRouter from './api/ai'
 import langchainRouter from './api/langchain'
@@ -47,7 +46,6 @@ process.on('unhandledRejection', (reason, promise) => {
 import { StudioIntelligence } from './services/studio-intelligence/StudioIntelligence'
 
 // Import Project Diagnostics
-import { projectDiagnostics } from './services/ProjectDiagnostics'
 
 // Load environment variables
 dotenv.config()
@@ -89,7 +87,6 @@ app.use('/api/settings', settingsRouter)
 app.use('/api/settings/mcp', settingsMcpRouter)
 app.use('/api/mcp-config', mcpConfigRouter)
 app.use('/api/studio-intelligence', studioIntelligenceRouter)
-app.use('/api/diagnostics', diagnosticsRouter)
 app.use('/api/screenshot', screenshotRouter)
 app.use('/api/ai', aiRouter)
 app.use('/api/langchain', langchainRouter)
@@ -110,28 +107,25 @@ app.get('/api/health', (req, res) => {
 setupWebSocket(io)
 
 // Error handling middleware
-app.use((err: Error & { status?: number }, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Server error:', err)
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-  })
-})
+app.use(
+  (
+    err: Error & { status?: number },
+    req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction
+  ) => {
+    console.error('Server error:', err)
+    res.status(err.status || 500).json({
+      error: err.message || 'Internal server error',
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+    })
+  }
+)
 
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' })
 })
-
-// Initialize Project Diagnostics
-async function initializeProjectDiagnostics() {
-  try {
-    console.log('🔍 Project Diagnostics initialized (watchers start on demand)')
-    // ProjectDiagnostics starts watchers when projects are selected
-  } catch (error) {
-    console.error('Failed to initialize project diagnostics:', error)
-  }
-}
 
 // Initialize Studio Intelligence System
 async function initializeStudioIntelligence() {
@@ -151,9 +145,6 @@ httpServer.listen(PORT, async () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`)
   console.log(`📡 WebSocket listening on ws://localhost:${PORT}`)
 
-  // Initialize project diagnostics
-  await initializeProjectDiagnostics()
-
   // Initialize Studio Intelligence (smart defaults)
   await initializeStudioIntelligence()
 })
@@ -165,14 +156,6 @@ createGracefulShutdown(httpServer, {
   development: process.env.NODE_ENV !== 'production',
   onShutdown: async () => {
     console.log('🛑 Shutting down gracefully...')
-    
-    // Stop all diagnostic watchers
-    try {
-      await projectDiagnostics.stopAll()
-      console.log('✅ All diagnostic watchers stopped')
-    } catch (error) {
-      console.error('Error during diagnostics cleanup:', error)
-    }
 
     // Close all WebSocket connections
     try {
@@ -184,7 +167,7 @@ createGracefulShutdown(httpServer, {
   },
   finally: () => {
     console.log('✅ Server shutdown complete')
-  }
+  },
 })
 
 export { app, io }

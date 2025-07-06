@@ -33,7 +33,6 @@ import { SplitView } from '../components/projects/views/SplitView'
 import { GridView } from '../components/projects/views/GridView'
 import { DevelopView } from '../components/projects/views/DevelopView'
 import { CreateProjectModal } from '../components/projects/CreateProjectModal'
-import { StatusBar } from '../components/workspace/StatusBar'
 import { ErrorMonitor } from '../services/ErrorMonitor'
 import { useDiagnosticsStore } from '../stores/diagnostics'
 
@@ -508,9 +507,6 @@ function ProjectsPage() {
               </div>
             </main>
           </div>
-
-          {/* VSCode-style status bar at bottom */}
-          <StatusBar />
         </div>
       )}
 
