@@ -26,10 +26,6 @@ interface AgentConfig {
   maxTokens?: number
 }
 
-interface CleanupResult {
-  killedCount: number
-}
-
 interface ProcessManagerHook {
   // Agent management
   spawnAgent: (agentId: string, projectId: string, config: AgentConfig) => Promise<void>
@@ -45,7 +41,6 @@ interface ProcessManagerHook {
 
   // System status
   processCount: number
-  cleanup: () => Promise<CleanupResult>
 
   // State
   isInitialized: boolean
@@ -168,26 +163,6 @@ export function useProcessManager(): ProcessManagerHook {
     []
   )
 
-  const cleanup = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/system/cleanup-zombies`, {
-        method: 'POST',
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to cleanup zombies: ${response.statusText}`)
-      }
-
-      const result = await response.json()
-      console.log(`Cleanup complete: ${result.killedCount} zombies killed`)
-      return result
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
-      setError(message)
-      throw err
-    }
-  }, [])
-
   // Fetch process stats - disabled for now to prevent spam
   // TODO: Move this to a singleton service or global state management
   useEffect(() => {
@@ -225,7 +200,6 @@ export function useProcessManager(): ProcessManagerHook {
     getProjectAgents,
     sendMention,
     processCount,
-    cleanup,
     isInitialized,
     error,
   }

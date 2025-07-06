@@ -57,20 +57,26 @@ function ProjectsPage() {
   const { data: workspaceData, loading: workspaceLoading } = useWorkspaceData({
     includeAgents: true,
     includeRoles: true,
-    autoRefresh: false // Disable auto-refresh to prevent constant updates
+    autoRefresh: false, // Disable auto-refresh to prevent constant updates
   })
-  
+
   // Extract data from workspace hook with memoization
   const projects = useMemo(() => workspaceData?.projects || [], [workspaceData?.projects])
-  const agentConfigs = useMemo(() => workspaceData?.agentConfigs || [], [workspaceData?.agentConfigs])
-  const projectAgents = useMemo(() => workspaceData?.projectAgents || {}, [workspaceData?.projectAgents])
+  const agentConfigs = useMemo(
+    () => workspaceData?.agentConfigs || [],
+    [workspaceData?.agentConfigs]
+  )
+  const projectAgents = useMemo(
+    () => workspaceData?.projectAgents || {},
+    [workspaceData?.projectAgents]
+  )
 
   // Sync projects to Zustand store when they load
   const { setProjects } = useProjectStore()
   useEffect(() => {
     if (projects.length > 0) {
       // Map workspace projects to store format
-      const storeProjects = projects.map(p => ({
+      const storeProjects = projects.map((p) => ({
         id: p.id,
         name: p.name,
         description: p.description,
@@ -80,7 +86,7 @@ function ProjectsPage() {
         status: 'active' as const,
         lastModified: new Date().toISOString(),
         tags: [],
-        favorite: false
+        favorite: false,
       }))
       setProjects(storeProjects)
     }
@@ -98,19 +104,22 @@ function ProjectsPage() {
       // Set up listeners if not already connected
       if (!monitor.isConnected) {
         monitor.onDiagnosticsUpdated(({ source, diagnostics }) => {
-          console.log(`[ProjectsPage] Global diagnostic update: ${diagnostics.length} for ${source}`)
+          console.log(
+            `[ProjectsPage] Global diagnostic update: ${diagnostics.length} for ${source}`
+          )
           setDiagnostics(source, diagnostics)
         })
-        
+
         setMonitoring(true) // We're monitoring as soon as connected
       }
     }
   }, [])
 
   // Get current project agents from workspace data with memoization
-  const currentProjectAgents = useMemo(() => 
-    activeProjectId ? (projectAgents[activeProjectId] || []) : []
-  , [projectAgents, activeProjectId])
+  const currentProjectAgents = useMemo(
+    () => (activeProjectId ? projectAgents[activeProjectId] || [] : []),
+    [projectAgents, activeProjectId]
+  )
   const loadingAgents = workspaceLoading
 
   // Agent roles hook
@@ -141,9 +150,7 @@ function ProjectsPage() {
   const openProjects = getOpenProjects()
 
   // Get raw openProjectIds from store to check restoration status
-  const openProjectIds = useProjectStore(state => state.openProjects)
-
-
+  const openProjectIds = useProjectStore((state) => state.openProjects)
 
   // Message handling functions
   const handleBroadcast = () => {
@@ -155,16 +162,19 @@ function ProjectsPage() {
   }
 
   // Set up workspace shortcuts
-  useWorkspaceShortcuts({
-    'interrupt-agents': handleInterrupt,
-    'broadcast-message': handleBroadcast,
-    'clear-context': () => {
-      if (selectedAgentId) {
-        handleAgentClear(selectedAgentId)
-      }
+  useWorkspaceShortcuts(
+    {
+      'interrupt-agents': handleInterrupt,
+      'broadcast-message': handleBroadcast,
+      'clear-context': () => {
+        if (selectedAgentId) {
+          handleAgentClear(selectedAgentId)
+        }
+      },
+      'new-project': () => modalOps.openModal('createProject'),
     },
-    'new-project': () => modalOps.openModal('createProject')
-  }, openProjects.length > 0) // Only enable when workspace is active
+    openProjects.length > 0
+  ) // Only enable when workspace is active
 
   // State for single agent deletion modal
   const [deleteModalState, setDeleteModalState] = useState<{
@@ -189,7 +199,7 @@ function ProjectsPage() {
         maxTokens: 200000,
         lastMessage: agent.lastMessage,
         sessionId: agent.sessionId || undefined,
-        order: index
+        order: index,
       }))
       setAgents(agentsWithOrder)
     } else if (currentProjectAgents.length === 0 && !loadingAgents) {
@@ -207,7 +217,7 @@ function ProjectsPage() {
   // Load role assignments when agent IDs change (using string comparison to prevent loops)
   const agentIdsString = useMemo(() => agentIds.join(','), [agentIds])
   const [loadedAgentIds, setLoadedAgentIds] = useState<string>('')
-  
+
   useEffect(() => {
     // Only load if agent IDs have actually changed and we haven't loaded them yet
     if (agentIdsString !== loadedAgentIds && agentIds.length > 0) {
@@ -232,27 +242,31 @@ function ProjectsPage() {
   // Sync agent configs from workspace data into Zustand store
   useEffect(() => {
     if (agentConfigs.length > 0) {
-      setAgentConfigs(agentConfigs.map(config => ({
-        ...config,
-        projectsUsing: []
-      })))
+      setAgentConfigs(
+        agentConfigs.map((config) => ({
+          ...config,
+          projectsUsing: [],
+        }))
+      )
     }
   }, [agentConfigs, setAgentConfigs])
 
   // Message handling
   const handleSendMessage = async (message: string) => {
     // Convert workspace Project to store Project format
-    const storeProject = activeProject ? {
-      ...activeProject,
-      path: activeProject.workspacePath || '',
-      createdAt: new Date().toISOString(),
-      sessionCount: 0,
-      status: 'active' as const,
-      lastModified: new Date().toISOString(),
-      tags: [],
-      favorite: false
-    } : undefined
-    
+    const storeProject = activeProject
+      ? {
+          ...activeProject,
+          path: activeProject.workspacePath || '',
+          createdAt: new Date().toISOString(),
+          sessionCount: 0,
+          status: 'active' as const,
+          lastModified: new Date().toISOString(),
+          tags: [],
+          favorite: false,
+        }
+      : undefined
+
     const result = await messageOps.sendMessage(message, agentsWithRoles, storeProject)
     if (!result.success && result.error) {
       toast.error(result.error)
@@ -330,15 +344,6 @@ function ProjectsPage() {
     modalOps.closeModal('createAgent')
   }
 
-  const handleCleanupZombies = async () => {
-    const result = await agentOps.cleanupZombies()
-    if (result.success) {
-      toast.success(`Cleanup completed: ${result.killedCount || 0} zombie processes killed`)
-    } else {
-      toast.error('Failed to cleanup zombie processes')
-    }
-  }
-
   // Role operations
   const handleAgentConvert = async (agentId: string) => {
     // Use Zustand getter for more reliable agent lookup
@@ -374,8 +379,8 @@ function ProjectsPage() {
     }
 
     // Get unique agent configs from the team
-    const configIds = [...new Set(team.agents.map(agent => agent.configId).filter(Boolean))]
-    
+    const configIds = [...new Set(team.agents.map((agent) => agent.configId).filter(Boolean))]
+
     if (configIds.length === 0) {
       toast.error('This team template has no valid agent configurations')
       return
@@ -383,17 +388,17 @@ function ProjectsPage() {
 
     // Add all agents from the team to the project with their custom names
     const agentsToAdd = team.agents
-      .filter(agent => agent.configId)
-      .map(agent => ({
+      .filter((agent) => agent.configId)
+      .map((agent) => ({
         configId: agent.configId!,
-        name: agent.name
+        name: agent.name,
       }))
-    
+
     if (agentsToAdd.length > 0) {
       try {
         console.log('Adding agents to project:', agentsToAdd)
         const result = await agentOps.addAgentsToProject(agentsToAdd)
-        
+
         if (result.success) {
           modalOps.closeModal('teamSelection')
           toast.success(`Loaded team "${team.name}" with ${team.agents.length} agents`)
@@ -474,7 +479,6 @@ function ProjectsPage() {
                 selectedAgentId={selectedAgentId}
                 onViewChange={layout.setViewMode}
                 onSidebarToggle={layout.toggleSidebar}
-                onCleanupZombies={handleCleanupZombies}
               />
 
               <div className="flex-1 overflow-hidden flex flex-col">
@@ -497,10 +501,7 @@ function ProjectsPage() {
 
                     {/* Chat input panel */}
                     {layout.showChatPanel && (
-                      <ChatPanel
-                        onSendMessage={handleSendMessage}
-                        onInterrupt={handleInterrupt}
-                      />
+                      <ChatPanel onSendMessage={handleSendMessage} onInterrupt={handleInterrupt} />
                     )}
                   </>
                 )}
@@ -569,7 +570,6 @@ function ProjectsPage() {
           isDeleting={deleteModalState.isDeleting}
         />
       )}
-
     </>
   )
 }

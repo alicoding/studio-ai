@@ -125,7 +125,7 @@ export function useAgentOperations() {
 
       try {
         // Step 1: Get the old sessionId before clearing
-        const agent = agents.find(a => a.id === agentId)
+        const agent = agents.find((a) => a.id === agentId)
         const oldSessionId = agent?.sessionId || ''
 
         // Step 2: First abort any running Claude agent to prevent final messages
@@ -163,7 +163,9 @@ export function useAgentOperations() {
         } catch (error) {
           console.error('Failed to clean up backend session:', error)
           // Don't continue on backend failure - this causes the reported bug
-          throw new Error(`Backend cleanup failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+          throw new Error(
+            `Backend cleanup failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+          )
         }
 
         // Step 7: Emit event to refresh agents from server (optional)
@@ -216,7 +218,7 @@ export function useAgentOperations() {
     },
     [
       activeProjectId,
-      getConfig,
+      agents,
       projects,
       sendClaudeMessage,
       updateAgentSessionId,
@@ -251,7 +253,7 @@ export function useAgentOperations() {
         // Call the new API endpoint to remove agent from project
         // This handles removing from metadata and cleaning up sessions
         console.log(`Removing agent ${agentId} from project ${activeProjectId}`)
-        
+
         await studioApi.projects.removeAgent(activeProjectId, agentId)
 
         // Remove from UI store
@@ -285,17 +287,17 @@ export function useAgentOperations() {
    * Add multiple agents to project
    */
   const addAgentsToProject = useCallback(
-    async (agentIds: string[] | Array<{ configId: string; name?: string }>): Promise<AgentOperationResult> => {
+    async (
+      agentIds: string[] | Array<{ configId: string; name?: string }>
+    ): Promise<AgentOperationResult> => {
       if (!activeProjectId) {
         return { success: false, error: 'No active project' }
       }
 
       try {
         // Extract agent IDs from the input
-        const agentIdStrings = agentIds.map(agent => 
-          typeof agent === 'string' 
-            ? agent 
-            : agent.configId
+        const agentIdStrings = agentIds.map((agent) =>
+          typeof agent === 'string' ? agent : agent.configId
         )
 
         // Call the API to add agents to project metadata
@@ -321,36 +323,10 @@ export function useAgentOperations() {
     [activeProjectId]
   )
 
-  /**
-   * Cleanup zombie processes
-   */
-  const cleanupZombies = useCallback(async (): Promise<{
-    success: boolean
-    killedCount?: number
-    error?: string
-  }> => {
-    try {
-      const result = await processManager.cleanup()
-      console.log('Zombie cleanup completed:', result)
-
-      return {
-        success: true,
-        killedCount: result?.killedCount || 0,
-      }
-    } catch (error) {
-      console.error('Failed to cleanup zombies:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Cleanup failed',
-      }
-    }
-  }, [processManager])
-
   return {
     toggleAgent,
     clearAgentSession,
     removeAgentFromTeam,
     addAgentsToProject,
-    cleanupZombies,
   }
 }

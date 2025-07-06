@@ -5,21 +5,14 @@ import type { PanelDefinition } from '../PanelRegistry'
 // Mock icon component
 const MockIcon = () => null
 
-// Mock panel component  
+// Mock panel component
 const MockPanel = () => null
 
 describe('PanelRegistry', () => {
   let registry: PanelRegistry
 
   beforeEach(() => {
-    registry = PanelRegistry.getInstance()
-    registry.clear()
-  })
-
-  it('should be a singleton', () => {
-    const instance1 = PanelRegistry.getInstance()
-    const instance2 = PanelRegistry.getInstance()
-    expect(instance1).toBe(instance2)
+    registry = new PanelRegistry()
   })
 
   it('should register and retrieve panels', () => {
@@ -28,11 +21,11 @@ describe('PanelRegistry', () => {
       title: 'Test Panel',
       icon: MockIcon,
       component: MockPanel,
-      defaultPosition: 'sidebar'
+      defaultPosition: 'sidebar',
     }
 
     registry.register(panel)
-    
+
     expect(registry.has('test-panel')).toBe(true)
     expect(registry.get('test-panel')).toEqual(panel)
   })
@@ -43,7 +36,7 @@ describe('PanelRegistry', () => {
       title: 'Sidebar Panel',
       icon: MockIcon,
       component: MockPanel,
-      defaultPosition: 'sidebar'
+      defaultPosition: 'sidebar',
     }
 
     const mainPanel: PanelDefinition = {
@@ -51,7 +44,7 @@ describe('PanelRegistry', () => {
       title: 'Main Panel',
       icon: MockIcon,
       component: MockPanel,
-      defaultPosition: 'main'
+      defaultPosition: 'main',
     }
 
     registry.register(sidebarPanel)
@@ -68,18 +61,18 @@ describe('PanelRegistry', () => {
 
   it('should handle duplicate registration with warning', () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    
+
     const panel: PanelDefinition = {
       id: 'duplicate',
       title: 'Panel 1',
       icon: MockIcon,
       component: MockPanel,
-      defaultPosition: 'sidebar'
+      defaultPosition: 'sidebar',
     }
 
     const updatedPanel: PanelDefinition = {
       ...panel,
-      title: 'Panel 2'
+      title: 'Panel 2',
     }
 
     registry.register(panel)
@@ -97,7 +90,7 @@ describe('PanelRegistry', () => {
       title: 'Remove Me',
       icon: MockIcon,
       component: MockPanel,
-      defaultPosition: 'sidebar'
+      defaultPosition: 'sidebar',
     }
 
     registry.register(panel)

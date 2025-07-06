@@ -1,5 +1,4 @@
-import { Menu, Square, Grid3X3, SplitSquareHorizontal, Code, Trash2 } from 'lucide-react'
-import { Button } from '../ui/button'
+import { Menu, Square, Grid3X3, SplitSquareHorizontal, Code } from 'lucide-react'
 import { SearchIndexControls } from '../search/SearchIndexControls'
 import { useAgentStore } from '../../stores'
 
@@ -10,7 +9,6 @@ interface ViewControlsProps {
   selectedAgentId: string | null
   onViewChange: (view: ViewMode) => void
   onSidebarToggle: () => void
-  onCleanupZombies?: () => void
 }
 
 const viewIcons = {
@@ -25,11 +23,10 @@ export function ViewControls({
   selectedAgentId,
   onViewChange,
   onSidebarToggle,
-  onCleanupZombies,
 }: ViewControlsProps) {
   // Get the selected agent to show its name
-  const selectedAgent = useAgentStore(state => 
-    selectedAgentId ? state.agents.find(a => a.id === selectedAgentId) : null
+  const selectedAgent = useAgentStore((state) =>
+    selectedAgentId ? state.agents.find((a) => a.id === selectedAgentId) : null
   )
 
   return (
@@ -61,23 +58,10 @@ export function ViewControls({
 
       {/* Search Index Controls */}
       <SearchIndexControls variant="compact" className="ml-auto" />
-      
+
       <span className="text-muted-foreground text-sm">
         {selectedAgent ? `→ ${selectedAgent.name}` : '→ No agent selected'}
       </span>
-
-      {onCleanupZombies && (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onCleanupZombies}
-          className="ml-2"
-          title="Cleanup zombie Claude processes"
-        >
-          <Trash2 className="w-3 h-3 mr-1" />
-          Cleanup
-        </Button>
-      )}
     </div>
   )
 }

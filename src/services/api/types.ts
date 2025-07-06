@@ -1,6 +1,6 @@
 /**
  * API Client Types - Foundation for Extensible Provider System
- * 
+ *
  * SOLID: Interface Segregation - Clean, focused interfaces
  * DRY: Shared types across all providers
  * KISS: Simple, composable type definitions
@@ -42,14 +42,14 @@ export interface ApiError {
 export interface ApiProvider {
   readonly name: string
   readonly baseUrl: string
-  
+
   // HTTP operations
   get<T = unknown>(endpoint: string, params?: Record<string, string>): Promise<T>
   post<T = unknown>(endpoint: string, data?: unknown): Promise<T>
   put<T = unknown>(endpoint: string, data?: unknown): Promise<T>
   delete<T = unknown>(endpoint: string): Promise<T>
   patch<T = unknown>(endpoint: string, data?: unknown): Promise<T>
-  
+
   // Configuration
   updateConfig(config: Partial<ProviderConfig>): void
   isConfigured(): boolean
@@ -59,10 +59,10 @@ export interface ApiProvider {
 export interface LLMProvider extends ApiProvider {
   // Chat completion (OpenAI compatible)
   chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatCompletion>
-  
+
   // Model information
   getModels(): Promise<Model[]>
-  
+
   // Streaming support
   streamChat(messages: ChatMessage[], options?: ChatStreamOptions): AsyncGenerator<ChatStreamChunk>
 }
@@ -139,7 +139,7 @@ export interface Agent {
 // Team agent reference within a team
 export interface TeamAgent {
   role: string
-  name?: string // Optional name for display purposes  
+  name?: string // Optional name for display purposes
   configId?: string // Reference to agent configuration ID
   customizations?: {
     systemPromptAdditions?: string
@@ -431,8 +431,8 @@ export interface StudioProvider extends ApiProvider {
     clearSession(id: string, projectId: string, oldSessionId?: string): Promise<void>
     deleteSession(projectId: string, agentId: string): Promise<void>
   }
-  
-  // Team operations  
+
+  // Team operations
   teams: {
     getAll(): Promise<Team[]>
     create(data: CreateTeamData): Promise<Team>
@@ -442,7 +442,7 @@ export interface StudioProvider extends ApiProvider {
     spawn(teamId: string, projectId: string): Promise<SpawnTeamResponse>
     import(team: CreateTeamData): Promise<Team>
   }
-  
+
   // Project operations
   projects: {
     getAll(): Promise<Project[]>
@@ -458,10 +458,14 @@ export interface StudioProvider extends ApiProvider {
     addAgents(id: string, agentIds: string[]): Promise<AgentInstance[]>
     removeAgent(id: string, agentInstanceId: string): Promise<void>
     deleteSession(id: string, fileName: string): Promise<void>
-    getSessionMessages(id: string, sessionId: string, options?: { cursor?: string; limit?: number }): Promise<PaginatedResponse<Message>>
+    getSessionMessages(
+      id: string,
+      sessionId: string,
+      options?: { cursor?: string; limit?: number }
+    ): Promise<PaginatedResponse<Message>>
     killAgents(id: string): Promise<void>
   }
-  
+
   // Message operations
   messages: {
     send(data: SendMessageData): Promise<Message>
@@ -470,16 +474,17 @@ export interface StudioProvider extends ApiProvider {
     sendSystem(data: SystemMessageData): Promise<Message>
     removeSession(projectId: string, agentId: string): Promise<void>
   }
-  
+
   // System operations
   system: {
     getProcessStats(): Promise<ProcessStats>
-    cleanupZombies(): Promise<{ cleaned: number }>
     health(): Promise<HealthStatus>
-    detectCommand(command: string): Promise<{ isCommand: boolean; command?: string; args?: string[] }>
+    detectCommand(
+      command: string
+    ): Promise<{ isCommand: boolean; command?: string; args?: string[] }>
     checkPath(path: string): Promise<{ exists: boolean; type?: 'file' | 'directory' }>
   }
-  
+
   // Settings operations
   settings: {
     get(): Promise<Record<string, unknown>>
@@ -488,24 +493,30 @@ export interface StudioProvider extends ApiProvider {
     updateHooks(hooks: Record<string, HookConfig>): Promise<Hook[]>
     testHook(hook: HookConfig): Promise<{ success: boolean; output?: string; error?: string }>
   }
-  
+
   // Studio Intelligence operations
   intelligence: {
-    analyze(data: { content: string; context?: Record<string, unknown> }): Promise<IntelligenceAnalysis>
-    suggest(data: { query: string; context?: Record<string, unknown> }): Promise<{ suggestions: string[] }>
+    analyze(data: {
+      content: string
+      context?: Record<string, unknown>
+    }): Promise<IntelligenceAnalysis>
+    suggest(data: {
+      query: string
+      context?: Record<string, unknown>
+    }): Promise<{ suggestions: string[] }>
   }
-  
+
   // Diagnostics operations
   diagnostics: {
     get(): Promise<DiagnosticInfo>
     check(data: { projectPath: string }): Promise<DiagnosticInfo>
   }
-  
+
   // Screenshot operations
   screenshots: {
     capture(data: { projectId: string; agentId: string; description?: string }): Promise<Screenshot>
   }
-  
+
   // Agent roles operations
   agentRoles: {
     getAll(): Promise<AgentRole[]>
@@ -513,7 +524,7 @@ export interface StudioProvider extends ApiProvider {
     unassign(agentId: string): Promise<void>
     getAssignments(agentIds: string[]): Promise<AgentRoleAssignment[]>
   }
-  
+
   // Search operations - semantic code search
   search: {
     index(data: SearchIndexData): Promise<SearchIndexStats>
@@ -537,7 +548,7 @@ export interface ApiConfigStore {
   setProviderConfig(name: string, config: ProviderConfig): Promise<void>
   removeProviderConfig(name: string): Promise<void>
   getAllConfigs(): Record<string, ProviderConfig>
-  
+
   // Security: API keys should be encrypted/secure
   getApiKey(provider: string): string | undefined
   setApiKey(provider: string, key: string): Promise<void>

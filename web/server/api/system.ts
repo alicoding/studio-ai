@@ -37,23 +37,6 @@ router.get('/process-stats', async (req, res) => {
   }
 })
 
-// POST /api/system/cleanup-zombies - Cleanup zombie Claude processes
-router.post('/cleanup-zombies', async (req, res) => {
-  try {
-    // No processes to clean up - agents are Claude SDK instances
-    const response = {
-      killedCount: 0,
-      killedProcesses: [],
-      message: 'No zombie processes (using Claude SDK instances)',
-    }
-
-    res.json(response)
-  } catch (error) {
-    console.error('Failed to cleanup zombies:', error)
-    res.status(500).json({ error: 'Failed to cleanup zombie processes' })
-  }
-})
-
 // GET /api/system/health - System health check
 router.get('/health', async (req, res) => {
   try {

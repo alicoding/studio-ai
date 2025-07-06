@@ -1,13 +1,13 @@
 /**
  * Service hooks - Access dependency injected services
- * 
+ *
  * SOLID: Single responsibility - Service access only
  * DRY: One place for all service hooks
  * KISS: Simple hook wrappers
  */
 
 import { useContext } from 'react'
-import { ServiceContext } from '../contexts/ServiceContext'
+import { ServiceContext } from '../contexts/ServiceContextDef'
 import type { ServiceContainer } from '../contexts/ServiceContext'
 import type { TypedEventBus } from '../services/EventBus'
 import type { PanelRegistry } from '../services/PanelRegistry'
