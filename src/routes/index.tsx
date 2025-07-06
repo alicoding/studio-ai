@@ -414,14 +414,6 @@ function ProjectsPage() {
     }
   }
 
-  // Handle file selection from search results
-  const handleFileSelect = (filePath: string) => {
-    // For now, just show a toast with the selected file
-    // This will be enhanced in Phase 2 with actual code viewer
-    toast.info(`Selected file: ${filePath.split('/').pop()}`)
-    console.log('File selected from search:', filePath)
-  }
-
   return (
     <>
       <ProjectTabs
@@ -469,7 +461,6 @@ function ProjectsPage() {
               onAddAgent={() => modalOps.openModal('agentSelection')}
               onCreateAgent={() => modalOps.openModal('createAgent')}
               onLoadTeam={() => modalOps.openModal('teamSelection')}
-              onFileSelect={handleFileSelect}
             />
 
             <main className="flex-1 flex flex-col overflow-hidden">

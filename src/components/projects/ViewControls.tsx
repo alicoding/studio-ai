@@ -1,5 +1,4 @@
 import { Menu, Square, Grid3X3, SplitSquareHorizontal, Code } from 'lucide-react'
-import { SearchIndexControls } from '../search/SearchIndexControls'
 import { useAgentStore } from '../../stores'
 
 type ViewMode = 'single' | 'split' | 'grid' | 'develop'
@@ -56,10 +55,7 @@ export function ViewControls({
         ))}
       </div>
 
-      {/* Search Index Controls */}
-      <SearchIndexControls variant="compact" className="ml-auto" />
-
-      <span className="text-muted-foreground text-sm">
+      <span className="text-muted-foreground text-sm ml-auto">
         {selectedAgent ? `→ ${selectedAgent.name}` : '→ No agent selected'}
       </span>
     </div>

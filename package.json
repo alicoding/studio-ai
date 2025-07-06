@@ -20,8 +20,7 @@
     "lint:fix": "eslint src --ext ts,tsx --fix",
     "format": "prettier --write src/**/*.{ts,tsx,css,md}",
     "format:check": "prettier --check src/**/*.{ts,tsx,css,md}",
-    "prepare": "husky",
-    "build-semantic-index": "tsx scripts/build-semantic-index.ts"
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
@@ -108,7 +107,6 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@types/react-syntax-highlighter": "^15.5.13",
-    "@xenova/transformers": "^2.17.2",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-web-links": "^0.11.0",
     "@xterm/xterm": "^5.5.0",

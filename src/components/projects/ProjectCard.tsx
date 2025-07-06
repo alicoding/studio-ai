@@ -1,5 +1,4 @@
-import { FolderOpen, Edit3, Copy, Trash2, Users, Star, Database } from 'lucide-react'
-import { SearchIndexControls } from '../search/SearchIndexControls'
+import { FolderOpen, Edit3, Copy, Trash2, Users, Star } from 'lucide-react'
 
 interface Project {
   id: string
@@ -76,19 +75,6 @@ export function ProjectCard({ project, onOpen, onEdit, onDelete, onClone }: Proj
               {project.sessionCount} session{project.sessionCount !== 1 ? 's' : ''}
             </span>
           </div>
-        </div>
-
-        {/* Search Index Stats */}
-        <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-2">
-          <div className="flex items-center gap-1">
-            <Database className="w-3 h-3" />
-            <span>Search Index</span>
-          </div>
-          <SearchIndexControls 
-            variant="compact" 
-            projectId={project.id}
-            className="flex items-center gap-1"
-          />
         </div>
 
         {project.tags.length > 0 && (

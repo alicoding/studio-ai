@@ -5,7 +5,6 @@ import { Separator } from '../ui/separator'
 import { UserPlus, Bot, Users, CheckSquare, Square, Trash2 } from 'lucide-react'
 import { useAgentStore, useProjectStore } from '../../stores'
 import { DeleteAgentModal } from '../modals/DeleteAgentModal'
-import { SearchSidebarSection } from '../search/SearchSidebarSection'
 import {
   DndContext,
   closestCenter,
@@ -32,7 +31,6 @@ interface SidebarProps {
   onAddAgent: () => void
   onCreateAgent: () => void
   onLoadTeam: () => void
-  onFileSelect?: (filePath: string) => void
 }
 
 export function Sidebar({
@@ -45,11 +43,16 @@ export function Sidebar({
   onAddAgent,
   onCreateAgent,
   onLoadTeam,
-  onFileSelect,
 }: SidebarProps) {
   // Get data directly from Zustand stores
-  const { selectedAgentId, configs, setSelectedAgent, getProjectAgents, moveAgentToPosition, clearingAgentId } =
-    useAgentStore()
+  const {
+    selectedAgentId,
+    configs,
+    setSelectedAgent,
+    getProjectAgents,
+    moveAgentToPosition,
+    clearingAgentId,
+  } = useAgentStore()
   const { activeProjectId } = useProjectStore()
 
   // Drag and drop sensors
@@ -175,12 +178,6 @@ export function Sidebar({
         isCollapsed ? 'w-0 overflow-hidden' : 'w-80'
       } ${isSelectionMode ? 'select-none' : ''}`}
     >
-      {/* Search Section */}
-      <SearchSidebarSection 
-        onFileSelect={onFileSelect}
-        className="border-b"
-      />
-      
       <div className="p-4 border-b space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold flex items-center gap-2">

@@ -24,7 +24,6 @@ import workspaceRouter from './api/workspace'
 import messagesBatchRouter from './api/messages-batch'
 import settingsMcpRouter from './api/settings-mcp'
 import mcpConfigRouter from './api/mcp-config'
-import searchRouter from './api/search'
 
 // Import WebSocket handler
 import { setupWebSocket } from './websocket'
@@ -92,7 +91,6 @@ app.use('/api/ai', aiRouter)
 app.use('/api/langchain', langchainRouter)
 app.use('/api/storage', storageRouter)
 app.use('/api/workspace', workspaceRouter)
-app.use('/api/search', searchRouter)
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
