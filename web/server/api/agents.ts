@@ -8,6 +8,7 @@ import { ServerConfigService } from '../services/ServerConfigService'
 import { AgentConfigService } from '../services/AgentConfigService'
 import { ProjectService } from '../services/ProjectService'
 import { StudioProjectMetadata } from '../services/StudioProjectMetadata'
+// Removed unused import
 
 const router = Router()
 const configService = ServerConfigService.getInstance()
@@ -154,8 +155,8 @@ router.post('/', async (req: Request, res: Response) => {
       name,
       role,
       systemPrompt,
-      tools: tools || ['read', 'write', 'bash'],
-      model: model || 'claude-3-opus',
+      tools: tools, // If undefined, SDK gives access to all tools
+      model: model || 'opus', // Use alias for latest opus version
       maxTokens: maxTokens || 200000,
       temperature: temperature ?? 0.7,
       maxTurns: maxTurns || 500,

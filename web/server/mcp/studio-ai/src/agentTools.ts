@@ -336,8 +336,8 @@ export async function handleCreateAgent(args: CreateAgentInput): Promise<TextCon
       name: args.name,
       role: args.role,
       systemPrompt: args.systemPrompt,
-      model: args.model || 'claude-3-opus',
-      tools: args.tools || ['read', 'write', 'bash'],
+      model: args.model || 'opus', // Use alias for latest opus version
+      tools: args.tools, // If undefined, SDK gives access to all tools
       maxTokens: args.maxTokens || 200000,
       temperature: args.temperature ?? 0.7,
       maxTurns: args.maxTurns || 500,
