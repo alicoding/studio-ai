@@ -27,6 +27,8 @@ import mcpConfigRouter from './api/mcp-config'
 import invokeRouter from './api/invoke'
 import invokeStatusRouter from './api/invoke-status'
 import operatorRouter from './api/operator'
+import sessionSearchRouter from './api/session-search'
+import claudeProjectsRouter from './api/claude-projects'
 
 // Import WebSocket handler
 import { setupWebSocket } from './websocket'
@@ -103,6 +105,8 @@ app.use('/api/ai', aiRouter)
 app.use('/api/langchain', langchainRouter)
 app.use('/api/storage', storageRouter)
 app.use('/api/workspace', workspaceRouter)
+app.use('/api/session', sessionSearchRouter)
+app.use('/api/claude-projects', claudeProjectsRouter)
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

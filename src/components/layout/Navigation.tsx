@@ -1,5 +1,5 @@
 import { Link, useLocation } from '@tanstack/react-router'
-import { Settings, Database } from 'lucide-react'
+import { Settings, Database, Search } from 'lucide-react'
 
 export function Navigation() {
   const location = useLocation()
@@ -62,6 +62,17 @@ export function Navigation() {
         >
           <Database className="w-4 h-4" />
           Storage
+        </Link>
+        <Link
+          to="/session-search"
+          className={`px-4 py-2 rounded-md transition-colors font-medium flex items-center gap-2 ${
+            isActive('/session-search')
+              ? 'text-primary bg-primary/10 border border-primary/20'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+          }`}
+        >
+          <Search className="w-4 h-4" />
+          Search
         </Link>
       </div>
       <Link

@@ -1,6 +1,6 @@
 /**
  * LibreChat Types - OpenAI-compatible chat interface types
- * 
+ *
  * SOLID: Interface segregation for different chat operations
  * DRY: Shared types across all chat providers
  */
@@ -33,11 +33,35 @@ export interface ChatCompletionOptions {
   response_format?: { type: 'text' | 'json_object' }
 }
 
+// JSON Schema parameter type
+export type JSONSchemaType =
+  | 'string'
+  | 'number'
+  | 'integer'
+  | 'boolean'
+  | 'array'
+  | 'object'
+  | 'null'
+
+export interface JSONSchemaProperty {
+  type: JSONSchemaType | JSONSchemaType[]
+  description?: string
+  enum?: unknown[]
+  items?: JSONSchemaProperty
+  properties?: Record<string, JSONSchemaProperty>
+  required?: string[]
+  default?: unknown
+}
+
 // Function definition for function calling
 export interface ChatFunction {
   name: string
   description?: string
-  parameters?: Record<string, any>
+  parameters?: {
+    type: 'object'
+    properties: Record<string, JSONSchemaProperty>
+    required?: string[]
+  }
 }
 
 // Non-streaming response
@@ -54,11 +78,19 @@ export interface ChatCompletion {
   }
 }
 
+// Logprobs type for token probabilities
+export interface LogProbs {
+  tokens: string[]
+  token_logprobs: number[]
+  top_logprobs: Array<Record<string, number>>
+  text_offset: number[]
+}
+
 export interface ChatChoice {
   index: number
   message: ChatMessage
   finish_reason: 'stop' | 'length' | 'function_call' | 'content_filter' | null
-  logprobs?: any
+  logprobs?: LogProbs | null
 }
 
 // Streaming response chunk
@@ -74,7 +106,23 @@ export interface ChatChunkChoice {
   index: number
   delta: Partial<ChatMessage>
   finish_reason: 'stop' | 'length' | 'function_call' | 'content_filter' | null
-  logprobs?: any
+  logprobs?: LogProbs | null
+}
+
+// Model permission type
+export interface ModelPermission {
+  id: string
+  object: 'model_permission'
+  created: number
+  allow_create_engine: boolean
+  allow_sampling: boolean
+  allow_logprobs: boolean
+  allow_search_indices: boolean
+  allow_view: boolean
+  allow_fine_tuning: boolean
+  organization: string
+  group: string | null
+  is_blocking: boolean
 }
 
 // Model information
@@ -83,7 +131,7 @@ export interface Model {
   object: 'model'
   created: number
   owned_by: string
-  permission?: any[]
+  permission?: ModelPermission[]
   root?: string
   parent?: string
 }
@@ -102,14 +150,14 @@ export interface ChatProviderConfig {
 export interface ChatProvider {
   readonly name: string
   readonly baseUrl: string
-  
+
   // Core operations
   createChatCompletion(options: ChatCompletionOptions): Promise<ChatCompletion>
   createChatCompletionStream(options: ChatCompletionOptions): AsyncGenerator<ChatCompletionChunk>
-  
+
   // Model operations
   listModels(): Promise<Model[]>
-  
+
   // Configuration
   updateConfig(config: Partial<ChatProviderConfig>): void
   isConfigured(): boolean
