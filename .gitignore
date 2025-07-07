@@ -43,3 +43,6 @@ debug-*.js
 # Auto-generated files
 src/routeTree.gen.ts
 .tanstack/
+
+# MCP stable build directory
+.mcp-stable/

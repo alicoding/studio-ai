@@ -7,6 +7,7 @@
  */
 
 import { TextContent } from '@modelcontextprotocol/sdk/types.js'
+import ky from 'ky'
 
 // Get API base URL from environment or default
 const API_BASE = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
@@ -19,6 +20,45 @@ export interface Agent {
   model?: string
   tools?: string[]
   status?: string
+}
+
+// Agent configuration interfaces matching Claude Studio
+export interface AgentConfig {
+  id: string
+  name: string
+  role: string
+  model: string
+  systemPrompt: string
+  tools: string[]
+  maxTokens: number
+  temperature: number
+  maxTurns?: number
+  verbose?: boolean
+  created: string
+}
+
+export interface CreateAgentInput {
+  name: string
+  role: string
+  systemPrompt: string
+  model?: string
+  tools?: string[]
+  maxTokens?: number
+  temperature?: number
+  maxTurns?: number
+  verbose?: boolean
+}
+
+export interface UpdateAgentInput {
+  name?: string
+  role?: string
+  systemPrompt?: string
+  model?: string
+  tools?: string[]
+  maxTokens?: number
+  temperature?: number
+  maxTurns?: number
+  verbose?: boolean
 }
 
 // API Response types
@@ -81,7 +121,7 @@ export async function handleListAgents(): Promise<TextContent> {
 
 /**
  * Send a message to a specific agent
- * 
+ *
  * DEPRECATED: Use 'invoke' tool instead for unified agent invocation
  * Example: invoke({ workflow: { role: "developer", task: "your message" }, projectId: "..." })
  */
@@ -171,14 +211,14 @@ export async function handleMention(args: {
 
 /**
  * Send messages to multiple agents with orchestration
- * 
+ *
  * DEPRECATED: Use 'invoke' tool instead for multi-agent workflows
- * Example: invoke({ 
+ * Example: invoke({
  *   workflow: [
  *     { id: "step1", role: "developer", task: "..." },
  *     { id: "step2", role: "tester", task: "...", deps: ["step1"] }
- *   ], 
- *   projectId: "..." 
+ *   ],
+ *   projectId: "..."
  * })
  */
 export async function handleBatchMessages(args: {
@@ -268,6 +308,231 @@ export async function handleBatchMessages(args: {
     return {
       type: 'text',
       text: `Error: ${message}`,
+    }
+  }
+}
+
+/**
+ * Create a new agent configuration
+ *
+ * @example
+ * {
+ *   "name": "Code Reviewer",
+ *   "role": "reviewer",
+ *   "systemPrompt": "You are a code review specialist focusing on best practices.",
+ *   "model": "claude-3-opus",
+ *   "tools": ["read", "write", "bash"],
+ *   "temperature": 0.7
+ * }
+ */
+export async function handleCreateAgent(args: CreateAgentInput): Promise<TextContent> {
+  try {
+    // Validation
+    if (!args.name || !args.role || !args.systemPrompt) {
+      throw new Error('Required fields: name, role, and systemPrompt')
+    }
+
+    const requestBody = {
+      name: args.name,
+      role: args.role,
+      systemPrompt: args.systemPrompt,
+      model: args.model || 'claude-3-opus',
+      tools: args.tools || ['read', 'write', 'bash'],
+      maxTokens: args.maxTokens || 200000,
+      temperature: args.temperature ?? 0.7,
+      maxTurns: args.maxTurns || 500,
+      verbose: args.verbose ?? true,
+    }
+
+    const response = await ky
+      .post(`${API_BASE}/agents`, {
+        json: requestBody,
+        timeout: 30000,
+      })
+      .json<AgentConfig & { projectsUsing?: string[] }>()
+
+    return {
+      type: 'text',
+      text: `Successfully created agent:\n\nID: ${response.id}\nName: ${response.name}\nRole: ${response.role}\nModel: ${response.model}\nTools: ${response.tools.join(', ')}\n\nThe agent is now available for use in projects.`,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return {
+      type: 'text',
+      text: `Error creating agent: ${message}`,
+    }
+  }
+}
+
+/**
+ * Update an existing agent configuration
+ *
+ * @example
+ * {
+ *   "id": "agent-123",
+ *   "updates": {
+ *     "systemPrompt": "Updated prompt with new instructions",
+ *     "temperature": 0.5
+ *   }
+ * }
+ */
+export async function handleUpdateAgent(args: {
+  id: string
+  updates: UpdateAgentInput
+}): Promise<TextContent> {
+  try {
+    if (!args.id) {
+      throw new Error('Agent ID is required')
+    }
+
+    if (!args.updates || Object.keys(args.updates).length === 0) {
+      throw new Error('No updates provided')
+    }
+
+    const response = await ky
+      .put(`${API_BASE}/agents/${args.id}`, {
+        json: args.updates,
+        timeout: 30000,
+      })
+      .json<AgentConfig & { projectsUsing?: string[] }>()
+
+    const updatedFields = Object.keys(args.updates)
+      .map(
+        (field) => `- ${field}: ${JSON.stringify(args.updates[field as keyof UpdateAgentInput])}`
+      )
+      .join('\n')
+
+    return {
+      type: 'text',
+      text: `Successfully updated agent ${response.name} (${response.id}):\n\nUpdated fields:\n${updatedFields}\n\nProjects using this agent: ${response.projectsUsing?.join(', ') || 'None'}`,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return {
+      type: 'text',
+      text: `Error updating agent: ${message}`,
+    }
+  }
+}
+
+/**
+ * Delete an agent configuration
+ *
+ * @example
+ * { "id": "agent-123" }
+ */
+export async function handleDeleteAgent(args: { id: string }): Promise<TextContent> {
+  try {
+    if (!args.id) {
+      throw new Error('Agent ID is required')
+    }
+
+    // First get the agent to show details before deletion
+    let agentName = args.id
+    try {
+      const agent = await ky
+        .get(`${API_BASE}/agents/${args.id}`, {
+          timeout: 30000,
+        })
+        .json<AgentConfig>()
+      agentName = agent.name
+    } catch (_) {
+      // If we can't get the agent, continue with deletion anyway
+    }
+
+    await ky.delete(`${API_BASE}/agents/${args.id}`, {
+      timeout: 30000,
+    })
+
+    return {
+      type: 'text',
+      text: `Successfully deleted agent ${agentName} (${args.id})`,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return {
+      type: 'text',
+      text: `Error deleting agent: ${message}`,
+    }
+  }
+}
+
+/**
+ * List all agent configurations
+ *
+ * @example
+ * {} (no parameters needed)
+ */
+export async function handleListAgentConfigs(): Promise<TextContent> {
+  try {
+    const agents = await ky
+      .get(`${API_BASE}/agents`, {
+        timeout: 30000,
+      })
+      .json<Array<AgentConfig & { projectsUsing?: string[] }>>()
+
+    if (agents.length === 0) {
+      return {
+        type: 'text',
+        text: 'No agent configurations found.',
+      }
+    }
+
+    const agentList = agents
+      .map((agent) => {
+        const projects = agent.projectsUsing?.length
+          ? `\n  Projects: ${agent.projectsUsing.join(', ')}`
+          : ''
+        return `**${agent.name}** (${agent.id})\n  Role: ${agent.role}\n  Model: ${agent.model}\n  Tools: ${agent.tools.join(', ')}\n  Temperature: ${agent.temperature}\n  Max Tokens: ${agent.maxTokens}${projects}`
+      })
+      .join('\n\n')
+
+    return {
+      type: 'text',
+      text: `Agent Configurations:\n\n${agentList}`,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return {
+      type: 'text',
+      text: `Error listing agent configurations: ${message}`,
+    }
+  }
+}
+
+/**
+ * Get a specific agent configuration
+ *
+ * @example
+ * { "id": "agent-123" }
+ */
+export async function handleGetAgentConfig(args: { id: string }): Promise<TextContent> {
+  try {
+    if (!args.id) {
+      throw new Error('Agent ID is required')
+    }
+
+    const agent = await ky
+      .get(`${API_BASE}/agents/${args.id}`, {
+        timeout: 30000,
+      })
+      .json<AgentConfig & { projectsUsing?: string[] }>()
+
+    const projects = agent.projectsUsing?.length
+      ? `\nProjects Using: ${agent.projectsUsing.join(', ')}`
+      : '\nProjects Using: None'
+
+    const details = `Agent Configuration: ${agent.name}\n\nID: ${agent.id}\nRole: ${agent.role}\nModel: ${agent.model}\nTools: ${agent.tools.join(', ')}\nTemperature: ${agent.temperature}\nMax Tokens: ${agent.maxTokens}\nMax Turns: ${agent.maxTurns || 'Not set'}\nVerbose: ${agent.verbose || false}\nCreated: ${agent.created}${projects}\n\nSystem Prompt:\n${agent.systemPrompt}`
+
+    return {
+      type: 'text',
+      text: details,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return {
+      type: 'text',
+      text: `Error getting agent configuration: ${message}`,
     }
   }
 }

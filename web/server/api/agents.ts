@@ -1,29 +1,19 @@
 import { Router, Request, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
-import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
+import fs from 'fs/promises'
 // ProcessManager removed - using Claude SDK instances instead
 import { ServerConfigService } from '../services/ServerConfigService'
 import { AgentConfigService } from '../services/AgentConfigService'
 import { ProjectService } from '../services/ProjectService'
-
-interface LegacyAgentConfig {
-  id: string
-  name: string
-  role: string
-  systemPrompt: string
-  tools: string[]
-  model: string
-  createdAt: string
-  updatedAt: string
-  usedInProjects: string[]
-}
+import { StudioProjectMetadata } from '../services/StudioProjectMetadata'
 
 const router = Router()
 const configService = ServerConfigService.getInstance()
 const agentConfigService = AgentConfigService.getInstance()
 const projectService = new ProjectService()
+const studioMetadata = new StudioProjectMetadata()
 
 // GET /api/agents - Get all agent configurations
 router.get('/', async (req, res) => {
@@ -33,33 +23,37 @@ router.get('/', async (req, res) => {
     // Get all projects from ProjectService to check which agents are being used
     const projects = await projectService.getAllProjects()
 
-    // Create a map of agent usage by reading project configuration files
+    // Create a map of agent usage by checking project metadata
     const agentProjectMap = new Map<string, string[]>()
 
     for (const project of projects) {
-      // Read the project configuration file to get agentIds
-      try {
-        const projectConfigPath = path.join(
-          os.homedir(),
-          '.claude-studio',
-          'projects',
-          `${project.id}.json`
-        )
-        const projectData = await fs.readFile(projectConfigPath, 'utf-8')
-        const projectConfig = JSON.parse(projectData)
+      // Get project metadata directly from StudioProjectMetadata service
+      const metadata = await studioMetadata.getMetadata(project.id)
+      if (!metadata) {
+        continue
+      }
 
-        const agentList = projectConfig.agentIds || []
-        if (Array.isArray(agentList)) {
-          for (const agentId of agentList) {
-            if (!agentProjectMap.has(agentId)) {
-              agentProjectMap.set(agentId, [])
-            }
-            agentProjectMap.get(agentId)!.push(project.id)
-          }
+      // Handle both legacy agentIds and new agentInstances
+      const agentConfigs = new Set<string>()
+
+      // Check new agentInstances first
+      if (metadata.agentInstances && metadata.agentInstances.length > 0) {
+        for (const instance of metadata.agentInstances) {
+          agentConfigs.add(instance.configId)
         }
-      } catch (_error) {
-        // If project config doesn't exist in .claude-studio, skip it
-        console.log(`No project config found for ${project.id}`)
+      } else if (metadata.agentIds && metadata.agentIds.length > 0) {
+        // Fall back to legacy agentIds
+        for (const agentId of metadata.agentIds) {
+          agentConfigs.add(agentId)
+        }
+      }
+
+      // Map config IDs to projects
+      for (const configId of agentConfigs) {
+        if (!agentProjectMap.has(configId)) {
+          agentProjectMap.set(configId, [])
+        }
+        agentProjectMap.get(configId)!.push(project.id)
       }
     }
 
@@ -91,23 +85,27 @@ router.get('/:id', async (req: Request, res: Response) => {
     const projectsUsing: string[] = []
 
     for (const project of projects) {
-      try {
-        const projectConfigPath = path.join(
-          os.homedir(),
-          '.claude-studio',
-          'projects',
-          `${project.id}.json`
-        )
-        const projectData = await fs.readFile(projectConfigPath, 'utf-8')
-        const projectConfig = JSON.parse(projectData)
+      // Get project metadata directly from StudioProjectMetadata service
+      const metadata = await studioMetadata.getMetadata(project.id)
+      if (!metadata) {
+        continue
+      }
 
-        const agentList = projectConfig.agentIds || []
-        if (Array.isArray(agentList) && agentList.includes(req.params.id)) {
-          projectsUsing.push(project.id)
-        }
-      } catch (_error) {
-        // If project config doesn't exist in .claude-studio, skip it
-        console.log(`No project config found for ${project.id}`)
+      // Check if this agent config is used in the project
+      let usesThisAgent = false
+
+      // Check new agentInstances first
+      if (metadata.agentInstances && metadata.agentInstances.length > 0) {
+        usesThisAgent = metadata.agentInstances.some(
+          (instance) => instance.configId === req.params.id
+        )
+      } else if (metadata.agentIds && metadata.agentIds.length > 0) {
+        // Fall back to legacy agentIds
+        usesThisAgent = metadata.agentIds.includes(req.params.id)
+      }
+
+      if (usesThisAgent) {
+        projectsUsing.push(project.id)
       }
     }
 
@@ -125,7 +123,18 @@ router.get('/:id', async (req: Request, res: Response) => {
 // POST /api/agents - Create new agent configuration
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { id, name, role, systemPrompt, tools, model, maxTokens, temperature, maxTurns, verbose } = req.body
+    const {
+      id,
+      name,
+      role,
+      systemPrompt,
+      tools,
+      model,
+      maxTokens,
+      temperature,
+      maxTurns,
+      verbose,
+    } = req.body
 
     // Validation
     if (!name || !role || !systemPrompt) {
@@ -176,48 +185,16 @@ router.put('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Agent not found' })
     }
 
-    // Update in legacy configurations.json
-    const legacyConfigPath =
-      '/Users/ali/claude-swarm/claude-team/claude-studio/data/agents/configurations.json'
-    try {
-      const data = await fs.readFile(legacyConfigPath, 'utf-8')
-      const configs = JSON.parse(data)
-
-      const agentIndex = configs.findIndex((a: LegacyAgentConfig) => a.id === req.params.id)
-      if (agentIndex !== -1) {
-        // Update the agent
-        configs[agentIndex] = {
-          ...configs[agentIndex],
-          ...(name && { name }),
-          ...(role && { role }),
-          ...(systemPrompt && { systemPrompt }),
-          ...(tools && { tools }),
-          ...(model && { model }),
-          updatedAt: new Date().toISOString(),
-        }
-
-        // Save back to file
-        await fs.writeFile(legacyConfigPath, JSON.stringify(configs, null, 2))
-      }
-    } catch (_error) {
-      console.error('Failed to update legacy config:', _error)
-    }
-
-    // Also try to update via ConfigService (for non-legacy agents)
-    try {
-      await configService.updateAgent(req.params.id, {
-        ...(name && { name }),
-        ...(role && { role }),
-        ...(systemPrompt && { systemPrompt }),
-        ...(tools && { tools }),
-        ...(model && { model }),
-        ...(maxTokens && { maxTokens }),
-        ...(temperature !== undefined && { temperature }),
-      })
-    } catch (_error) {
-      // It's OK if ConfigService update fails for legacy agents
-      console.log('ConfigService update failed (expected for legacy agents):', _error)
-    }
+    // Update via ConfigService
+    await configService.updateAgent(req.params.id, {
+      ...(name && { name }),
+      ...(role && { role }),
+      ...(systemPrompt && { systemPrompt }),
+      ...(tools && { tools }),
+      ...(model && { model }),
+      ...(maxTokens && { maxTokens }),
+      ...(temperature !== undefined && { temperature }),
+    })
 
     // Get the updated agent
     const updated = await agentConfigService.getAgent(req.params.id)
@@ -230,22 +207,27 @@ router.put('/:id', async (req: Request, res: Response) => {
     const projectsUsing: string[] = []
 
     for (const project of projects) {
-      try {
-        const projectConfigPath = path.join(
-          os.homedir(),
-          '.claude-studio',
-          'projects',
-          `${project.id}.json`
-        )
-        const projectData = await fs.readFile(projectConfigPath, 'utf-8')
-        const projectConfig = JSON.parse(projectData)
+      // Get project metadata directly from StudioProjectMetadata service
+      const metadata = await studioMetadata.getMetadata(project.id)
+      if (!metadata) {
+        continue
+      }
 
-        const agentList = projectConfig.agentIds || []
-        if (Array.isArray(agentList) && agentList.includes(req.params.id)) {
-          projectsUsing.push(project.id)
-        }
-      } catch (_error) {
-        // Skip if no project config
+      // Check if this agent config is used in the project
+      let usesThisAgent = false
+
+      // Check new agentInstances first
+      if (metadata.agentInstances && metadata.agentInstances.length > 0) {
+        usesThisAgent = metadata.agentInstances.some(
+          (instance) => instance.configId === req.params.id
+        )
+      } else if (metadata.agentIds && metadata.agentIds.length > 0) {
+        // Fall back to legacy agentIds
+        usesThisAgent = metadata.agentIds.includes(req.params.id)
+      }
+
+      if (usesThisAgent) {
+        projectsUsing.push(project.id)
       }
     }
 
