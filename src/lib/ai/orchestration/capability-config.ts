@@ -60,7 +60,7 @@ export interface CapabilityConfig {
   // Output configuration
   output: {
     format?: 'text' | 'json' | 'markdown' | 'code'
-    schema?: Record<string, any> // JSON schema for structured output
+    schema?: Record<string, unknown> // JSON schema for structured output
     postProcessing?: string // JavaScript expression for post-processing
   }
   

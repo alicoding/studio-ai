@@ -28,7 +28,8 @@ export const BatchRequestSchema = z.object({
   projectId: z.string().min(1),
   waitStrategy: WaitStrategySchema,
   concurrency: z.number().min(1).max(50).optional(),
-  timeout: z.number().min(100).max(600000).optional() // Global timeout
+  timeout: z.number().min(100).max(600000).optional(), // Global timeout
+  format: z.enum(['json', 'text']).default('json').optional() // Response format
 })
 
 export type BatchRequest = z.infer<typeof BatchRequestSchema>

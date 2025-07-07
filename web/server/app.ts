@@ -24,6 +24,9 @@ import workspaceRouter from './api/workspace'
 import messagesBatchRouter from './api/messages-batch'
 import settingsMcpRouter from './api/settings-mcp'
 import mcpConfigRouter from './api/mcp-config'
+import invokeRouter from './api/invoke'
+import invokeStatusRouter from './api/invoke-status'
+import operatorRouter from './api/operator'
 
 // Import WebSocket handler
 import { setupWebSocket } from './websocket'
@@ -54,6 +57,12 @@ const __dirname = path.dirname(__filename)
 
 const app = express()
 const httpServer = createServer(app)
+
+// Set server timeout to 1 hour for long-running Claude Code operations
+httpServer.timeout = 3600000 // 1 hour
+httpServer.keepAliveTimeout = 3600000 // 1 hour
+httpServer.requestTimeout = 3600000 // 1 hour
+
 const io = new Server(httpServer, {
   cors: {
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
@@ -81,6 +90,9 @@ app.use('/api/projects', projectsRouter)
 app.use('/api/teams', teamsRouter)
 app.use('/api/messages', messagesRouter)
 app.use('/api/messages/batch', messagesBatchRouter)
+app.use('/api/invoke', invokeRouter)
+app.use('/api', invokeStatusRouter)
+app.use('/api/operator', operatorRouter)
 app.use('/api/system', systemRouter)
 app.use('/api/settings', settingsRouter)
 app.use('/api/settings/mcp', settingsMcpRouter)

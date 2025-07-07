@@ -15,7 +15,13 @@ const projectResolver = new ProjectResolver(projectService, orchestrationConfig)
 
 // POST /api/messages - Send a message to Claude
 // KISS: Simple endpoint that delegates to service
+// DEPRECATED: Use /api/invoke instead for unified agent invocation
 router.post('/', async (req: Request, res: Response) => {
+  // Add deprecation warning
+  console.warn('[DEPRECATION] /api/messages is deprecated. Use /api/invoke instead.')
+  res.setHeader('X-Deprecated', 'true')
+  res.setHeader('X-Deprecation-Message', 'Use /api/invoke instead')
+  
   try {
     const {
       content,
@@ -141,7 +147,7 @@ router.post('/', async (req: Request, res: Response) => {
 // POST /api/messages/mention - Route @mention message to agents
 router.post('/mention', async (req: Request, res: Response) => {
   try {
-    const { message, fromAgentId, projectId, targetProjectId, wait, timeout } = req.body
+    const { message, fromAgentId, projectId, targetProjectId, wait, timeout, format = 'json' } = req.body
 
     if (!message || !fromAgentId || !projectId) {
       return res.status(400).json({ error: 'Message, fromAgentId, and projectId are required' })
@@ -359,15 +365,34 @@ router.post('/mention', async (req: Request, res: Response) => {
       }
       
       // Return aggregated responses
-      res.json({
-        message: 'Mention processed with responses',
-        fromAgentId,
-        projectId,
-        targets: routedTargets,
-        wait: true,
-        responses,
-        errors: Object.keys(errors).length > 0 ? errors : undefined
-      })
+      if (format === 'text') {
+        // Simple text format for MCP
+        const textResponses = Object.entries(responses)
+          .map(([agent, resp]) => {
+            const content = (resp && typeof resp === 'object' && 'content' in resp) 
+              ? (resp as { content: string }).content 
+              : JSON.stringify(resp)
+            return `**@${agent}**: ${content}`
+          })
+          .join('\n\n')
+        
+        res.json({
+          content: textResponses,
+          agents: routedTargets,
+          errors: Object.keys(errors).length > 0 ? errors : undefined
+        })
+      } else {
+        // Full structured format for frontend
+        res.json({
+          message: 'Mention processed with responses',
+          fromAgentId,
+          projectId,
+          targets: routedTargets,
+          wait: true,
+          responses,
+          errors: Object.keys(errors).length > 0 ? errors : undefined
+        })
+      }
     } else {
       // Non-wait mode - return immediately
       res.json({

@@ -1,6 +1,13 @@
 /**
  * BatchExecutor - Executes batch operations with configurable wait strategies
  * 
+ * DEPRECATED: This service is deprecated in favor of WorkflowOrchestrator
+ * TODO: Remove this file once /api/messages and /api/messages/batch endpoints are removed
+ * 
+ * The functionality of this service is now handled by:
+ * - WorkflowOrchestrator: For multi-agent workflows with dependencies
+ * - /api/invoke endpoint: Unified agent invocation (single or multi)
+ * 
  * SOLID: Single responsibility - batch execution with strategies
  * DRY: Extends ResponseTracker for response management
  * Library First: Uses p-all for controlled concurrency

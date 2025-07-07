@@ -2,11 +2,13 @@
  * MCP Server Handler - Thin Bridge to Claude Studio APIs
  * 
  * KISS: Just translates MCP calls to API calls
- * DRY: Reuses existing backend functionality
+ * DRY: Reuses existing backend functionality (KY, AbortSignal)
  * Library-First: Uses existing APIs instead of reimplementing
+ * SOLID: Uses existing cancellation patterns
  */
 
 import { TextContent } from '@modelcontextprotocol/sdk/types.js'
+import ky from 'ky'
 
 export interface ToolCallArgs {
   type: 'chat' | 'command' | 'mention' | 'batch'
@@ -30,6 +32,9 @@ export interface ToolCallArgs {
     projectId?: string
     dependencies?: string[]
   }>
+  // Cancellation support
+  requestId?: string
+  signal?: AbortSignal
 }
 
 interface AIExecuteResponse {
@@ -52,6 +57,15 @@ interface AIExecuteResponse {
 
 // Get API base URL from environment or default
 const API_BASE = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
+
+// Create KY instance with base configuration
+const api = ky.create({
+  prefixUrl: API_BASE,
+  timeout: 60000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+})
 
 /**
  * Handle MCP tool calls by routing to appropriate Claude Studio API
@@ -113,23 +127,15 @@ async function handleMention(args: ToolCallArgs): Promise<TextContent> {
     requestBody.timeout = args.timeout
   }
   
-  // Call existing mention API
-  const response = await fetch(`${API_BASE}/messages/mention`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody)
-  })
-  
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Mention failed: ${error}`)
-  }
-  
-  const result = await response.json() as {
+  // Call existing mention API using KY with optional cancellation
+  const result = await api.post('messages/mention', {
+    json: requestBody,
+    signal: args.signal
+  }).json<{
     responses?: Record<string, unknown>
     targets?: string[]
     wait?: boolean
-  }
+  }>()
   
   // Format response based on wait mode
   if (args.wait && result.responses) {
@@ -155,23 +161,15 @@ async function handleMention(args: ToolCallArgs): Promise<TextContent> {
 async function handleCommand(args: ToolCallArgs): Promise<TextContent> {
   const capabilityId = args.capability || 'search'
   
-  // Execute directly through LangChain endpoint
-  const executeResponse = await fetch(`${API_BASE}/langchain/execute`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  // Execute through AI endpoint (uses LangGraph orchestration) using KY
+  const result = await api.post('ai/execute', {
+    json: {
       capabilityId,
       input: args.input,
       context: args.context
-    })
-  })
-  
-  if (!executeResponse.ok) {
-    const error = await executeResponse.text()
-    throw new Error(`Command execution failed: ${error}`)
-  }
-  
-  const result = await executeResponse.json() as AIExecuteResponse
+    },
+    signal: args.signal
+  }).json<AIExecuteResponse>()
   
   // Format response with metadata
   let responseText = result.content
@@ -213,19 +211,11 @@ async function handleBatch(args: ToolCallArgs): Promise<TextContent> {
     batchRequest.timeout = args.timeout
   }
   
-  // Call batch API
-  const response = await fetch(`${API_BASE}/messages/batch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(batchRequest)
-  })
-  
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Batch operation failed: ${error}`)
-  }
-  
-  const result = await response.json() as {
+  // Call batch API using KY
+  const result = await api.post('messages/batch', {
+    json: batchRequest,
+    signal: args.signal
+  }).json<{
     batchId?: string
     results?: Record<string, {
       id: string
@@ -241,7 +231,7 @@ async function handleBatch(args: ToolCallArgs): Promise<TextContent> {
       timedOut: number
       duration: number
     }
-  }
+  }>()
   
   // Format batch results
   let responseText = `Batch operation completed\n\n`
@@ -281,23 +271,15 @@ async function handleBatch(args: ToolCallArgs): Promise<TextContent> {
 async function handleChat(args: ToolCallArgs): Promise<TextContent> {
   const capabilityId = args.capability || 'general-chat'
   
-  // Execute through LangChain endpoint
-  const response = await fetch(`${API_BASE}/langchain/execute`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  // Execute through AI endpoint (uses LangGraph orchestration) using KY
+  const result = await api.post('ai/execute', {
+    json: {
       capabilityId,
       input: args.input,
       context: args.context
-    })
-  })
-  
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Chat failed: ${error}`)
-  }
-  
-  const result = await response.json() as AIExecuteResponse
+    },
+    signal: args.signal
+  }).json<AIExecuteResponse>()
   
   // Format response with metadata
   let responseText = result.content

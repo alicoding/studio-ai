@@ -111,7 +111,7 @@ export function AdvancedSettingsTab({ capability, onChange }: AdvancedSettingsTa
           onValueChange={(value) => onChange({
             output: {
               ...capability.output,
-              format: value as any
+              format: value as 'text' | 'json' | 'markdown' | 'code'
             }
           })}
         >

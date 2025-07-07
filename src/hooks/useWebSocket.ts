@@ -56,7 +56,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     }
   }, [])
 
-  const emit = useCallback((event: string, data?: any) => {
+  const emit = useCallback((event: string, data?: unknown) => {
     if (socketRef.current?.connected) {
       socketRef.current.emit(event, data)
     } else {
@@ -64,13 +64,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     }
   }, [])
 
-  const on = useCallback((event: string, handler: (...args: any[]) => void) => {
+  const on = useCallback((event: string, handler: (...args: unknown[]) => void) => {
     if (socketRef.current) {
       socketRef.current.on(event, handler)
     }
   }, [])
 
-  const off = useCallback((event: string, handler?: (...args: any[]) => void) => {
+  const off = useCallback((event: string, handler?: (...args: unknown[]) => void) => {
     if (socketRef.current) {
       socketRef.current.off(event, handler)
     }

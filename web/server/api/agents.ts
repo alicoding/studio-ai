@@ -149,7 +149,7 @@ router.post('/', async (req: Request, res: Response) => {
       model: model || 'claude-3-opus',
       maxTokens: maxTokens || 200000,
       temperature: temperature ?? 0.7,
-      maxTurns: maxTurns || 3,
+      maxTurns: maxTurns || 500,
       verbose: verbose ?? true,
       created: new Date().toISOString(),
     })

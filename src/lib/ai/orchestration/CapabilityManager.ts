@@ -255,9 +255,9 @@ export class CapabilityManager {
   }
   
   // Process template variables in prompts
-  processPrompt(prompt: string, variables: Record<string, any>): string {
+  processPrompt(prompt: string, variables: Record<string, unknown>): string {
     return prompt.replace(/\{(\w+)\}/g, (match, key) => {
-      return variables[key] || match
+      return String(variables[key] || match)
     })
   }
   

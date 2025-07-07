@@ -23,6 +23,6 @@ export function useHotReload() {
 // Global window type augmentation
 declare global {
   interface Window {
-    __sockets?: any[]
+    __sockets?: WebSocket[]
   }
 }

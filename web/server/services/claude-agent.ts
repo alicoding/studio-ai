@@ -3,6 +3,7 @@
 
 import { query, type SDKMessage, type SDKAssistantMessage } from '@anthropic-ai/claude-code'
 import type { Server } from 'socket.io'
+import { detectAbortError, AbortError } from '../utils/errorUtils'
 
 export type Role = 'dev' | 'ux' | 'test' | 'pm'
 
@@ -107,7 +108,7 @@ export class ClaudeAgent {
 
       // Build query options from agent configuration
       const queryOptions = {
-        maxTurns: this.config?.maxTurns || 3, // Use configured maxTurns or default to 3
+        maxTurns: this.config?.maxTurns || 500, // Use configured maxTurns or default to 500
         outputFormat: 'stream-json', // Use streaming JSON format
         verbose: this.config?.verbose !== false, // Default to true unless explicitly set to false
         cwd: projectPath || process.cwd(), // Set working directory to project path
@@ -231,9 +232,12 @@ export class ClaudeAgent {
       }
       } catch (error) {
         // Check if this is an abort error from the for-await loop
-        if (this.isAborted || (error instanceof Error && error.name === 'AbortError')) {
+        const abortInfo = detectAbortError(error)
+        if (this.isAborted || abortInfo.isAbort) {
           console.log(`[ClaudeAgent] Query loop was aborted for agent ${this.agent.id}`)
-          throw new Error('Query was aborted by user')
+          console.log(`[ClaudeAgent] Last known sessionId: ${this.sessionId}`)
+          // Create a proper AbortError with sessionId for recovery
+          throw new AbortError('Query was aborted by user', this.sessionId, abortInfo.type)
         }
         throw error
       }
@@ -286,16 +290,16 @@ export class ClaudeAgent {
       
       console.error('Error in Claude query:', error)
 
-      // Check if this is an abort error
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log(`[ClaudeAgent] Query was aborted for agent ${this.agent.id}`)
-        throw new Error('Query was aborted by user')
-      }
-
-      // Check if this is a process exit error from interruption
-      if (error instanceof Error && error.message.includes('process exited with code 143')) {
-        console.log(`[ClaudeAgent] Process was terminated (SIGTERM) for agent ${this.agent.id}`)
-        throw new Error('Query was aborted by user')
+      // Check if this is an abort error using centralized detection
+      const abortInfo = detectAbortError(error)
+      if (abortInfo.isAbort) {
+        console.log(`[ClaudeAgent] Query was aborted for agent ${this.agent.id} - type: ${abortInfo.type}`)
+        console.log(`[ClaudeAgent] Preserving sessionId for resume: ${this.sessionId}`)
+        // Re-throw as AbortError to preserve sessionId
+        if (error instanceof AbortError) {
+          throw error // Already has sessionId
+        }
+        throw new AbortError(abortInfo.message, this.sessionId, abortInfo.type)
       }
 
       // Provide more detailed error information

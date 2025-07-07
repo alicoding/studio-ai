@@ -34,7 +34,7 @@ export function BasicSettingsTab({ capability, isCreating, onChange }: BasicSett
           <Label htmlFor="category">Category</Label>
           <Select
             value={capability.category}
-            onValueChange={(value) => onChange({ category: value as any })}
+            onValueChange={(value) => onChange({ category: value as 'research' | 'analysis' | 'generation' | 'validation' | 'custom' })}
           >
             <SelectTrigger id="category">
               <SelectValue />

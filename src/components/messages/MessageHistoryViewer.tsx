@@ -90,7 +90,7 @@ function enrichMessagesWithToolResults(messages: Message[]): Message[] {
             if (typeof toolResult.content === 'string') {
               contentStr = toolResult.content
             } else if (typeof toolResult.content === 'object' && toolResult.content && 'text' in toolResult.content) {
-              contentStr = (toolResult.content as any).text || ''
+              contentStr = (toolResult.content as { text?: string }).text || ''
             }
             toolResultMap.set(toolResult.tool_use_id, contentStr)
           }

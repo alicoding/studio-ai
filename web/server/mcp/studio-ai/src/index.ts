@@ -14,20 +14,22 @@ import {
   CallToolRequestSchema,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js'
-import { handleListAgents, handleMention, handleBatchMessages } from './agentTools.js'
+import { handleListAgents } from './agentTools.js'
+import { invokeTool, getRolesTool, handleInvoke, handleGetRoles } from './invokeTools.js'
 import {
   fetchCapabilities,
   handleExecuteCapability,
   handleListCapabilities,
+  type CapabilityConfig,
+  type ExecuteCapabilityArgs
 } from './capabilityTools.js'
-import type { ExecuteCapabilityArgs } from './capabilityTools.js'
 
 // Create server instance
 const server = new Server(
   {
     name: 'studio-ai',
     version: '1.0.0',
-    description: 'Configurable AI capabilities for Claude Studio',
+    description: 'AI capabilities with automatic session management. Each MCP connection maintains its own conversation context that persists across calls. No manual session ID handling required.',
   },
   {
     capabilities: {
@@ -35,6 +37,9 @@ const server = new Server(
     },
   }
 )
+
+// Cache for capabilities to avoid re-fetching
+let cachedCapabilities: Record<string, CapabilityConfig> | null = null
 
 // Register tool list handler
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -51,60 +56,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     },
   })
 
-  tools.push({
-    name: 'mention',
-    description: 'Send a message to a specific agent (@mention style)',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        to: { type: 'string', description: 'Agent name/ID to send message to' },
-        message: { type: 'string', description: 'Message content' },
-        wait: { type: 'boolean', description: 'Wait for response (default: false)' },
-        timeout: { type: 'number', description: 'Timeout in milliseconds' },
-        projectId: { type: 'string', description: 'Project ID for context' },
-      },
-      required: ['to', 'message'],
-      additionalProperties: false,
-    },
-  })
+  // Old mention and batch_messages tools removed - use invoke instead
 
-  tools.push({
-    name: 'batch_messages',
-    description: 'Send messages to multiple agents with orchestration',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        messages: {
-          type: 'array',
-          description: 'Array of messages to send',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'Message ID' },
-              to: { type: 'string', description: 'Target agent' },
-              content: { type: 'string', description: 'Message content' },
-              projectId: { type: 'string', description: 'Project ID' },
-              dependencies: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Message IDs this depends on',
-              },
-            },
-            required: ['id', 'to', 'content'],
-          },
-        },
-        waitStrategy: {
-          type: 'string',
-          enum: ['all', 'any', 'none'],
-          description: 'How to wait for responses',
-        },
-        timeout: { type: 'number', description: 'Timeout in milliseconds' },
-      },
-      required: ['messages'],
-      additionalProperties: false,
-    },
-  })
-
+  // Add new unified invoke tools
+  tools.push(invokeTool)
+  tools.push(getRolesTool)
+  
   tools.push({
     name: 'list_capabilities',
     description: 'List all configured AI capabilities',
@@ -117,36 +74,46 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
   // Dynamic tools from AI capabilities
   try {
-    const capabilities = await fetchCapabilities()
-    for (const [id, capability] of Object.entries(capabilities)) {
+    // Use cache or fetch new capabilities
+    if (!cachedCapabilities) {
+      cachedCapabilities = await fetchCapabilities()
+      console.error('[MCP] Fetched capabilities:', Object.keys(cachedCapabilities))
+    }
+    
+    for (const [id, capability] of Object.entries(cachedCapabilities)) {
       const model = capability.models?.primary || 'default'
       tools.push({
         name: `execute_${id}`,
-        description: `${capability.description} (Model: ${model})`,
+        description: `${capability.description} (Model: ${model})\n\n` +
+          `SESSION MANAGEMENT:\n` +
+          `• Conversations persist automatically across multiple calls\n` +
+          `• Each MCP connection maintains its own conversation session\n` +
+          `• To continue the conversation: Just call normally (default behavior)\n` +
+          `• To start a new conversation: Set startNewConversation=true\n` +
+          `• No session IDs to manage - everything is handled automatically\n\n` +
+          `EXAMPLES:\n` +
+          `• Continue conversation: {input: "What did we discuss?"}\n` +
+          `• New conversation: {input: "debug this", startNewConversation: true}\n` +
+          `• With files: {input: "analyze", includeFiles: ["src/main.js"]}`,
         inputSchema: {
           type: 'object',
           properties: {
             input: {
               type: 'string',
-              description: 'Input/prompt for the AI capability',
+              description: 'Your prompt or question',
             },
-            context: {
-              type: 'object',
-              description: 'Additional context',
-              properties: {
-                projectId: { type: 'string', description: 'Project ID' },
-                sessionId: { type: 'string', description: 'Session ID for continuity' },
-                files: {
-                  type: 'array',
-                  items: { type: 'string' },
-                  description: 'File paths to include as context',
-                },
-                metadata: {
-                  type: 'object',
-                  description: 'Additional metadata',
-                },
-              },
-              additionalProperties: false,
+            includeFiles: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Files to include as context (e.g., ["src/utils.js", "README.md"])',
+            },
+            projectPath: {
+              type: 'string',
+              description: 'Base directory for relative file paths (e.g., "/Users/name/project")',
+            },
+            startNewConversation: {
+              type: 'boolean',
+              description: 'Set to true to start a fresh conversation with no memory of previous messages. Default: false (continues existing conversation)',
             },
           },
           required: ['input'],
@@ -172,48 +139,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [await handleListAgents()],
         }
 
-      case 'mention': {
-        if (!args || typeof args !== 'object') {
-          throw new Error('Invalid arguments')
-        }
-        const mentionArgs = args as Record<string, unknown>
-        const typedArgs = {
-          to: String(mentionArgs.to),
-          message: String(mentionArgs.message),
-          wait: mentionArgs.wait as boolean | undefined,
-          timeout: mentionArgs.timeout as number | undefined,
-          projectId: mentionArgs.projectId as string | undefined,
-        }
-        return {
-          content: [await handleMention(typedArgs)],
-        }
-      }
-
-      case 'batch_messages': {
-        if (!args || typeof args !== 'object') {
-          throw new Error('Invalid arguments')
-        }
-        const batchArgs = args as Record<string, unknown>
-        const typedArgs = {
-          messages: batchArgs.messages as Array<{
-            id: string
-            to: string
-            content: string
-            projectId?: string
-            dependencies?: string[]
-          }>,
-          waitStrategy: batchArgs.waitStrategy as 'all' | 'any' | 'none' | undefined,
-          timeout: batchArgs.timeout as number | undefined,
-        }
-        return {
-          content: [await handleBatchMessages(typedArgs)],
-        }
-      }
+      // Old mention and batch_messages handlers removed - use invoke instead
 
       case 'list_capabilities':
         return {
           content: [await handleListCapabilities()],
         }
+
+      case 'invoke': {
+        if (!args || typeof args !== 'object') {
+          throw new Error('Invalid arguments')
+        }
+        return {
+          content: [await handleInvoke(args)],
+        }
+      }
+
+      case 'get_roles': {
+        if (!args || typeof args !== 'object') {
+          throw new Error('Invalid arguments')
+        }
+        return {
+          content: [await handleGetRoles(args)],
+        }
+      }
 
       default: {
         // Check if it's a capability execution
@@ -225,7 +174,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           const capArgs = args as Record<string, unknown>
           const typedArgs: ExecuteCapabilityArgs = {
             input: String(capArgs.input),
-            context: capArgs.context as ExecuteCapabilityArgs['context'],
+            includeFiles: capArgs.includeFiles as string[] | undefined,
+            projectPath: capArgs.projectPath as string | undefined,
+            startNewConversation: capArgs.startNewConversation as boolean | undefined,
           }
           return {
             content: [await handleExecuteCapability(capabilityId, typedArgs)],

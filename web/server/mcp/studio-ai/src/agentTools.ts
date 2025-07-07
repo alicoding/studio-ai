@@ -22,8 +22,15 @@ export interface Agent {
 }
 
 // API Response types
+interface AgentResponse {
+  from: string
+  content: string
+  sessionId: string
+  timestamp: string
+}
+
 interface MentionResponse {
-  responses?: Record<string, unknown>
+  responses?: Record<string, AgentResponse>
   trackingId?: string
   targets?: string[]
   wait?: boolean
@@ -74,6 +81,9 @@ export async function handleListAgents(): Promise<TextContent> {
 
 /**
  * Send a message to a specific agent
+ * 
+ * DEPRECATED: Use 'invoke' tool instead for unified agent invocation
+ * Example: invoke({ workflow: { role: "developer", task: "your message" }, projectId: "..." })
  */
 export async function handleMention(args: {
   to: string
@@ -98,6 +108,7 @@ export async function handleMention(args: {
       projectId: args.projectId || 'default',
       wait: args.wait || false,
       timeout: args.timeout,
+      format: 'text', // Use simplified format for MCP
     }
 
     const response = await fetch(`${API_BASE}/messages/mention`, {
@@ -114,14 +125,34 @@ export async function handleMention(args: {
     const result = (await response.json()) as MentionResponse
 
     // Handle response based on wait mode
-    if (args.wait && result.responses) {
-      const responses = Object.entries(result.responses)
-        .map(([agent, resp]) => `**@${agent}**: ${JSON.stringify(resp)}`)
-        .join('\n\n')
+    if (args.wait) {
+      // With format=text, we get a simplified response
+      if ('content' in result) {
+        return {
+          type: 'text',
+          text: result.content as string,
+        }
+      }
+      // Fallback for old format
+      if (result.responses) {
+        const responses = Object.entries(result.responses)
+          .map(([agent, resp]) => {
+            if (typeof resp === 'object' && resp !== null && 'content' in resp) {
+              return `**@${agent}**: ${resp.content}`
+            }
+            return `**@${agent}**: ${JSON.stringify(resp)}`
+          })
+          .join('\n\n')
 
+        return {
+          type: 'text',
+          text: responses,
+        }
+      }
+      // No valid response found
       return {
         type: 'text',
-        text: `Response from @${args.to}:\n\n${responses}`,
+        text: `No response received from @${args.to}`,
       }
     } else {
       return {
@@ -140,6 +171,15 @@ export async function handleMention(args: {
 
 /**
  * Send messages to multiple agents with orchestration
+ * 
+ * DEPRECATED: Use 'invoke' tool instead for multi-agent workflows
+ * Example: invoke({ 
+ *   workflow: [
+ *     { id: "step1", role: "developer", task: "..." },
+ *     { id: "step2", role: "tester", task: "...", deps: ["step1"] }
+ *   ], 
+ *   projectId: "..." 
+ * })
  */
 export async function handleBatchMessages(args: {
   messages: Array<{
@@ -172,6 +212,7 @@ export async function handleBatchMessages(args: {
       projectId: 'default',
       waitStrategy: args.waitStrategy || 'none',
       timeout: args.timeout || 60000,
+      format: 'text', // Use simplified format for MCP
     }
 
     const response = await fetch(`${API_BASE}/messages/batch`, {
@@ -187,18 +228,34 @@ export async function handleBatchMessages(args: {
 
     const result = (await response.json()) as BatchResponse
 
-    // Format response based on wait strategy
-    if (args.waitStrategy && args.waitStrategy !== 'none' && result.responses) {
-      const responses = Object.entries(result.responses)
-        .map(([msgId, resp]) => {
-          const msg = args.messages.find((m) => m.id === msgId)
-          return `Message ${msgId} to @${msg?.to}: ${JSON.stringify(resp)}`
-        })
-        .join('\n\n')
+    // Handle response based on wait strategy and format
+    if (args.waitStrategy && args.waitStrategy !== 'none') {
+      // With format=text, we get a simplified response
+      if ('content' in result) {
+        const summary = 'summary' in result ? `\n\n📊 ${result.summary}` : ''
+        return {
+          type: 'text',
+          text: `${result.content}${summary}`,
+        }
+      }
+      // Fallback for old format
+      if (result.responses) {
+        const responses = Object.entries(result.responses)
+          .map(([msgId, resp]) => {
+            const msg = args.messages.find((m) => m.id === msgId)
+            return `Message ${msgId} to @${msg?.to}: ${JSON.stringify(resp)}`
+          })
+          .join('\n\n')
 
+        return {
+          type: 'text',
+          text: `Batch operation completed:\n\n${responses}`,
+        }
+      }
+      // No valid response found
       return {
         type: 'text',
-        text: `Batch operation completed:\n\n${responses}`,
+        text: 'Batch operation completed but no responses received',
       }
     } else {
       return {

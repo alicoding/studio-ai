@@ -10,16 +10,26 @@
 import { Router, Request, Response } from 'express'
 import ky from 'ky'
 import { createStorage } from '../../../src/lib/storage/UnifiedStorage'
-import { LangChainAIService } from '../services/LangChainAIService'
+import { CancellableApiClient } from '../services/CancellableApiClient'
+import { LangGraphOrchestrator } from '../services/LangGraphOrchestrator'
 import type { CapabilityConfig } from '@/lib/ai/orchestration/capability-config'
+import type { CancellationRequest } from '../services/CancellableApiClient'
+import type { BaseMessage } from '@langchain/core/messages'
 
 const router = Router()
 
 // Using imported CapabilityConfig type from frontend
 type CapabilityMap = Record<string, CapabilityConfig>
 
-// Initialize AI service
-const aiService = LangChainAIService.getInstance()
+// Initialize LangGraph orchestrator for all AI operations (replaces LangChain)
+const orchestrator = LangGraphOrchestrator.getInstance()
+
+// Initialize cancellable client for AI operations
+const cancellableClient = new CancellableApiClient({
+  name: 'ai-operations',
+  baseUrl: process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api',
+  timeout: 60000
+})
 
 // Initialize storage for AI capabilities
 const capabilitiesStorage = createStorage({
@@ -79,24 +89,32 @@ router.post('/execute', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'capabilityId and input are required' })
     }
     
-    // Load capability configuration from unified storage
-    let capability: CapabilityConfig | null
-    try {
-      capability = await capabilitiesStorage.get<CapabilityConfig>(capabilityId)
-      
-      if (!capability) {
-        return res.status(404).json({ error: `Capability not found: ${capabilityId}` })
-      }
-    } catch (_error) {
-      return res.status(404).json({ error: 'No capabilities configured' })
-    }
+    // KISS: Use LangGraph for everything - single turn or multi-turn, same service
+    const sessionId = context?.sessionId || `session-${Date.now()}`
     
     try {
-      // KISS: Use LangChain service for all AI execution
-      const result = await aiService.executeCapability(capability, input, context)
-      res.json(result)
+      const result = await orchestrator.executeWithSession({
+        input,
+        sessionId,
+        projectId: context?.projectId,
+        capability: capabilityId,
+        context: {
+          files: context?.files,
+          metadata: context?.metadata
+        }
+      })
+      
+      res.json({
+        content: result.content,
+        sessionId: result.state.sessionId,
+        metadata: {
+          ...result.metadata,
+          capabilityId,
+          turnCount: result.state.messages?.filter((m: BaseMessage) => m._getType() === 'human').length || 0
+        }
+      })
     } catch (error) {
-      console.error('AI execution error:', error)
+      console.error('LangGraph execution error:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       res.status(500).json({ 
         error: `AI execution failed: ${errorMessage}` 
@@ -214,6 +232,85 @@ router.put('/capabilities/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Failed to update capability:', error)
     res.status(500).json({ error: 'Failed to update capability' })
+  }
+})
+
+// POST /api/ai/cancel - Cancel ongoing AI operations for a session
+router.post('/cancel', async (req: Request, res: Response) => {
+  try {
+    const cancellationRequest: CancellationRequest = req.body
+    
+    if (!cancellationRequest.sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' })
+    }
+    
+    // Cancel all requests for the session
+    const result = cancellableClient.cancelSession(cancellationRequest.sessionId)
+    
+    console.log(`[AI API] Cancelled ${result.requestsCancelled} requests for session ${cancellationRequest.sessionId}`)
+    
+    res.json({
+      success: true,
+      cancellation: result,
+      message: `Cancelled ${result.requestsCancelled} active requests`
+    })
+  } catch (error) {
+    console.error('Failed to cancel AI operations:', error)
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to cancel operations' 
+    })
+  }
+})
+
+// GET /api/ai/status - Get status of active operations (for debugging)
+router.get('/status', async (req: Request, res: Response) => {
+  try {
+    const activeRequests = cancellableClient.getActiveRequestsCount()
+    const activeSessions = cancellableClient.getActiveSessions()
+    
+    res.json({
+      activeRequests,
+      activeSessions,
+      sessionDetails: activeSessions.reduce((acc, sessionId) => {
+        acc[sessionId] = cancellableClient.getSessionRequestCount(sessionId)
+        return acc
+      }, {} as Record<string, number>)
+    })
+  } catch (error) {
+    console.error('Failed to get AI status:', error)
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to get status' 
+    })
+  }
+})
+
+// GET /api/ai/conversation/:sessionId - Get conversation history for a session
+router.get('/conversation/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params
+    
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' })
+    }
+    
+    const history = await orchestrator.getConversationHistory(sessionId)
+    
+    // Convert BaseMessage objects to our expected format
+    const formattedHistory = {
+      ...history,
+      messages: history.messages?.map((msg: BaseMessage) => ({
+        role: msg._getType() === 'human' ? 'user' : msg._getType() === 'system' ? 'system' : 'assistant',
+        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+        timestamp: new Date() // BaseMessage doesn't have timestamp, so we use current time
+      })) || []
+    }
+    
+    res.json(formattedHistory)
+  } catch (error) {
+    console.error('Failed to get conversation history:', error)
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to get conversation history' 
+    })
   }
 })
 

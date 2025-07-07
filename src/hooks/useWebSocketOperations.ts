@@ -14,7 +14,7 @@ import { useAgentStore } from '../stores'
 interface WebSocketEventData {
   agentId?: string
   status?: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export function useWebSocketOperations() {

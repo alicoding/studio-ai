@@ -11,7 +11,31 @@ import { TextContent } from '@modelcontextprotocol/sdk/types.js'
 // Get API base URL from environment or default
 const API_BASE = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
 
-interface CapabilityConfig {
+// Session management - one session per MCP connection
+class SessionManager {
+  private currentSessionId: string | null = null
+  private lastActivity: Date | null = null
+  
+  getOrCreateSession(startNew: boolean = false): string | null {
+    if (!this.currentSessionId || startNew) {
+      // Return null to let API create new session
+      this.currentSessionId = null
+      this.lastActivity = new Date()
+      return null
+    }
+    return this.currentSessionId
+  }
+  
+  updateSession(newSessionId: string): void {
+    this.currentSessionId = newSessionId
+    this.lastActivity = new Date()
+  }
+}
+
+// Each MCP connection gets its own session manager
+const sessionManager = new SessionManager()
+
+export interface CapabilityConfig {
   id: string
   name: string
   description: string
@@ -34,16 +58,14 @@ interface CapabilityConfig {
 
 export interface ExecuteCapabilityArgs {
   input: string
-  context?: {
-    projectId?: string
-    sessionId?: string
-    files?: string[]
-    metadata?: Record<string, unknown>
-  }
+  includeFiles?: string[]
+  projectPath?: string
+  startNewConversation?: boolean
 }
 
 interface CapabilityResponse {
   content: string
+  sessionId?: string
   metadata?: {
     model?: string
     usage?: {
@@ -52,8 +74,8 @@ interface CapabilityResponse {
       totalTokens: number
     }
     capabilityId?: string
+    conversationActive?: boolean
   }
-  sessionId?: string
 }
 
 /**
@@ -87,20 +109,23 @@ export async function handleExecuteCapability(
       throw new Error(`Unknown capability: ${capabilityId}`)
     }
 
-    // Build request body
+    // Auto-manage session
+    const currentSessionId = sessionManager.getOrCreateSession(args.startNewConversation)
+    
+    // Build request body with proper structure
     const requestBody = {
       capabilityId: capabilityId,
       input: args.input,
-      projectId: args.context?.projectId,
-      sessionId: args.context?.sessionId,
       context: {
-        files: args.context?.files || [],
-        metadata: args.context?.metadata || {},
+        files: args.includeFiles || [],
+        metadata: {},
+        projectId: args.projectPath,
+        sessionId: currentSessionId // Pass existing session ID if we have one
       },
     }
 
-    // Call langchain execute endpoint
-    const response = await fetch(`${API_BASE}/langchain/execute`, {
+    // Call AI execute endpoint
+    const response = await fetch(`${API_BASE}/ai/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),
@@ -112,6 +137,11 @@ export async function handleExecuteCapability(
     }
 
     const result = (await response.json()) as CapabilityResponse
+    
+    // Update session manager with the returned session ID
+    if (result.sessionId) {
+      sessionManager.updateSession(result.sessionId)
+    }
 
     // Format response with metadata if available
     let responseText = result.content
@@ -124,8 +154,8 @@ export async function handleExecuteCapability(
       if (result.metadata.usage) {
         responseText += `Tokens: ${result.metadata.usage.totalTokens} (prompt: ${result.metadata.usage.promptTokens}, completion: ${result.metadata.usage.completionTokens})\n`
       }
-      if (result.sessionId) {
-        responseText += `Session: ${result.sessionId}\n`
+      if (result.metadata?.conversationActive) {
+        responseText += `Conversation: Active (continues automatically)\n`
       }
     }
 

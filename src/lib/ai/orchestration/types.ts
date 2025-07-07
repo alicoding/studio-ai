@@ -31,7 +31,7 @@ export interface ConversationTurn {
   capability: ModelCapability
   request: string
   response: string
-  context?: Record<string, any>
+  context?: Record<string, unknown>
   metadata?: {
     tokensUsed?: number
     latency?: number
@@ -48,8 +48,8 @@ export interface Conversation {
 
 export interface ConversationContext {
   files?: string[]
-  projectInfo?: Record<string, any>
-  previousResults?: Record<string, any>
+  projectInfo?: Record<string, unknown>
+  previousResults?: Record<string, unknown>
   constraints?: string[]
 }
 

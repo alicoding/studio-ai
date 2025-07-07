@@ -19,6 +19,8 @@ import { Alert, AlertDescription } from '../ui/alert'
 import { useOrchestrationSettings } from '../../hooks/useOrchestrationSettings'
 import { OrchestrationConfigSchema, type OrchestrationConfig } from '../../../web/server/schemas/orchestration'
 import { z } from 'zod'
+import { OperatorSettings } from './OperatorSettings'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 
 interface OrchestrationTabProps {
   className?: string
@@ -131,36 +133,43 @@ export function OrchestrationTab({ className = '' }: OrchestrationTabProps) {
   return (
     <div className={`space-y-6 ${className}`}>
       <div>
-        <h2 className="text-2xl font-bold">Orchestration Settings</h2>
+        <h2 className="text-2xl font-bold">Orchestration & Operator Settings</h2>
         <p className="text-muted-foreground mt-1">
-          Configure AI agent orchestration, batch operations, and cross-project routing
+          Configure AI agent orchestration, batch operations, and workflow operator
         </p>
       </div>
 
-      {successMessage && (
-        <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-800">
-            {successMessage}
-          </AlertDescription>
-        </Alert>
-      )}
+      <Tabs defaultValue="orchestration" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="orchestration">Orchestration</TabsTrigger>
+          <TabsTrigger value="operator">Operator</TabsTrigger>
+        </TabsList>
 
-      {/* Global Enable/Disable */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <Label htmlFor="enabled">Enable Orchestration Features</Label>
-            <p className="text-sm text-muted-foreground mt-1">
-              Master switch for all orchestration capabilities
-            </p>
-          </div>
-          <Switch
-            id="enabled"
-            checked={config.enabled}
-            onCheckedChange={(checked) => setConfig(prev => ({ ...prev, enabled: checked }))}
-          />
-        </div>
-      </Card>
+        <TabsContent value="orchestration" className="space-y-6">
+          {successMessage && (
+            <Alert className="bg-green-50 border-green-200">
+              <AlertDescription className="text-green-800">
+                {successMessage}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Global Enable/Disable */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="enabled">Enable Orchestration Features</Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Master switch for all orchestration capabilities
+                </p>
+              </div>
+              <Switch
+                id="enabled"
+                checked={config.enabled}
+                onCheckedChange={(checked) => setConfig(prev => ({ ...prev, enabled: checked }))}
+              />
+            </div>
+          </Card>
 
       {/* Default Timeouts */}
       <Card className="p-6 space-y-4">
@@ -426,33 +435,39 @@ export function OrchestrationTab({ className = '' }: OrchestrationTabProps) {
         )}
       </Card>
 
-      {/* Save Button */}
-      <div className="flex justify-end space-x-4">
-        <Button
-          variant="outline"
-          onClick={() => {
-            if (settings) {
-              setConfig(settings)
-              setErrors({})
-            }
-          }}
-          disabled={isLoading}
-        >
-          Reset
-        </Button>
-        <Button
-          onClick={handleSave}
-          disabled={isLoading || !config.enabled}
-        >
-          {isLoading ? 'Saving...' : 'Save Settings'}
-        </Button>
-      </div>
+          {/* Save Button */}
+          <div className="flex justify-end space-x-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (settings) {
+                  setConfig(settings)
+                  setErrors({})
+                }
+              }}
+              disabled={isLoading}
+            >
+              Reset
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={isLoading || !config.enabled}
+            >
+              {isLoading ? 'Saving...' : 'Save Settings'}
+            </Button>
+          </div>
 
-      {errors.save && (
-        <Alert variant="destructive">
-          <AlertDescription>{errors.save}</AlertDescription>
-        </Alert>
-      )}
+          {errors.save && (
+            <Alert variant="destructive">
+              <AlertDescription>{errors.save}</AlertDescription>
+            </Alert>
+          )}
+        </TabsContent>
+
+        <TabsContent value="operator" className="space-y-6">
+          <OperatorSettings />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
