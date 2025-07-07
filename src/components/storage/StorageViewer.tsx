@@ -1,6 +1,6 @@
 /**
  * Storage Viewer - UI to inspect all stored data
- * 
+ *
  * SOLID: Single responsibility - view storage
  * DRY: Reusable for any storage namespace
  * KISS: Simple table view with search
@@ -17,19 +17,13 @@ import {
   getSortedRowModel,
   useReactTable,
   SortingState,
-  ColumnFiltersState
+  ColumnFiltersState,
 } from '@tanstack/react-table'
 import { Search, Database, RefreshCw, Trash2, Key, Eye, EyeOff } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Badge } from '../ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import type { StorageItem } from '../../lib/storage/types'
 import { getStorageNamespaces } from '../../lib/storage/client'
 import { cn } from '../../lib/utils'
@@ -60,7 +54,7 @@ export function StorageViewer({ namespace, className }: StorageViewerProps) {
       // Get all namespaces
       const allNamespaces = await getStorageNamespaces()
       setNamespaces(['all', ...allNamespaces])
-      
+
       // Get storage items
       const searchParams: Record<string, string> = {}
       if (selectedNamespace !== 'all') {
@@ -69,11 +63,13 @@ export function StorageViewer({ namespace, className }: StorageViewerProps) {
       if (globalFilter) {
         searchParams.search = globalFilter
       }
-      
-      const items = await ky.get('/api/storage/items', {
-        searchParams
-      }).json<StorageItem[]>()
-      
+
+      const items = await ky
+        .get('/api/storage/items', {
+          searchParams,
+        })
+        .json<StorageItem[]>()
+
       setData(items)
     } catch (error) {
       console.error('Failed to load storage data:', error)
@@ -87,52 +83,52 @@ export function StorageViewer({ namespace, className }: StorageViewerProps) {
     loadData()
   }, [loadData])
 
-  const handleDelete = async (item: StorageItem) => {
-    if (!confirm(`Delete ${item.namespace}/${item.key}?`)) return
-    
-    try {
-      await ky.delete(`/api/storage/item/${item.namespace}/${item.key}`)
-      toast.success('Item deleted')
-      loadData()
-    } catch (error) {
-      console.error('Failed to delete item:', error)
-      toast.error('Failed to delete item')
-    }
-  }
+  const handleDelete = useCallback(
+    async (item: StorageItem) => {
+      if (!confirm(`Delete ${item.namespace}/${item.key}?`)) return
+
+      try {
+        await ky.delete(`/api/storage/item/${item.namespace}/${item.key}`)
+        toast.success('Item deleted')
+        loadData()
+      } catch (error) {
+        console.error('Failed to delete item:', error)
+        toast.error('Failed to delete item')
+      }
+    },
+    [loadData]
+  )
 
   // Define columns
   const columns = useMemo(
     () => [
       columnHelper.accessor('namespace', {
         header: 'Namespace',
-        cell: info => <Badge variant="outline">{info.getValue()}</Badge>,
-        size: 120
+        cell: (info) => <Badge variant="outline">{info.getValue()}</Badge>,
+        size: 120,
       }),
       columnHelper.accessor('key', {
         header: 'Key',
-        cell: info => (
-          <code className="text-sm bg-muted px-1 py-0.5 rounded">
-            {info.getValue()}
-          </code>
-        )
+        cell: (info) => (
+          <code className="text-sm bg-muted px-1 py-0.5 rounded">{info.getValue()}</code>
+        ),
       }),
       columnHelper.accessor('type', {
         header: 'Type',
-        cell: info => {
+        cell: (info) => {
           const type = info.getValue()
-          const variant = type === 'secret' ? 'destructive' : 
-                         type === 'cache' ? 'secondary' : 
-                         'default'
+          const variant =
+            type === 'secret' ? 'destructive' : type === 'cache' ? 'secondary' : 'default'
           return <Badge variant={variant}>{type}</Badge>
         },
-        size: 100
+        size: 100,
       }),
       columnHelper.accessor('value', {
         header: 'Value',
-        cell: info => {
+        cell: (info) => {
           const value = info.getValue()
           const isEncrypted = typeof value === 'string' && value.startsWith('<')
-          
+
           if (isEncrypted) {
             return (
               <div className="flex items-center gap-2">
@@ -141,18 +137,18 @@ export function StorageViewer({ namespace, className }: StorageViewerProps) {
               </div>
             )
           }
-          
+
           return (
             <pre className="text-xs max-w-md overflow-hidden text-ellipsis">
               {JSON.stringify(value, null, 2)}
             </pre>
           )
-        }
+        },
       }),
       columnHelper.accessor('updatedAt', {
         header: 'Updated',
-        cell: info => new Date(info.getValue()).toLocaleString(),
-        size: 180
+        cell: (info) => new Date(info.getValue()).toLocaleString(),
+        size: 180,
       }),
       columnHelper.display({
         id: 'actions',
@@ -169,10 +165,10 @@ export function StorageViewer({ namespace, className }: StorageViewerProps) {
             </Button>
           </div>
         ),
-        size: 80
-      })
+        size: 80,
+      }),
     ],
-    [showEncrypted, handleDelete]
+    [handleDelete]
   )
 
   const table = useReactTable({
@@ -181,7 +177,7 @@ export function StorageViewer({ namespace, className }: StorageViewerProps) {
     state: {
       sorting,
       columnFilters,
-      globalFilter
+      globalFilter,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -189,37 +185,30 @@ export function StorageViewer({ namespace, className }: StorageViewerProps) {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel()
+    getPaginationRowModel: getPaginationRowModel(),
   })
 
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn('space-y-4', className)}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Database className="h-5 w-5" />
           <h2 className="text-lg font-semibold">Storage Viewer</h2>
-          <Badge variant="secondary">
-            {data.length} items
-          </Badge>
+          <Badge variant="secondary">{data.length} items</Badge>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setShowEncrypted(!showEncrypted)}
-            title={showEncrypted ? "Hide encrypted values" : "Show encrypted values"}
+            title={showEncrypted ? 'Hide encrypted values' : 'Show encrypted values'}
           >
             {showEncrypted ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={loadData}
-            disabled={loading}
-          >
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+          <Button variant="ghost" size="icon" onClick={loadData} disabled={loading}>
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
           </Button>
         </div>
       </div>
@@ -231,17 +220,17 @@ export function StorageViewer({ namespace, className }: StorageViewerProps) {
           <Input
             placeholder="Search all columns..."
             value={globalFilter ?? ''}
-            onChange={e => setGlobalFilter(e.target.value)}
+            onChange={(e) => setGlobalFilter(e.target.value)}
             className="max-w-sm"
           />
         </div>
-        
+
         <Select value={selectedNamespace} onValueChange={setSelectedNamespace}>
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="Select namespace" />
           </SelectTrigger>
           <SelectContent>
-            {namespaces.map(ns => (
+            {namespaces.map((ns) => (
               <SelectItem key={ns} value={ns}>
                 {ns === 'all' ? 'All Namespaces' : ns}
               </SelectItem>
@@ -254,9 +243,9 @@ export function StorageViewer({ namespace, className }: StorageViewerProps) {
       <div className="rounded-md border">
         <table className="w-full">
           <thead>
-            {table.getHeaderGroups().map(headerGroup => (
+            {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="border-b">
-                {headerGroup.headers.map(header => (
+                {headerGroup.headers.map((header) => (
                   <th
                     key={header.id}
                     className="h-10 px-2 text-left align-middle font-medium text-muted-foreground"
@@ -264,10 +253,7 @@ export function StorageViewer({ namespace, className }: StorageViewerProps) {
                   >
                     {header.isPlaceholder
                       ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                      : flexRender(header.column.columnDef.header, header.getContext())}
                   </th>
                 ))}
               </tr>
@@ -275,27 +261,18 @@ export function StorageViewer({ namespace, className }: StorageViewerProps) {
           </thead>
           <tbody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map(row => (
-                <tr
-                  key={row.id}
-                  className="border-b transition-colors hover:bg-muted/50"
-                >
-                  {row.getVisibleCells().map(cell => (
+              table.getRowModel().rows.map((row) => (
+                <tr key={row.id} className="border-b transition-colors hover:bg-muted/50">
+                  {row.getVisibleCells().map((cell) => (
                     <td key={cell.id} className="p-2 align-middle">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
                 </tr>
               ))
             ) : (
               <tr>
-                <td
-                  colSpan={columns.length}
-                  className="h-24 text-center text-muted-foreground"
-                >
+                <td colSpan={columns.length} className="h-24 text-center text-muted-foreground">
                   {loading ? 'Loading...' : 'No data found'}
                 </td>
               </tr>
@@ -307,8 +284,7 @@ export function StorageViewer({ namespace, className }: StorageViewerProps) {
       {/* Pagination */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          Page {table.getState().pagination.pageIndex + 1} of{' '}
-          {table.getPageCount()}
+          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
         </div>
         <div className="flex gap-2">
           <Button

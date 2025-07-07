@@ -1,13 +1,16 @@
 /**
  * Unified Project Service - Bridges Claude Studio projects with native Claude projects
- * 
+ *
  * SOLID: Single responsibility - project management
  * DRY: Reuses ConfigService and existing ProjectService
  * KISS: Simple bridge pattern
  */
 
 import { ConfigService, ProjectConfig } from './ConfigService'
-import { ProjectService as ClaudeProjectService, EnrichedProject } from '../../web/server/services/ProjectService'
+import {
+  ProjectService as ClaudeProjectService,
+  EnrichedProject,
+} from '../../web/server/services/ProjectService'
 
 export interface UnifiedProject extends ProjectConfig {
   // Add Claude native project info if available
@@ -40,29 +43,27 @@ export class UnifiedProjectService {
   async getAllProjects(): Promise<UnifiedProject[]> {
     // Get Studio projects
     const studioProjects = await this.configService.listProjects()
-    
+
     // Get native Claude projects
     const claudeProjects = await this.claudeProjectService.getAllProjects()
-    
+
     // Create a map for quick lookup
-    const studioProjectMap = new Map(studioProjects.map((p: any) => [p.workspacePath, p]))
+    const studioProjectMap = new Map(studioProjects.map((p: ProjectConfig) => [p.workspacePath, p]))
     const unifiedProjects: UnifiedProject[] = []
-    
+
     // First, add all Studio projects
     for (const studioProject of studioProjects) {
       // Find matching Claude project by path
-      const claudeProject = claudeProjects.find(cp => 
-        cp.path === studioProject.workspacePath
-      )
-      
+      const claudeProject = claudeProjects.find((cp) => cp.path === studioProject.workspacePath)
+
       unifiedProjects.push({
         ...studioProject,
         claudeProject,
         isNative: !!claudeProject,
-        hasStudioConfig: true
+        hasStudioConfig: true,
       })
     }
-    
+
     // Then, add Claude projects that don't have Studio config
     for (const claudeProject of claudeProjects) {
       if (!studioProjectMap.has(claudeProject.path)) {
@@ -78,19 +79,19 @@ export class UnifiedProjectService {
           settings: {
             envVars: {},
             disabledTools: [],
-            mcpServers: []
+            mcpServers: [],
           },
           claudeProject,
           isNative: true,
-          hasStudioConfig: false
+          hasStudioConfig: false,
         }
         unifiedProjects.push(studioProject)
       }
     }
-    
+
     // Sort by last modified
-    return unifiedProjects.sort((a, b) => 
-      new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
+    return unifiedProjects.sort(
+      (a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
     )
   }
 
@@ -106,10 +107,10 @@ export class UnifiedProjectService {
         ...studioProject,
         claudeProject: claudeProject || undefined,
         isNative: !!claudeProject,
-        hasStudioConfig: true
+        hasStudioConfig: true,
       }
     }
-    
+
     // Try native Claude project
     const claudeProject = await this.claudeProjectService.getProject(id)
     if (claudeProject) {
@@ -124,14 +125,14 @@ export class UnifiedProjectService {
         settings: {
           envVars: {},
           disabledTools: [],
-          mcpServers: []
+          mcpServers: [],
         },
         claudeProject,
         isNative: true,
-        hasStudioConfig: false
+        hasStudioConfig: false,
       }
     }
-    
+
     return null
   }
 
@@ -139,12 +140,12 @@ export class UnifiedProjectService {
    * Create or update Studio config for a project
    */
   async createOrUpdateStudioConfig(
-    projectId: string, 
+    projectId: string,
     config: Partial<ProjectConfig>
   ): Promise<UnifiedProject> {
     // Check if it already has Studio config
     const existing = await this.configService.getProject(projectId)
-    
+
     if (existing) {
       // Update existing
       await this.configService.updateProject(projectId, config)
@@ -154,7 +155,7 @@ export class UnifiedProjectService {
       if (!claudeProject) {
         throw new Error('Project not found')
       }
-      
+
       await this.configService.createProject({
         id: projectId,
         name: config.name || claudeProject.name,
@@ -164,16 +165,16 @@ export class UnifiedProjectService {
         settings: config.settings || {
           envVars: {},
           disabledTools: [],
-          mcpServers: []
-        }
+          mcpServers: [],
+        },
       })
     }
-    
+
     const updated = await this.getProject(projectId)
     if (!updated) {
       throw new Error('Failed to update project')
     }
-    
+
     return updated
   }
 
@@ -185,7 +186,7 @@ export class UnifiedProjectService {
     if (!claudeProject) {
       throw new Error('Claude project not found')
     }
-    
+
     // Create Studio config for it
     await this.configService.createProject({
       id: projectId,
@@ -196,15 +197,15 @@ export class UnifiedProjectService {
       settings: {
         envVars: {},
         disabledTools: [],
-        mcpServers: []
-      }
+        mcpServers: [],
+      },
     })
-    
+
     const unified = await this.getProject(projectId)
     if (!unified) {
       throw new Error('Failed to import project')
     }
-    
+
     return unified
   }
 

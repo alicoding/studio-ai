@@ -1,6 +1,6 @@
 /**
  * StorageManagement - Settings panel for managing persisted data
- * 
+ *
  * KISS: Simple UI for storage operations
  * SOLID: Single responsibility - manage storage
  * Library-First: Uses existing UI components
@@ -17,15 +17,15 @@ import { toast } from 'sonner'
 export function StorageManagement() {
   const [showConfirmClear, setShowConfirmClear] = useState(false)
   const [storageSize, setStorageSize] = useState<string>('0 KB')
-  
+
   useEffect(() => {
     loadStorageStats()
   }, [])
-  
+
   const loadStorageStats = async () => {
     try {
-      const stats = await getStorageStats() as { total_size: number }
-      const sizeInKB = (stats.total_size / 1024).toFixed(2)
+      const stats = await getStorageStats()
+      const sizeInKB = (stats.totalSize / 1024).toFixed(2)
       setStorageSize(`${sizeInKB} KB`)
     } catch (error) {
       console.error('Failed to load storage stats:', error)
@@ -78,15 +78,12 @@ export function StorageManagement() {
     reader.readAsText(file)
   }
 
-
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle>Storage Management</CardTitle>
-          <CardDescription>
-            Manage your locally stored data and preferences
-          </CardDescription>
+          <CardDescription>Manage your locally stored data and preferences</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Storage Info */}
@@ -97,15 +94,11 @@ export function StorageManagement() {
 
           {/* Export/Import */}
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportData}
-            >
+            <Button variant="outline" size="sm" onClick={handleExportData}>
               <Download className="h-4 w-4 mr-2" />
               Export Data
             </Button>
-            
+
             <Button
               variant="outline"
               size="sm"
@@ -133,18 +126,10 @@ export function StorageManagement() {
                     This will reset all preferences, agent configurations, and UI states.
                   </p>
                   <div className="flex gap-2 mt-3">
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={handleClearStorage}
-                    >
+                    <Button size="sm" variant="destructive" onClick={handleClearStorage}>
                       Yes, Clear All Data
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowConfirmClear(false)}
-                    >
+                    <Button size="sm" variant="outline" onClick={() => setShowConfirmClear(false)}>
                       Cancel
                     </Button>
                   </div>

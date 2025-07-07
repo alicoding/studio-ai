@@ -1,11 +1,14 @@
 /**
  * CleanupCommand - Clean up legacy agents and respawn with readable names
- * 
+ *
  * SOLID: Single Responsibility - Only handles agent cleanup/respawn
  * KISS: Simple cleanup workflow
  */
 
 import type { CommandHandler, CommandContext, CommandResult } from './types'
+
+// Extract Agent type from CommandContext for local use
+type Agent = CommandContext['agents'][0]
 
 export class CleanupCommand implements CommandHandler {
   name = '#cleanup'
@@ -14,10 +17,10 @@ export class CleanupCommand implements CommandHandler {
 
   async execute(args: string, context: CommandContext): Promise<CommandResult> {
     const confirm = args.trim().toLowerCase()
-    
+
     // Find legacy agents (those with long IDs)
-    const legacyAgents = context.agents.filter(a => !a.id.match(/^[a-z]+\d+$/))
-    
+    const legacyAgents = context.agents.filter((a) => !a.id.match(/^[a-z]+\d+$/))
+
     if (legacyAgents.length === 0) {
       return {
         type: 'message',
@@ -27,17 +30,17 @@ export class CleanupCommand implements CommandHandler {
 
     if (confirm !== 'yes') {
       let message = `⚠️ **Found ${legacyAgents.length} legacy agents:**\n\n`
-      
-      legacyAgents.forEach(agent => {
+
+      legacyAgents.forEach((agent) => {
         message += `• ${agent.name || agent.role} (${agent.status})\n`
       })
-      
+
       message += `\n**This will:**\n`
       message += `• Delete all legacy agents\n`
       message += `• Recreate them with readable names (dev1, ux1, etc.)\n`
       message += `• **⚠️ All agent chat history will be lost**\n\n`
       message += `**To proceed:** \`#cleanup yes\``
-      
+
       return {
         type: 'message',
         content: message,
@@ -50,8 +53,8 @@ export class CleanupCommand implements CommandHandler {
       action: async () => {
         try {
           // Group agents by role for recreation
-          const roleGroups: Record<string, any[]> = {}
-          legacyAgents.forEach(agent => {
+          const roleGroups: Record<string, Agent[]> = {}
+          legacyAgents.forEach((agent) => {
             if (!roleGroups[agent.role]) {
               roleGroups[agent.role] = []
             }
@@ -66,14 +69,14 @@ export class CleanupCommand implements CommandHandler {
           }
 
           // Wait a moment for cleanup
-          await new Promise(resolve => setTimeout(resolve, 1000))
+          await new Promise((resolve) => setTimeout(resolve, 1000))
 
           // Recreate agents with readable names
           for (const [role, agents] of Object.entries(roleGroups)) {
             for (let i = 0; i < agents.length; i++) {
               const agentNumber = i + 1
               const readableId = `${role}${agentNumber}`
-              
+
               // Create agent config
               const response = await fetch('/api/agents', {
                 method: 'POST',
@@ -106,7 +109,9 @@ export class CleanupCommand implements CommandHandler {
             }
           }
 
-          console.log(`Cleanup complete: ${legacyAgents.length} agents recreated with readable names`)
+          console.log(
+            `Cleanup complete: ${legacyAgents.length} agents recreated with readable names`
+          )
         } catch (error) {
           console.error('Error during cleanup:', error)
           throw error

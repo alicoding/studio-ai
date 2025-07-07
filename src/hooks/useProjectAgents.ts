@@ -9,7 +9,7 @@ import type { Agent } from '../stores/agents'
  */
 export function useProjectAgents() {
   const { activeProjectId } = useProjectStore()
-  const { configs, updateAgentFromConfig } = useAgentStore()
+  const { configs } = useAgentStore()
   const [agents, setAgents] = useState<Agent[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -25,22 +25,28 @@ export function useProjectAgents() {
 
       // Map agents from the new endpoint
       const projectAgents: Agent[] = data.map((agentInstance, index) => {
-          console.log(`[useProjectAgents] Loading agent ${agentInstance.id} with sessionId: ${agentInstance.sessionId}`)
-          // We need to get the full agent data from the configs
-          const config = configs.find(c => c.id === agentInstance.agentId)
-          return {
-            id: agentInstance.id,
-            name: config?.name || agentInstance.agentId,
-            role: config?.role || 'Agent',
-            status: agentInstance.status === 'active' ? 'online' : 
-                    agentInstance.status === 'processing' ? 'busy' : 'offline',
-            tokens: 0, // TODO: Get from session
-            maxTokens: config?.maxTokens || 200000,
-            lastMessage: 'No messages yet',
-            sessionId: agentInstance.sessionId,
-            order: index,
-          }
-        })
+        console.log(
+          `[useProjectAgents] Loading agent ${agentInstance.id} with sessionId: ${agentInstance.sessionId}`
+        )
+        // We need to get the full agent data from the configs
+        const config = configs.find((c) => c.id === agentInstance.agentId)
+        return {
+          id: agentInstance.id,
+          name: config?.name || agentInstance.agentId,
+          role: config?.role || 'Agent',
+          status:
+            agentInstance.status === 'active'
+              ? 'online'
+              : agentInstance.status === 'processing'
+                ? 'busy'
+                : 'offline',
+          tokens: 0, // TODO: Get from session
+          maxTokens: config?.maxTokens || 200000,
+          lastMessage: 'No messages yet',
+          sessionId: agentInstance.sessionId,
+          order: index,
+        }
+      })
 
       // No need to add numbering - custom names are preserved from team templates
       // No need to fetch role assignments - already included in agent data
@@ -52,7 +58,7 @@ export function useProjectAgents() {
     } finally {
       setLoading(false)
     }
-  }, [activeProjectId, configs, updateAgentFromConfig])
+  }, [activeProjectId, configs])
 
   useEffect(() => {
     fetchProjectAgents()

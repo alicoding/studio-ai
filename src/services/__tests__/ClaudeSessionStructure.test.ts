@@ -12,6 +12,16 @@ import { readFile, readdir } from 'fs/promises'
 import path from 'path'
 import os from 'os'
 
+// Session analysis result type
+interface SessionAnalysis {
+  sessionId: string
+  timestamp: Date
+  hasContinuation: boolean
+  continuationCount: number
+  assignedRole: string | null
+  messageCount: number
+}
+
 // Real session data from Claude Studio project
 const CLAUDE_STUDIO_DIR = path.join(
   os.homedir(),
@@ -301,7 +311,7 @@ describe('Claude Session Structure Analysis', () => {
       const sessions = await analyzeAllSessions()
 
       // Group by continuation chains
-      const groups = new Map<string, any[]>()
+      const groups = new Map<string, SessionAnalysis[]>()
 
       // Start with root sessions (no continuation)
       const rootSessions = sessions.filter((s) => !s.hasContinuation)

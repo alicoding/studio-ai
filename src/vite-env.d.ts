@@ -14,6 +14,6 @@ interface ImportMeta {
     accept: (cb?: () => void) => void
     dispose: (cb: () => void) => void
     invalidate: () => void
-    on: (event: string, cb: (...args: any[]) => void) => void
+    on: (event: string, cb: (...args: unknown[]) => void) => void
   }
 }

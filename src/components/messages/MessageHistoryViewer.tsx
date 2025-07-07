@@ -89,7 +89,11 @@ function enrichMessagesWithToolResults(messages: Message[]): Message[] {
             let contentStr = ''
             if (typeof toolResult.content === 'string') {
               contentStr = toolResult.content
-            } else if (typeof toolResult.content === 'object' && toolResult.content && 'text' in toolResult.content) {
+            } else if (
+              typeof toolResult.content === 'object' &&
+              toolResult.content &&
+              'text' in toolResult.content
+            ) {
               contentStr = (toolResult.content as { text?: string }).text || ''
             }
             toolResultMap.set(toolResult.tool_use_id, contentStr)
@@ -156,11 +160,9 @@ export function MessageHistoryViewer({
 
   // Get WebSocket connection
   const { socket } = useWebSocket()
-  
+
   // Get agent status
-  const agent = useAgentStore((state) => 
-    state.agents.find(a => a.id === agentId)
-  )
+  const agent = useAgentStore((state) => state.agents.find((a) => a.id === agentId))
 
   // Get item size
   const getItemSize = useCallback((index: number) => {
@@ -361,19 +363,26 @@ export function MessageHistoryViewer({
       hasProjectId: !!projectId,
       loadedSession: loadedSessionRef.current,
     })
-    
+
     // Check if we need to load messages for this session
-    const needsLoad = sessionId && 
-                     projectId && 
-                     !loading &&
-                     (messages.length === 0 || loadedSessionRef.current !== sessionId)
-    
+    const needsLoad =
+      sessionId &&
+      projectId &&
+      !loading &&
+      (messages.length === 0 || loadedSessionRef.current !== sessionId)
+
     if (needsLoad) {
-      console.log('📍 Loading messages for session:', sessionId, '(was:', loadedSessionRef.current, ')')
+      console.log(
+        '📍 Loading messages for session:',
+        sessionId,
+        '(was:',
+        loadedSessionRef.current,
+        ')'
+      )
       loadedSessionRef.current = sessionId
       loadMoreMessages()
     }
-  }, [sessionId, projectId, loading, loadMoreMessages]) // Include loadMoreMessages for React rules
+  }, [sessionId, projectId, loading, loadMoreMessages, messages.length]) // Include loadMoreMessages for React rules
 
   // Listen for session clear events
   useEffect(() => {
@@ -581,8 +590,8 @@ export function MessageHistoryViewer({
       </List>
       {isTyping && (
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-background border-t border-border">
-          <TypingIndicator 
-            agentName={agentName || agent.name} 
+          <TypingIndicator
+            agentName={agentName || agent.name}
             startTime={agentTypingStartTime}
             tokenCount={agent.tokens}
           />

@@ -1,6 +1,6 @@
 /**
  * AI Service Types - Zen MCP Replacement
- * 
+ *
  * SOLID: Interface segregation for different AI operations
  * DRY: Shared types across all AI services
  */
@@ -110,6 +110,9 @@ export interface SearchOptions extends AIOptions {
   focus?: string
 }
 
+// Response metadata type
+export type AIResponseMetadata = Record<string, string | number | boolean | null | undefined>
+
 // Response format
 export interface AIResponse {
   content: string
@@ -119,37 +122,37 @@ export interface AIResponse {
     completionTokens: number
     totalTokens: number
   }
-  metadata?: Record<string, any>
+  metadata?: AIResponseMetadata
 }
 
 // AI Service interface
 export interface AIService {
   // Core thinking operations
   thinkDeep(options: ThinkDeepOptions): Promise<AIResponse>
-  
+
   // Code operations
   reviewCode(options: CodeReviewOptions): Promise<AIResponse>
   debug(options: DebugOptions): Promise<AIResponse>
   analyze(options: AnalyzeOptions): Promise<AIResponse>
   generateTests(options: TestGenOptions): Promise<AIResponse>
   refactor(options: RefactorOptions): Promise<AIResponse>
-  
+
   // Planning and consensus
   plan(options: PlannerOptions): Promise<AIResponse>
   consensus(options: ConsensusOptions): Promise<AIResponse[]>
-  
+
   // Search
   search(options: SearchOptions): Promise<AIResponse>
-  
+
   // General chat
   chat(prompt: string, options?: AIOptions): Promise<AIResponse>
 }
 
 // Token limits by thinking mode
 export const THINKING_MODE_TOKENS: Record<ThinkingMode, number> = {
-  minimal: 1000,    // 0.5% of max
-  low: 4000,        // 8% of max
-  medium: 16000,    // 33% of max
-  high: 32000,      // 67% of max
-  max: 50000        // 100% of max
+  minimal: 1000, // 0.5% of max
+  low: 4000, // 8% of max
+  medium: 16000, // 33% of max
+  high: 32000, // 67% of max
+  max: 50000, // 100% of max
 }

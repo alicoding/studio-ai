@@ -46,7 +46,7 @@ export interface CommandHook extends BaseHook {
 export interface ValidationHook extends BaseHook {
   type: 'validation'
   validator: string // Name of built-in validator
-  config?: Record<string, any> // Validator configuration
+  config?: Record<string, unknown> // Validator configuration
 }
 
 // Notification hook - sends notifications
@@ -60,7 +60,7 @@ export interface NotificationHook extends BaseHook {
 export interface StudioHook extends BaseHook {
   type: 'studio'
   action: 'type-check' | 'lint' | 'format' | 'test' | 'agent-handoff'
-  config?: Record<string, any>
+  config?: Record<string, unknown>
 }
 
 export type Hook = CommandHook | ValidationHook | NotificationHook | StudioHook
@@ -72,7 +72,7 @@ export interface HookContext {
   agentId?: string
   projectId?: string
   sessionId?: string
-  data: Record<string, any>
+  data: Record<string, unknown>
 }
 
 // Hook execution result
@@ -81,7 +81,7 @@ export interface HookResult {
   output?: string
   error?: string
   shouldContinue: boolean // For validation hooks
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 // Built-in validators for common cases

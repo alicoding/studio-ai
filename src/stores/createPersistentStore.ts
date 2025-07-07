@@ -1,6 +1,6 @@
 /**
  * createPersistentStore - DRY factory for persistent Zustand stores
- * 
+ *
  * SOLID: Single factory for all persistent stores
  * KISS: Simple wrapper around Zustand persist
  * Library-First: Uses Zustand's built-in persist middleware
@@ -14,7 +14,7 @@ import { createUnifiedStorageAdapter, migrateZustandStore } from '../lib/storage
 interface PersistConfig<T> {
   name: string
   version?: number
-  partialize?: (state: T) => any
+  partialize?: (state: T) => Partial<T>
   migrate?: PersistOptions<T>['migrate']
 }
 
@@ -28,14 +28,14 @@ export function createPersistentStore<T>(
   persistConfig?: Partial<PersistConfig<T>>
 ) {
   const storeName = `claude-studio-${name}`
-  
+
   // Migrate existing localStorage data if needed
   migrateZustandStore(name)
-  
+
   const persistOptions: PersistOptions<T> = {
     name: storeName,
     version: persistConfig?.version ?? 1,
-    partialize: persistConfig?.partialize,
+    partialize: persistConfig?.partialize as PersistOptions<T>['partialize'],
     migrate: persistConfig?.migrate,
     // Use our unified storage instead of localStorage
     storage: createUnifiedStorageAdapter<T>(),
@@ -49,14 +49,11 @@ export function createPersistentStore<T>(
   }
 
   return create<T>()(
-    devtools(
-      persist(stateCreator, persistOptions),
-      { 
-        name: `${name}-store`,
-        // Enable trace in development for better debugging
-        trace: process.env.NODE_ENV === 'development'
-      }
-    )
+    devtools(persist(stateCreator, persistOptions), {
+      name: `${name}-store`,
+      // Enable trace in development for better debugging
+      trace: process.env.NODE_ENV === 'development',
+    })
   )
 }
 
@@ -66,15 +63,15 @@ export function createPersistentStore<T>(
  */
 export async function clearAllStores() {
   if (typeof window === 'undefined') return
-  
+
   try {
     // Get all namespaces from unified storage
     const response = await fetch('/api/storage/namespaces')
     const namespaces: string[] = await response.json()
-    
+
     // Clear each namespace
     for (const namespace of namespaces) {
-      const items = await fetch(`/api/storage/items?namespace=${namespace}`).then(r => r.json())
+      const items = await fetch(`/api/storage/items?namespace=${namespace}`).then((r) => r.json())
       for (const item of items) {
         await fetch(`/api/storage/item/${namespace}/${item.key}`, { method: 'DELETE' })
       }
@@ -90,13 +87,13 @@ export async function clearAllStores() {
  */
 export async function exportAllStores(): Promise<Record<string, unknown>> {
   if (typeof window === 'undefined') return {}
-  
+
   const data: Record<string, unknown> = {}
-  
+
   try {
     // Get all items from unified storage
-    const items = await fetch('/api/storage/items').then(r => r.json())
-    
+    const items = await fetch('/api/storage/items').then((r) => r.json())
+
     for (const item of items) {
       const key = `${item.namespace}/${item.key}`
       data[key] = item.value
@@ -104,7 +101,7 @@ export async function exportAllStores(): Promise<Record<string, unknown>> {
   } catch (error) {
     console.error('Failed to export stores:', error)
   }
-  
+
   return data
 }
 
@@ -114,24 +111,24 @@ export async function exportAllStores(): Promise<Record<string, unknown>> {
  */
 export async function importStores(data: Record<string, unknown>) {
   if (typeof window === 'undefined') return
-  
+
   for (const [path, value] of Object.entries(data)) {
     const [namespace, ...keyParts] = path.split('/')
     const key = keyParts.join('/')
-    
+
     if (namespace && key) {
       try {
         await fetch(`/api/storage/item/${namespace}/${key}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ value })
+          body: JSON.stringify({ value }),
         })
       } catch (error) {
         console.error(`Failed to import ${path}:`, error)
       }
     }
   }
-  
+
   // Trigger a page reload to rehydrate stores
   window.location.reload()
 }
