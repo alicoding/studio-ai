@@ -1,5 +1,15 @@
 import { createPersistentStore } from './createPersistentStore'
 
+// Studio Project response from API
+interface StudioProjectResponse {
+  id: string
+  name: string
+  description?: string
+  workspacePath: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface Project {
   id: string
   name: string
@@ -110,11 +120,52 @@ export const useProjectStore = createPersistentStore<ProjectState>(
     fetchProjects: async () => {
       set({ isLoading: true, error: null })
       try {
-        const response = await fetch('/api/projects')
+        const response = await fetch('/api/studio-projects')
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`)
         }
-        const projects = await response.json()
+        const data = (await response.json()) as { projects: StudioProjectResponse[] }
+        // Convert Studio Projects to the expected format
+        // For each project, fetch its agents to get the count
+        const projectsWithAgents = await Promise.all(
+          data.projects.map(async (p: StudioProjectResponse) => {
+            try {
+              const agentsResponse = await fetch(`/api/studio-projects/${p.id}/agents/short-ids`)
+              const agentsData = await agentsResponse.json()
+              const agentCount = agentsData.agents?.length || 0
+
+              return {
+                id: p.id,
+                name: p.name,
+                description: p.description,
+                path: p.workspacePath,
+                createdAt: p.createdAt || new Date().toISOString(),
+                lastModified: p.updatedAt || new Date().toISOString(),
+                sessionCount: agentCount, // Using agent count instead of sessions
+                lastSessionAt: undefined,
+                status: 'active' as const,
+                tags: [],
+                favorite: false,
+              }
+            } catch (error) {
+              console.error(`Failed to get agents for project ${p.id}:`, error)
+              return {
+                id: p.id,
+                name: p.name,
+                description: p.description,
+                path: p.workspacePath,
+                createdAt: p.createdAt || new Date().toISOString(),
+                lastModified: p.updatedAt || new Date().toISOString(),
+                sessionCount: 0,
+                lastSessionAt: undefined,
+                status: 'active' as const,
+                tags: [],
+                favorite: false,
+              }
+            }
+          })
+        )
+        const projects = projectsWithAgents
         set({ projects, isLoading: false, error: null })
       } catch (error) {
         console.error('Failed to fetch projects:', error)

@@ -10,8 +10,8 @@ export default defineConfig({
       fastRefresh: true,
       // Exclude store files from Fast Refresh to preserve state
       exclude: [/stores\/.+\.ts$/],
-    }), 
-    TanStackRouterVite()
+    }),
+    TanStackRouterVite(),
   ],
   resolve: {
     alias: {
@@ -32,11 +32,11 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:3456',
+        target: 'http://localhost:3457',
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://localhost:3456',
+        target: 'http://localhost:3457',
         ws: true,
         changeOrigin: true,
       },

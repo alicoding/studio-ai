@@ -1,6 +1,6 @@
 /**
  * MCP Tools for Unified Invoke API
- * 
+ *
  * SOLID: Single responsibility - invoke API tools
  * DRY: Reuses invoke schemas and types
  * KISS: Simple tool wrappers around API
@@ -101,19 +101,34 @@ DOCUMENTATION: See docs/mcp-invoke-production-guide.md for complete usage guide.
     required: ['workflow'],
     properties: {
       workflow: {
-        description: 'Single step {role:"dev", task:"code"} OR multi-step array [{id:"step1", role:"dev", task:"code"}, {id:"step2", role:"ux", task:"design UI based on {step1.output}", deps:["step1"]}]. Use deps array for sequential workflows. Template variables {stepId.output} pass data between steps.'
+        description:
+          'Single step {role:"dev", task:"code"} OR multi-step array [{id:"step1", role:"dev", task:"code"}, {id:"step2", role:"ux", task:"design UI based on {step1.output}", deps:["step1"]}]. Use deps array for sequential workflows. Template variables {stepId.output} pass data between steps.',
       },
-      projectId: { type: 'string', description: 'Project ID (optional - uses current working directory if not provided)' },
-      threadId: { type: 'string', description: 'Thread ID for resume functionality - use same ID to continue interrupted workflows' },
-      startNewConversation: { type: 'boolean', description: 'Force new conversation (default: false)' },
-      format: { type: 'string', enum: ['json', 'text'], description: 'Response format (default: json)' }
-    }
-  }
+      projectId: {
+        type: 'string',
+        description: 'Project ID (optional - uses current working directory if not provided)',
+      },
+      threadId: {
+        type: 'string',
+        description:
+          'Thread ID for resume functionality - use same ID to continue interrupted workflows',
+      },
+      startNewConversation: {
+        type: 'boolean',
+        description: 'Force new conversation (default: false)',
+      },
+      format: {
+        type: 'string',
+        enum: ['json', 'text'],
+        description: 'Response format (default: json)',
+      },
+    },
+  },
 }
 
 export async function handleInvoke(args: unknown): Promise<{ type: 'text'; text: string }> {
   const request = args as InvokeRequest
-  
+
   try {
     // Validate request structure
     if (!request || !request.workflow) {
@@ -122,41 +137,42 @@ export async function handleInvoke(args: unknown): Promise<{ type: 'text'; text:
 
     // Pass workflow directly to API - let the backend validate
     const workflow = request.workflow
-    
+
     // Use the actual invoke API endpoint with full workflow
-    const invokeResponse = await ky.post(`${API_URL}/invoke`, {
-      json: {
-        workflow: workflow,
-        projectId: request.projectId || process.cwd().split('/').pop() || 'mcp-context',
-        threadId: request.threadId,
-        startNewConversation: request.startNewConversation,
-        format: request.format
-      },
-      timeout: REQUEST_TIMEOUT
-    }).json<{ 
-      threadId: string
-      sessionIds: Record<string, string>
-      results: Record<string, string>
-      status: string
-      summary: Record<string, unknown>
-    }>()
-    
+    const invokeResponse = await ky
+      .post(`${API_URL}/invoke`, {
+        json: {
+          workflow: workflow,
+          projectId: request.projectId || process.env.CLAUDE_STUDIO_PROJECT_ID || 'mcp-context',
+          threadId: request.threadId,
+          startNewConversation: request.startNewConversation,
+          format: request.format,
+        },
+        timeout: REQUEST_TIMEOUT,
+      })
+      .json<{
+        threadId: string
+        sessionIds: Record<string, string>
+        results: Record<string, string>
+        status: string
+        summary: Record<string, unknown>
+      }>()
+
     if (request.format === 'text') {
       // Extract the first result for text format
       const firstResult = Object.values(invokeResponse.results)[0] || 'No response'
-      return { 
-        type: 'text', 
-        text: firstResult
+      return {
+        type: 'text',
+        text: firstResult,
       }
     }
-    
+
     // Format JSON response as text for MCP compatibility
     const formattedResponse = JSON.stringify(invokeResponse, null, 2)
     return {
       type: 'text',
-      text: formattedResponse
+      text: formattedResponse,
     }
-    
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Invoke failed: ${error.message}`)
@@ -190,41 +206,42 @@ NOTE: Roles are project-agnostic - same roles available across all projects.`,
   inputSchema: {
     type: 'object',
     properties: {},
-    additionalProperties: false
-  }
+    additionalProperties: false,
+  },
 }
 
 export async function handleGetRoles(_args: unknown): Promise<{ type: 'text'; text: string }> {
   // projectId not used - roles are project-agnostic
-  
+
   try {
     // Get agents dynamically from the API
-    const agentsResponse = await ky.get(`${API_URL}/agents`).json<Array<{
-      id: string
-      name: string
-      role: string
-    }>>()
-    
+    const agentsResponse = await ky.get(`${API_URL}/agents`).json<
+      Array<{
+        id: string
+        name: string
+        role: string
+      }>
+    >()
+
     // Extract unique roles from agents
     const roles = agentsResponse
       .filter((agent: { id: string; name: string; role: string }) => agent.role)
       .map((agent: { id: string; name: string; role: string }) => ({
         role: agent.role,
         agentId: agent.id,
-        agentName: agent.name
+        agentName: agent.name,
       }))
-    
+
     // Format as simple text list
     const roleList = roles
       .map((r: { role: string; agentName: string }) => `- ${r.role} (${r.agentName})`)
       .join('\n')
-    
+
     // Return in MCP-compatible format
     return {
       type: 'text',
-      text: `Available roles:\n${roleList}`
+      text: `Available roles:\n${roleList}`,
     }
-    
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to get roles: ${error.message}`)

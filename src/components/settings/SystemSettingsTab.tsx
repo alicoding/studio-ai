@@ -13,6 +13,7 @@ import { Label } from '../ui/label'
 import { Checkbox } from '../ui/checkbox'
 import { Save, HelpCircle, Loader2 } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
+import { ClaudeInstructionsEditor } from './ClaudeInstructionsEditor'
 
 interface SystemConfig {
   claudeCodePath: string
@@ -245,6 +246,12 @@ export function SystemSettingsTab({
           </div>
         </CardContent>
       </Card>
+
+      <ClaudeInstructionsEditor
+        scope="global"
+        title="Global Claude Instructions"
+        description="Instructions that apply to Claude across all projects"
+      />
 
       <Card className="border-dashed">
         <CardContent className="pt-6">

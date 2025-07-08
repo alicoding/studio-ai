@@ -1,6 +1,6 @@
 /**
  * Invoke API Schema - Unified agent invocation
- * 
+ *
  * SOLID: Single responsibility - invocation validation
  * DRY: Unified schema for single/multi agent workflows
  * KISS: Simple step structure with optional fields
@@ -10,13 +10,18 @@
 import { z } from 'zod'
 
 // Single workflow step
-export const WorkflowStepSchema = z.object({
-  id: z.string().optional(), // Auto-generated if not provided
-  role: z.string().min(1), // Role name from agent configs
-  task: z.string().min(1), // Task with template variables
-  sessionId: z.string().optional(), // Resume specific session
-  deps: z.array(z.string()).optional(), // Dependencies on other steps
-})
+export const WorkflowStepSchema = z
+  .object({
+    id: z.string().optional(), // Auto-generated if not provided
+    role: z.string().min(1).optional(), // Legacy: Role name from agent configs
+    agentId: z.string().min(1).optional(), // New: Short agent ID (e.g., dev_01)
+    task: z.string().min(1), // Task with template variables
+    sessionId: z.string().optional(), // Resume specific session
+    deps: z.array(z.string()).optional(), // Dependencies on other steps
+  })
+  .refine((data) => data.role || data.agentId, {
+    message: "Either 'role' or 'agentId' must be provided",
+  })
 
 export type WorkflowStep = z.infer<typeof WorkflowStepSchema>
 
@@ -51,13 +56,15 @@ export const InvokeResponseSchema = z.object({
   sessionIds: z.record(z.string(), z.string()), // stepId -> sessionId
   results: z.record(z.string(), z.string()), // stepId -> response
   status: z.enum(['completed', 'partial', 'failed']),
-  summary: z.object({
-    total: z.number(),
-    successful: z.number(),
-    failed: z.number(),
-    blocked: z.number(),
-    duration: z.number(),
-  }).optional(),
+  summary: z
+    .object({
+      total: z.number(),
+      successful: z.number(),
+      failed: z.number(),
+      blocked: z.number(),
+      duration: z.number(),
+    })
+    .optional(),
 })
 
 export type InvokeResponse = z.infer<typeof InvokeResponseSchema>

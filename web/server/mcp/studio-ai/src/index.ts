@@ -34,6 +34,7 @@ import {
   handleAssignRole,
   handleUnassignRole,
   handleListRoles,
+  handleListProjectAgents,
   type CreateProjectInput,
   type UpdateProjectInput,
   type RoleAssignment,
@@ -396,6 +397,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   })
 
   tools.push({
+    name: 'list_project_agents',
+    description:
+      'List all agents currently in a project with their short IDs (e.g., dev_01, ux_01). If projectId not provided, uses current working directory.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: {
+          type: 'string',
+          description: 'ID of the project (optional - uses current directory if not provided)',
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+  })
+
+  tools.push({
     name: 'list_capabilities',
     description: 'List all configured AI capabilities',
     inputSchema: {
@@ -659,6 +677,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const typedArgs = args as Record<string, unknown>
         return {
           content: [await handleListRoles({ projectId: String(typedArgs.projectId) })],
+        }
+      }
+
+      case 'list_project_agents': {
+        if (!args || typeof args !== 'object') {
+          throw new Error('Invalid arguments')
+        }
+        const typedArgs = args as Record<string, unknown>
+        return {
+          content: [await handleListProjectAgents({ projectId: String(typedArgs.projectId) })],
         }
       }
 

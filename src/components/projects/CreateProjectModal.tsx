@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Modal } from '../shared/Modal'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -6,7 +6,11 @@ import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
 import { Card } from '../ui/card'
 import { Checkbox } from '../ui/checkbox'
-import { FolderOpen, GitBranch } from 'lucide-react'
+import { FolderOpen, GitBranch, FileText, Users, User } from 'lucide-react'
+import { getClaudeTemplate } from '../../lib/claude-templates'
+import { useAgentStore } from '../../stores/agents'
+import { useTeams } from '../../hooks/useTeams'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 
 interface CreateProjectData {
   name: string
@@ -15,6 +19,9 @@ interface CreateProjectData {
   path?: string
   template?: string
   gitInit?: boolean
+  claudeInstructions?: string
+  agents?: Array<{ configId: string; role: string }> // Agent assignments with roles
+  teamId?: string // Team ID to spawn
 }
 
 interface CreateProjectModalProps {
@@ -62,6 +69,28 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: CreateProjectM
   const [selectedTemplate, setSelectedTemplate] = useState('blank')
   const [directory, setDirectory] = useState('')
   const [gitInit, setGitInit] = useState(true)
+  const [claudeInstructions, setClaudeInstructions] = useState('')
+  const [showClaudeEditor, setShowClaudeEditor] = useState(false)
+  const [agentAssignmentMode, setAgentAssignmentMode] = useState<'none' | 'individual' | 'team'>(
+    'none'
+  )
+  const [selectedAgents, setSelectedAgents] = useState<Array<{ configId: string; role: string }>>(
+    []
+  )
+  const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
+
+  const { configs } = useAgentStore()
+  const { teams } = useTeams()
+
+  // Memoize teams and configs to prevent infinite re-renders
+  const memoizedTeams = useMemo(() => teams, [teams])
+  const memoizedConfigs = useMemo(() => configs, [configs])
+
+  // Update CLAUDE.md template when project template changes
+  useEffect(() => {
+    const template = getClaudeTemplate(selectedTemplate)
+    setClaudeInstructions(template)
+  }, [selectedTemplate])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,6 +107,9 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: CreateProjectM
       path: directory.trim() || defaultDirectory,
       template: selectedTemplate,
       gitInit,
+      claudeInstructions,
+      agents: agentAssignmentMode === 'individual' ? selectedAgents : undefined,
+      teamId: agentAssignmentMode === 'team' ? selectedTeam || undefined : undefined,
     })
 
     // Reset form
@@ -86,6 +118,9 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: CreateProjectM
     setSelectedTemplate('blank')
     setDirectory('')
     setGitInit(true)
+    setAgentAssignmentMode('none')
+    setSelectedAgents([])
+    setSelectedTeam(null)
   }
 
   const handleClose = () => {
@@ -94,6 +129,9 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: CreateProjectM
     setSelectedTemplate('blank')
     setDirectory('')
     setGitInit(true)
+    setAgentAssignmentMode('none')
+    setSelectedAgents([])
+    setSelectedTeam(null)
     onClose()
   }
 
@@ -177,6 +215,149 @@ export function CreateProjectModal({ isOpen, onClose, onCreate }: CreateProjectM
             <GitBranch className="h-4 w-4" />
             Initialize Git repository
           </Label>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Claude Instructions (CLAUDE.md)
+            </Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowClaudeEditor(!showClaudeEditor)}
+            >
+              {showClaudeEditor ? 'Hide' : 'Edit'}
+            </Button>
+          </div>
+          {showClaudeEditor && (
+            <>
+              <Textarea
+                value={claudeInstructions}
+                onChange={(e) => setClaudeInstructions(e.target.value)}
+                placeholder="Instructions for Claude when working with this project..."
+                rows={10}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                These instructions will be saved as CLAUDE.md in your project root
+              </p>
+            </>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label>Agent Assignment</Label>
+          <Tabs
+            value={agentAssignmentMode}
+            onValueChange={(value) =>
+              setAgentAssignmentMode(value as 'none' | 'individual' | 'team')
+            }
+          >
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="none">No Agents</TabsTrigger>
+              <TabsTrigger value="individual">
+                <User className="h-4 w-4 mr-1" />
+                Individual
+              </TabsTrigger>
+              <TabsTrigger value="team">
+                <Users className="h-4 w-4 mr-1" />
+                Team
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="none" className="mt-3">
+              <p className="text-sm text-muted-foreground">
+                Start with an empty project. You can add agents later.
+              </p>
+            </TabsContent>
+
+            <TabsContent value="individual" className="mt-3">
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Select individual agents to add to this project:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                  {memoizedConfigs.map((config) => (
+                    <Card
+                      key={config.id}
+                      className={`p-3 cursor-pointer transition-colors hover:bg-accent ${
+                        selectedAgents.some((a) => a.configId === config.id)
+                          ? 'ring-2 ring-primary'
+                          : ''
+                      }`}
+                      onClick={() => {
+                        setSelectedAgents((prev) => {
+                          const existing = prev.find((a) => a.configId === config.id)
+                          if (existing) {
+                            return prev.filter((a) => a.configId !== config.id)
+                          } else {
+                            return [...prev, { configId: config.id, role: config.role }]
+                          }
+                        })
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedAgents.some((a) => a.configId === config.id)}
+                          onCheckedChange={() => {}} // Handled by Card onClick
+                          className="pointer-events-none"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-sm truncate">{config.name}</h4>
+                          <p className="text-muted-foreground text-xs truncate">{config.role}</p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+                {memoizedConfigs.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No agent configurations available. Create agents first.
+                  </p>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="team" className="mt-3">
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Select a team template to spawn all its agents:
+                </p>
+                <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
+                  {memoizedTeams.map((team) => (
+                    <Card
+                      key={team.id}
+                      className={`p-3 cursor-pointer transition-colors hover:bg-accent ${
+                        selectedTeam === team.id ? 'ring-2 ring-primary' : ''
+                      }`}
+                      onClick={() => setSelectedTeam(team.id)}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Users className="h-5 w-5 text-muted-foreground mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-sm">{team.name}</h4>
+                          <p className="text-muted-foreground text-xs mt-1">
+                            {team.description || 'No description'}
+                          </p>
+                          <p className="text-muted-foreground text-xs mt-1">
+                            {team.agents.length} agent{team.agents.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+                {memoizedTeams.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No team templates available. Create teams first.
+                  </p>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </form>
 

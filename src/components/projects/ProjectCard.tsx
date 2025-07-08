@@ -72,7 +72,7 @@ export function ProjectCard({ project, onOpen, onEdit, onDelete, onClone }: Proj
           <div className="flex items-center gap-1">
             <Users className="w-3 h-3" />
             <span>
-              {project.sessionCount} session{project.sessionCount !== 1 ? 's' : ''}
+              {project.sessionCount} agent{project.sessionCount !== 1 ? 's' : ''}
             </span>
           </div>
         </div>

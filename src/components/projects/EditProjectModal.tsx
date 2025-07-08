@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
+import { X, FileText } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
+import { ClaudeInstructionsEditor } from '../settings/ClaudeInstructionsEditor'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 
 interface Project {
   id: string
@@ -83,65 +85,131 @@ export function EditProjectModal({ isOpen, onClose, project, onSave }: EditProje
             <X className="w-5 h-5" />
           </button>
 
-          <h2 className="text-2xl font-bold mb-4">Edit Project Metadata</h2>
-
-          <div className="mb-4 p-3 bg-muted/50 rounded">
-            <h3 className="font-semibold">{project.name}</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              {project.description || 'No description'}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">Path: {project.path}</p>
-          </div>
+          <h2 className="text-2xl font-bold mb-4">Edit Project</h2>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 space-y-4">
-          <div>
-            <Label htmlFor="status">Project Status</Label>
-            <Select
-              value={status}
-              onValueChange={(value) => setStatus(value as 'active' | 'archived' | 'draft')}
-            >
-              <SelectTrigger id="status">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="archived">Archived</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-1">
-              Set the project status to organize your workflow
-            </p>
-          </div>
+        <Tabs defaultValue="metadata" className="flex-1 flex flex-col">
+          <TabsList className="mx-6 mb-4">
+            <TabsTrigger value="metadata">Metadata</TabsTrigger>
+            <TabsTrigger value="instructions" className="flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Claude Instructions
+            </TabsTrigger>
+          </TabsList>
 
-          <div>
-            <Label htmlFor="tags">Tags</Label>
-            <Input
-              id="tags"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder="react, nodejs, web-app"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Comma-separated tags to categorize this project
-            </p>
-          </div>
+          <TabsContent value="metadata" className="flex-1 overflow-y-auto px-6">
+            <div className="mb-4 p-3 bg-muted/50 rounded">
+              <h3 className="font-semibold">{project.name}</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {project.description || 'No description'}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Path: {project.path}</p>
+            </div>
 
-          <div>
-            <Label htmlFor="notes">Notes</Label>
-            <Textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add any notes or context about this project..."
-              rows={4}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Personal notes about this project (only stored in Claude Studio)
-            </p>
-          </div>
-        </form>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="status">Project Status</Label>
+                <Select
+                  value={status}
+                  onValueChange={(value) => setStatus(value as 'active' | 'archived' | 'draft')}
+                >
+                  <SelectTrigger id="status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
+                    <SelectItem value="draft">Draft</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Set the project status to organize your workflow
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="tags">Tags</Label>
+                <Input
+                  id="tags"
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                  placeholder="react, nodejs, web-app"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Comma-separated tags to categorize this project
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add any notes or context about this project..."
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Personal notes about this project (only stored in Claude Studio)
+                </p>
+              </div>
+            </form>
+          </TabsContent>
+
+          <TabsContent value="instructions" className="flex-1 overflow-y-auto">
+            <div className="px-6 pb-6">
+              <Tabs defaultValue="project" className="h-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="project">
+                    <FileText className="w-4 h-4 mr-2" />
+                    Project Instructions
+                  </TabsTrigger>
+                  <TabsTrigger value="local">
+                    <FileText className="w-4 h-4 mr-2" />
+                    Personal Instructions
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="project" className="mt-4">
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="text-sm font-medium mb-1">Project Claude Instructions</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Shared instructions for this project (saved to CLAUDE.md in git)
+                      </p>
+                    </div>
+                    <ClaudeInstructionsEditor
+                      scope="project"
+                      projectPath={project.path}
+                      title=""
+                      description=""
+                      className="border-0 shadow-none p-0"
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="local" className="mt-4">
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="text-sm font-medium mb-1">Personal Claude Instructions</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Your personal instructions for this project (saved to CLAUDE.local.md, not
+                        shared)
+                      </p>
+                    </div>
+                    <ClaudeInstructionsEditor
+                      scope="local"
+                      projectPath={project.path}
+                      title=""
+                      description=""
+                      className="border-0 shadow-none p-0"
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          </TabsContent>
+        </Tabs>
 
         <div className="flex gap-2 p-6 pt-4 border-t">
           <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>

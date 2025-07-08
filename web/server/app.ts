@@ -28,7 +28,9 @@ import invokeRouter from './api/invoke'
 import invokeStatusRouter from './api/invoke-status'
 import operatorRouter from './api/operator'
 import sessionSearchRouter from './api/session-search'
-import claudeProjectsRouter from './api/claude-projects'
+import claudeProjectsRouter from './api/claude-projects.js'
+import claudeLaunchRouter from './api/claude-launch.js'
+import studioProjectsRouter from './api/studio-projects.js'
 
 // Import WebSocket handler
 import { setupWebSocket } from './websocket'
@@ -107,6 +109,8 @@ app.use('/api/storage', storageRouter)
 app.use('/api/workspace', workspaceRouter)
 app.use('/api/session', sessionSearchRouter)
 app.use('/api/claude-projects', claudeProjectsRouter)
+app.use('/api/claude', claudeLaunchRouter)
+app.use('/api/studio-projects', studioProjectsRouter)
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

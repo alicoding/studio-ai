@@ -10,9 +10,15 @@ import { PageLayout } from '../components/ui/page-layout'
 import { StorageViewer } from '../components/storage/StorageViewer'
 import { Button } from '../components/ui/button'
 import { Download, Trash2 } from 'lucide-react'
-import { getStorageStats, vacuumStorage, backupStorage, StorageStats } from '../lib/storage/client'
+import { vacuumStorage, backupStorage, StorageStats } from '../lib/storage/client'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
+
+interface NamespaceData {
+  namespace: string
+  count: number
+  size: number
+}
 
 export const Route = createFileRoute('/storage')({
   component: StoragePage,
@@ -28,7 +34,26 @@ function StoragePage() {
 
   const loadStats = async () => {
     try {
-      const dbStats = await getStorageStats()
+      const response = await fetch('/api/storage/stats')
+      const data = await response.json()
+
+      // Convert API response to expected format
+      const dbStats: StorageStats = {
+        totalItems: data.total_records || 0,
+        totalSize: data.total_size || 0,
+        namespaces:
+          data.byNamespace?.reduce(
+            (acc: Record<string, { items: number; size: number }>, ns: NamespaceData) => {
+              acc[ns.namespace] = {
+                items: ns.count,
+                size: ns.size,
+              }
+              return acc
+            },
+            {}
+          ) || {},
+      }
+
       setStats(dbStats)
     } catch (error) {
       console.error('Failed to load storage stats:', error)
@@ -77,7 +102,7 @@ function StoragePage() {
           <div className="bg-card rounded-lg p-4">
             <div className="text-sm text-muted-foreground">Total Size</div>
             <div className="text-2xl font-bold">
-              {(stats.totalSize / 1024 / 1024).toFixed(2)} MB
+              {stats.totalSize ? (stats.totalSize / 1024 / 1024).toFixed(2) : '0.00'} MB
             </div>
           </div>
           <div className="bg-card rounded-lg p-4">

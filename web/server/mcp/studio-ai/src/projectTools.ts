@@ -56,6 +56,19 @@ export interface RoleAssignment {
   role: string
 }
 
+export interface ProjectAgent {
+  id: string
+  configId?: string
+  name: string
+  role: string
+  status: 'online' | 'offline'
+  sessionId: string | null
+  messageCount: number
+  totalTokens: number
+  lastMessage: string
+  hasSession: boolean
+}
+
 /**
  * List all projects
  *
@@ -496,6 +509,79 @@ export async function handleListRoles(args: { projectId: string }): Promise<Text
     return {
       type: 'text',
       text: `Error listing roles: ${message}`,
+    }
+  }
+}
+
+/**
+ * List agents in a project with their short IDs
+ *
+ * @example
+ * { "projectId": "studio-project-123" }
+ * or
+ * {} // Uses project ID from environment context
+ */
+export async function handleListProjectAgents(args: { projectId?: string }): Promise<TextContent> {
+  try {
+    // Use project ID from args or environment context
+    const projectId = args.projectId || process.env.CLAUDE_STUDIO_PROJECT_ID
+
+    if (!projectId) {
+      return {
+        type: 'text',
+        text: 'Error: No project ID provided and no Studio project context found.\n\nPlease provide a projectId or ensure you are running within a Studio project context.',
+      }
+    }
+
+    // Get the caller's agent ID if available
+    const callerId = process.env.CLAUDE_STUDIO_AGENT_ID
+
+    // Get project agents from the API
+    const response = await ky
+      .get(`${API_BASE}/projects/${encodeURIComponent(projectId)}/agents`, {
+        timeout: 30000,
+      })
+      .json<{ agents: ProjectAgent[] }>()
+
+    if (!response.agents || response.agents.length === 0) {
+      return {
+        type: 'text',
+        text: `No agents found in project ${projectId}.\n\nUse 'add_agent_to_project' or 'add_team_to_project' to add agents.`,
+      }
+    }
+
+    // Group agents by role and create short IDs
+    const roleGroups: Record<string, ProjectAgent[]> = {}
+    response.agents.forEach((agent) => {
+      if (!roleGroups[agent.role]) {
+        roleGroups[agent.role] = []
+      }
+      roleGroups[agent.role].push(agent)
+    })
+
+    // Create agent list with short IDs
+    const agentList: string[] = []
+    for (const [role, agents] of Object.entries(roleGroups)) {
+      agents.forEach((agent, index) => {
+        const shortId = `${role}_${String(index + 1).padStart(2, '0')}`
+        const status = agent.hasSession ? '✓' : '○'
+        agentList.push(`- ${agent.name} (${shortId}) - Role: ${role} ${status}`)
+      })
+    }
+
+    const header = `Project agents for ${projectId}:`
+    const footer = '\n\n✓ = Has active session, ○ = No session yet'
+    const callerInfo = callerId ? `\n(Called by: ${callerId})` : ''
+
+    return {
+      type: 'text',
+      text: `${header}${callerInfo}\n\n${agentList.join('\n')}${footer}`,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return {
+      type: 'text',
+      text: `Error listing project agents: ${message}`,
     }
   }
 }

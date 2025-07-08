@@ -1,6 +1,6 @@
 /**
  * Workflow Orchestrator - LangGraph-based agent workflow management
- * 
+ *
  * SOLID: Single responsibility - workflow orchestration
  * DRY: Reuses ClaudeService for agents, SimpleOperator for routing
  * KISS: Simple node-based workflow with dependency handling
@@ -13,20 +13,29 @@ import { v4 as uuidv4 } from 'uuid'
 import { ClaudeService } from './ClaudeService'
 import { SimpleOperator } from './SimpleOperator'
 import { ServerAgentConfigService } from './ServerAgentConfigService'
+import { ProjectService } from './ProjectService'
 import { detectAbortError, AbortError } from '../utils/errorUtils'
 import { updateWorkflowStatus } from '../api/invoke-status'
-import type { 
-  InvokeRequest, 
-  InvokeResponse, 
-  WorkflowStep, 
-  StepResult 
-} from '../schemas/invoke'
+import type { InvokeRequest, InvokeResponse, WorkflowStep, StepResult } from '../schemas/invoke'
 import type { Server } from 'socket.io'
+
+// Project agent type from workspace
+interface ProjectAgent {
+  id: string
+  configId?: string
+  name: string
+  role: string
+  status: 'online' | 'offline'
+  sessionId: string | null
+  messageCount: number
+  totalTokens: number
+  lastMessage: string
+  hasSession: boolean
+}
 
 // Template context type
 interface TemplateContext {
-  [key: string]: { output: string } | string
-  previousOutput?: string
+  [key: string]: { output: string } | string | undefined
 }
 
 // LangGraph state type
@@ -43,46 +52,47 @@ interface WorkflowState {
 const WorkflowStateSchema = Annotation.Root({
   steps: Annotation<WorkflowStep[]>({
     reducer: (x, y) => y,
-    default: () => []
+    default: () => [],
   }),
   currentStepIndex: Annotation<number>({
     reducer: (x, y) => y,
-    default: () => 0
+    default: () => 0,
   }),
   stepResults: Annotation<Record<string, StepResult>>({
     reducer: (x, y) => ({ ...x, ...y }),
-    default: () => ({})
+    default: () => ({}),
   }),
   stepOutputs: Annotation<Record<string, string>>({
     reducer: (x, y) => ({ ...x, ...y }),
-    default: () => ({})
+    default: () => ({}),
   }),
   sessionIds: Annotation<Record<string, string>>({
     reducer: (x, y) => ({ ...x, ...y }),
-    default: () => ({})
+    default: () => ({}),
   }),
   threadId: Annotation<string>({
     reducer: (x, y) => y,
-    default: () => ''
+    default: () => '',
   }),
   projectId: Annotation<string>({
     reducer: (x, y) => y,
-    default: () => ''
+    default: () => '',
   }),
   status: Annotation<'running' | 'completed' | 'partial' | 'failed'>({
     reducer: (x, y) => y,
-    default: () => 'running'
+    default: () => 'running',
   }),
   startNewConversation: Annotation<boolean>({
     reducer: (x, y) => y,
-    default: () => false
-  })
+    default: () => false,
+  }),
 })
 
 export class WorkflowOrchestrator {
   private claudeService = new ClaudeService()
   private operator = new SimpleOperator()
   private agentConfigService = ServerAgentConfigService.getInstance()
+  private projectService = new ProjectService()
   private memory = new MemorySaver()
   private io?: Server
 
@@ -95,14 +105,14 @@ export class WorkflowOrchestrator {
    */
   async execute(request: InvokeRequest): Promise<InvokeResponse> {
     const startTime = Date.now()
-    
+
     // Normalize to array
     const steps = Array.isArray(request.workflow) ? request.workflow : [request.workflow]
-    
+
     // Generate IDs for steps without them
     const normalizedSteps = steps.map((step, index) => ({
       ...step,
-      id: step.id || `step-${index}`
+      id: step.id || `step-${index}`,
     }))
 
     // Generate or use threadId as the workflow session identifier
@@ -110,7 +120,7 @@ export class WorkflowOrchestrator {
 
     // Build and execute workflow
     const workflow = this.buildWorkflow(normalizedSteps)
-    
+
     const initialState = {
       steps: normalizedSteps,
       currentStepIndex: 0,
@@ -120,7 +130,7 @@ export class WorkflowOrchestrator {
       threadId,
       projectId: request.projectId,
       status: 'running' as const,
-      startNewConversation: request.startNewConversation || false
+      startNewConversation: request.startNewConversation || false,
     }
 
     try {
@@ -128,19 +138,19 @@ export class WorkflowOrchestrator {
       updateWorkflowStatus(threadId, {
         status: 'running',
         sessionIds: {},
-        currentStep: normalizedSteps[0]?.id
+        currentStep: normalizedSteps[0]?.id,
       })
 
       // Execute workflow
       const finalState = await workflow.invoke(initialState, {
-        configurable: { thread_id: threadId }
+        configurable: { thread_id: threadId },
       })
 
       // Update final status
       const finalStatus = this.determineOverallStatus(finalState.stepResults)
       updateWorkflowStatus(threadId, {
         status: finalStatus === 'completed' ? 'completed' : 'failed',
-        sessionIds: finalState.sessionIds
+        sessionIds: finalState.sessionIds,
       })
 
       // Build response
@@ -149,7 +159,7 @@ export class WorkflowOrchestrator {
         sessionIds: finalState.sessionIds,
         results: finalState.stepOutputs,
         status: finalStatus,
-        summary: this.buildSummary(finalState.stepResults, Date.now() - startTime)
+        summary: this.buildSummary(finalState.stepResults, Date.now() - startTime),
       }
 
       // Format if requested
@@ -158,16 +168,15 @@ export class WorkflowOrchestrator {
       }
 
       return response
-
     } catch (error) {
       console.error('Workflow execution error:', error)
-      
+
       // Update status on error/abort
       const abortInfo = detectAbortError(error)
       updateWorkflowStatus(threadId, {
-        status: abortInfo.isAbort ? 'aborted' : 'failed'
+        status: abortInfo.isAbort ? 'aborted' : 'failed',
       })
-      
+
       throw error
     }
   }
@@ -187,19 +196,19 @@ export class WorkflowOrchestrator {
     steps.forEach((step) => {
       if (step.deps && step.deps.length > 0) {
         // This step depends on others - add edges from dependencies
-        step.deps.forEach(depId => {
-          workflow.addEdge(depId, step.id!)
+        step.deps.forEach((depId) => {
+          workflow.addEdge(depId as '__start__', step.id! as '__start__')
         })
       } else {
         // No dependencies - connect from start (allows parallel execution)
-        workflow.addEdge('__start__', step.id!)
+        workflow.addEdge('__start__', step.id! as '__start__')
       }
     })
 
     // Connect final steps to end
     const finalSteps = this.findFinalSteps(steps)
-    finalSteps.forEach(stepId => {
-      workflow.addEdge(stepId, '__end__')
+    finalSteps.forEach((stepId) => {
+      workflow.addEdge(stepId as '__start__', '__end__')
     })
 
     return workflow.compile({ checkpointer: this.memory })
@@ -226,9 +235,9 @@ export class WorkflowOrchestrator {
                     status: 'blocked' as const,
                     response: `Blocked: dependency ${depId} did not complete successfully`,
                     sessionId: '',
-                    duration: Date.now() - startTime
-                  }
-                }
+                    duration: Date.now() - startTime,
+                  },
+                },
               }
             }
           }
@@ -238,22 +247,80 @@ export class WorkflowOrchestrator {
         const resolvedTask = this.resolveTemplateVariables(step.task, state)
         console.log(`[WorkflowOrchestrator] Step ${step.id} - Original task: ${step.task}`)
         console.log(`[WorkflowOrchestrator] Step ${step.id} - Resolved task: ${resolvedTask}`)
-        console.log(`[WorkflowOrchestrator] Step ${step.id} - Available outputs:`, Object.keys(state.stepOutputs))
+        console.log(
+          `[WorkflowOrchestrator] Step ${step.id} - Available outputs:`,
+          Object.keys(state.stepOutputs)
+        )
 
-        // Get agents and find by role (global, not project-specific)
-        const agents = await this.agentConfigService.getAllAgents()
-        
-        const agent = agents.find(a => a.role?.toLowerCase() === step.role.toLowerCase())
-        
-        if (!agent) {
-          throw new Error(`No agent found for role: ${step.role}`)
+        // Try to get project agents first
+        let agent: ProjectAgent | null = null
+        let globalAgentConfig: { id: string; role?: string; systemPrompt?: string } | null = null
+        let agentInstanceId: string | null = null
+
+        if (state.projectId) {
+          try {
+            const projectAgents = (await this.projectService.getProjectAgents(
+              state.projectId
+            )) as ProjectAgent[]
+
+            // If agentId is provided, use it directly (short ID like dev_01)
+            if (step.agentId) {
+              const projectAgent = projectAgents.find((a) => a.id === step.agentId)
+
+              if (projectAgent) {
+                agent = projectAgent
+                agentInstanceId = projectAgent.id
+                console.log(`[WorkflowOrchestrator] Using project agent by ID: ${agentInstanceId}`)
+              } else {
+                throw new Error(`Agent with ID ${step.agentId} not found in project`)
+              }
+            }
+            // Legacy: If role is provided, find by role
+            else if (step.role) {
+              const projectAgent = projectAgents.find(
+                (a) => a.role?.toLowerCase() === step.role!.toLowerCase()
+              )
+
+              if (projectAgent) {
+                agent = projectAgent
+                agentInstanceId = projectAgent.id
+                console.log(
+                  `[WorkflowOrchestrator] Using project agent ${agentInstanceId} for role ${step.role}`
+                )
+              }
+            }
+          } catch (error) {
+            console.log(`[WorkflowOrchestrator] Could not get project agents: ${error}`)
+          }
         }
 
-        // Send message via ClaudeService  
+        // Fall back to global agent config if no project agent found (only for role-based)
+        if (!agent && step.role) {
+          const agents = await this.agentConfigService.getAllAgents()
+          globalAgentConfig =
+            agents.find((a) => a.role?.toLowerCase() === step.role!.toLowerCase()) || null
+
+          if (!globalAgentConfig) {
+            throw new Error(`No agent found for role: ${step.role}`)
+          }
+
+          agentInstanceId = globalAgentConfig.id
+          console.log(
+            `[WorkflowOrchestrator] Using global agent config ${agentInstanceId} for role ${step.role}`
+          )
+        }
+
+        if (!agentInstanceId) {
+          throw new Error(
+            `No agent found for step: ${JSON.stringify({ role: step.role, agentId: step.agentId })}`
+          )
+        }
+
+        // Send message via ClaudeService using the appropriate agent ID
         const result = await this.claudeService.sendMessage(
           resolvedTask,
           state.projectId,
-          agent.id,
+          agentInstanceId!, // Use instance ID for project agents, config ID for global
           undefined, // projectPath
           undefined, // role - let it default
           undefined, // onStream
@@ -263,9 +330,9 @@ export class WorkflowOrchestrator {
 
         // Check status with operator - pass context for accurate evaluation
         const analysis = await this.operator.checkStatus(result.response, {
-          role: step.role,
+          role: step.role || agent?.role || 'agent',
           task: resolvedTask,
-          roleSystemPrompt: agent.systemPrompt
+          roleSystemPrompt: globalAgentConfig?.systemPrompt || undefined,
         })
 
         // Build step result
@@ -273,8 +340,8 @@ export class WorkflowOrchestrator {
           id: step.id!,
           status: analysis.status,
           response: result.response,
-          sessionId: result.sessionId,
-          duration: Date.now() - startTime
+          sessionId: result.sessionId || '',
+          duration: Date.now() - startTime,
         }
 
         // Update state - merge with existing state
@@ -282,15 +349,14 @@ export class WorkflowOrchestrator {
           stepResults: { ...state.stepResults, [step.id!]: stepResult },
           stepOutputs: { ...state.stepOutputs, [step.id!]: result.response },
           sessionIds: { ...state.sessionIds, [step.id!]: result.sessionId },
-          currentStepIndex: state.currentStepIndex + 1
+          currentStepIndex: state.currentStepIndex + 1,
         }
-
       } catch (error) {
         console.error(`Step ${step.id} error:`, error)
-        
+
         // Check if this is an abort error using centralized detection
         const abortInfo = detectAbortError(error)
-        
+
         // Preserve the last known sessionId for the step if it exists
         // If the error is an AbortError, it might have a sessionId attached
         let lastSessionId = state.sessionIds[step.id!] || step.sessionId || ''
@@ -298,22 +364,22 @@ export class WorkflowOrchestrator {
           lastSessionId = error.sessionId
           console.log(`[WorkflowOrchestrator] Using sessionId from AbortError: ${lastSessionId}`)
         }
-        
+
         return {
           stepResults: {
             ...state.stepResults,
             [step.id!]: {
               id: step.id!,
-              status: abortInfo.isAbort ? 'aborted' as const : 'failed' as const,
+              status: abortInfo.isAbort ? ('aborted' as const) : ('failed' as const),
               response: abortInfo.message,
               sessionId: lastSessionId, // Preserve sessionId for resume
               duration: Date.now() - startTime,
-              abortedAt: abortInfo.isAbort ? new Date().toISOString() : undefined
-            }
+              abortedAt: abortInfo.isAbort ? new Date().toISOString() : undefined,
+            },
           },
-          status: abortInfo.isAbort ? 'aborted' as const : 'failed' as const,
+          status: abortInfo.isAbort ? ('aborted' as const) : ('failed' as const),
           // Preserve all sessionIds for potential resume
-          sessionIds: state.sessionIds
+          sessionIds: state.sessionIds,
         }
       }
     }
@@ -329,12 +395,14 @@ export class WorkflowOrchestrator {
     // Add step outputs - string-template doesn't support nested properties
     // So we need to flatten {step.output} to {step_output}
     console.log(`[WorkflowOrchestrator] Available step outputs:`, state.stepOutputs)
-    state.steps.forEach(step => {
+    state.steps.forEach((step) => {
       if (step.id && state.stepOutputs[step.id]) {
         // Support both {stepId.output} and {stepId} syntax
         context[`${step.id}.output`] = state.stepOutputs[step.id]
         context[step.id] = state.stepOutputs[step.id]
-        console.log(`[WorkflowOrchestrator] Added to context: ${step.id}.output = "${state.stepOutputs[step.id].substring(0, 50)}..."`)
+        console.log(
+          `[WorkflowOrchestrator] Added to context: ${step.id}.output = "${state.stepOutputs[step.id].substring(0, 50)}..."`
+        )
       }
     })
 
@@ -349,13 +417,13 @@ export class WorkflowOrchestrator {
     // string-template doesn't support nested properties like {step.output}
     // So we need to manually replace them first
     let processedTask = task
-    
+
     // Replace {stepId.output} with the actual value
-    Object.keys(state.stepOutputs).forEach(stepId => {
+    Object.keys(state.stepOutputs).forEach((stepId) => {
       const regex = new RegExp(`\\{${stepId}\\.output\\}`, 'g')
       processedTask = processedTask.replace(regex, state.stepOutputs[stepId])
     })
-    
+
     // Now use string-template for any remaining simple variables
     console.log(`[WorkflowOrchestrator] Template context:`, JSON.stringify(context, null, 2))
     console.log(`[WorkflowOrchestrator] Pre-processed task: "${task}" -> "${processedTask}"`)
@@ -368,34 +436,36 @@ export class WorkflowOrchestrator {
    * Find steps with no dependents (final steps)
    */
   private findFinalSteps(steps: WorkflowStep[]): string[] {
-    const stepIds = new Set(steps.map(s => s.id!))
+    const stepIds = new Set(steps.map((s) => s.id!))
     const dependedOn = new Set<string>()
 
-    steps.forEach(step => {
+    steps.forEach((step) => {
       if (step.deps) {
-        step.deps.forEach(depId => dependedOn.add(depId))
+        step.deps.forEach((depId) => dependedOn.add(depId))
       }
     })
 
-    return Array.from(stepIds).filter(id => !dependedOn.has(id))
+    return Array.from(stepIds).filter((id) => !dependedOn.has(id))
   }
 
   /**
    * Determine overall workflow status
    */
-  private determineOverallStatus(stepResults: Record<string, StepResult>): 'completed' | 'partial' | 'failed' {
+  private determineOverallStatus(
+    stepResults: Record<string, StepResult>
+  ): 'completed' | 'partial' | 'failed' {
     const results = Object.values(stepResults)
-    
+
     if (results.length === 0) return 'failed'
-    
-    const hasFailures = results.some(r => r.status === 'failed')
-    const hasBlocked = results.some(r => r.status === 'blocked')
-    const allSuccess = results.every(r => r.status === 'success')
+
+    const hasFailures = results.some((r) => r.status === 'failed')
+    const hasBlocked = results.some((r) => r.status === 'blocked')
+    const allSuccess = results.every((r) => r.status === 'success')
 
     if (allSuccess) return 'completed'
     if (hasFailures) return 'failed'
     if (hasBlocked) return 'partial'
-    
+
     return 'partial'
   }
 
@@ -404,13 +474,13 @@ export class WorkflowOrchestrator {
    */
   private buildSummary(stepResults: Record<string, StepResult>, totalDuration: number) {
     const results = Object.values(stepResults)
-    
+
     return {
       total: results.length,
-      successful: results.filter(r => r.status === 'success').length,
-      failed: results.filter(r => r.status === 'failed').length,
-      blocked: results.filter(r => r.status === 'blocked').length,
-      duration: totalDuration
+      successful: results.filter((r) => r.status === 'success').length,
+      failed: results.filter((r) => r.status === 'failed').length,
+      blocked: results.filter((r) => r.status === 'blocked').length,
+      duration: totalDuration,
     }
   }
 
@@ -418,7 +488,10 @@ export class WorkflowOrchestrator {
    * Get current workflow state by threadId
    * Shows which steps completed, which are in progress, and available sessionIds
    */
-  async getWorkflowState(threadId: string, steps: WorkflowStep[]): Promise<{
+  async getWorkflowState(
+    threadId: string,
+    steps: WorkflowStep[]
+  ): Promise<{
     threadId: string
     currentState: WorkflowState | null
     completedSteps: string[]
@@ -429,22 +502,22 @@ export class WorkflowOrchestrator {
     try {
       // Build workflow to get the compiled graph
       const workflow = this.buildWorkflow(steps)
-      
+
       // Get current state from LangGraph checkpointer
       const state = await workflow.getState({
-        configurable: { thread_id: threadId }
+        configurable: { thread_id: threadId },
       })
-      
+
       const completedSteps: string[] = []
       const pendingSteps: string[] = []
       const sessionIds: Record<string, string> = {}
-      
+
       // Analyze state to determine step status
       if (state && state.values) {
         const stepResults = state.values.stepResults || {}
         const currentSessionIds = state.values.sessionIds || {}
-        
-        steps.forEach(step => {
+
+        steps.forEach((step) => {
           const stepId = step.id!
           if (stepResults[stepId]) {
             completedSteps.push(stepId)
@@ -457,16 +530,16 @@ export class WorkflowOrchestrator {
         })
       } else {
         // No state found - all steps are pending
-        steps.forEach(step => pendingSteps.push(step.id!))
+        steps.forEach((step) => pendingSteps.push(step.id!))
       }
-      
+
       return {
         threadId,
-        currentState: state?.values as WorkflowState || null,
+        currentState: (state?.values as WorkflowState) || null,
         completedSteps,
         pendingSteps,
         sessionIds,
-        canResume: completedSteps.length > 0 || (state?.next && state.next.length > 0)
+        canResume: completedSteps.length > 0 || (state?.next && state.next.length > 0),
       }
     } catch (error) {
       console.error('Error getting workflow state:', error)
@@ -474,9 +547,9 @@ export class WorkflowOrchestrator {
         threadId,
         currentState: null,
         completedSteps: [],
-        pendingSteps: steps.map(s => s.id!),
+        pendingSteps: steps.map((s) => s.id!),
         sessionIds: {},
-        canResume: false
+        canResume: false,
       }
     }
   }
@@ -494,7 +567,7 @@ export class WorkflowOrchestrator {
 
     return {
       ...response,
-      results: { text: textResults }
+      results: { text: textResults },
     }
   }
 }

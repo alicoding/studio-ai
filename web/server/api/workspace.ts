@@ -1,6 +1,6 @@
 /**
  * Workspace API - Consolidated endpoint for workspace data loading
- * 
+ *
  * SOLID: Single responsibility for workspace data aggregation
  * DRY: Eliminates duplicate API calls across workspace components
  * KISS: One endpoint to rule them all - simple and fast
@@ -8,9 +8,14 @@
  */
 
 import { Router, Request, Response } from 'express'
-import { UnifiedAgentConfigService, type AgentConfig, type AgentRoleAssignment } from '../services/UnifiedAgentConfigService'
+import {
+  UnifiedAgentConfigService,
+  type AgentConfig,
+  type AgentRoleAssignment,
+} from '../services/UnifiedAgentConfigService'
 import { ProjectService } from '../services/ProjectService'
 import { AgentConfigService } from '../services/AgentConfigService'
+import { StudioProjectService } from '../services/StudioProjectService.js'
 
 interface ProjectAgent {
   id: string
@@ -38,6 +43,7 @@ const router = Router()
 const agentConfigService = UnifiedAgentConfigService.getInstance()
 const projectService = new ProjectService()
 const legacyAgentService = AgentConfigService.getInstance()
+const studioProjectService = new StudioProjectService()
 
 interface WorkspaceData {
   projects: ProjectWithAgents[]
@@ -56,19 +62,28 @@ interface WorkspaceQuery {
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { projectId, includeAgents = 'true', includeRoles = 'true' } = req.query as WorkspaceQuery
-    
+
     console.time('workspace-data-load')
-    
+
     const workspaceData: WorkspaceData = {
       projects: [],
       agentConfigs: [],
       roleAssignments: {},
-      projectAgents: {}
+      projectAgents: {},
     }
 
-    // Load all projects
+    // Load all projects from Studio Projects
     console.time('load-projects')
-    const projects = await projectService.getAllProjects()
+    const studioProjects = await studioProjectService.listProjects()
+    // Convert Studio Projects to workspace format
+    const projects = studioProjects.map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      workspacePath: p.workspacePath,
+      agents: [], // Will be populated later
+      agentInstances: [],
+    }))
     workspaceData.projects = projects
     console.timeEnd('load-projects')
 
@@ -82,7 +97,7 @@ router.get('/', async (req: Request, res: Response) => {
         console.log('Falling back to legacy agent service:', error)
         // Fallback to legacy service
         const legacyAgents = await legacyAgentService.getAllAgents()
-        workspaceData.agentConfigs = legacyAgents.map(agent => ({
+        workspaceData.agentConfigs = legacyAgents.map((agent) => ({
           id: agent.id,
           name: agent.name,
           role: agent.role,
@@ -92,7 +107,7 @@ router.get('/', async (req: Request, res: Response) => {
           maxTokens: agent.maxTokens || 200000,
           temperature: agent.temperature || 0.7,
           createdAt: agent.created || new Date().toISOString(),
-          updatedAt: agent.created || new Date().toISOString()
+          updatedAt: agent.created || new Date().toISOString(),
         }))
       }
       console.timeEnd('load-agent-configs')
@@ -101,30 +116,39 @@ router.get('/', async (req: Request, res: Response) => {
     // Load role assignments for all projects if requested
     if (includeRoles === 'true') {
       console.time('load-role-assignments')
-      const projectIds = projects.map(p => p.id)
-      
-      try {
-        // Try batch loading with new service
-        const roleMap = await agentConfigService.getBatchProjectRoleAssignments(projectIds)
-        workspaceData.roleAssignments = Object.fromEntries(roleMap)
-      } catch (error) {
-        console.log('Role assignments not available in new service:', error)
-        // Initialize empty role assignments
-        projectIds.forEach(id => {
-          workspaceData.roleAssignments[id] = []
-        })
-      }
+      const projectIds = projects.map((p) => p.id)
+
+      // For Studio Projects, we'll get role assignments with the agents
+      projectIds.forEach((id) => {
+        workspaceData.roleAssignments[id] = []
+      })
       console.timeEnd('load-role-assignments')
     }
 
     // Load project agents for specific project or all projects
     console.time('load-project-agents')
-    const targetProjects = projectId ? [projectId] : projects.map(p => p.id)
-    
+    const targetProjects = projectId ? [projectId] : projects.map((p) => p.id)
+
     for (const pid of targetProjects) {
       try {
-        const agents = await projectService.getProjectAgents(pid)
-        workspaceData.projectAgents[pid] = agents as ProjectAgent[]
+        // Get agents with short IDs from Studio Projects
+        const agentsWithShortIds = await studioProjectService.getProjectAgentsWithShortIds(pid)
+
+        // Convert to ProjectAgent format
+        const projectAgents: ProjectAgent[] = agentsWithShortIds.map((a) => ({
+          id: a.shortId,
+          configId: a.agentConfigId,
+          name: a.agentConfig?.name || a.role,
+          role: a.role,
+          status: 'offline' as const,
+          sessionId: null,
+          messageCount: 0,
+          totalTokens: 0,
+          lastMessage: '',
+          hasSession: false,
+        }))
+
+        workspaceData.projectAgents[pid] = projectAgents
       } catch (error) {
         console.error(`Failed to load agents for project ${pid}:`, error)
         workspaceData.projectAgents[pid] = []
@@ -133,7 +157,7 @@ router.get('/', async (req: Request, res: Response) => {
     console.timeEnd('load-project-agents')
 
     console.timeEnd('workspace-data-load')
-    
+
     res.json(workspaceData)
   } catch (error) {
     console.error('Failed to load workspace data:', error)
@@ -145,27 +169,36 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:projectId', async (req: Request, res: Response) => {
   try {
     const { projectId } = req.params
-    const { includeAgents = 'true', includeRoles = 'true' } = req.query as Omit<WorkspaceQuery, 'projectId'>
-    
+    const { includeAgents = 'true', includeRoles = 'true' } = req.query as Omit<
+      WorkspaceQuery,
+      'projectId'
+    >
+
     console.time(`workspace-data-load-${projectId}`)
-    
+
     const workspaceData: WorkspaceData = {
       projects: [],
       agentConfigs: [],
       roleAssignments: {},
-      projectAgents: {}
+      projectAgents: {},
     }
 
-    // Load specific project
+    // Load specific project from Studio Projects
     console.time('load-single-project')
-    const projects = await projectService.getAllProjects()
-    const project = projects.find(p => p.id === projectId)
-    
-    if (!project) {
+    try {
+      const studioProject = await studioProjectService.getProjectWithAgents(projectId)
+      const project = {
+        id: studioProject.id,
+        name: studioProject.name,
+        description: studioProject.description,
+        workspacePath: studioProject.workspacePath,
+        agents: [],
+        agentInstances: [],
+      }
+      workspaceData.projects = [project]
+    } catch (_error) {
       return res.status(404).json({ error: 'Project not found' })
     }
-    
-    workspaceData.projects = [project]
     console.timeEnd('load-single-project')
 
     // Load agent configurations if requested
@@ -176,7 +209,7 @@ router.get('/:projectId', async (req: Request, res: Response) => {
       } catch (error) {
         console.log('Falling back to legacy agent service for single project:', error)
         const legacyAgents = await legacyAgentService.getAllAgents()
-        workspaceData.agentConfigs = legacyAgents.map(agent => ({
+        workspaceData.agentConfigs = legacyAgents.map((agent) => ({
           id: agent.id,
           name: agent.name,
           role: agent.role,
@@ -186,7 +219,7 @@ router.get('/:projectId', async (req: Request, res: Response) => {
           maxTokens: agent.maxTokens || 200000,
           temperature: agent.temperature || 0.7,
           createdAt: agent.created || new Date().toISOString(),
-          updatedAt: agent.created || new Date().toISOString()
+          updatedAt: agent.created || new Date().toISOString(),
         }))
       }
       console.timeEnd('load-agent-configs-single')
@@ -195,21 +228,32 @@ router.get('/:projectId', async (req: Request, res: Response) => {
     // Load role assignments for this project if requested
     if (includeRoles === 'true') {
       console.time('load-role-assignments-single')
-      try {
-        const assignments = await agentConfigService.getProjectRoleAssignments(projectId)
-        workspaceData.roleAssignments[projectId] = assignments
-      } catch (error) {
-        console.log('Role assignments not available for project:', error)
-        workspaceData.roleAssignments[projectId] = []
-      }
+      // For Studio Projects, role assignments are handled with agents
+      workspaceData.roleAssignments[projectId] = []
       console.timeEnd('load-role-assignments-single')
     }
 
     // Load project agents
     console.time('load-project-agents-single')
     try {
-      const agents = await projectService.getProjectAgents(projectId)
-      workspaceData.projectAgents[projectId] = agents as ProjectAgent[]
+      // Get agents with short IDs from Studio Projects
+      const agentsWithShortIds = await studioProjectService.getProjectAgentsWithShortIds(projectId)
+
+      // Convert to ProjectAgent format
+      const projectAgents: ProjectAgent[] = agentsWithShortIds.map((a) => ({
+        id: a.shortId,
+        configId: a.agentConfigId,
+        name: a.agentConfig?.name || a.role,
+        role: a.role,
+        status: 'offline' as const,
+        sessionId: null,
+        messageCount: 0,
+        totalTokens: 0,
+        lastMessage: '',
+        hasSession: false,
+      }))
+
+      workspaceData.projectAgents[projectId] = projectAgents
     } catch (error) {
       console.error(`Failed to load agents for project ${projectId}:`, error)
       workspaceData.projectAgents[projectId] = []
@@ -217,7 +261,7 @@ router.get('/:projectId', async (req: Request, res: Response) => {
     console.timeEnd('load-project-agents-single')
 
     console.timeEnd(`workspace-data-load-${projectId}`)
-    
+
     res.json(workspaceData)
   } catch (error) {
     console.error('Failed to load project workspace data:', error)
@@ -230,9 +274,9 @@ router.post('/refresh', async (req: Request, res: Response) => {
   try {
     // Clear caches in services
     agentConfigService.clearCache()
-    
+
     // Could also clear other service caches here
-    
+
     res.json({ success: true, message: 'Workspace cache refreshed' })
   } catch (error) {
     console.error('Failed to refresh workspace cache:', error)
@@ -248,9 +292,9 @@ router.get('/health', async (req: Request, res: Response) => {
       services: {
         projects: 'unknown',
         agentConfigs: 'unknown',
-        projectAgents: 'unknown'
+        projectAgents: 'unknown',
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     }
 
     // Test project service
@@ -286,10 +330,10 @@ router.get('/health', async (req: Request, res: Response) => {
     res.json(health)
   } catch (error) {
     console.error('Health check failed:', error)
-    res.status(500).json({ 
-      status: 'unhealthy', 
+    res.status(500).json({
+      status: 'unhealthy',
       error: 'Health check failed',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     })
   }
 })

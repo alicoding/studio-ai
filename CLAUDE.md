@@ -5,6 +5,7 @@ This file provides guidance to Claude (claude.ai) when working with the Claude S
 ## Development Principles
 
 ### MANDATORY Requirements:
+
 - **SOLID**: Single responsibility, Open/closed, Liskov substitution, Interface segregation, Dependency inversion
 - **DRY**: Don't Repeat Yourself - centralize common logic
 - **KISS**: Keep It Simple, Stupid - prefer simple solutions
@@ -36,15 +37,17 @@ This file provides guidance to Claude (claude.ai) when working with the Claude S
 ## Common Commands
 
 ### Development
+
 ```bash
 npm run dev      # Start development server
 npm run server   # Start backend server
 npm run build    # Build for production
 npm run lint     # Run ESLint
-npm run typecheck # Run TypeScript checks
+npm run type-check # Run TypeScript checks
 ```
 
 ### Testing
+
 ```bash
 npm test         # Run all tests
 npm run test:api # Test API endpoints
@@ -68,71 +71,47 @@ claude-studio/
 └── public/              # Static assets
 ```
 
+## Standards
 
-## MCP Studio AI Invoke Tool
+- **@docs/standards/typescript.md** - NO 'any' policy, proper types
+- **@docs/standards/api-patterns.md** - ky usage, error handling, path expansion
+- **@docs/standards/components.md** - Modal patterns, form reset, memoization
 
-**PRODUCTION-READY**: Multi-agent workflows with coordination, dependencies, and resume functionality.
+## Studio Projects & Agents
 
-### Quick Usage
+### Agent Management
+
+- **Short IDs**: Project agents use `{role}_{number}` format (e.g., `dev_01`, `ux_01`)
+- **Project-Specific**: Each Studio project has its own agent instances
+- **API**: Use `/api/studio-projects` endpoints (not legacy `/api/projects`)
+
+### Invoke System
+
 ```javascript
-// Single agent task
-const response = await invoke({
-  workflow: { role: "dev", task: "Create a hello world function" }
-})
+// By role (legacy - still works)
+invoke({ workflow: { role: 'dev', task: '...' } })
 
-// Multi-agent workflow with dependencies
-const response = await invoke({
+// By agentId (NEW - use short IDs)
+invoke({ workflow: { agentId: 'dev_01', task: '...' } })
+
+// Multi-agent workflows
+invoke({
   workflow: [
-    { id: "architect", role: "orchestrator", task: "Design system architecture" },
-    { id: "implement", role: "dev", task: "Implement {architect.output}", deps: ["architect"] }
+    { id: 'step1', agentId: 'dev_01', task: '...' },
+    { id: 'step2', agentId: 'ux_01', task: '{step1.output}', deps: ['step1'] },
   ],
-  threadId: "my-workflow-123"  // For resume functionality
 })
 ```
 
-### Key Features
-- **Context-Aware Operator**: Evaluates outputs based on role/task context (no hardcoded keywords)
-- **Dependency Resolution**: Template variables like `{stepId.output}` work correctly
-- **Session Management**: Automatic resume with same `threadId`
-- **Abort Handling**: Graceful shutdown with session preservation
-- **1-Hour Timeout**: Supports long-running Claude Code operations
-
-### API Endpoints
-- `POST /api/invoke` - Execute workflows
-- `POST /api/invoke/status/:threadId` - Query workflow state for resume
-- `GET /api/operator/config` - Check operator configuration
-- `POST /api/operator/test` - Test operator evaluation
-
-### Documentation
-- **Production Guide**: `docs/mcp-invoke-production-guide.md` - Complete usage guide
-- **Examples**: `docs/mcp-invoke-examples.md` - Real-world workflow patterns
-- **Troubleshooting**: `docs/mcp-invoke-troubleshooting.md` - Debug common issues
-
-### Tested Scenarios (100% Success Rate)
-- Sequential code development workflows
-- Parallel feature development with coordination
-- Code review and refactoring workflows
-- Complex multi-developer coordination (up to 12 steps)
-- Session resume and abort handling
-- Long-running operations (tested up to 1 hour)
-
-**Ready for dogfooding in production environments.**
-
 ## Important Notes
 
-- Always test with `npm run lint` and `npm run typecheck` before considering work complete
+- Always test with `npm run lint` and `npm run type-check` before considering work complete
 - Follow existing patterns in the codebase
 - Use the built-in semantic search for all code search operations
 - **Use MCP invoke tool for multi-agent workflows and complex coordinated tasks**
 - Maintain backwards compatibility with existing features
 - Document significant changes in relevant docs/ files
-
-## Testing Approach
-
-1. **Integration Tests**: Test real API endpoints with actual server
-2. **Component Tests**: Test UI components in isolation
-3. **E2E Tests**: Test complete user workflows
-4. **Manual Testing**: Always manually verify UI changes
+- **Server restart required** when changing API schemas or core services
 
 ## Contact
 

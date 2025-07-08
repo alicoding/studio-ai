@@ -3,12 +3,14 @@ import { useState } from 'react'
 import { ProjectCard } from '../../components/projects/ProjectCard'
 import { CreateProjectModal } from '../../components/projects/CreateProjectModal'
 import { EditProjectModal } from '../../components/projects/EditProjectModal'
+import { DeleteProjectModal } from '../../components/modals/DeleteProjectModal'
 import { PageLayout } from '../../components/layout/PageLayout'
 import { useProjectStore, type Project } from '../../stores'
 import { useProjects } from '../../hooks/useProjects'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Search, Plus, FolderOpen } from 'lucide-react'
+import ky from 'ky'
 
 export const Route = createFileRoute('/projects/')({
   component: ProjectsListingPage,
@@ -16,54 +18,84 @@ export const Route = createFileRoute('/projects/')({
 
 function ProjectsListingPage() {
   const navigate = useNavigate()
-  
+
   // DRY: Use shared hook for fetching projects
-  const { projects, isLoading, error } = useProjects()
-  const { addProject, removeProject, updateProjectMetadata, openProjectInWorkspace } = useProjectStore()
+  const { projects, isLoading, error, refetch: fetchProjects } = useProjects()
+  const { addProject, updateProjectMetadata, openProjectInWorkspace } = useProjectStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [deletingProject, setDeletingProject] = useState<Project | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const filteredProjects = projects.filter(
     (project) =>
       project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (project.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false) ||
-      project.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+      project.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   )
 
-  const handleCreateProject = (projectData: { name: string; description: string; path?: string; template?: string; gitInit?: boolean }) => {
-    const newProject = {
-      id: `project-${Date.now()}`,
-      name: projectData.name,
-      description: projectData.description,
-      path: projectData.path || `~/projects/${projectData.name.toLowerCase().replace(/\s+/g, '-')}`,
-      createdAt: new Date().toISOString(),
-      lastModified: new Date().toISOString(),
-      sessionCount: 0,
-      lastSessionAt: undefined,
-      status: 'active' as const,
-      tags: projectData.template ? [projectData.template] : [],
-      favorite: false,
+  const handleCreateProject = async (projectData: {
+    name: string
+    description: string
+    path?: string
+    template?: string
+    gitInit?: boolean
+    claudeInstructions?: string
+    agents?: Array<{ configId: string; role: string }>
+    teamId?: string
+  }) => {
+    try {
+      // Create project via Studio Projects API
+      await ky.post('/api/studio-projects', {
+        json: {
+          name: projectData.name,
+          description: projectData.description,
+          workspacePath:
+            projectData.path || `~/projects/${projectData.name.toLowerCase().replace(/\s+/g, '-')}`,
+          template: projectData.template,
+          claudeInstructions: projectData.claudeInstructions,
+          // If teamId is provided, use that instead of individual agents
+          ...(projectData.teamId
+            ? {
+                teamTemplateId: projectData.teamId,
+              }
+            : {
+                agents:
+                  projectData.agents?.map((agent) => ({
+                    role: agent.role,
+                    agentConfigId: agent.configId,
+                  })) || [],
+              }),
+        },
+      })
+
+      // Refresh projects list
+      await fetchProjects()
+      setShowCreateModal(false)
+    } catch (error) {
+      console.error('Error creating project:', error)
+      alert('Failed to create project. Please try again.')
     }
-    addProject(newProject)
-    setShowCreateModal(false)
   }
 
   const isSystemProject = (project: Project) => {
     // Check if it's a system-level project that shouldn't be deleted
     if (!project.path) return false
-    
+
     // Projects at root level or system paths should be read-only
     const path = project.path.toLowerCase()
     return (
+      // Claude Code managed projects
       path === '/' ||
       path.startsWith('/users/') ||
       path.startsWith('/home/') ||
       path.startsWith('/system/') ||
       path.startsWith('/library/') ||
       path.includes('/.claude/') ||
-      project.id.startsWith('-Users-ali-') // Claude Code managed projects
+      project.id.startsWith('-Users-ali-')
     )
   }
 
@@ -73,15 +105,43 @@ function ProjectsListingPage() {
 
     // Prevent deletion of system projects and Claude Code managed projects
     if (isSystemProject(project)) {
-      alert(`Cannot delete "${project.name}". This is a Claude Code managed project. You can only archive it from the project details page.`)
+      alert(
+        `Cannot delete "${project.name}". This is a Claude Code managed project. You can only archive it from the project details page.`
+      )
       return
     }
 
-    // Show warning for any deletion
-    const confirmMessage = `Are you sure you want to delete "${project.name}"?\n\nThis will:\n- Remove the project from Claude Studio\n- NOT delete the actual files on disk\n- NOT affect Claude Code session history\n\nThis action cannot be undone.`
-    
-    if (confirm(confirmMessage)) {
-      removeProject(id)
+    // Show delete modal instead of browser confirm
+    setDeletingProject(project)
+    setShowDeleteModal(true)
+  }
+
+  const handleDeleteProjectFromAPI = async () => {
+    if (!deletingProject) return
+
+    setIsDeleting(true)
+    try {
+      // Delete from Studio Projects API
+      await ky.delete(`/api/studio-projects/${deletingProject.id}`)
+
+      // Refresh projects list to reflect the deletion
+      await fetchProjects()
+
+      // Close modal and reset state
+      setShowDeleteModal(false)
+      setDeletingProject(null)
+    } catch (error) {
+      console.error('Error deleting project:', error)
+      alert('Failed to delete project. Please try again.')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleCloseDeleteModal = () => {
+    if (!isDeleting) {
+      setShowDeleteModal(false)
+      setDeletingProject(null)
     }
   }
 
@@ -91,7 +151,9 @@ function ProjectsListingPage() {
 
     // For Claude Code managed projects, cloning doesn't make sense since they're tied to file system locations
     if (isSystemProject(project)) {
-      alert(`Cannot clone "${project.name}". Claude Code managed projects are tied to specific file system locations and cannot be cloned. Consider creating a new project instead.`)
+      alert(
+        `Cannot clone "${project.name}". Claude Code managed projects are tied to specific file system locations and cannot be cloned. Consider creating a new project instead.`
+      )
       return
     }
 
@@ -163,8 +225,18 @@ function ProjectsListingPage() {
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="text-destructive mb-4">
-              <svg className="w-16 h-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="w-16 h-16 mx-auto"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
             </div>
             <h3 className="text-lg font-semibold mb-2">Failed to load projects</h3>
@@ -217,6 +289,14 @@ function ProjectsListingPage() {
           }}
           project={editingProject}
           onSave={handleSaveProjectMetadata}
+        />
+
+        <DeleteProjectModal
+          isOpen={showDeleteModal}
+          onClose={handleCloseDeleteModal}
+          onConfirm={handleDeleteProjectFromAPI}
+          projectName={deletingProject?.name || ''}
+          isDeleting={isDeleting}
         />
       </div>
     </PageLayout>
