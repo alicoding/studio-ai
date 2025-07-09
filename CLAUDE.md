@@ -109,39 +109,37 @@ claude-studio/
 **📝 LangGraph Usage Note**: Currently using minimal LangGraph features (StateGraph, MemorySaver).
 See `docs/mcp-ai-first-implementation.md` for full LangGraph capabilities analysis and enhancement roadmap.
 
-```javascript
-// By role (legacy - still works)
-invoke({ workflow: { role: 'dev', task: '...' } })
+**⚠️ IMPORTANT**: Studio projects require agents to be added before invoking workflows. Use `add_agent_to_project` first.
 
-// By agentId (NEW - use short IDs)
-invoke({ workflow: { agentId: 'dev_01', task: '...' } })
+```javascript
+// Step 1: Add agents to project (if not already added)
+add_agent_to_project({
+  projectId: 'your-project-id',
+  agentConfigId: '68c57432-3e06-4e0c-84d0-36f63bed17b2', // Full Stack Developer
+  role: 'developer',
+})
+
+// Step 2: Use agentId format (recommended)
+invoke({ workflow: { agentId: 'developer_01', task: '...' } })
 
 // Multi-agent workflows with dependencies
 invoke({
   workflow: [
-    { id: 'step1', agentId: 'dev_01', task: '...' },
-    { id: 'step2', agentId: 'ux_01', task: '{step1.output}', deps: ['step1'] },
+    { id: 'step1', agentId: 'developer_01', task: '...' },
+    { id: 'step2', agentId: 'reviewer_01', task: '{step1.output}', deps: ['step1'] },
   ],
-  projectId: 'your-project-id',
   threadId: 'workflow-123', // For resume functionality
 })
 
-// Complex parallel workflows (TESTED)
+// Role-based invocation (legacy but still works if agents are configured)
 invoke({
   workflow: [
     { id: 'architecture', role: 'architect', task: 'Design system...' },
-    { id: 'infrastructure', role: 'devops', task: 'Create deployment...' },
     {
       id: 'implementation',
       role: 'developer',
-      task: 'Implement based on {architecture.output}',
+      task: 'Implement {architecture.output}',
       deps: ['architecture'],
-    },
-    {
-      id: 'review',
-      role: 'reviewer',
-      task: 'Review {implementation.output} and {infrastructure.output}',
-      deps: ['implementation', 'infrastructure'],
     },
   ],
 })

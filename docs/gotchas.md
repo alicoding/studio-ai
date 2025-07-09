@@ -238,3 +238,24 @@
   - Quick prompts like "hello" or "test" complete too fast to interrupt
   - To test abort, use longer prompts like "Write a detailed 500-word essay about..." and press ESC quickly
   - If assistant message is already received, abort flag prevents UI display but doesn't stop generation
+
+## MCP Invoke Agent Resolution (2025-01-09)
+
+- Studio projects don't have active agents by default - agents must be added first
+- Use `mcp__studio-ai__add_agent_to_project` to add agents before invoking workflows
+- Agent IDs in Studio use short format: `dev_01`, `developer_01`, `reviewer_01` etc.
+- The invoke tool accepts both `role` (legacy) and `agentId` (new) patterns
+- If workflow fails with "No agent found", check:
+  - Project has agents added (use `list_project_agents` to verify)
+  - Using correct agentId format (e.g., `developer_01` not `dev`)
+  - Agent with that ID exists in the project
+
+## Async Workflow API Testing (2025-01-09)
+
+- EventSource in tests requires proper TypeScript typing - mock or cast to avoid type errors
+- EventSource.onerror expects Event, not ErrorEvent in browser spec
+- Always type API responses to avoid TS18046 'unknown' errors
+- SSE test pattern: Use Promise wrapper around EventSource for async/await compatibility
+- Mock EventSource for unit tests to simulate SSE events without real server
+- Status endpoints may return 404 initially - handle this gracefully in tests
+- Use `ky` for HTTP requests to match production code patterns
