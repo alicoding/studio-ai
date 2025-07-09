@@ -1,28 +1,47 @@
 /**
  * Default tool configurations for different agent roles
  * KISS/DRY: Uses permission presets instead of hardcoded tool lists
+ * Now works with dynamic tools from Claude SDK
  */
 
 import { ToolPermission, PERMISSION_PRESETS, applyPreset } from '../../types/tool-permissions'
 
+/**
+ * Get role default tools based on available tools from Claude SDK
+ */
+export function getRoleDefaultTools(availableTools: string[]): Record<string, ToolPermission[]> {
+  return {
+    // Developer role - full development capabilities
+    dev: applyPreset(PERMISSION_PRESETS.developer, availableTools),
+
+    // Architect role - design and documentation focus
+    architect: applyPreset(PERMISSION_PRESETS.architect, availableTools),
+
+    // UX Designer - UI/UX focused permissions (use developer preset as base)
+    ux: applyPreset(PERMISSION_PRESETS.developer, availableTools),
+
+    // Tester - read and testing capabilities (use reviewer preset as base)
+    tester: applyPreset(PERMISSION_PRESETS.reviewer, availableTools),
+
+    // Orchestrator - coordination and management (use architect preset)
+    orchestrator: applyPreset(PERMISSION_PRESETS.architect, availableTools),
+
+    // Default for custom roles (use read-only as safe default)
+    custom: applyPreset(PERMISSION_PRESETS.read_only, availableTools),
+  }
+}
+
+/**
+ * Legacy export for backward compatibility - uses empty defaults
+ * @deprecated Use getRoleDefaultTools(availableTools) instead
+ */
 export const ROLE_DEFAULT_TOOLS: Record<string, ToolPermission[]> = {
-  // Developer role - full development capabilities
-  dev: applyPreset(PERMISSION_PRESETS.developer),
-
-  // Architect role - design and documentation focus
-  architect: applyPreset(PERMISSION_PRESETS.architect),
-
-  // UX Designer - UI/UX focused permissions (use developer preset as base)
-  ux: applyPreset(PERMISSION_PRESETS.developer),
-
-  // Tester - read and testing capabilities (use reviewer preset as base)
-  tester: applyPreset(PERMISSION_PRESETS.reviewer),
-
-  // Orchestrator - coordination and management (use architect preset)
-  orchestrator: applyPreset(PERMISSION_PRESETS.architect),
-
-  // Default for custom roles (use read-only as safe default)
-  custom: applyPreset(PERMISSION_PRESETS.read_only),
+  dev: [],
+  architect: [],
+  ux: [],
+  tester: [],
+  orchestrator: [],
+  custom: [],
 }
 
 export const ROLE_SYSTEM_PROMPTS: Record<string, string> = {

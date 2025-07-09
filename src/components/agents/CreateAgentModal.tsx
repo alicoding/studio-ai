@@ -8,9 +8,10 @@ import { Label } from '../ui/label'
 import { Textarea } from '../ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Save, Wand2 } from 'lucide-react'
-import { ROLE_DEFAULT_TOOLS, ROLE_SYSTEM_PROMPTS } from '../../lib/tools/roleDefaults'
+import { getRoleDefaultTools, ROLE_SYSTEM_PROMPTS } from '../../lib/tools/roleDefaults'
 import { ModalLayout } from '../ui/modal-layout'
 import { ToolPermissionEditor } from '../ui/ToolPermissionEditor'
+import { useAvailableTools } from '../../hooks/useAvailableTools'
 
 const agentSchema = z.object({
   name: z.string().min(1, 'Agent name is required').max(50, 'Name too long'),
@@ -55,6 +56,7 @@ const ROLE_OPTIONS = [
 
 export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAgentModalProps) {
   const isEditMode = Boolean(agent)
+  const { tools: availableTools } = useAvailableTools()
 
   const form = useForm<AgentFormData>({
     resolver: zodResolver(agentSchema),
@@ -62,7 +64,7 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
       name: '',
       role: 'dev',
       systemPrompt: '',
-      tools: ROLE_DEFAULT_TOOLS.dev || [],
+      tools: [],
       model: 'claude-opus-4',
       maxTokens: 200000,
     },
@@ -80,19 +82,20 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
         model: agent.model,
         maxTokens: agent.maxTokens || 200000,
       })
-    } else if (isOpen) {
+    } else if (isOpen && availableTools.length > 0) {
       // Create mode - reset to defaults with role-specific values
       const defaultRole = 'dev'
+      const roleDefaults = getRoleDefaultTools(availableTools)
       form.reset({
         name: '',
         role: defaultRole,
         systemPrompt: ROLE_SYSTEM_PROMPTS[defaultRole] || '',
-        tools: ROLE_DEFAULT_TOOLS[defaultRole] || [],
+        tools: roleDefaults[defaultRole] || [],
         model: 'claude-opus-4',
         maxTokens: 200000,
       })
     }
-  }, [isOpen, agent, form])
+  }, [isOpen, agent, form, availableTools])
 
   const onSubmit = (data: AgentFormData) => {
     onCreate({
@@ -106,8 +109,11 @@ export function CreateAgentModal({ isOpen, onClose, onCreate, agent }: CreateAge
   const handleRoleChange = (role: string) => {
     form.setValue('role', role)
     // Apply role defaults when role changes
-    if (ROLE_DEFAULT_TOOLS[role]) {
-      form.setValue('tools', ROLE_DEFAULT_TOOLS[role])
+    if (availableTools.length > 0) {
+      const roleDefaults = getRoleDefaultTools(availableTools)
+      if (roleDefaults[role]) {
+        form.setValue('tools', roleDefaults[role])
+      }
     }
     if (ROLE_SYSTEM_PROMPTS[role]) {
       form.setValue('systemPrompt', ROLE_SYSTEM_PROMPTS[role])

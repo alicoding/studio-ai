@@ -387,6 +387,27 @@ export class UnifiedAgentConfigService {
       tools = [] // Safe fallback
     }
 
+    // Handle timestamp conversion safely
+    const now = new Date().toISOString()
+    let createdAt = now
+    let updatedAt = now
+
+    try {
+      if (dbRecord.createdAt) {
+        createdAt = new Date(dbRecord.createdAt).toISOString()
+      }
+    } catch (_error) {
+      console.warn(`Invalid createdAt timestamp for agent ${dbRecord.id}, using current time`)
+    }
+
+    try {
+      if (dbRecord.updatedAt) {
+        updatedAt = new Date(dbRecord.updatedAt).toISOString()
+      }
+    } catch (_error) {
+      console.warn(`Invalid updatedAt timestamp for agent ${dbRecord.id}, using current time`)
+    }
+
     return {
       id: dbRecord.id,
       name: dbRecord.name,
@@ -396,8 +417,8 @@ export class UnifiedAgentConfigService {
       model: dbRecord.model,
       maxTokens: dbRecord.maxTokens ?? 200000,
       temperature: parseFloat(dbRecord.temperature ?? '0.7'),
-      createdAt: dbRecord.createdAt.toISOString(),
-      updatedAt: dbRecord.updatedAt.toISOString(),
+      createdAt,
+      updatedAt,
     }
   }
 
@@ -486,5 +507,62 @@ export class UnifiedAgentConfigService {
     const newPermissions = this.toolPermissionService.applyPresetToRole(presetName, currentTools)
 
     return this.updateToolPermissions(agentConfigId, newPermissions)
+  }
+
+  /**
+   * Ensure all agent configurations have proper tool permissions
+   * This method can be called manually to run the tool permissions migration
+   */
+  async ensureToolPermissions(): Promise<{
+    updatedCount: number
+    alreadyMigratedCount: number
+    errorCount: number
+    totalProcessed: number
+  }> {
+    const configs = await this.getAllConfigs()
+
+    const stats = {
+      updatedCount: 0,
+      alreadyMigratedCount: 0,
+      errorCount: 0,
+      totalProcessed: configs.length,
+    }
+
+    for (const config of configs) {
+      try {
+        // Parse current tools using the service
+        const currentTools = this.toolPermissionService.parseTools(config.tools)
+
+        // Check if tools are in old string[] format or empty
+        let needsUpdate = false
+        if (Array.isArray(currentTools)) {
+          // Check if first element is a string (old format) or already ToolPermission object
+          if (currentTools.length === 0 || typeof currentTools[0] === 'string') {
+            needsUpdate = true
+          } else if (typeof currentTools[0] === 'object' && 'name' in currentTools[0]) {
+            stats.alreadyMigratedCount++
+          } else {
+            needsUpdate = true
+          }
+        } else {
+          needsUpdate = true
+        }
+
+        if (needsUpdate) {
+          // Apply read-only preset as default
+          const updatedConfig = await this.applyPermissionPreset(config.id, 'read_only')
+          if (updatedConfig) {
+            stats.updatedCount++
+          } else {
+            stats.errorCount++
+          }
+        }
+      } catch (error) {
+        console.error(`Error processing agent ${config.name}:`, error)
+        stats.errorCount++
+      }
+    }
+
+    return stats
   }
 }

@@ -32,6 +32,7 @@ import claudeLaunchRouter from './api/claude-launch.js'
 import studioProjectsRouter from './api/studio-projects.js'
 import toolPermissionsRouter from './api/tool-permissions.js'
 import healthRouter from './api/health'
+import toolsRouter from './api/tools'
 // import configRouter from './api/config.js' // Temporarily disabled due to client-side dependency
 
 // Import WebSocket handler
@@ -128,6 +129,7 @@ app.use('/api/claude-projects', claudeProjectsRouter)
 app.use('/api/claude-launch', claudeLaunchRouter)
 app.use('/api/studio-projects', studioProjectsRouter)
 app.use('/api/tool-permissions', toolPermissionsRouter)
+app.use('/api/tools', toolsRouter)
 app.use('/api/health', healthRouter)
 // app.use('/api/config', configRouter) // Temporarily disabled due to client-side dependency
 
@@ -182,6 +184,11 @@ httpServer.listen(PORT, async () => {
 
   // Initialize Studio Intelligence (smart defaults)
   await initializeStudioIntelligence()
+
+  // Discover available tools from Claude SDK
+  const { ToolDiscoveryService } = await import('./services/ToolDiscoveryService.js')
+  const toolDiscovery = ToolDiscoveryService.getInstance()
+  await toolDiscovery.discoverTools()
 })
 
 // Setup graceful shutdown using the library

@@ -283,6 +283,35 @@ function runMigrations() {
         console.error('Failed to run project_claude_paths migration:', error)
       })
   }
+
+  // Check if we need to run tool permissions migration
+  const hasToolPermissionsMigration = sqliteInstance
+    .prepare(
+      `
+    SELECT COUNT(*) as count 
+    FROM migrations 
+    WHERE name = '005_ensure_tool_permissions'
+  `
+    )
+    .get() as { count: number }
+
+  if (hasToolPermissionsMigration.count === 0) {
+    // Import and run the tool permissions migration
+    import('./migrations/005_ensure_tool_permissions')
+      .then((module) => {
+        module.up(sqliteInstance!)
+
+        // Mark migration as complete
+        sqliteInstance!
+          .prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)')
+          .run('005_ensure_tool_permissions')
+
+        console.log('✅ Ensured agent tool permissions migration completed')
+      })
+      .catch((error) => {
+        console.error('Failed to run tool permissions migration:', error)
+      })
+  }
 }
 
 /**

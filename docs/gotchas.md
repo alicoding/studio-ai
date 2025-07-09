@@ -86,6 +86,18 @@
 - Actual agent instances are created on-demand when messages are sent
 - Tool restrictions are logged with [TOOLS DEBUG] prefix for debugging
 
+## Dynamic Tool Discovery (2025-01-09)
+
+- FIXED: Removed hardcoded TOOL_CATEGORIES mapping that only recognized 8 tools
+- System now uses pattern-based categorization with TOOL_CATEGORY_PATTERNS
+- Tools are discovered dynamically from Claude SDK (currently 16 tools)
+- Updated applyPreset() to accept availableTools parameter for dynamic tool matching
+- Preset detection now works correctly with dynamic tools via detectPreset() function
+- getRoleDefaultTools() replaces static ROLE_DEFAULT_TOOLS for dynamic tool assignment
+- ToolPermissionEditor automatically detects current preset from actual tool states
+- Pattern matching supports: Read/Write/Edit (FILE_SYSTEM), Bash (EXECUTION), Grep/Glob (SEARCH), WebSearch/WebFetch (WEB), mcp\_\_\* (MCP), etc.
+- All hardcoded tool references removed from CreateAgentModal and other components
+
 ## Tool Permission Isolation (2025-01-09)
 
 - Project-specific tool customizations are stored in `agentRoleAssignments.customTools`

@@ -61,52 +61,37 @@ export interface PermissionPreset {
   categories: Record<ToolCategory, Partial<CategoryPermissions>>
 }
 
-// Tool to category mapping
-export const TOOL_CATEGORIES: Record<string, ToolCategory> = {
-  // File system
-  read: ToolCategory.FILE_SYSTEM,
-  write: ToolCategory.FILE_SYSTEM,
-  edit: ToolCategory.FILE_SYSTEM,
-  multiedit: ToolCategory.FILE_SYSTEM,
+// Tool to category mapping using patterns for dynamic tools from Claude SDK
+export const TOOL_CATEGORY_PATTERNS: Array<{ pattern: RegExp; category: ToolCategory }> = [
+  // File system tools
+  { pattern: /^(Read|Write|Edit|MultiEdit)$/, category: ToolCategory.FILE_SYSTEM },
 
-  // Search
-  grep: ToolCategory.SEARCH,
-  glob: ToolCategory.SEARCH,
-  ls: ToolCategory.SEARCH,
-  semantic_search: ToolCategory.SEARCH,
+  // Search tools
+  { pattern: /^(Grep|Glob|LS)$/, category: ToolCategory.SEARCH },
 
-  // Execution
-  bash: ToolCategory.EXECUTION,
-  notebookread: ToolCategory.EXECUTION,
-  notebookedit: ToolCategory.EXECUTION,
+  // Execution tools
+  { pattern: /^(Bash|NotebookRead|NotebookEdit|executeCode)$/, category: ToolCategory.EXECUTION },
 
-  // Web
-  webfetch: ToolCategory.WEB,
-  websearch: ToolCategory.WEB,
+  // Web tools
+  { pattern: /^(WebFetch|WebSearch)$/, category: ToolCategory.WEB },
 
-  // Planning
-  todoread: ToolCategory.PLANNING,
-  todowrite: ToolCategory.PLANNING,
-  exit_plan_mode: ToolCategory.PLANNING,
-
-  // Collaboration
-  agent: ToolCategory.COLLABORATION,
+  // Planning tools
+  { pattern: /^(TodoRead|TodoWrite|exit_plan_mode)$/, category: ToolCategory.PLANNING },
 
   // MCP tools (pattern matching)
-  ListMcpResourcesTool: ToolCategory.MCP,
-  ReadMcpResourceTool: ToolCategory.MCP,
-}
+  { pattern: /^(mcp__|ListMcpResourcesTool|ReadMcpResourceTool)/, category: ToolCategory.MCP },
 
-// Helper function to categorize tools
+  // Collaboration tools
+  { pattern: /^(agent|messaging)/, category: ToolCategory.COLLABORATION },
+]
+
+// Helper function to categorize tools using pattern matching
 export function getToolCategory(toolName: string): ToolCategory {
-  // Direct mapping
-  if (TOOL_CATEGORIES[toolName]) {
-    return TOOL_CATEGORIES[toolName]
-  }
-
-  // Pattern matching for MCP tools
-  if (toolName.startsWith('mcp__')) {
-    return ToolCategory.MCP
+  // Check each pattern in order
+  for (const { pattern, category } of TOOL_CATEGORY_PATTERNS) {
+    if (pattern.test(toolName)) {
+      return category
+    }
   }
 
   // Default to collaboration for unknown tools
@@ -119,20 +104,11 @@ export const PERMISSION_PRESETS: Record<string, PermissionPreset> = {
     name: 'Read Only',
     description: 'Can only read files and search, no modifications allowed',
     categories: {
-      [ToolCategory.FILE_SYSTEM]: {
-        enabled: true,
-        tools: [{ name: 'read', enabled: true, restrictions: { readOnly: true } }],
-      },
+      [ToolCategory.FILE_SYSTEM]: { enabled: true },
       [ToolCategory.SEARCH]: { enabled: true },
       [ToolCategory.EXECUTION]: { enabled: false },
       [ToolCategory.WEB]: { enabled: true },
-      [ToolCategory.PLANNING]: {
-        enabled: true,
-        tools: [
-          { name: 'todoread', enabled: true },
-          { name: 'todowrite', enabled: false },
-        ],
-      },
+      [ToolCategory.PLANNING]: { enabled: true },
       [ToolCategory.MCP]: { enabled: false },
       [ToolCategory.COLLABORATION]: { enabled: false },
     },
@@ -142,46 +118,12 @@ export const PERMISSION_PRESETS: Record<string, PermissionPreset> = {
     name: 'Developer',
     description: 'Full development capabilities with safety restrictions',
     categories: {
-      [ToolCategory.FILE_SYSTEM]: {
-        enabled: true,
-        tools: [
-          {
-            name: 'write',
-            enabled: true,
-            restrictions: {
-              excludePaths: ['/etc', '/sys', '~/.ssh', '*.env', '**/.git'],
-            },
-          },
-        ],
-      },
+      [ToolCategory.FILE_SYSTEM]: { enabled: true },
       [ToolCategory.SEARCH]: { enabled: true },
-      [ToolCategory.EXECUTION]: {
-        enabled: true,
-        tools: [
-          {
-            name: 'bash',
-            enabled: true,
-            restrictions: {
-              blockedCommands: ['rm -rf /', 'sudo', 'shutdown', 'reboot'],
-              sudo: false,
-            },
-          },
-        ],
-      },
+      [ToolCategory.EXECUTION]: { enabled: true },
       [ToolCategory.WEB]: { enabled: true },
       [ToolCategory.PLANNING]: { enabled: true },
-      [ToolCategory.MCP]: {
-        enabled: true,
-        tools: [
-          {
-            name: 'mcp__*',
-            enabled: true,
-            restrictions: {
-              operations: ['read', 'list', 'get'],
-            },
-          },
-        ],
-      },
+      [ToolCategory.MCP]: { enabled: true },
       [ToolCategory.COLLABORATION]: { enabled: true },
     },
   },
@@ -190,18 +132,7 @@ export const PERMISSION_PRESETS: Record<string, PermissionPreset> = {
     name: 'Architect',
     description: 'Focus on design and documentation with limited execution',
     categories: {
-      [ToolCategory.FILE_SYSTEM]: {
-        enabled: true,
-        tools: [
-          {
-            name: '*',
-            enabled: true,
-            restrictions: {
-              paths: ['./docs', './architecture', './design', '*.md'],
-            },
-          },
-        ],
-      },
+      [ToolCategory.FILE_SYSTEM]: { enabled: true },
       [ToolCategory.SEARCH]: { enabled: true },
       [ToolCategory.EXECUTION]: { enabled: false },
       [ToolCategory.WEB]: { enabled: true },
@@ -217,33 +148,10 @@ export const PERMISSION_PRESETS: Record<string, PermissionPreset> = {
     categories: {
       [ToolCategory.FILE_SYSTEM]: { enabled: true },
       [ToolCategory.SEARCH]: { enabled: true },
-      [ToolCategory.EXECUTION]: {
-        enabled: true,
-        tools: [
-          {
-            name: 'bash',
-            enabled: true,
-            restrictions: {
-              sudo: false,
-              blockedCommands: ['rm -rf /', 'shutdown', 'reboot'],
-            },
-          },
-        ],
-      },
+      [ToolCategory.EXECUTION]: { enabled: true },
       [ToolCategory.WEB]: { enabled: true },
       [ToolCategory.PLANNING]: { enabled: true },
-      [ToolCategory.MCP]: {
-        enabled: true,
-        tools: [
-          {
-            name: 'mcp__*',
-            enabled: true,
-            restrictions: {
-              operations: ['*'], // Full MCP access
-            },
-          },
-        ],
-      },
+      [ToolCategory.MCP]: { enabled: true },
       [ToolCategory.COLLABORATION]: { enabled: true },
     },
   },
@@ -252,36 +160,11 @@ export const PERMISSION_PRESETS: Record<string, PermissionPreset> = {
     name: 'Code Reviewer',
     description: 'Read and analyze code without modification capabilities',
     categories: {
-      [ToolCategory.FILE_SYSTEM]: {
-        enabled: true,
-        tools: [
-          { name: 'read', enabled: true },
-          { name: 'write', enabled: false },
-          { name: 'edit', enabled: false },
-        ],
-      },
+      [ToolCategory.FILE_SYSTEM]: { enabled: true },
       [ToolCategory.SEARCH]: { enabled: true },
-      [ToolCategory.EXECUTION]: {
-        enabled: true,
-        tools: [
-          {
-            name: 'bash',
-            enabled: true,
-            restrictions: {
-              commands: ['git', 'npm test', 'npm run lint', 'grep', 'find'],
-              sudo: false,
-            },
-          },
-        ],
-      },
+      [ToolCategory.EXECUTION]: { enabled: true },
       [ToolCategory.WEB]: { enabled: false },
-      [ToolCategory.PLANNING]: {
-        enabled: true,
-        tools: [
-          { name: 'todoread', enabled: true },
-          { name: 'todowrite', enabled: true },
-        ],
-      },
+      [ToolCategory.PLANNING]: { enabled: true },
       [ToolCategory.MCP]: { enabled: false },
       [ToolCategory.COLLABORATION]: { enabled: false },
     },
@@ -297,7 +180,7 @@ export function convertToolsToPermissions(tools: string[]): ToolPermission[] {
 }
 
 // Apply preset to existing permissions
-export function applyPreset(preset: PermissionPreset, existingTools?: string[]): ToolPermission[] {
+export function applyPreset(preset: PermissionPreset, availableTools?: string[]): ToolPermission[] {
   const permissions: ToolPermission[] = []
 
   // Convert preset categories to tool permissions
@@ -307,24 +190,52 @@ export function applyPreset(preset: PermissionPreset, existingTools?: string[]):
     // If specific tools are defined, use those
     if (config.tools) {
       permissions.push(...config.tools)
-    } else {
-      // Otherwise, enable all tools in the category
-      Object.entries(TOOL_CATEGORIES).forEach(([toolName, toolCategory]) => {
-        if (toolCategory === category) {
+    } else if (availableTools) {
+      // Otherwise, enable all tools in the category from available tools
+      availableTools.forEach((toolName) => {
+        if (getToolCategory(toolName) === category) {
           permissions.push({ name: toolName, enabled: true })
         }
       })
     }
   })
 
-  // If existing tools provided, merge them
-  if (existingTools) {
-    existingTools.forEach((tool) => {
+  // If available tools provided, ensure all tools are represented
+  if (availableTools) {
+    availableTools.forEach((tool) => {
       if (!permissions.find((p) => p.name === tool)) {
-        permissions.push({ name: tool, enabled: true })
+        // Add disabled by default if not in any enabled category
+        permissions.push({ name: tool, enabled: false })
       }
     })
   }
 
   return permissions
+}
+
+// Detect which preset matches the current permissions
+export function detectPreset(
+  permissions: ToolPermission[],
+  availableTools: string[]
+): string | null {
+  if (!permissions.length || !availableTools.length) return null
+
+  // Check each preset to see if it matches the current permissions
+  for (const [presetKey, preset] of Object.entries(PERMISSION_PRESETS)) {
+    const presetPermissions = applyPreset(preset, availableTools)
+
+    // Check if permissions match (same length and all tools have same enabled state)
+    if (presetPermissions.length === permissions.length) {
+      const matches = presetPermissions.every((presetPerm) => {
+        const currentPerm = permissions.find((p) => p.name === presetPerm.name)
+        return currentPerm && currentPerm.enabled === presetPerm.enabled
+      })
+
+      if (matches) {
+        return presetKey
+      }
+    }
+  }
+
+  return null
 }

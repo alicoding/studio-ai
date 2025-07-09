@@ -13,6 +13,8 @@ This file provides guidance to Claude (claude.ai) when working with the Claude S
 - **Type Safety**: NO 'any' types - proper TypeScript types only
 - **Import Paths**: NO file extensions in imports - use `from './module'` not `from './module.js'`
 
+Must commit the work before writing the "Summary" at the end of the task.
+
 ### Architecture Guidelines:
 
 1. **Workspace-Centric Design**

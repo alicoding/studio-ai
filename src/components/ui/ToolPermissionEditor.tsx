@@ -5,7 +5,7 @@
  * KISS: Simple interface with preset and manual options
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from './button'
 import { Label } from './label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
@@ -13,27 +13,20 @@ import { Checkbox } from './checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './card'
 import { Badge } from './badge'
 import { Shield, Eye, EyeOff } from 'lucide-react'
-import { ToolPermission, PERMISSION_PRESETS, applyPreset } from '../../types/tool-permissions'
+import {
+  ToolPermission,
+  PERMISSION_PRESETS,
+  applyPreset,
+  getToolCategory,
+  detectPreset,
+} from '../../types/tool-permissions'
+import { useAvailableTools } from '../../hooks/useAvailableTools'
 
 interface ToolPermissionEditorProps {
   permissions: ToolPermission[]
   onChange: (permissions: ToolPermission[]) => void
   className?: string
 }
-
-// Common Claude Code tools that should always be available
-const CORE_TOOLS = [
-  { name: 'Read', category: 'file_system' },
-  { name: 'Write', category: 'file_system' },
-  { name: 'Edit', category: 'file_system' },
-  { name: 'Bash', category: 'execution' },
-  { name: 'Grep', category: 'search' },
-  { name: 'Glob', category: 'search' },
-  { name: 'LS', category: 'search' },
-  { name: 'TodoWrite', category: 'planning' },
-  { name: 'WebFetch', category: 'web' },
-  { name: 'WebSearch', category: 'web' },
-]
 
 export function ToolPermissionEditor({
   permissions,
@@ -43,13 +36,60 @@ export function ToolPermissionEditor({
   const [selectedPreset, setSelectedPreset] = useState<string>('')
   const [showAdvanced, setShowAdvanced] = useState(false)
 
+  // Get available tools from Claude SDK
+  const { tools: availableTools, loading: toolsLoading } = useAvailableTools()
+
+  // Normalize permissions to include all available tools
+  const normalizedPermissions = useMemo(() => {
+    if (!availableTools.length) return permissions
+
+    const normalized = [...permissions]
+
+    // Add missing tools as disabled
+    availableTools.forEach((toolName) => {
+      if (!normalized.find((p) => p.name === toolName)) {
+        normalized.push({ name: toolName, enabled: false })
+      }
+    })
+
+    return normalized
+  }, [permissions, availableTools])
+
+  // Detect current preset when normalized permissions or tools change
+  useEffect(() => {
+    if (availableTools.length > 0 && normalizedPermissions.length > 0) {
+      const detectedPreset = detectPreset(normalizedPermissions, availableTools)
+      setSelectedPreset(detectedPreset || '')
+    }
+  }, [normalizedPermissions, availableTools])
+
+  // Show loading state while tools are being fetched
+  if (toolsLoading) {
+    return (
+      <Card className={className}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="w-4 h-4" />
+            Tool Permissions
+          </CardTitle>
+          <CardDescription>Loading available tools...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   // Apply a permission preset
   const handlePresetChange = (presetName: string) => {
     if (!presetName) return
 
     const preset = PERMISSION_PRESETS[presetName]
     if (preset) {
-      const newPermissions = applyPreset(preset)
+      const newPermissions = applyPreset(preset, availableTools)
       onChange(newPermissions)
       setSelectedPreset(presetName)
     }
@@ -57,25 +97,25 @@ export function ToolPermissionEditor({
 
   // Toggle individual tool permission
   const handleToolToggle = (toolName: string, enabled: boolean) => {
-    const existing = permissions.find((p) => p.name === toolName)
-    if (existing) {
-      // Update existing permission
-      onChange(permissions.map((p) => (p.name === toolName ? { ...p, enabled } : p)))
-    } else {
-      // Add new permission
-      onChange([...permissions, { name: toolName, enabled }])
-    }
+    const updated = normalizedPermissions.map((p) => (p.name === toolName ? { ...p, enabled } : p))
+    onChange(updated)
   }
 
   // Get permission status for a tool
   const getToolEnabled = (toolName: string): boolean => {
-    const permission = permissions.find((p) => p.name === toolName)
+    const permission = normalizedPermissions.find((p) => p.name === toolName)
     return permission?.enabled ?? false
   }
 
+  // Create tool objects with categories from available tools
+  const toolsWithCategories = availableTools.map((toolName) => ({
+    name: toolName,
+    category: getToolCategory(toolName),
+  }))
+
   // Group tools by category for display
-  const groupedTools = CORE_TOOLS.reduce(
-    (groups, tool) => {
+  const groupedTools = toolsWithCategories.reduce(
+    (groups: Record<string, Array<{ name: string; category: string }>>, tool) => {
       const category = tool.category
       if (!groups[category]) {
         groups[category] = []
@@ -83,11 +123,11 @@ export function ToolPermissionEditor({
       groups[category].push(tool)
       return groups
     },
-    {} as Record<string, typeof CORE_TOOLS>
+    {}
   )
 
-  const enabledCount = permissions.filter((p) => p.enabled).length
-  const totalCount = CORE_TOOLS.length
+  const enabledCount = normalizedPermissions.filter((p) => p.enabled).length
+  const totalCount = availableTools.length
 
   return (
     <Card className={className}>
@@ -153,8 +193,8 @@ export function ToolPermissionEditor({
                 onClick={() => {
                   // Toggle all tools
                   const allEnabled = enabledCount === totalCount
-                  const newPermissions = CORE_TOOLS.map((tool) => ({
-                    name: tool.name,
+                  const newPermissions = availableTools.map((toolName) => ({
+                    name: toolName,
                     enabled: !allEnabled,
                   }))
                   onChange(newPermissions)
