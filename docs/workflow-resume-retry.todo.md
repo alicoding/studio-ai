@@ -497,6 +497,70 @@ Implement SSE-based real-time progress for MCP, non-blocking workflow execution,
   - [ ] Connection pool never exhausted
   - [ ] Automated cleanup working
 
+## DOGFOODING READINESS AUDIT (2025-01-09)
+
+### Current Status: 80% Backend Complete, 0% Frontend Complete
+
+**✅ SOLID BACKEND FOUNDATION**
+
+- Async workflows with PostgresSaver persistence ✅
+- SSE real-time streaming ✅
+- Auto-resume and retry logic ✅
+- MCP tools (invoke_async, invoke_status) ✅
+- API endpoints fully functional ✅
+
+**❌ CRITICAL GAPS FOR DOGFOODING**
+
+- No UI for workflow monitoring (BLOCKING)
+- No real-time progress visualization (BLOCKING)
+- No manual retry/resume controls (BLOCKING)
+- Limited testing coverage (RISK)
+- Missing advanced MCP tools (NICE-TO-HAVE)
+
+### IMMEDIATE ACTION PLAN (3-4 Days to Dogfooding)
+
+**🚨 PRIORITY 1: UI Integration (1-2 days) - BLOCKING**
+
+- [ ] Create WorkflowMonitor component with real-time status
+- [ ] Add useWorkflowSSE hook for EventSource management
+- [ ] Integrate workflow panel into workspace sidebar
+- [ ] Add manual retry/resume buttons
+
+**🚨 PRIORITY 2: E2E Testing (1-2 days) - CRITICAL**
+
+- [ ] Write workflow lifecycle tests (start → progress → complete)
+- [ ] Test failure scenarios and auto-recovery
+- [ ] Test server restart during workflow execution
+- [ ] Add UI component tests for WorkflowMonitor
+
+**🔧 PRIORITY 3: Complete MCP Toolset (1 day) - ENHANCEMENT**
+
+- [ ] Add invoke_stream tool for SSE endpoint access
+- [ ] Add workflow_monitor tool for listing active workflows
+- [ ] Add invoke_resume tool for step-specific recovery
+
+**🗃️ PRIORITY 4: Workflow Persistence (1 day) - FIX**
+
+- [ ] Add workflow_registrations table
+- [ ] Fix WorkflowMonitor to survive server restarts
+- [ ] Enable cross-restart stale workflow detection
+
+### DOGFOODING SUCCESS CRITERIA
+
+1. **User Visibility**: See workflow progress in real-time ✅ Ready after Priority 1
+2. **Manual Control**: Retry/resume failed workflows ✅ Ready after Priority 1
+3. **Reliability**: Workflows survive server restarts ✅ Ready after Priority 4
+4. **Testing**: Prove system works under failure ✅ Ready after Priority 2
+
+### IMPLEMENTATION ORDER FOR DOGFOODING
+
+1. **Day 1**: UI components (WorkflowMonitor + SSE hook)
+2. **Day 2**: Workspace integration + basic testing
+3. **Day 3**: E2E tests + failure scenarios
+4. **Day 4**: Polish + workflow persistence fix
+
+**Result**: Internal team can dogfood async workflows with full visibility and control
+
 ## Implementation Summary (2025-01-09)
 
 ### Phase 6: PostgresSaver Implementation ✅ COMPLETED

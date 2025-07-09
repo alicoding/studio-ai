@@ -86,6 +86,17 @@
 - Actual agent instances are created on-demand when messages are sent
 - Tool restrictions are logged with [TOOLS DEBUG] prefix for debugging
 
+## ToolPermissionEditor Data Flow Issues (2025-01-09)
+
+- FIXED: ToolPermissionEditor now normalizes permissions to include all available tools
+- Root cause: Component received partial permissions arrays (only enabled tools) from parent components
+- Problem: detectPreset() requires ALL tools to be present with enabled: true/false for each
+- Problem: getToolEnabled() defaulted to false for missing tools, causing checkboxes to appear unchecked
+- Solution: Added useMemo to normalize permissions by adding missing tools as enabled: false
+- Result: Preset detection now works correctly (e.g., "Read Only" preset is detected)
+- Result: Checkbox states now reflect actual tool permissions (10/16 tools show as checked)
+- Pattern: Always ensure UI components normalize partial data to complete data structures
+
 ## Dynamic Tool Discovery (2025-01-09)
 
 - FIXED: Removed hardcoded TOOL_CATEGORIES mapping that only recognized 8 tools
