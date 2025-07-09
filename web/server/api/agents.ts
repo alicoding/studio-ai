@@ -4,25 +4,22 @@ import path from 'path'
 import os from 'os'
 import fs from 'fs/promises'
 // ProcessManager removed - using Claude SDK instances instead
-import { ServerConfigService } from '../services/ServerConfigService'
-import { AgentConfigService } from '../services/AgentConfigService'
-import { ProjectService } from '../services/ProjectService'
+import { UnifiedAgentConfigService } from '../services/UnifiedAgentConfigService'
+import { StudioProjectService } from '../services/StudioProjectService'
 import { StudioProjectMetadata } from '../services/StudioProjectMetadata'
-// Removed unused import
 
 const router = Router()
-const configService = ServerConfigService.getInstance()
-const agentConfigService = AgentConfigService.getInstance()
-const projectService = new ProjectService()
+const agentConfigService = UnifiedAgentConfigService.getInstance()
+const studioProjectService = new StudioProjectService()
 const studioMetadata = new StudioProjectMetadata()
 
 // GET /api/agents - Get all agent configurations
 router.get('/', async (req, res) => {
   try {
-    const agents = await agentConfigService.getAllAgents()
+    const agents = await agentConfigService.getAllConfigs()
 
-    // Get all projects from ProjectService to check which agents are being used
-    const projects = await projectService.getAllProjects()
+    // Get all projects from StudioProjectService to check which agents are being used
+    const projects = await studioProjectService.listProjects()
 
     // Create a map of agent usage by checking project metadata
     const agentProjectMap = new Map<string, string[]>()
@@ -76,13 +73,13 @@ router.get('/', async (req, res) => {
 // GET /api/agents/:id - Get specific agent configuration
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const agent = await agentConfigService.getAgent(req.params.id)
+    const agent = await agentConfigService.getConfig(req.params.id)
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' })
     }
 
-    // Get all projects from ProjectService to check which ones use this agent
-    const projects = await projectService.getAllProjects()
+    // Get all projects from StudioProjectService to check which ones use this agent
+    const projects = await studioProjectService.listProjects()
     const projectsUsing: string[] = []
 
     for (const project of projects) {
@@ -133,8 +130,7 @@ router.post('/', async (req: Request, res: Response) => {
       model,
       maxTokens,
       temperature,
-      maxTurns,
-      verbose,
+      // maxTurns and verbose are not part of UnifiedAgentConfigService
     } = req.body
 
     // Validation
@@ -144,13 +140,13 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Check if agent with this ID already exists
     if (id) {
-      const existing = await configService.getAgent(id)
+      const existing = await agentConfigService.getConfig(id)
       if (existing) {
         return res.status(409).json({ error: 'Agent with this ID already exists' })
       }
     }
 
-    const newAgent = await configService.createAgent({
+    const newAgent = await agentConfigService.createConfig({
       id: id || uuidv4(),
       name,
       role,
@@ -159,9 +155,6 @@ router.post('/', async (req: Request, res: Response) => {
       model: model || 'opus', // Use alias for latest opus version
       maxTokens: maxTokens || 200000,
       temperature: temperature ?? 0.7,
-      maxTurns: maxTurns || 500,
-      verbose: verbose ?? true,
-      created: new Date().toISOString(),
     })
 
     const clientAgent = {
@@ -181,13 +174,13 @@ router.put('/:id', async (req: Request, res: Response) => {
     const { name, role, systemPrompt, tools, model, maxTokens, temperature } = req.body
 
     // First check if agent exists
-    const existingAgent = await agentConfigService.getAgent(req.params.id)
+    const existingAgent = await agentConfigService.getConfig(req.params.id)
     if (!existingAgent) {
       return res.status(404).json({ error: 'Agent not found' })
     }
 
     // Update via ConfigService
-    await configService.updateAgent(req.params.id, {
+    await agentConfigService.updateConfig(req.params.id, {
       ...(name && { name }),
       ...(role && { role }),
       ...(systemPrompt && { systemPrompt }),
@@ -198,13 +191,13 @@ router.put('/:id', async (req: Request, res: Response) => {
     })
 
     // Get the updated agent
-    const updated = await agentConfigService.getAgent(req.params.id)
+    const updated = await agentConfigService.getConfig(req.params.id)
     if (!updated) {
       return res.status(404).json({ error: 'Agent not found after update' })
     }
 
     // Get project usage info
-    const projects = await projectService.getAllProjects()
+    const projects = await studioProjectService.listProjects()
     const projectsUsing: string[] = []
 
     for (const project of projects) {
@@ -326,9 +319,9 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     // Try to delete agent configuration if it exists
     try {
-      const agent = await configService.getAgent(req.params.id)
+      const agent = await agentConfigService.getConfig(req.params.id)
       if (agent) {
-        await configService.deleteAgent(req.params.id)
+        await agentConfigService.deleteConfig(req.params.id)
         console.log(`Agent ${req.params.id} configuration deleted`)
       } else {
         console.log(`Agent ${req.params.id} has no configuration to delete (runtime agent)`)
@@ -354,7 +347,7 @@ router.post('/:id/spawn', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Project ID is required' })
     }
 
-    const agent = await agentConfigService.getAgent(req.params.id)
+    const agent = await agentConfigService.getConfig(req.params.id)
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' })
     }
@@ -366,12 +359,19 @@ router.post('/:id/spawn', async (req: Request, res: Response) => {
     // Note: Actual agent instances are created on-demand when messages are sent
     // via ClaudeService.getOrCreateAgent()
 
-    // Update project to include this agent
-    const project = await configService.getProject(projectId)
-    if (project && !project.activeAgents.includes(req.params.id)) {
-      await configService.updateProject(projectId, {
-        activeAgents: [...project.activeAgents, req.params.id],
-      })
+    // Add agent to project if not already assigned
+    const projectAgents = await studioProjectService.getProjectAgentsWithShortIds(projectId)
+    const agentExists = projectAgents.some((a) => a.agentConfigId === req.params.id)
+    if (!agentExists) {
+      // Get agent config to determine role
+      const agentConfig = await agentConfigService.getConfig(req.params.id)
+      if (agentConfig) {
+        await studioProjectService.addAgentToProject(projectId, {
+          agentConfigId: req.params.id,
+          role: agentConfig.role,
+          customName: agentConfig.name,
+        })
+      }
     }
 
     console.log(`Agent ${req.params.id} spawned for project ${projectId}`)

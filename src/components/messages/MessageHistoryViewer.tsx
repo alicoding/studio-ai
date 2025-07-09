@@ -177,9 +177,9 @@ export function MessageHistoryViewer({
     }
   }, [])
 
-  // Reset everything when session changes
+  // Reset everything when session or agent changes
   useEffect(() => {
-    console.log('📍 SessionId changed to:', sessionId)
+    console.log('📍 Session/Agent changed:', { sessionId, agentId })
     setMessages([])
     setHasMore(true)
     cursorRef.current = null
@@ -190,7 +190,7 @@ export function MessageHistoryViewer({
     if (loadedSessionRef.current !== sessionId) {
       loadedSessionRef.current = null
     }
-  }, [sessionId])
+  }, [sessionId, agentId])
 
   // Track container height
   useEffect(() => {
@@ -223,7 +223,7 @@ export function MessageHistoryViewer({
 
   // Listen for new messages via WebSocket
   useEffect(() => {
-    if (!socket || !sessionId) return
+    if (!socket || !sessionId || !agentId) return
 
     const handleNewMessage = (data: {
       sessionId: string
@@ -239,22 +239,23 @@ export function MessageHistoryViewer({
         isStreaming?: boolean
       }
     }) => {
-      // Use agentId for WebSocket matching (agent instance ID), fall back to sessionId (Claude session ID)
-      const webSocketSessionId = agentId || sessionId
+      // Use agentId for WebSocket matching (agent instance ID)
+      const webSocketSessionId = agentId
 
       console.log('WebSocket message received:', {
         dataSessionId: data.sessionId,
         webSocketSessionId: webSocketSessionId,
+        agentId: agentId,
+        sessionId: sessionId,
         matches: data.sessionId === webSocketSessionId,
         message: data.message,
         isStreaming: data.message.isStreaming,
-        usingAgentId: !!agentId,
       })
 
-      // Only handle messages for our session (using agent instance ID for WebSocket routing)
+      // Only handle messages for our agent (using agent instance ID for WebSocket routing)
       if (data.sessionId === webSocketSessionId) {
         const newMessage: Message = {
-          id: data.message.id || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: data.message.id || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
           role: data.message.role,
           content: data.message.content,
           timestamp: data.message.timestamp || new Date().toISOString(),
@@ -283,12 +284,26 @@ export function MessageHistoryViewer({
       }
     }
 
+    // Set up message handler
     socket.on('message:new', handleNewMessage)
+
+    // Handle WebSocket reconnection
+    const handleReconnect = () => {
+      console.log('WebSocket reconnected, re-establishing message subscriptions')
+      // The socket.on above will be re-established automatically
+      // Trigger a custom event to reload messages after reconnection
+      if (messages.length > 0) {
+        window.dispatchEvent(new CustomEvent('reload-messages-after-reconnect'))
+      }
+    }
+
+    window.addEventListener('websocket-reconnected', handleReconnect)
 
     return () => {
       socket.off('message:new', handleNewMessage)
+      window.removeEventListener('websocket-reconnected', handleReconnect)
     }
-  }, [socket, sessionId, agentId, agentName])
+  }, [socket, sessionId, agentId, agentName, messages.length])
 
   const loadMoreMessages = useCallback(async () => {
     if (loading || !hasMore || !sessionId || !projectId) return
@@ -298,12 +313,28 @@ export function MessageHistoryViewer({
     setError(null)
 
     try {
+      // First, get the current session ID for this agent
+      let currentSessionId = sessionId
+      if (agentId) {
+        const sessionResponse = await fetch(
+          `/api/studio-projects/${projectId}/agents/${agentId}/session`
+        )
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json()
+          if (sessionData.sessionId) {
+            currentSessionId = sessionData.sessionId
+            console.log('📍 Using current session ID from server:', currentSessionId)
+          }
+        }
+      }
+
       const params = new URLSearchParams({
         limit: PAGE_SIZE.toString(),
         ...(cursorRef.current && { cursor: cursorRef.current }),
       })
 
-      const url = `/api/projects/${projectId}/sessions/${sessionId}/messages?${params}`
+      // Use Studio Projects API endpoint with the current session ID
+      const url = `/api/studio-projects/${projectId}/sessions/${currentSessionId}/messages?${params}`
       const response = await fetch(url)
 
       if (!response.ok) {
@@ -350,7 +381,7 @@ export function MessageHistoryViewer({
     } finally {
       setLoading(false)
     }
-  }, [sessionId, projectId, loading, hasMore, messages.length])
+  }, [sessionId, projectId, loading, hasMore, messages.length, agentId])
 
   // Load initial messages when sessionId or projectId changes
   useEffect(() => {
@@ -421,6 +452,23 @@ export function MessageHistoryViewer({
       window.removeEventListener('agent-session-cleared', handleSessionCleared as EventListener)
     }
   }, [sessionId, agentId])
+
+  // Listen for reload messages after reconnection
+  useEffect(() => {
+    const handleReloadMessages = () => {
+      console.log('Reloading messages after WebSocket reconnection')
+      // Small delay to ensure server is ready
+      setTimeout(() => {
+        loadMoreMessages()
+      }, 500)
+    }
+
+    window.addEventListener('reload-messages-after-reconnect', handleReloadMessages)
+
+    return () => {
+      window.removeEventListener('reload-messages-after-reconnect', handleReloadMessages)
+    }
+  }, [loadMoreMessages])
 
   // Always scroll to bottom when messages change
   useEffect(() => {

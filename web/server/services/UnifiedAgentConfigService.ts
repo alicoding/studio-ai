@@ -1,6 +1,6 @@
 /**
  * Unified Agent Configuration Service
- * 
+ *
  * SOLID: Single responsibility for agent config management
  * DRY: Eliminates duplicate agent config handling across services
  * KISS: Simple interface for agent config CRUD operations
@@ -11,13 +11,15 @@ import { getDb } from '../../../src/lib/storage/database'
 import { agentConfigs, agentRoleAssignments } from '../../../src/lib/storage/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import { ToolPermissionService } from './ToolPermissionService'
+import type { ToolPermission } from '../../../src/types/tool-permissions'
 
 export interface AgentConfig {
   id: string
   name: string
   role: string
   systemPrompt: string
-  tools: string[]
+  tools: string[] | ToolPermission[]
   model: string
   maxTokens?: number
   temperature?: number
@@ -30,7 +32,7 @@ export interface AgentRoleAssignment {
   projectId: string
   role: string
   agentConfigId: string
-  customTools?: string[]
+  customTools?: string[] | ToolPermission[]
   hasCustomTools: boolean
   createdAt: string
   updatedAt: string
@@ -41,7 +43,7 @@ export interface CreateAgentConfigRequest {
   name: string
   role: string
   systemPrompt: string
-  tools?: string[]
+  tools?: string[] | ToolPermission[]
   model?: string
   maxTokens?: number
   temperature?: number
@@ -51,7 +53,7 @@ export interface UpdateAgentConfigRequest {
   name?: string
   role?: string
   systemPrompt?: string
-  tools?: string[]
+  tools?: string[] | ToolPermission[]
   model?: string
   maxTokens?: number
   temperature?: number
@@ -61,7 +63,7 @@ export interface AssignRoleRequest {
   projectId: string
   role: string
   agentConfigId: string
-  customTools?: string[]
+  customTools?: string[] | ToolPermission[]
   hasCustomTools?: boolean
 }
 
@@ -73,9 +75,17 @@ export class UnifiedAgentConfigService {
   private cache = new Map<string, AgentConfig>()
   private roleCache = new Map<string, AgentRoleAssignment[]>()
   private cacheExpiry = 5 * 60 * 1000 // 5 minutes
+  private toolPermissionService: ToolPermissionService
 
   private constructor() {
     // Database connection is handled per-operation
+    try {
+      this.toolPermissionService = ToolPermissionService.getInstance()
+      console.log('ToolPermissionService initialized successfully:', !!this.toolPermissionService)
+    } catch (error) {
+      console.error('Failed to initialize ToolPermissionService:', error)
+      throw error
+    }
   }
 
   private getDatabase() {
@@ -95,8 +105,8 @@ export class UnifiedAgentConfigService {
   async getAllConfigs(): Promise<AgentConfig[]> {
     const db = this.getDatabase()
     const configs = await db.select().from(agentConfigs).orderBy(agentConfigs.updatedAt)
-    
-    return configs.map(this.mapConfigFromDb)
+
+    return configs.map((config) => this.mapConfigFromDb(config))
   }
 
   /**
@@ -111,17 +121,17 @@ export class UnifiedAgentConfigService {
 
     const db = this.getDatabase()
     const configs = await db.select().from(agentConfigs).where(eq(agentConfigs.id, id))
-    
+
     if (configs.length === 0) {
       return null
     }
 
     const config = this.mapConfigFromDb(configs[0])
-    
+
     // Cache the result
     this.cache.set(id, config)
     setTimeout(() => this.cache.delete(id), this.cacheExpiry)
-    
+
     return config
   }
 
@@ -133,11 +143,9 @@ export class UnifiedAgentConfigService {
 
     const db = this.getDatabase()
     // Use IN clause for efficient batch lookup
-    const configs = await db.select().from(agentConfigs).where(
-      inArray(agentConfigs.id, ids)
-    )
-    
-    return configs.map(this.mapConfigFromDb)
+    const configs = await db.select().from(agentConfigs).where(inArray(agentConfigs.id, ids))
+
+    return configs.map((config) => this.mapConfigFromDb(config))
   }
 
   /**
@@ -146,7 +154,7 @@ export class UnifiedAgentConfigService {
   async createConfig(request: CreateAgentConfigRequest): Promise<AgentConfig> {
     const id = request.id || uuidv4()
     const now = new Date().toISOString()
-    
+
     const newConfig = {
       id,
       name: request.name,
@@ -157,15 +165,15 @@ export class UnifiedAgentConfigService {
       maxTokens: request.maxTokens || 200000,
       temperature: String(request.temperature || 0.7),
       createdAt: new Date(now),
-      updatedAt: new Date(now)
+      updatedAt: new Date(now),
     }
 
     const db = this.getDatabase()
     await db.insert(agentConfigs).values(newConfig)
-    
+
     // Clear cache
     this.cache.clear()
-    
+
     return this.mapConfigFromDb(newConfig)
   }
 
@@ -179,23 +187,38 @@ export class UnifiedAgentConfigService {
     }
 
     const updates: Partial<typeof agentConfigs.$inferInsert> = {
-      updatedAt: new Date()
+      updatedAt: new Date(),
     }
 
     if (request.name !== undefined) updates.name = request.name
     if (request.role !== undefined) updates.role = request.role
     if (request.systemPrompt !== undefined) updates.systemPrompt = request.systemPrompt
-    if (request.tools !== undefined) updates.tools = JSON.stringify(request.tools)
+    if (request.tools !== undefined) {
+      // Handle both string[] and ToolPermission[] formats
+      if (Array.isArray(request.tools) && request.tools.length > 0) {
+        if (typeof request.tools[0] === 'string') {
+          // Already string array
+          updates.tools = JSON.stringify(request.tools)
+        } else {
+          // ToolPermission array - serialize it
+          updates.tools = this.toolPermissionService.serializePermissions(
+            request.tools as ToolPermission[]
+          )
+        }
+      } else {
+        updates.tools = JSON.stringify([])
+      }
+    }
     if (request.model !== undefined) updates.model = request.model
     if (request.maxTokens !== undefined) updates.maxTokens = request.maxTokens
     if (request.temperature !== undefined) updates.temperature = String(request.temperature)
 
     const db = this.getDatabase()
     await db.update(agentConfigs).set(updates).where(eq(agentConfigs.id, id))
-    
+
     // Clear cache
     this.cache.delete(id)
-    
+
     return await this.getConfig(id)
   }
 
@@ -204,17 +227,17 @@ export class UnifiedAgentConfigService {
    */
   async deleteConfig(id: string): Promise<boolean> {
     const db = this.getDatabase()
-    
+
     // First remove any role assignments using this config
     await db.delete(agentRoleAssignments).where(eq(agentRoleAssignments.agentConfigId, id))
-    
+
     // Then delete the config
     await db.delete(agentConfigs).where(eq(agentConfigs.id, id))
-    
+
     // Clear cache
     this.cache.delete(id)
     this.roleCache.clear()
-    
+
     return true
   }
 
@@ -224,7 +247,7 @@ export class UnifiedAgentConfigService {
   async assignRole(request: AssignRoleRequest): Promise<AgentRoleAssignment> {
     const id = uuidv4()
     const now = new Date().toISOString()
-    
+
     const assignment = {
       id,
       projectId: request.projectId,
@@ -233,24 +256,26 @@ export class UnifiedAgentConfigService {
       customTools: request.customTools ? JSON.stringify(request.customTools) : null,
       hasCustomTools: request.hasCustomTools || false,
       createdAt: new Date(now),
-      updatedAt: new Date(now)
+      updatedAt: new Date(now),
     }
 
     const db = this.getDatabase()
-    
+
     // Use upsert pattern - delete existing and insert new
-    await db.delete(agentRoleAssignments).where(
-      and(
-        eq(agentRoleAssignments.projectId, request.projectId),
-        eq(agentRoleAssignments.role, request.role)
+    await db
+      .delete(agentRoleAssignments)
+      .where(
+        and(
+          eq(agentRoleAssignments.projectId, request.projectId),
+          eq(agentRoleAssignments.role, request.role)
+        )
       )
-    )
-    
+
     await db.insert(agentRoleAssignments).values(assignment)
-    
+
     // Clear role cache
     this.roleCache.delete(request.projectId)
-    
+
     return this.mapRoleAssignmentFromDb(assignment)
   }
 
@@ -265,30 +290,34 @@ export class UnifiedAgentConfigService {
     }
 
     const db = this.getDatabase()
-    const assignments = await db.select().from(agentRoleAssignments)
+    const assignments = await db
+      .select()
+      .from(agentRoleAssignments)
       .where(eq(agentRoleAssignments.projectId, projectId))
       .orderBy(agentRoleAssignments.role)
-    
+
     const result = assignments.map(this.mapRoleAssignmentFromDb)
-    
+
     // Cache the result
     this.roleCache.set(projectId, result)
     setTimeout(() => this.roleCache.delete(projectId), this.cacheExpiry)
-    
+
     return result
   }
 
   /**
    * Get role assignments for multiple projects (batch operation)
    */
-  async getBatchProjectRoleAssignments(projectIds: string[]): Promise<Map<string, AgentRoleAssignment[]>> {
+  async getBatchProjectRoleAssignments(
+    projectIds: string[]
+  ): Promise<Map<string, AgentRoleAssignment[]>> {
     const result = new Map<string, AgentRoleAssignment[]>()
-    
+
     for (const projectId of projectIds) {
       const assignments = await this.getProjectRoleAssignments(projectId)
       result.set(projectId, assignments)
     }
-    
+
     return result
   }
 
@@ -297,18 +326,17 @@ export class UnifiedAgentConfigService {
    */
   async getRoleAssignment(projectId: string, role: string): Promise<AgentRoleAssignment | null> {
     const db = this.getDatabase()
-    const assignments = await db.select().from(agentRoleAssignments)
+    const assignments = await db
+      .select()
+      .from(agentRoleAssignments)
       .where(
-        and(
-          eq(agentRoleAssignments.projectId, projectId),
-          eq(agentRoleAssignments.role, role)
-        )
+        and(eq(agentRoleAssignments.projectId, projectId), eq(agentRoleAssignments.role, role))
       )
-    
+
     if (assignments.length === 0) {
       return null
     }
-    
+
     return this.mapRoleAssignmentFromDb(assignments[0])
   }
 
@@ -317,16 +345,15 @@ export class UnifiedAgentConfigService {
    */
   async removeRoleAssignment(projectId: string, role: string): Promise<boolean> {
     const db = this.getDatabase()
-    await db.delete(agentRoleAssignments).where(
-      and(
-        eq(agentRoleAssignments.projectId, projectId),
-        eq(agentRoleAssignments.role, role)
+    await db
+      .delete(agentRoleAssignments)
+      .where(
+        and(eq(agentRoleAssignments.projectId, projectId), eq(agentRoleAssignments.role, role))
       )
-    )
-    
+
     // Clear role cache
     this.roleCache.delete(projectId)
-    
+
     return true
   }
 
@@ -342,24 +369,44 @@ export class UnifiedAgentConfigService {
    * Map database record to AgentConfig interface
    */
   private mapConfigFromDb(dbRecord: typeof agentConfigs.$inferSelect): AgentConfig {
+    // Parse tools with fallback
+    let tools: string[] | ToolPermission[]
+    try {
+      if (this.toolPermissionService) {
+        tools = this.toolPermissionService.parseTools(dbRecord.tools)
+      } else {
+        // Fallback parsing without service
+        if (typeof dbRecord.tools === 'string') {
+          tools = JSON.parse(dbRecord.tools)
+        } else {
+          tools = dbRecord.tools as string[] | ToolPermission[]
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing tools:', error)
+      tools = [] // Safe fallback
+    }
+
     return {
       id: dbRecord.id,
       name: dbRecord.name,
       role: dbRecord.role,
       systemPrompt: dbRecord.systemPrompt,
-      tools: JSON.parse(dbRecord.tools),
+      tools,
       model: dbRecord.model,
       maxTokens: dbRecord.maxTokens ?? 200000,
       temperature: parseFloat(dbRecord.temperature ?? '0.7'),
       createdAt: dbRecord.createdAt.toISOString(),
-      updatedAt: dbRecord.updatedAt.toISOString()
+      updatedAt: dbRecord.updatedAt.toISOString(),
     }
   }
 
   /**
    * Map database record to AgentRoleAssignment interface
    */
-  private mapRoleAssignmentFromDb(dbRecord: typeof agentRoleAssignments.$inferSelect): AgentRoleAssignment {
+  private mapRoleAssignmentFromDb(
+    dbRecord: typeof agentRoleAssignments.$inferSelect
+  ): AgentRoleAssignment {
     return {
       id: dbRecord.id,
       projectId: dbRecord.projectId ?? '',
@@ -367,8 +414,77 @@ export class UnifiedAgentConfigService {
       agentConfigId: dbRecord.agentConfigId ?? '',
       customTools: dbRecord.customTools ? JSON.parse(dbRecord.customTools) : undefined,
       hasCustomTools: dbRecord.hasCustomTools ?? false,
-      createdAt: dbRecord.createdAt.toISOString(),
-      updatedAt: dbRecord.updatedAt.toISOString()
+      createdAt: dbRecord.createdAt ? dbRecord.createdAt.toISOString() : new Date().toISOString(),
+      updatedAt: dbRecord.updatedAt ? dbRecord.updatedAt.toISOString() : new Date().toISOString(),
     }
+  }
+
+  /**
+   * Get effective tool permissions for an agent in a project
+   */
+  async getEffectiveToolPermissions(projectId: string, role: string): Promise<ToolPermission[]> {
+    // Get role assignment
+    const assignments = await this.getProjectRoleAssignments(projectId)
+    const assignment = assignments.find((a: AgentRoleAssignment) => a.role === role)
+
+    if (!assignment) {
+      return []
+    }
+
+    // Get base agent config
+    const agentConfig = await this.getConfig(assignment.agentConfigId)
+    if (!agentConfig) {
+      return []
+    }
+
+    // Parse base tools
+    const baseTools = this.toolPermissionService.parseTools(agentConfig.tools)
+
+    // Merge with custom tools if any
+    if (assignment.hasCustomTools && assignment.customTools) {
+      const customTools = this.toolPermissionService.parseTools(assignment.customTools)
+      return this.toolPermissionService.mergeToolPermissions(baseTools, customTools)
+    }
+
+    return baseTools
+  }
+
+  /**
+   * Update tool permissions for an agent config
+   */
+  async updateToolPermissions(
+    agentConfigId: string,
+    tools: ToolPermission[]
+  ): Promise<AgentConfig | null> {
+    // Convert ToolPermission[] to the format expected by updateConfig
+    // We pass the ToolPermission[] directly - updateConfig will handle serialization
+    const updates: UpdateAgentConfigRequest = {
+      tools: tools,
+    }
+
+    return this.updateConfig(agentConfigId, updates)
+  }
+
+  /**
+   * Apply a permission preset to an agent
+   */
+  async applyPermissionPreset(
+    agentConfigId: string,
+    presetName: string
+  ): Promise<AgentConfig | null> {
+    const config = await this.getConfig(agentConfigId)
+    if (!config) {
+      return null
+    }
+
+    // Get current tool names
+    const currentTools = this.toolPermissionService.getEnabledToolNames(
+      this.toolPermissionService.parseTools(config.tools)
+    )
+
+    // Apply preset
+    const newPermissions = this.toolPermissionService.applyPresetToRole(presetName, currentTools)
+
+    return this.updateToolPermissions(agentConfigId, newPermissions)
   }
 }

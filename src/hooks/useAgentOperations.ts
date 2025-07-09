@@ -8,6 +8,7 @@
  */
 
 import { useCallback } from 'react'
+import { convertToolsToPermissions } from '../types/tool-permissions'
 import { useAgentStore, useProjectStore } from '../stores'
 import { useProcessManager } from './useProcessManager'
 import { useClaudeMessages } from './useClaudeMessages'
@@ -70,12 +71,18 @@ export function useAgentOperations() {
                 name: agent.name,
                 role: agent.role,
                 systemPrompt: `You are ${agent.name}, a ${agent.role} agent.`,
-                tools: ['file_system', 'terminal', 'web_search'],
+                tools: convertToolsToPermissions(['file_system', 'terminal', 'web_search']),
                 model: 'claude-3-opus',
                 maxTokens: agent.maxTokens || 200000,
               }
 
-          await processManager.spawnAgent(agentId, activeProjectId, agentConfig)
+          // Convert ToolPermission[] back to string[] for the process manager
+          const processManagerConfig = {
+            ...agentConfig,
+            tools: agentConfig.tools.filter((tool) => tool.enabled).map((tool) => tool.name),
+          }
+
+          await processManager.spawnAgent(agentId, activeProjectId, processManagerConfig)
 
           // Update UI status to online
           updateAgentStatus(agentId, 'online')
@@ -250,11 +257,19 @@ export function useAgentOperations() {
       }
 
       try {
-        // Call the new API endpoint to remove agent from project
-        // This handles removing from metadata and cleaning up sessions
-        console.log(`Removing agent ${agentId} from project ${activeProjectId}`)
+        // Get the agent to find its role
+        const agent = agents.find((a) => a.id === agentId)
+        if (!agent) {
+          return { success: false, error: 'Agent not found' }
+        }
 
-        await studioApi.projects.removeAgent(activeProjectId, agentId)
+        // Call the studio-projects API endpoint to remove agent from project
+        // This handles removing from metadata and cleaning up sessions
+        console.log(
+          `Removing agent ${agentId} (role: ${agent.role}) from project ${activeProjectId}`
+        )
+
+        await studioApi.delete(`studio-projects/${activeProjectId}/agents/${agent.role}`)
 
         // Remove from UI store
         removeAgent(agentId)
@@ -280,7 +295,7 @@ export function useAgentOperations() {
         }
       }
     },
-    [removeAgent, activeProjectId]
+    [removeAgent, activeProjectId, agents]
   )
 
   /**
@@ -288,20 +303,54 @@ export function useAgentOperations() {
    */
   const addAgentsToProject = useCallback(
     async (
-      agentIds: string[] | Array<{ configId: string; name?: string }>
+      agentIds: string[] | Array<{ configId: string; name?: string; role?: string }>
     ): Promise<AgentOperationResult> => {
       if (!activeProjectId) {
         return { success: false, error: 'No active project' }
       }
 
       try {
-        // Extract agent IDs from the input
-        const agentIdStrings = agentIds.map((agent) =>
-          typeof agent === 'string' ? agent : agent.configId
-        )
+        // Studio projects API expects agents to be added one by one with role
+        // We need to add each agent individually
+        const errors: string[] = []
 
-        // Call the API to add agents to project metadata
-        await studioApi.projects.addAgents(activeProjectId, agentIdStrings)
+        for (const agent of agentIds) {
+          try {
+            const agentConfigId = typeof agent === 'string' ? agent : agent.configId
+
+            // Get the actual role from the agent config
+            let role: string
+            if (typeof agent === 'object' && agent.role) {
+              role = agent.role
+            } else {
+              // Look up the agent config to get the role
+              const config = getConfig(agentConfigId)
+              role = config?.role || 'agent'
+            }
+
+            // Use the studio-projects API endpoint
+            await studioApi.post(`studio-projects/${activeProjectId}/agents`, {
+              role,
+              agentConfigId,
+              customTools: undefined, // Can be extended later if needed
+            })
+          } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+            errors.push(
+              `Failed to add agent ${typeof agent === 'string' ? agent : agent.configId}: ${errorMsg}`
+            )
+            console.error('Failed to add agent:', error)
+          }
+        }
+
+        // If there were any errors, report them
+        if (errors.length > 0) {
+          console.error('Some agents failed to add:', errors)
+          return {
+            success: false,
+            error: errors.join('; '),
+          }
+        }
 
         // Refresh the agent list
         window.dispatchEvent(
@@ -320,7 +369,7 @@ export function useAgentOperations() {
         }
       }
     },
-    [activeProjectId]
+    [activeProjectId, getConfig]
   )
 
   return {

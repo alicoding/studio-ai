@@ -1,6 +1,6 @@
 /**
  * Optimized Workspace Data Hook
- * 
+ *
  * SOLID: Single responsibility for workspace data management
  * DRY: Eliminates duplicate API calls across workspace components
  * KISS: Simple interface that loads all workspace data efficiently
@@ -20,6 +20,7 @@ export interface ProjectAgent {
   totalTokens: number
   lastMessage: string
   hasSession: boolean
+  customTools?: string[]
 }
 
 export interface AgentConfig {
@@ -109,7 +110,7 @@ export function useWorkspaceData(options: UseWorkspaceDataOptions = {}): UseWork
       if (!includeAgents) params.set('includeAgents', 'false')
       if (!includeRoles) params.set('includeRoles', 'false')
 
-      const url = projectId 
+      const url = projectId
         ? `/api/workspace/${projectId}?${params.toString()}`
         : `/api/workspace?${params.toString()}`
 
@@ -157,7 +158,6 @@ export function useWorkspaceData(options: UseWorkspaceDataOptions = {}): UseWork
         // Clean up the request after completion
         pendingRequests.delete(requestKey)
       }
-
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       setError(errorMessage)
@@ -193,9 +193,12 @@ export function useWorkspaceData(options: UseWorkspaceDataOptions = {}): UseWork
   useEffect(() => {
     if (lastFetch === 0) return
 
-    const staleTimeout = setTimeout(() => {
-      setIsStale(true)
-    }, 5 * 60 * 1000) // 5 minutes
+    const staleTimeout = setTimeout(
+      () => {
+        setIsStale(true)
+      },
+      5 * 60 * 1000
+    ) // 5 minutes
 
     return () => clearTimeout(staleTimeout)
   }, [lastFetch])
@@ -213,7 +216,10 @@ export function useWorkspaceData(options: UseWorkspaceDataOptions = {}): UseWork
  * Hook for loading workspace data for a specific project
  * Optimized version of useWorkspaceData for single project use
  */
-export function useProjectWorkspaceData(projectId: string, options: Omit<UseWorkspaceDataOptions, 'projectId'> = {}) {
+export function useProjectWorkspaceData(
+  projectId: string,
+  options: Omit<UseWorkspaceDataOptions, 'projectId'> = {}
+) {
   return useWorkspaceData({ ...options, projectId })
 }
 
@@ -255,15 +261,15 @@ export function useWorkspaceHealth() {
       }
     } catch (error) {
       console.error('Health check failed:', error)
-      setHealth({ 
-        status: 'unhealthy', 
+      setHealth({
+        status: 'unhealthy',
         error: 'Health check failed',
         services: {
           projects: 'unknown',
           agentConfigs: 'unknown',
-          projectAgents: 'unknown'
+          projectAgents: 'unknown',
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       })
     } finally {
       setLoading(false)
@@ -272,7 +278,7 @@ export function useWorkspaceHealth() {
 
   useEffect(() => {
     checkHealth()
-    
+
     // Check health every 60 seconds
     const interval = setInterval(checkHealth, 60000)
     return () => clearInterval(interval)

@@ -1,5 +1,6 @@
 import { createPersistentStore } from './createPersistentStore'
 import { ConsolidatedAgentSession } from '../types/session'
+import { ToolPermission } from '../types/tool-permissions'
 
 // Runtime state - changes frequently during agent operation
 export interface Agent {
@@ -14,6 +15,7 @@ export interface Agent {
   pid?: number
   order: number // Position in agent list for persistent ordering
   consolidatedSession?: ConsolidatedAgentSession // Full consolidated session info for checkpoint UI
+  customTools?: string[] // Custom tools assigned to this agent instance
 }
 
 // Configuration state - changes rarely, defines agent behavior
@@ -22,7 +24,7 @@ export interface AgentConfig {
   name: string
   role: string
   systemPrompt: string
-  tools: string[]
+  tools: ToolPermission[]
   model: string
   projectsUsing: string[]
   maxTokens?: number

@@ -28,17 +28,12 @@ export class ClaudeService {
       if (!config) {
         try {
           // Use server-side config service
-          const { ServerAgentConfigService } = await import('./ServerAgentConfigService')
-          const configService = ServerAgentConfigService.getInstance()
+          const { UnifiedAgentConfigService } = await import('./UnifiedAgentConfigService')
+          const configService = UnifiedAgentConfigService.getInstance()
 
-          // Handle both legacy agentIds and new instance IDs
-          const configId =
-            agentId.includes('-') && agentId.split('-').length > 3
-              ? agentId.split('-').slice(0, -2).join('-') // Extract original config ID from instance ID
-              : agentId
-
-          const storedConfig = await configService.getAgent(configId)
-          console.log(`[SYSTEM PROMPT DEBUG] Loading config for configId: ${configId}`)
+          // Use the full agentId as passed (should be the agentConfigId)
+          const storedConfig = await configService.getConfig(agentId)
+          console.log(`[SYSTEM PROMPT DEBUG] Loading config for configId: ${agentId}`)
           console.log(`[SYSTEM PROMPT DEBUG] Stored config:`, storedConfig)
           if (storedConfig) {
             config = {

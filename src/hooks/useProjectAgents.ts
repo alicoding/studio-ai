@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useProjectStore, useAgentStore } from '../stores'
 import { studioApi } from '../services/api'
 import type { Agent } from '../stores/agents'
+import type { AgentInstance } from '../services/api/types'
 
 /**
  * Hook to get agents for the active project
@@ -21,10 +22,14 @@ export function useProjectAgents() {
 
     setLoading(true)
     try {
-      const data = await studioApi.projects.getAgents(activeProjectId)
+      console.log('[useProjectAgents] Fetching agents for project:', activeProjectId)
+      const response = await studioApi.studioProjects.getAgentsWithShortIds(activeProjectId)
+      const data = response.agents
+      console.log('[useProjectAgents] Received agent data:', data)
+      console.log('[useProjectAgents] First agent ID:', data[0]?.id)
 
       // Map agents from the new endpoint
-      const projectAgents: Agent[] = data.map((agentInstance, index) => {
+      const projectAgents: Agent[] = data.map((agentInstance: AgentInstance, index: number) => {
         console.log(
           `[useProjectAgents] Loading agent ${agentInstance.id} with sessionId: ${agentInstance.sessionId}`
         )
@@ -51,6 +56,7 @@ export function useProjectAgents() {
       // No need to add numbering - custom names are preserved from team templates
       // No need to fetch role assignments - already included in agent data
 
+      console.log('[useProjectAgents] Setting agents:', projectAgents)
       setAgents(projectAgents)
     } catch (error) {
       console.error('Error fetching project agents:', error)
@@ -74,8 +80,10 @@ export function useProjectAgents() {
 
     const handleAgentsUpdated = (event: CustomEvent) => {
       console.log('Project agents updated, refreshing...', event.detail)
-      // Refresh the agents list
-      fetchProjectAgents()
+      // Add a small delay to ensure backend has processed the update
+      setTimeout(() => {
+        fetchProjectAgents()
+      }, 100)
     }
 
     window.addEventListener('session-compacted', handleCompaction as EventListener)

@@ -1,4 +1,5 @@
 import { FolderOpen, Edit3, Copy, Trash2, Users, Star } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
 
 interface Project {
   id: string
@@ -10,6 +11,7 @@ interface Project {
   lastSessionAt?: Date | string
   status: 'active' | 'archived' | 'draft'
   lastModified: Date | string
+  lastActivityAt?: Date | string | null
   tags: string[]
   favorite: boolean
 }
@@ -31,14 +33,7 @@ export function ProjectCard({ project, onOpen, onEdit, onDelete, onClone }: Proj
     // Check if date is valid
     if (isNaN(date.getTime())) return 'Invalid Date'
 
-    const now = new Date()
-    const diffTime = Math.abs(now.getTime() - date.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    if (diffDays === 0) return 'Today'
-    if (diffDays === 1) return 'Yesterday'
-    if (diffDays <= 7) return `${diffDays} days ago`
-    return date.toLocaleDateString()
+    return formatDistanceToNow(date, { addSuffix: true })
   }
 
   const isClaudeCodeProject = (project: Project) => {
@@ -67,12 +62,23 @@ export function ProjectCard({ project, onOpen, onEdit, onDelete, onClone }: Proj
           </p>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Modified {formatDate(project.lastModified)}</span>
-          <div className="flex items-center gap-1">
-            <Users className="w-3 h-3" />
+        <div className="space-y-1">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Created: {formatDate(project.createdAt)}</span>
+            <div className="flex items-center gap-1">
+              <Users className="w-3 h-3" />
+              <span>
+                {project.sessionCount} agent{project.sessionCount !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            <span>Config updated: {formatDate(project.lastModified)}</span>
+          </div>
+          <div className="text-xs text-muted-foreground">
             <span>
-              {project.sessionCount} agent{project.sessionCount !== 1 ? 's' : ''}
+              Last activity:{' '}
+              {project.lastActivityAt ? formatDate(project.lastActivityAt) : 'No activity yet'}
             </span>
           </div>
         </div>

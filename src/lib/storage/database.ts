@@ -1,6 +1,6 @@
 /**
  * Database Connection and Initialization
- * 
+ *
  * SOLID: Single responsibility - database management
  * Library-First: Using better-sqlite3 and drizzle
  */
@@ -37,21 +37,21 @@ let sqliteInstance: Database.Database | null = null
 export function getDb() {
   if (!dbInstance) {
     ensureStorageDir()
-    
+
     // Create SQLite connection
     sqliteInstance = new Database(DB_PATH)
-    
+
     // Enable WAL mode for better performance
     sqliteInstance.pragma('journal_mode = WAL')
     sqliteInstance.pragma('synchronous = NORMAL')
-    
+
     // Create Drizzle instance
     dbInstance = drizzle(sqliteInstance, { schema })
-    
+
     // Run migrations
     initializeDatabase()
   }
-  
+
   return dbInstance
 }
 
@@ -60,7 +60,7 @@ export function getDb() {
  */
 function initializeDatabase() {
   if (!sqliteInstance) return
-  
+
   // Create tables
   sqliteInstance.exec(`
     -- Main storage table
@@ -143,17 +143,146 @@ function initializeDatabase() {
       executed_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
     
+    -- Agent Configurations table
+    CREATE TABLE IF NOT EXISTS agent_configs (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      system_prompt TEXT NOT NULL,
+      tools TEXT NOT NULL,
+      model TEXT NOT NULL,
+      max_tokens INTEGER DEFAULT 200000,
+      temperature TEXT DEFAULT '0.7',
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+    
+    -- Agent Role Assignments table
+    CREATE TABLE IF NOT EXISTS agent_role_assignments (
+      id TEXT PRIMARY KEY,
+      project_id TEXT REFERENCES projects(id),
+      role TEXT NOT NULL,
+      agent_config_id TEXT,
+      custom_name TEXT,
+      custom_tools TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+    
+    -- Team Templates table
+    CREATE TABLE IF NOT EXISTS team_templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      agents TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+    
     -- Create indexes
     CREATE INDEX IF NOT EXISTS idx_storage_namespace ON storage(namespace);
     CREATE INDEX IF NOT EXISTS idx_storage_type ON storage(type);
     CREATE INDEX IF NOT EXISTS idx_storage_expires ON storage(expires_at);
     CREATE INDEX IF NOT EXISTS idx_storage_updated ON storage(updated_at);
+    CREATE INDEX IF NOT EXISTS idx_agent_role_project ON agent_role_assignments(project_id, role);
   `)
-  
+
   // Mark initial migration as complete
-  sqliteInstance.prepare(
-    'INSERT OR IGNORE INTO migrations (name) VALUES (?)'
-  ).run('001_initial_schema')
+  sqliteInstance
+    .prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)')
+    .run('001_initial_schema')
+
+  // Run any pending migrations
+  runMigrations()
+}
+
+/**
+ * Run pending database migrations
+ */
+function runMigrations() {
+  if (!sqliteInstance) return
+
+  // Check if we need to add lastActivityAt
+  const hasLastActivity = sqliteInstance
+    .prepare(
+      `
+    SELECT COUNT(*) as count 
+    FROM pragma_table_info('projects') 
+    WHERE name = 'last_activity_at'
+  `
+    )
+    .get() as { count: number }
+
+  if (hasLastActivity.count === 0) {
+    // Run the migration
+    sqliteInstance.exec(`
+      ALTER TABLE projects 
+      ADD COLUMN last_activity_at INTEGER;
+    `)
+
+    // Set initial value to updated_at for existing projects
+    sqliteInstance.exec(`
+      UPDATE projects 
+      SET last_activity_at = updated_at 
+      WHERE last_activity_at IS NULL;
+    `)
+
+    // Mark migration as complete
+    sqliteInstance
+      .prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)')
+      .run('002_add_last_activity')
+  }
+
+  // Check if we need to fix timestamp formats
+  const needsTimestampFix = sqliteInstance
+    .prepare(
+      `
+    SELECT COUNT(*) as count 
+    FROM projects 
+    WHERE typeof(created_at) = 'text'
+  `
+    )
+    .get() as { count: number }
+
+  if (needsTimestampFix.count > 0) {
+    // Import and run the timestamp fix migration
+    import('./migrations/003_fix_timestamps')
+      .then(({ migration }) => {
+        try {
+          migration.up(sqliteInstance!)
+        } catch (error: unknown) {
+          // Check if it's just a duplicate column error (migration already partially ran)
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          if (!errorMessage.includes('duplicate column name')) {
+            console.error('Failed to run timestamp fix migration:', error)
+          }
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to import timestamp fix migration:', error)
+      })
+  }
+
+  // Check if we need to add project_claude_paths table
+  const hasProjectClaudePaths = sqliteInstance
+    .prepare(
+      `
+    SELECT COUNT(*) as count 
+    FROM sqlite_master 
+    WHERE type='table' AND name='project_claude_paths'
+  `
+    )
+    .get() as { count: number }
+
+  if (hasProjectClaudePaths.count === 0) {
+    // Import and run the project claude paths migration
+    import('./migrations/004_add_project_claude_paths')
+      .then((module) => {
+        module.up(sqliteInstance!)
+        console.log('✅ Added project_claude_paths table')
+      })
+      .catch((error) => {
+        console.error('Failed to run project_claude_paths migration:', error)
+      })
+  }
 }
 
 /**
@@ -172,27 +301,35 @@ export function closeDb() {
  */
 export function getDbStats() {
   if (!sqliteInstance) return null
-  
-  const stats = sqliteInstance.prepare(`
+
+  const stats = sqliteInstance
+    .prepare(
+      `
     SELECT 
       COUNT(*) as total_records,
       SUM(LENGTH(value)) as total_size,
       COUNT(DISTINCT namespace) as namespaces
     FROM storage
-  `).get() as { total_records: number; total_size: number; namespaces: number }
-  
-  const namespaceStats = sqliteInstance.prepare(`
+  `
+    )
+    .get() as { total_records: number; total_size: number; namespaces: number }
+
+  const namespaceStats = sqliteInstance
+    .prepare(
+      `
     SELECT 
       namespace,
       COUNT(*) as count,
       SUM(LENGTH(value)) as size
     FROM storage
     GROUP BY namespace
-  `).all() as Array<{ namespace: string; count: number; size: number }>
-  
+  `
+    )
+    .all() as Array<{ namespace: string; count: number; size: number }>
+
   return {
     ...stats,
-    byNamespace: namespaceStats
+    byNamespace: namespaceStats,
   }
 }
 
@@ -209,18 +346,19 @@ export function vacuumDb() {
  */
 export function backupDb(backupPath?: string) {
   if (!sqliteInstance) return
-  
+
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
   const destination = backupPath || path.join(STORAGE_DIR, 'backups', `studio-${timestamp}.db`)
-  
+
   // Ensure backup directory exists
   const backupDir = path.dirname(destination)
   if (!fs.existsSync(backupDir)) {
     fs.mkdirSync(backupDir, { recursive: true })
   }
-  
+
   // Use SQLite's backup API
-  sqliteInstance.backup(destination)
+  sqliteInstance
+    .backup(destination)
     .then(() => {
       console.log(`Database backed up to ${destination}`)
     })
@@ -228,6 +366,6 @@ export function backupDb(backupPath?: string) {
       console.error('Backup failed:', error)
       throw error
     })
-  
+
   return destination
 }

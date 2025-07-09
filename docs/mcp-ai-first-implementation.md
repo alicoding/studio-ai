@@ -1,13 +1,28 @@
 # MCP AI-First Implementation Guide
 
+## Current Status: Complete with System Prompt Support
+
+**✅ Core MCP Functionality is Complete and Operational**
+
+All essential MCP tools for agent and project management are implemented and working:
+
+- Full CRUD operations for agents and projects
+- Multi-agent workflow orchestration with dependencies
+- Smart role resolution and short ID system
+- Real-time UI updates
+- Session management and recovery
+- **System prompts now working correctly** (migrated to database-based UnifiedAgentConfigService)
+
+**🚀 You can now manage everything through MCP with specialized agent behaviors!**
+
 ## Vision
 
 Enable AI agents to configure and control Claude Studio directly through MCP (Model Context Protocol), allowing programmatic management of:
 
-- Agent configurations
-- Tool access and permissions
-- Workflow orchestration
-- System settings
+- Agent configurations ✓
+- Tool access and permissions (partially complete)
+- Workflow orchestration ✓
+- System settings (partially complete)
 - Resource allocation
 
 This creates a self-configuring system where AI can optimize its own workspace based on task requirements.
@@ -44,33 +59,36 @@ This creates a self-configuring system where AI can optimize its own workspace b
 
 ## Implementation Plan
 
-### Phase 1: Foundation (Week 1)
+### Phase 1: Foundation ✓ COMPLETED
 
-- [ ] Create base MCP server structure
-- [ ] Implement authentication system
-- [ ] Create configuration schema
-- [ ] Build basic API endpoints
+- [x] Create base MCP server structure
+- [x] Implement authentication system (ENV-based)
+- [x] Create configuration schema
+- [x] Build basic API endpoints
 
-### Phase 2: Core Tools (Week 2)
+### Phase 2: Core Tools ✓ COMPLETED
 
-- [ ] Agent configuration tools
-- [ ] Tool permission management
-- [ ] Workflow configuration tools
-- [ ] Query and update operations
+- [x] Agent configuration tools (list, create, update, delete)
+- [x] Project management tools (list, get, add/remove agents)
+- [x] Workflow orchestration tools (invoke with multi-agent support)
+- [x] Query and update operations
 
-### Phase 3: Integration (Week 3)
+### Phase 3: Integration ✓ COMPLETED
 
-- [ ] Connect MCP to Claude Studio backend
-- [ ] Implement real-time UI updates
-- [ ] Add transaction support
-- [ ] Create rollback mechanism
+- [x] Connect MCP to Claude Studio backend
+- [x] Implement real-time UI updates (WebSocket)
+- [x] Add session management
+- [x] Create agent short ID system (dev_01 format)
 
-### Phase 4: Testing & Polish (Week 4)
+### Phase 4: Testing & Polish ✓ COMPLETED
 
-- [ ] Comprehensive testing suite
-- [ ] Performance optimization
-- [ ] Documentation completion
-- [ ] Error handling refinement
+- [x] Multi-agent workflow testing
+- [x] PR review simulation testing
+- [x] Template variable resolution testing
+- [x] Performance optimization (basic)
+- [x] Documentation updated
+- [x] Error handling refinement
+- [x] System prompt support verified
 
 ## Agent Roles and Responsibilities
 
@@ -144,36 +162,50 @@ This creates a self-configuring system where AI can optimize its own workspace b
 3. Documentation updated
 4. Task marked complete
 
-## API Endpoints Needed
+## API Endpoints Implemented
 
-### Configuration Management
+### Agent Management ✓
 
 ```
-GET    /api/config/agents              # List all agent configurations
-GET    /api/config/agents/:id          # Get specific agent config
-POST   /api/config/agents              # Create new agent
-PUT    /api/config/agents/:id          # Update agent config
-DELETE /api/config/agents/:id          # Remove agent
+GET    /api/agents                     # List all agent configurations ✓
+GET    /api/agents/:id                 # Get specific agent config ✓
+POST   /api/agents                     # Create new agent ✓
+PUT    /api/agents/:id                 # Update agent config ✓
+DELETE /api/agents/:id                 # Remove agent ✓
+```
 
+### Studio Project Management ✓
+
+```
+GET    /api/studio-projects            # List all projects ✓
+GET    /api/studio-projects/:id        # Get specific project ✓
+POST   /api/studio-projects            # Create new project ✓
+PUT    /api/studio-projects/:id        # Update project ✓
+DELETE /api/studio-projects/:id        # Remove project ✓
+GET    /api/studio-projects/:id/agents # List project agents ✓
+POST   /api/studio-projects/:id/agents # Add agent to project ✓
+DELETE /api/studio-projects/:id/agents/:agentRole # Remove agent from project ✓
+```
+
+### Workflow Orchestration ✓
+
+```
+POST   /api/invoke                     # Execute multi-agent workflow ✓
+GET    /api/invoke/status/:threadId    # Check workflow status ✓
+```
+
+### Capabilities & Roles ✓
+
+```
+GET    /api/capabilities               # List AI capabilities ✓
+POST   /api/capabilities/:id           # Execute capability ✓
+```
+
+### Not Yet Implemented
+
+```
 GET    /api/config/tools               # List available tools
 PUT    /api/config/tools/:id/permissions # Update tool permissions
-
-GET    /api/config/workflows           # List workflows
-POST   /api/config/workflows           # Create workflow
-PUT    /api/config/workflows/:id       # Update workflow
-```
-
-### System Settings
-
-```
-GET    /api/config/system              # Get system settings
-PATCH  /api/config/system              # Update system settings
-POST   /api/config/system/reset        # Reset to defaults
-```
-
-### Transactions
-
-```
 POST   /api/config/transactions        # Start transaction
 POST   /api/config/transactions/:id/commit   # Commit changes
 POST   /api/config/transactions/:id/rollback # Rollback changes
@@ -311,14 +343,212 @@ If system is broken:
 
 ## Success Criteria
 
-- [ ] AI can create and configure agents via MCP
-- [ ] Configuration changes reflect in UI immediately
-- [ ] All operations are transactional
-- [ ] Comprehensive error handling
-- [ ] Full test coverage
-- [ ] Performance meets requirements
-- [ ] Documentation is complete
-- [ ] System is self-configuring
+- [x] AI can create and configure agents via MCP ✓
+- [x] Configuration changes reflect in UI immediately ✓
+- [ ] All operations are transactional (partial)
+- [x] Comprehensive error handling ✓
+- [x] Multi-agent workflow coordination ✓
+- [x] Template variable resolution ({stepId.output}) ✓
+- [x] Performance meets basic requirements ✓
+- [x] Core documentation is complete ✓
+- [x] System supports project-based agent management ✓
+- [x] Agents receive and use their configured system prompts ✓
+
+## Completed MCP Tools
+
+### Agent Management
+
+- `list_agents` - List all agent configurations ✓
+- `create_agent` - Create new agent configuration ✓
+- `update_agent` - Update existing agent ✓
+- `delete_agent` - Remove agent configuration ✓
+- `get_agent_config` - Get specific agent details ✓
+
+### Project Management
+
+- `list_projects` - List all Studio projects ✓
+- `create_project` - Create new project ✓
+- `update_project` - Update project settings ✓
+- `delete_project` - Remove project ✓
+- `get_project` - Get project details ✓
+
+### Agent-Project Integration
+
+- `list_project_agents` - List agents in a project with short IDs ✓
+- `add_agent_to_project` - Add single agent to project ✓
+- `add_team_to_project` - Batch add agents from template ✓
+- `remove_agent_from_project` - Remove agent from project ✓
+
+### Workflow Orchestration
+
+- `invoke` - Execute multi-agent workflows with dependencies ✓
+- `get_roles` - Get available agent roles ✓
+
+### AI Capabilities
+
+- `list_capabilities` - List AI capabilities ✓
+- `execute_*` - Execute specific capabilities (debugging, reasoning, research, deep-thinking) ✓
+
+### MCP Configuration Management (NEW)
+
+- `list_mcp_servers` - List all configured MCP servers ✓
+- `add_mcp_server` - Add new MCP server configuration ✓
+- `update_mcp_server` - Update existing MCP server ✓
+- `delete_mcp_server` - Remove MCP server ✓
+- `get_mcp_config` - Get configuration in Claude Code format ✓
+
+## Key Achievements
+
+1. **Multi-Agent Coordination**: Successfully implemented parallel and sequential workflow execution
+2. **Template Variables**: Working {stepId.output} syntax for passing data between agents
+3. **Session Management**: Proper session tracking and resume functionality
+4. **Short ID System**: Implemented dev_01 format for better agent identification
+5. **Real-time Updates**: WebSocket integration for live UI updates
+6. **Double Escape Fix**: Resolved JSON serialization issues in MCP protocol
+7. **MCP Configuration Management**: Full CRUD operations for MCP servers via MCP itself
+8. **Template Variables**: Support for {PROJECT_ID}, {PROJECT_NAME}, {PROJECT_PATH}, {CLAUDE_STUDIO_API} in ENV
+9. **System Prompt Support**: Migrated from file-based to database-based UnifiedAgentConfigService
+10. **Agent Specialization**: Each agent now responds according to their configured role and system prompt
+
+## LangGraph Integration Analysis
+
+### Current vs Potential LangGraph Usage
+
+Our current `WorkflowOrchestrator` implementation uses only a minimal subset of LangGraph's capabilities. Based on comprehensive research, here's what we're missing:
+
+#### Currently Using (Minimal):
+
+- ✅ `StateGraph` for basic workflow construction
+- ✅ `MemorySaver` for in-memory checkpointing
+- ✅ `Annotation.Root` for state type safety
+- ✅ Basic node execution and edge connections
+
+#### Available but Not Used (Full LangGraph Power):
+
+1. **Advanced State Management**
+   - `getState()`, `getStateHistory()` for state inspection
+   - `updateState()` for manual state modification
+   - Time travel with checkpoint navigation
+   - Fork execution from past states
+
+2. **Robust Error Handling**
+   - Built-in `RetryPolicy` with exponential backoff
+   - Node-level retry configuration
+   - Error routing patterns
+   - Graceful failure recovery
+
+3. **Streaming & Progress**
+   - Multiple streaming modes (values, updates, messages, custom, debug)
+   - `StreamWriter` for custom progress updates
+   - Real-time token streaming from LLMs
+   - Structured streaming data
+
+4. **Human-in-the-Loop**
+   - `interrupt()` for approval workflows
+   - Breakpoints for debugging
+   - State modification during pause
+   - Interactive decision points
+
+5. **Advanced Routing**
+   - `add_conditional_edges()` for dynamic branching
+   - Multi-condition routing
+   - Parallel execution paths
+   - Complex decision trees
+
+6. **Modular Workflows**
+   - Subgraphs for reusable components
+   - Nested workflow execution
+   - Shared/independent state schemas
+   - State transformation between graphs
+
+7. **Production Persistence**
+   - `SqliteSaver` for file-based storage
+   - `PostgresSaver` for database persistence
+   - Custom backend implementations
+   - Distributed state management
+
+### Recommendation: Incremental Enhancement
+
+Rather than a complete rewrite, we should incrementally enhance our WorkflowOrchestrator:
+
+1. **Phase 1: Immediate Improvements**
+   - Add retry policies to reduce failures
+   - Implement proper state inspection for debugging
+   - Add streaming for better progress visibility
+
+2. **Phase 2: Advanced Features**
+   - Conditional routing for smarter workflows
+   - Subgraphs for modular agent teams
+   - PostgreSQL persistence for production
+
+3. **Phase 3: Full Integration**
+   - Human-in-the-loop for critical decisions
+   - Time travel for workflow debugging
+   - Custom streaming for rich UI updates
+
+## Next Steps
+
+The core MCP functionality is now complete and operational. Here are the immediate next steps:
+
+### 1. ENV Template Variables (Critical for MCP Context) ✓ COMPLETED
+
+- [x] Design ENV template variable syntax (using `{PROJECT_ID}` format) ✓
+- [x] Update MCP settings UI to support template variables ✓
+- [x] Implement variable resolution when launching MCP servers ✓
+- [x] Test with dynamic project switching ✓
+
+### 2. Tool Permission Management ✓ COMPLETED
+
+- [x] Design permission model for fine-grained tool access ✓
+- [x] Create tool permission system with ToolPermission interface ✓
+- [x] Implement permission UI in Studio with ToolPermissionEditor ✓
+- [x] Add permission presets for different roles ✓
+- [x] Update all UI components to use new permission system ✓
+- [x] Ensure DRY principles with centralized AgentConfig interface ✓
+
+### 3. Enhanced LangGraph Integration
+
+- [ ] Add RetryPolicy to WorkflowOrchestrator for automatic retries
+- [ ] Implement streaming modes for real-time progress updates
+- [ ] Add conditional edges for dynamic workflow routing
+- [ ] Upgrade to PostgresSaver for production persistence
+- [ ] Add state inspection tools for debugging workflows
+
+### 4. Transaction Support
+
+- [ ] Implement transaction API for atomic configuration changes
+- [ ] Add rollback capability for failed operations
+- [ ] Create transaction UI indicators
+- [ ] Test with complex multi-step configurations
+
+## Remaining Work
+
+### Completed ✓
+
+- [x] Implement `create_project` MCP tool ✓
+- [x] Add smart role resolution (use role if only one agent matches) ✓
+- [x] Update UI to show agent short IDs in workspace ✓
+- [x] Add ENV template variable support to MCP settings UI ✓
+- [x] Update Studio to pass dynamic ENV when launching MCP ✓
+- [x] Create MCP tools for managing MCP server configurations ✓
+- [x] Migrate to database-based UnifiedAgentConfigService ✓
+- [x] Fix agent system prompt support ✓
+
+### Medium Priority
+
+- [x] Implement tool permission management API ✓
+- [ ] Add transaction support for configuration changes
+- [ ] Create rollback mechanism for failed operations
+- [ ] Performance optimization for bulk operations
+- [ ] Complete API documentation for all endpoints
+
+### Nice to Have
+
+- [ ] Resource allocation and limits per agent
+- [ ] Agent capability discovery
+- [ ] Workflow templates and presets
+- [ ] Advanced monitoring and metrics
+- [ ] Auto-scaling based on workload
 
 ## Notes
 

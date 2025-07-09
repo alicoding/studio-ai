@@ -3,21 +3,11 @@ import { useState, useEffect } from 'react'
 import { AgentConfigCard } from '../components/agents/AgentConfigCard'
 import { CreateAgentModal } from '../components/agents/CreateAgentModal'
 import { PageLayout } from '../components/layout/PageLayout'
-import { useAgentStore } from '../stores'
+import { useAgentStore, type AgentConfig } from '../stores'
 
 export const Route = createFileRoute('/agents')({
   component: AgentsPage,
 })
-
-interface AgentConfig {
-  id: string
-  name: string
-  role: string
-  systemPrompt: string
-  tools: string[]
-  model: string
-  projectsUsing: string[]
-}
 
 function AgentsPage() {
   const {
@@ -57,7 +47,7 @@ function AgentsPage() {
     if (!agent || !agent.name || !agent.role) {
       return false
     }
-    
+
     const matchesSearch =
       agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       agent.role.toLowerCase().includes(searchQuery.toLowerCase())

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useAgentStore } from '../agents'
 import type { Agent, AgentConfig } from '../agents'
+import { convertToolsToPermissions } from '../../types/tool-permissions'
 
 describe('Agent Store - New Architecture', () => {
   beforeEach(() => {
@@ -34,7 +35,7 @@ describe('Agent Store - New Architecture', () => {
         name: 'Test Agent Config',
         role: 'dev',
         systemPrompt: 'You are a test agent.',
-        tools: ['file_system', 'terminal'],
+        tools: convertToolsToPermissions(['file_system', 'terminal']),
         model: 'claude-3-opus',
         projectsUsing: ['project-1'],
         maxTokens: 200000,
@@ -73,7 +74,7 @@ describe('Agent Store - New Architecture', () => {
         name: 'Test Agent Config',
         role: 'dev',
         systemPrompt: 'You are a helpful agent.',
-        tools: ['file_system'],
+        tools: convertToolsToPermissions(['file_system']),
         model: 'claude-3-opus',
         projectsUsing: ['project-1'],
         maxTokens: 200000,
@@ -101,7 +102,7 @@ describe('Agent Store - New Architecture', () => {
       expect(config).toBeTruthy()
       expect(config?.id).toBe('agent-1')
       expect(config?.systemPrompt).toBe('You are a helpful agent.')
-      expect(config?.tools).toEqual(['file_system'])
+      expect(config?.tools).toEqual(convertToolsToPermissions(['file_system']))
     })
 
     it('should get agent with config', () => {

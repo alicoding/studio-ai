@@ -7,31 +7,20 @@
  * Library-First: LangGraph for state, string-template for variables
  */
 
-import { StateGraph, Annotation, MemorySaver } from '@langchain/langgraph'
+import { StateGraph, Annotation, BaseCheckpointSaver, type RetryPolicy } from '@langchain/langgraph'
 import format from 'string-template'
 import { v4 as uuidv4 } from 'uuid'
 import { ClaudeService } from './ClaudeService'
 import { SimpleOperator } from './SimpleOperator'
-import { ServerAgentConfigService } from './ServerAgentConfigService'
-import { ProjectService } from './ProjectService'
+import { UnifiedAgentConfigService, type AgentConfig } from './UnifiedAgentConfigService'
+import { StudioProjectService } from './StudioProjectService'
 import { detectAbortError, AbortError } from '../utils/errorUtils'
 import { updateWorkflowStatus } from '../api/invoke-status'
 import type { InvokeRequest, InvokeResponse, WorkflowStep, StepResult } from '../schemas/invoke'
 import type { Server } from 'socket.io'
-
-// Project agent type from workspace
-interface ProjectAgent {
-  id: string
-  configId?: string
-  name: string
-  role: string
-  status: 'online' | 'offline'
-  sessionId: string | null
-  messageCount: number
-  totalTokens: number
-  lastMessage: string
-  hasSession: boolean
-}
+import { EventEmitter } from 'events'
+import { WorkflowMonitor } from './WorkflowMonitor'
+import { FlowLogger } from '../utils/FlowLogger'
 
 // Template context type
 interface TemplateContext {
@@ -91,13 +80,48 @@ const WorkflowStateSchema = Annotation.Root({
 export class WorkflowOrchestrator {
   private claudeService = new ClaudeService()
   private operator = new SimpleOperator()
-  private agentConfigService = ServerAgentConfigService.getInstance()
-  private projectService = new ProjectService()
-  private memory = new MemorySaver()
+  private agentConfigService = UnifiedAgentConfigService.getInstance()
+  private projectService = new StudioProjectService()
+  private checkpointer: BaseCheckpointSaver | null = null
   private io?: Server
+  private workflowEvents?: EventEmitter
 
-  constructor(io?: Server) {
+  constructor(io?: Server, workflowEvents?: EventEmitter) {
     this.io = io
+    this.workflowEvents = workflowEvents
+  }
+
+  /**
+   * Get or initialize the checkpointer
+   * Lazy initialization to support async checkpointer creation
+   */
+  private async getCheckpointer(): Promise<BaseCheckpointSaver> {
+    if (!this.checkpointer) {
+      // Import dynamically to avoid circular dependencies
+      const { getCheckpointer } = await import('./database/checkpointer')
+      this.checkpointer = await getCheckpointer()
+    }
+    return this.checkpointer
+  }
+
+  /**
+   * Emit workflow event to both Socket.io and EventEmitter
+   */
+  private emitWorkflowEvent(event: {
+    type: 'step_start' | 'step_complete' | 'step_failed' | 'workflow_complete' | 'workflow_failed'
+    threadId: string
+    stepId?: string
+    sessionId?: string
+    retry?: number
+    status?: string
+    lastStep?: string
+  }): void {
+    if (this.io) {
+      this.io.emit('workflow:update', event)
+    }
+    if (this.workflowEvents) {
+      this.workflowEvents.emit('workflow:update', event)
+    }
   }
 
   /**
@@ -118,8 +142,18 @@ export class WorkflowOrchestrator {
     // Generate or use threadId as the workflow session identifier
     const threadId = request.threadId || uuidv4()
 
+    // Register workflow for monitoring
+    const monitor = WorkflowMonitor.getInstance()
+    monitor.registerWorkflow(threadId, request)
+
+    // Update status when workflow starts
+    updateWorkflowStatus(threadId, {
+      status: 'running',
+      currentStep: normalizedSteps[0]?.id,
+    })
+
     // Build and execute workflow
-    const workflow = this.buildWorkflow(normalizedSteps)
+    const workflow = await this.buildWorkflow(normalizedSteps)
 
     const initialState = {
       steps: normalizedSteps,
@@ -153,6 +187,32 @@ export class WorkflowOrchestrator {
         sessionIds: finalState.sessionIds,
       })
 
+      // Emit workflow complete event
+      this.emitWorkflowEvent({
+        type: 'workflow_complete',
+        threadId,
+        status: finalStatus,
+      })
+
+      // Remove from monitoring
+      monitor.removeWorkflow(threadId)
+
+      // Update project last activity if projectId is provided
+      if (request.projectId) {
+        try {
+          console.log(
+            `[WorkflowOrchestrator] Updating last activity for project: ${request.projectId}`
+          )
+          await this.projectService.updateLastActivity(request.projectId)
+          console.log(
+            `[WorkflowOrchestrator] Successfully updated last activity for project: ${request.projectId}`
+          )
+        } catch (error) {
+          console.error('Failed to update project last activity:', error)
+          // Don't fail the workflow for this
+        }
+      }
+
       // Build response
       const response: InvokeResponse = {
         threadId,
@@ -177,6 +237,19 @@ export class WorkflowOrchestrator {
         status: abortInfo.isAbort ? 'aborted' : 'failed',
       })
 
+      // Emit workflow failed event with last step info for recovery
+      // Find the last step that was attempted
+      const lastStep = normalizedSteps[normalizedSteps.length - 1]?.id || 'unknown'
+
+      this.emitWorkflowEvent({
+        type: 'workflow_failed',
+        threadId,
+        lastStep,
+      })
+
+      // Remove from monitoring on failure
+      monitor.removeWorkflow(threadId)
+
       throw error
     }
   }
@@ -184,12 +257,33 @@ export class WorkflowOrchestrator {
   /**
    * Build LangGraph workflow from steps
    */
-  private buildWorkflow(steps: WorkflowStep[]) {
+  private async buildWorkflow(steps: WorkflowStep[]) {
     const workflow = new StateGraph(WorkflowStateSchema)
 
-    // Add a node for each step
+    // Define retry policy for all nodes
+    const retryPolicy: RetryPolicy = {
+      maxAttempts: 3,
+      initialInterval: 1000, // 1 second
+      backoffFactor: 2,
+      maxInterval: 30000, // 30 seconds
+      jitter: true,
+      retryOn: (error) => {
+        // Retry on network errors, timeouts, and other transient failures
+        // Don't retry on validation errors or explicit failures
+        const message = error?.message || ''
+        const nonRetryableErrors = [
+          'validation failed',
+          'invalid configuration',
+          'unauthorized',
+          'forbidden',
+        ]
+        return !nonRetryableErrors.some((err) => message.toLowerCase().includes(err))
+      },
+    }
+
+    // Add a node for each step with retry policy
     steps.forEach((step) => {
-      workflow.addNode(step.id!, this.createStepNode(step))
+      workflow.addNode(step.id!, this.createStepNode(step), { retryPolicy })
     })
 
     // Add edges based on dependencies
@@ -211,7 +305,8 @@ export class WorkflowOrchestrator {
       workflow.addEdge(stepId as '__start__', '__end__')
     })
 
-    return workflow.compile({ checkpointer: this.memory })
+    const checkpointer = await this.getCheckpointer()
+    return workflow.compile({ checkpointer })
   }
 
   /**
@@ -220,6 +315,21 @@ export class WorkflowOrchestrator {
   private createStepNode(step: WorkflowStep) {
     return async (state: typeof WorkflowStateSchema.State) => {
       const startTime = Date.now()
+
+      // Emit step start event for recovery tracking
+      this.emitWorkflowEvent({
+        type: 'step_start',
+        threadId: state.threadId,
+        stepId: step.id,
+      })
+
+      // Update monitor with step start event
+      const monitor = WorkflowMonitor.getInstance()
+      monitor.updateHeartbeat(state.threadId, step.id)
+
+      // Log flow for documentation
+      FlowLogger.log('step-execution', `Step ${step.id} START`)
+      FlowLogger.log('step-execution', `-> WorkflowMonitor.updateHeartbeat(${step.id})`)
 
       try {
         // Check if dependencies are satisfied
@@ -253,24 +363,28 @@ export class WorkflowOrchestrator {
         )
 
         // Try to get project agents first
-        let agent: ProjectAgent | null = null
-        let globalAgentConfig: { id: string; role?: string; systemPrompt?: string } | null = null
         let agentInstanceId: string | null = null
+        let agentShortId: string | null = null
+        let agentRole: string | null = null
+        let globalAgentConfig: { id: string; role?: string; systemPrompt?: string } | null = null
 
         if (state.projectId) {
           try {
-            const projectAgents = (await this.projectService.getProjectAgents(
+            const projectAgents = await this.projectService.getProjectAgentsWithShortIds(
               state.projectId
-            )) as ProjectAgent[]
+            )
 
             // If agentId is provided, use it directly (short ID like dev_01)
             if (step.agentId) {
-              const projectAgent = projectAgents.find((a) => a.id === step.agentId)
+              const projectAgent = projectAgents.find((a) => a.shortId === step.agentId)
 
               if (projectAgent) {
-                agent = projectAgent
-                agentInstanceId = projectAgent.id
-                console.log(`[WorkflowOrchestrator] Using project agent by ID: ${agentInstanceId}`)
+                agentInstanceId = projectAgent.agentConfigId
+                agentShortId = projectAgent.shortId
+                agentRole = projectAgent.role
+                console.log(
+                  `[WorkflowOrchestrator] Using project agent by ID: ${projectAgent.shortId} (config: ${agentInstanceId})`
+                )
               } else {
                 throw new Error(`Agent with ID ${step.agentId} not found in project`)
               }
@@ -282,10 +396,11 @@ export class WorkflowOrchestrator {
               )
 
               if (projectAgent) {
-                agent = projectAgent
-                agentInstanceId = projectAgent.id
+                agentInstanceId = projectAgent.agentConfigId
+                agentShortId = projectAgent.shortId
+                agentRole = projectAgent.role
                 console.log(
-                  `[WorkflowOrchestrator] Using project agent ${agentInstanceId} for role ${step.role}`
+                  `[WorkflowOrchestrator] Using project agent ${projectAgent.shortId} (config: ${agentInstanceId}) for role ${step.role}`
                 )
               }
             }
@@ -295,16 +410,18 @@ export class WorkflowOrchestrator {
         }
 
         // Fall back to global agent config if no project agent found (only for role-based)
-        if (!agent && step.role) {
-          const agents = await this.agentConfigService.getAllAgents()
+        if (!agentInstanceId && step.role) {
+          const agents = await this.agentConfigService.getAllConfigs()
           globalAgentConfig =
-            agents.find((a) => a.role?.toLowerCase() === step.role!.toLowerCase()) || null
+            agents.find((a: AgentConfig) => a.role?.toLowerCase() === step.role!.toLowerCase()) ||
+            null
 
           if (!globalAgentConfig) {
             throw new Error(`No agent found for role: ${step.role}`)
           }
 
           agentInstanceId = globalAgentConfig.id
+          agentRole = globalAgentConfig.role || step.role
           console.log(
             `[WorkflowOrchestrator] Using global agent config ${agentInstanceId} for role ${step.role}`
           )
@@ -316,24 +433,68 @@ export class WorkflowOrchestrator {
           )
         }
 
+        // Get project workspace path for Studio projects
+        let projectPath: string | undefined
+        if (state.projectId) {
+          try {
+            const project = await this.projectService.getProjectWithAgents(state.projectId)
+            projectPath = project.workspacePath
+            console.log(`[WorkflowOrchestrator] Using project workspace: ${projectPath}`)
+          } catch (error) {
+            console.log(`[WorkflowOrchestrator] Could not get project workspace: ${error}`)
+          }
+        }
+
         // Send message via ClaudeService using the appropriate agent ID
+        // For UI compatibility, use shortId for session creation but pass agentConfigId for agent loading
+        const sessionAgentId = agentShortId || agentInstanceId! // Use short ID for sessions, config ID as fallback
+
+        // Get agent config to pass system prompt and other settings
+        let agentConfig: AgentConfig | undefined
+        if (agentInstanceId) {
+          const config = await this.agentConfigService.getConfig(agentInstanceId)
+          agentConfig = config || undefined
+          console.log(
+            `[WorkflowOrchestrator] Loaded agent config for ${agentInstanceId}:`,
+            JSON.stringify(agentConfig, null, 2)
+          )
+        }
+
+        // Emit user message through WebSocket for real-time UI updates
+        if (this.io && sessionAgentId) {
+          console.log(`[WorkflowOrchestrator] Emitting user message for session: ${sessionAgentId}`)
+          this.io.emit('message:new', {
+            sessionId: sessionAgentId,
+            message: {
+              role: 'user',
+              content: resolvedTask,
+              timestamp: new Date().toISOString(),
+            },
+          })
+        }
+
+        FlowLogger.log('step-execution', `-> ClaudeService.sendMessage()`)
         const result = await this.claudeService.sendMessage(
           resolvedTask,
           state.projectId,
-          agentInstanceId!, // Use instance ID for project agents, config ID for global
-          undefined, // projectPath
+          sessionAgentId, // Use short ID for session creation to match UI expectations
+          projectPath, // Pass workspace path for proper session isolation
           undefined, // role - let it default
           undefined, // onStream
           this.io,
-          step.sessionId ? false : state.startNewConversation // Don't force new if resuming
+          step.sessionId ? false : state.startNewConversation, // Don't force new if resuming
+          agentConfig // Pass agent config explicitly since we're using short ID for session
         )
+        FlowLogger.log('step-execution', `<- ClaudeService response received`)
 
         // Check status with operator - pass context for accurate evaluation
+        FlowLogger.log('step-execution', `-> SimpleOperator.checkStatus()`)
         const analysis = await this.operator.checkStatus(result.response, {
-          role: step.role || agent?.role || 'agent',
+          role: agentRole || step.role || 'agent', // Use the agent's role for context
           task: resolvedTask,
           roleSystemPrompt: globalAgentConfig?.systemPrompt || undefined,
         })
+        FlowLogger.log('step-execution', `<- Operator analysis: ${analysis.status}`)
 
         // Build step result
         const stepResult: StepResult = {
@@ -342,6 +503,32 @@ export class WorkflowOrchestrator {
           response: result.response,
           sessionId: result.sessionId || '',
           duration: Date.now() - startTime,
+        }
+
+        // Emit step complete event with sessionId for recovery
+        if (analysis.status === 'success') {
+          FlowLogger.log('step-execution', `Step ${step.id} SUCCESS - emitting step_complete`)
+          this.emitWorkflowEvent({
+            type: 'step_complete',
+            threadId: state.threadId,
+            stepId: step.id,
+            sessionId: result.sessionId || undefined,
+          })
+          // Update monitor on step completion
+          monitor.updateHeartbeat(state.threadId, step.id)
+          FlowLogger.log('step-execution', `-> WorkflowMonitor.updateHeartbeat(${step.id})`)
+        } else {
+          FlowLogger.log('step-execution', `Step ${step.id} FAILED - status: ${analysis.status}`)
+        }
+
+        // Update workflow status with sessionId
+        if (result.sessionId) {
+          const sessionIds: Record<string, string> = {}
+          sessionIds[step.id!] = result.sessionId
+          updateWorkflowStatus(state.threadId, {
+            sessionIds,
+            currentStep: step.id,
+          })
         }
 
         // Update state - merge with existing state
@@ -364,6 +551,14 @@ export class WorkflowOrchestrator {
           lastSessionId = error.sessionId
           console.log(`[WorkflowOrchestrator] Using sessionId from AbortError: ${lastSessionId}`)
         }
+
+        // Emit step failed event for recovery
+        this.emitWorkflowEvent({
+          type: 'step_failed',
+          threadId: state.threadId,
+          stepId: step.id,
+          retry: 0, // Retry count tracked by LangGraph's RetryPolicy
+        })
 
         return {
           stepResults: {
@@ -501,7 +696,7 @@ export class WorkflowOrchestrator {
   }> {
     try {
       // Build workflow to get the compiled graph
-      const workflow = this.buildWorkflow(steps)
+      const workflow = await this.buildWorkflow(steps)
 
       // Get current state from LangGraph checkpointer
       const state = await workflow.getState({

@@ -40,6 +40,11 @@ debug-*.js
 # Local configuration (not the app config)
 .claude-studio-local/
 
+# Database files (should be in ~/.claude-studio/)
+.claude-studio/*.db
+.claude-studio/*.db-shm
+.claude-studio/*.db-wal
+
 # Auto-generated files
 src/routeTree.gen.ts
 .tanstack/

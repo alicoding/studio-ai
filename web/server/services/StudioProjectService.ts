@@ -8,25 +8,20 @@
  */
 
 import { randomUUID } from 'crypto'
-import { getDb } from '../../../src/lib/storage/database.js'
-import { projects, agentRoleAssignments, teamTemplates } from '../../../src/lib/storage/schema.js'
+import { getDb } from '../../../src/lib/storage/database'
+import { projects, agentRoleAssignments, teamTemplates } from '../../../src/lib/storage/schema'
 import { eq, and, desc } from 'drizzle-orm'
-import { AgentConfigService } from './AgentConfigService.js'
-import type { AgentConfig } from '../../../src/services/ConfigService.js'
+import { UnifiedAgentConfigService } from './UnifiedAgentConfigService'
+import type { AgentConfig } from './UnifiedAgentConfigService'
 import fs from 'fs/promises'
 import path from 'path'
-import os from 'os'
+// Safety utilities
+import { validateProjectPath, expandPath, safeDeleteDirectory } from '../utils/pathSafety'
 
 // Get database instance
 const db = getDb()
 
-// Helper function to expand ~ in paths
-function expandPath(filePath: string): string {
-  if (filePath.startsWith('~/')) {
-    return path.join(os.homedir(), filePath.slice(2))
-  }
-  return filePath
-}
+// expandPath is now imported from pathSafety utilities
 
 export interface CreateProjectInput {
   name: string
@@ -61,6 +56,7 @@ export interface StudioProject {
   settings?: ProjectSettings
   createdAt: Date
   updatedAt: Date
+  lastActivityAt?: Date | null
 }
 
 export interface ProjectWithAgents extends StudioProject {
@@ -73,10 +69,10 @@ export interface ProjectWithAgents extends StudioProject {
 }
 
 export class StudioProjectService {
-  private agentConfigService: AgentConfigService
+  private agentConfigService: UnifiedAgentConfigService
 
   constructor() {
-    this.agentConfigService = AgentConfigService.getInstance()
+    this.agentConfigService = UnifiedAgentConfigService.getInstance()
   }
 
   /**
@@ -85,8 +81,24 @@ export class StudioProjectService {
   async createProject(input: CreateProjectInput): Promise<ProjectWithAgents> {
     const projectId = randomUUID()
 
-    // Expand ~ in workspace path
-    const expandedWorkspacePath = expandPath(input.workspacePath)
+    // Validate workspace path for safety
+    const pathValidation = validateProjectPath(input.workspacePath)
+    if (!pathValidation.isValid) {
+      throw new Error(`Invalid workspace path: ${pathValidation.error}`)
+    }
+
+    const expandedWorkspacePath = pathValidation.expandedPath!
+
+    // Check for duplicate workspace path
+    const existing = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.workspacePath, input.workspacePath))
+      .get()
+
+    if (existing) {
+      throw new Error(`A project already exists at workspace path: ${input.workspacePath}`)
+    }
 
     // Create project directory if it doesn't exist
     try {
@@ -119,7 +131,7 @@ export class StudioProjectService {
     // Validate agent assignments exist
     if (input.agents) {
       for (const assignment of input.agents) {
-        const agent = await this.agentConfigService.getAgent(assignment.agentConfigId)
+        const agent = await this.agentConfigService.getConfig(assignment.agentConfigId)
         if (!agent) {
           throw new Error(`Agent ${assignment.agentConfigId} not found`)
         }
@@ -184,7 +196,7 @@ export class StudioProjectService {
     // Load agent configs
     const agentsWithConfigs = await Promise.all(
       assignments.map(async (assignment) => {
-        const agentConfig = await this.agentConfigService.getAgent(assignment.agentConfigId || '')
+        const agentConfig = await this.agentConfigService.getConfig(assignment.agentConfigId || '')
         return {
           role: assignment.role,
           agentConfigId: assignment.agentConfigId || '',
@@ -202,6 +214,7 @@ export class StudioProjectService {
       settings: project.settings ? JSON.parse(project.settings) : undefined,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
+      lastActivityAt: project.lastActivityAt || null,
       agents: agentsWithConfigs,
     }
   }
@@ -220,6 +233,7 @@ export class StudioProjectService {
       settings: p.settings ? JSON.parse(p.settings) : undefined,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
+      lastActivityAt: p.lastActivityAt || null,
     }))
   }
 
@@ -254,18 +268,45 @@ export class StudioProjectService {
       settings: updated.settings ? JSON.parse(updated.settings) : undefined,
       createdAt: updated.createdAt,
       updatedAt: updated.updatedAt,
+      lastActivityAt: updated.lastActivityAt || null,
     }
+  }
+
+  /**
+   * Update project's last activity timestamp
+   */
+  async updateLastActivity(projectId: string): Promise<void> {
+    await db.update(projects).set({ lastActivityAt: new Date() }).where(eq(projects.id, projectId))
   }
 
   /**
    * Delete a project and its assignments
    */
-  async deleteProject(projectId: string): Promise<void> {
+  async deleteProject(projectId: string, options?: { deleteWorkspace?: boolean }): Promise<void> {
+    // Get project info before deletion
+    const project = await db.select().from(projects).where(eq(projects.id, projectId)).get()
+    if (!project) {
+      throw new Error('Project not found')
+    }
+
     // Delete agent assignments first
     await db.delete(agentRoleAssignments).where(eq(agentRoleAssignments.projectId, projectId))
 
-    // Delete the project
+    // Delete the project record
     await db.delete(projects).where(eq(projects.id, projectId))
+
+    // Optionally delete workspace directory (moved to trash for safety)
+    if (options?.deleteWorkspace && project.workspacePath) {
+      try {
+        await safeDeleteDirectory(expandPath(project.workspacePath))
+      } catch (error) {
+        console.error('Failed to delete workspace directory:', error)
+        // Don't fail the entire operation if workspace deletion fails
+        throw new Error(
+          `Project deleted but failed to remove workspace: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
+      }
+    }
   }
 
   /**
@@ -338,7 +379,7 @@ export class StudioProjectService {
         roleCounts[role] = (roleCounts[role] || 0) + 1
         const shortId = `${role}_${String(roleCounts[role]).padStart(2, '0')}`
 
-        const agentConfig = await this.agentConfigService.getAgent(assignment.agentConfigId || '')
+        const agentConfig = await this.agentConfigService.getConfig(assignment.agentConfigId || '')
 
         return {
           shortId,
@@ -358,6 +399,40 @@ export class StudioProjectService {
    */
   private async getTeamTemplate(templateId: string) {
     return db.select().from(teamTemplates).where(eq(teamTemplates.id, templateId)).get()
+  }
+
+  /**
+   * Get project agents in format expected by WorkflowOrchestrator
+   * Returns agents with short IDs as the main ID
+   */
+  async getProjectAgents(projectId: string): Promise<
+    Array<{
+      id: string // This will be the short ID
+      configId?: string
+      name: string
+      role: string
+      status: 'online' | 'offline'
+      sessionId: string | null
+      messageCount: number
+      totalTokens: number
+      lastMessage: string
+      hasSession: boolean
+    }>
+  > {
+    const agentsWithShortIds = await this.getProjectAgentsWithShortIds(projectId)
+
+    return agentsWithShortIds.map((agent) => ({
+      id: agent.shortId, // Use short ID as the main ID
+      configId: agent.agentConfigId,
+      name: agent.agentConfig?.name || agent.role,
+      role: agent.role,
+      status: 'offline' as const,
+      sessionId: null,
+      messageCount: 0,
+      totalTokens: 0,
+      lastMessage: '',
+      hasSession: false,
+    }))
   }
 
   /**

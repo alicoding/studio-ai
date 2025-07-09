@@ -1,6 +1,6 @@
 /**
  * MCP (Model Context Protocol) Settings Tab
- * 
+ *
  * SOLID: Single responsibility - MCP server configuration
  * DRY: Reuses existing form components and validation
  * KISS: Simple UI for adding/managing MCP servers
@@ -27,7 +27,7 @@ const MCPServerFormSchema = z.object({
   command: z.string().min(1, 'Command is required'),
   args: z.string().default(''), // Comma-separated string for UI
   env: z.string().default(''), // Key=value pairs, one per line
-  enabled: z.boolean().default(true)
+  enabled: z.boolean().default(true),
 })
 
 type MCPServerForm = z.infer<typeof MCPServerFormSchema>
@@ -43,7 +43,7 @@ export function MCPTab() {
     handleSubmit,
     reset,
     setValue,
-    formState: { errors }
+    formState: { errors },
   } = useForm<MCPServerForm>({
     // @ts-expect-error - Known issue with zod resolver types
     resolver: zodResolver(MCPServerFormSchema),
@@ -52,8 +52,8 @@ export function MCPTab() {
       command: '',
       args: '',
       env: '',
-      enabled: true
-    }
+      enabled: true,
+    },
   })
 
   // Convert form data to server data
@@ -61,17 +61,25 @@ export function MCPTab() {
     return {
       name: data.name,
       command: data.command,
-      args: data.args ? data.args.split(',').map(arg => arg.trim()).filter(Boolean) : [],
-      env: data.env ? Object.fromEntries(
-        data.env.split('\n')
-          .map(line => line.trim())
-          .filter(Boolean)
-          .map(line => {
-            const [key, ...valueParts] = line.split('=')
-            return [key, valueParts.join('=')]
-          })
-      ) : undefined,
-      enabled: data.enabled
+      args: data.args
+        ? data.args
+            .split(',')
+            .map((arg) => arg.trim())
+            .filter(Boolean)
+        : [],
+      env: data.env
+        ? Object.fromEntries(
+            data.env
+              .split('\n')
+              .map((line) => line.trim())
+              .filter(Boolean)
+              .map((line) => {
+                const [key, ...valueParts] = line.split('=')
+                return [key, valueParts.join('=')]
+              })
+          )
+        : undefined,
+      enabled: data.enabled,
     }
   }
 
@@ -81,17 +89,19 @@ export function MCPTab() {
       name: server.name,
       command: server.command,
       args: server.args?.join(', ') || '',
-      env: server.env ? Object.entries(server.env)
-        .map(([key, value]) => `${key}=${value}`)
-        .join('\n') : '',
-      enabled: server.enabled
+      env: server.env
+        ? Object.entries(server.env)
+            .map(([key, value]) => `${key}=${value}`)
+            .join('\n')
+        : '',
+      enabled: server.enabled,
     }
   }
 
   const onSubmit: SubmitHandler<MCPServerForm> = async (data) => {
     try {
       const server = formToServer(data)
-      
+
       if (editingId) {
         await updateServer(editingId, server)
         toast.success('MCP server updated')
@@ -101,7 +111,7 @@ export function MCPTab() {
         toast.success('MCP server added')
         setIsAdding(false)
       }
-      
+
       reset()
     } catch (error) {
       toast.error('Failed to save MCP server')
@@ -148,11 +158,11 @@ export function MCPTab() {
     try {
       const text = await file.text()
       const config = JSON.parse(text)
-      
+
       const response = await fetch('/api/settings/mcp/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
+        body: JSON.stringify(config),
       })
 
       if (!response.ok) {
@@ -161,14 +171,14 @@ export function MCPTab() {
 
       const result = await response.json()
       toast.success(`Imported ${result.imported} servers`)
-      
+
       // Reload servers
       window.location.reload()
     } catch (error) {
       console.error('Import error:', error)
       toast.error('Failed to import configuration')
     }
-    
+
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -185,7 +195,7 @@ export function MCPTab() {
       const config = await response.json()
       const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
-      
+
       const a = document.createElement('a')
       a.href = url
       a.download = 'mcp-config.json'
@@ -193,7 +203,7 @@ export function MCPTab() {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      
+
       toast.success('Configuration exported')
     } catch (error) {
       console.error('Export error:', error)
@@ -221,7 +231,8 @@ export function MCPTab() {
       <div>
         <h2 className="text-lg font-semibold mb-2">MCP Server Configuration</h2>
         <p className="text-sm text-muted-foreground">
-          Configure Model Context Protocol (MCP) servers to extend Claude's capabilities with additional tools.
+          Configure Model Context Protocol (MCP) servers to extend Claude's capabilities with
+          additional tools.
         </p>
       </div>
 
@@ -231,11 +242,7 @@ export function MCPTab() {
           <h3 className="text-sm font-medium">Configured Servers</h3>
           {!isAdding && !editingId && (
             <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleImport}
-              >
+              <Button size="sm" variant="outline" onClick={handleImport}>
                 <Upload className="h-4 w-4 mr-1" />
                 Import
               </Button>
@@ -272,10 +279,11 @@ export function MCPTab() {
 
         {/* Add/Edit Form */}
         {(isAdding || editingId) && (
-          <form 
+          <form
             // @ts-expect-error - Known issue with form submit types
-            onSubmit={handleSubmit(onSubmit)} 
-            className="border rounded-lg p-4 space-y-4">
+            onSubmit={handleSubmit(onSubmit)}
+            className="border rounded-lg p-4 space-y-4"
+          >
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="name">Server Name</Label>
@@ -285,9 +293,7 @@ export function MCPTab() {
                   placeholder="e.g., filesystem"
                   className={errors.name ? 'border-red-500' : ''}
                 />
-                {errors.name && (
-                  <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>
-                )}
+                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>}
               </div>
 
               <div>
@@ -322,11 +328,25 @@ export function MCPTab() {
                 id="env"
                 {...register('env')}
                 className="w-full min-h-[80px] px-3 py-2 text-sm rounded-md border border-input bg-background"
-                placeholder="KEY=value&#10;ANOTHER_KEY=another_value"
+                placeholder="KEY=value&#10;ANOTHER_KEY=another_value&#10;CLAUDE_STUDIO_PROJECT_ID={PROJECT_ID}"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                One per line, format: KEY=value
+                One per line, format: KEY=value. Available template variables:
               </p>
+              <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                <div>
+                  <code className="bg-muted px-1">{'{PROJECT_ID}'}</code> - Current project ID
+                </div>
+                <div>
+                  <code className="bg-muted px-1">{'{PROJECT_NAME}'}</code> - Current project name
+                </div>
+                <div>
+                  <code className="bg-muted px-1">{'{PROJECT_PATH}'}</code> - Project workspace path
+                </div>
+                <div>
+                  <code className="bg-muted px-1">{'{CLAUDE_STUDIO_API}'}</code> - Studio API URL
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -359,9 +379,7 @@ export function MCPTab() {
           {servers.map((server: MCPServer) => (
             <div
               key={server.id}
-              className={`border rounded-lg p-4 ${
-                editingId === server.id ? 'border-primary' : ''
-              }`}
+              className={`border rounded-lg p-4 ${editingId === server.id ? 'border-primary' : ''}`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -391,21 +409,18 @@ export function MCPTab() {
                     >
                       <Edit2 className="h-4 w-4" />
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDelete(server.id!)}
-                    >
+                    <Button size="sm" variant="ghost" onClick={() => handleDelete(server.id!)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 )}
               </div>
-              
+
               {/* Tool Names Preview */}
               <div className="mt-2 pt-2 border-t">
                 <p className="text-xs text-muted-foreground">
-                  Tools will be available as: <code className="bg-muted px-1 py-0.5 rounded">mcp__{server.name}__toolName</code>
+                  Tools will be available as:{' '}
+                  <code className="bg-muted px-1 py-0.5 rounded">mcp__{server.name}__toolName</code>
                 </p>
               </div>
             </div>
@@ -420,13 +435,19 @@ export function MCPTab() {
           <p className="text-sm font-medium">How to use MCP servers:</p>
           <ol className="text-sm text-muted-foreground mt-2 space-y-1 list-decimal list-inside">
             <li>Add your MCP server configuration above</li>
-            <li>In agent settings, add allowed MCP tools using the format: <code className="bg-muted px-1">mcp__serverName__toolName</code></li>
-            <li>Or allow all tools from a server: <code className="bg-muted px-1">mcp__serverName</code></li>
+            <li>
+              In agent settings, add allowed MCP tools using the format:{' '}
+              <code className="bg-muted px-1">mcp__serverName__toolName</code>
+            </li>
+            <li>
+              Or allow all tools from a server:{' '}
+              <code className="bg-muted px-1">mcp__serverName</code>
+            </li>
             <li>Claude will have access to these tools when the agent is active</li>
           </ol>
         </div>
       </Alert>
-      
+
       {/* Hidden file input for import */}
       <input
         ref={fileInputRef}

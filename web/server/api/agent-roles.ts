@@ -1,6 +1,6 @@
 /**
  * Agent Roles API - Manages role assignments for agents in projects
- * 
+ *
  * SOLID: Single responsibility for agent role assignment management
  * DRY: Eliminates duplicate role loading logic
  * KISS: Simple REST API with batch operations for performance
@@ -8,7 +8,10 @@
  */
 
 import { Router, Request, Response } from 'express'
-import { UnifiedAgentConfigService, type AgentRoleAssignment } from '../services/UnifiedAgentConfigService'
+import {
+  UnifiedAgentConfigService,
+  type AgentRoleAssignment,
+} from '../services/UnifiedAgentConfigService'
 
 const router = Router()
 const agentConfigService = UnifiedAgentConfigService.getInstance()
@@ -32,20 +35,20 @@ interface BatchAssignRequest {
 router.get('/:agentId', async (req: Request, res: Response) => {
   try {
     const { projectId, role } = req.query as { projectId?: string; role?: string }
-    
+
     if (!projectId || !role) {
-      return res.status(400).json({ 
-        error: 'projectId and role query parameters are required' 
+      return res.status(400).json({
+        error: 'projectId and role query parameters are required',
       })
     }
-    
+
     const assignment = await agentConfigService.getRoleAssignment(projectId, role)
-    
+
     if (!assignment) {
       // Return null for consistency with existing frontend code
       return res.json(null)
     }
-    
+
     res.json(assignment)
   } catch (error) {
     console.error('Failed to load role assignment:', error)
@@ -57,26 +60,47 @@ router.get('/:agentId', async (req: Request, res: Response) => {
 router.post('/batch', async (req: Request, res: Response) => {
   try {
     const { agentIds, projectId }: BatchRoleRequest = req.body
-    
+
     if (!Array.isArray(agentIds) || agentIds.length === 0) {
       return res.status(400).json({ error: 'agentIds array is required' })
     }
-    
+
     if (projectId) {
       // Get all role assignments for a specific project
       const assignments = await agentConfigService.getProjectRoleAssignments(projectId)
-      
-      // Create a map for easy lookup by agent config ID
+
+      // Create a map for easy lookup by agent ID
+      // For studio projects, map by role-based short ID (e.g., "dev_01")
       const assignmentMap: Record<string, AgentRoleAssignment> = {}
-      assignments.forEach(assignment => {
-        assignmentMap[assignment.agentConfigId] = assignment
-      })
-      
+
+      // Check if these are studio project agents (contain underscore)
+      const isStudioProject = agentIds.some((id) => id.includes('_'))
+
+      if (isStudioProject) {
+        // Map by role + instance number for studio projects
+        assignments.forEach((assignment) => {
+          // Extract role from assignment
+          const role = assignment.role
+          if (role) {
+            // Find matching agent ID from request
+            const matchingAgentId = agentIds.find((id) => id.startsWith(role + '_'))
+            if (matchingAgentId) {
+              assignmentMap[matchingAgentId] = assignment
+            }
+          }
+        })
+      } else {
+        // Legacy mapping by agentConfigId
+        assignments.forEach((assignment) => {
+          assignmentMap[assignment.agentConfigId] = assignment
+        })
+      }
+
       res.json(assignmentMap)
     } else {
       // Legacy behavior - return empty object for each agent ID
       const result: Record<string, AgentRoleAssignment | null> = {}
-      agentIds.forEach(agentId => {
+      agentIds.forEach((agentId) => {
         result[agentId] = null
       })
       res.json(result)
@@ -91,15 +115,15 @@ router.post('/batch', async (req: Request, res: Response) => {
 router.get('/project/:projectId', async (req: Request, res: Response) => {
   try {
     const { projectId } = req.params
-    
+
     const assignments = await agentConfigService.getProjectRoleAssignments(projectId)
-    
+
     // Convert to a map for easier frontend consumption
     const assignmentMap: Record<string, AgentRoleAssignment> = {}
-    assignments.forEach(assignment => {
+    assignments.forEach((assignment) => {
       assignmentMap[assignment.role] = assignment
     })
-    
+
     res.json(assignmentMap)
   } catch (error) {
     console.error('Failed to load project role assignments:', error)
@@ -111,31 +135,31 @@ router.get('/project/:projectId', async (req: Request, res: Response) => {
 router.post('/batch-assign', async (req: Request, res: Response) => {
   try {
     const { assignments }: BatchAssignRequest = req.body
-    
+
     if (!Array.isArray(assignments) || assignments.length === 0) {
       return res.status(400).json({ error: 'assignments array is required' })
     }
-    
+
     const results = []
-    
+
     for (const assignment of assignments) {
       if (!assignment.projectId || !assignment.role || !assignment.agentConfigId) {
-        return res.status(400).json({ 
-          error: 'Each assignment must have projectId, role, and agentConfigId' 
+        return res.status(400).json({
+          error: 'Each assignment must have projectId, role, and agentConfigId',
         })
       }
-      
+
       const result = await agentConfigService.assignRole({
         projectId: assignment.projectId,
         role: assignment.role,
         agentConfigId: assignment.agentConfigId,
         customTools: assignment.customTools,
-        hasCustomTools: assignment.hasCustomTools
+        hasCustomTools: assignment.hasCustomTools,
       })
-      
+
       results.push(result)
     }
-    
+
     res.json(results)
   } catch (error) {
     console.error('Failed to batch assign roles:', error)
@@ -148,19 +172,19 @@ router.put('/:projectId/:role', async (req: Request, res: Response) => {
   try {
     const { projectId, role } = req.params
     const { agentConfigId, customTools, hasCustomTools } = req.body
-    
+
     if (!agentConfigId) {
       return res.status(400).json({ error: 'agentConfigId is required' })
     }
-    
+
     const assignment = await agentConfigService.assignRole({
       projectId,
       role,
       agentConfigId,
       customTools,
-      hasCustomTools
+      hasCustomTools,
     })
-    
+
     res.json(assignment)
   } catch (error) {
     console.error('Failed to assign role:', error)
@@ -172,9 +196,9 @@ router.put('/:projectId/:role', async (req: Request, res: Response) => {
 router.delete('/:projectId/:role', async (req: Request, res: Response) => {
   try {
     const { projectId, role } = req.params
-    
+
     await agentConfigService.removeRoleAssignment(projectId, role)
-    
+
     res.json({ success: true })
   } catch (error) {
     console.error('Failed to remove role assignment:', error)
@@ -209,11 +233,11 @@ router.put('/configs/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params
     const config = await agentConfigService.updateConfig(id, req.body)
-    
+
     if (!config) {
       return res.status(404).json({ error: 'Agent config not found' })
     }
-    
+
     res.json(config)
   } catch (error) {
     console.error('Failed to update agent config:', error)

@@ -295,4 +295,64 @@ export class StudioApiProvider extends BaseApiClient implements StudioProvider {
       return this.get<SearchStatsResponse>('search/stats', params)
     },
   }
+
+  /**
+   * Studio Projects operations - new project management endpoints
+   */
+  readonly studioProjects = {
+    getAll: () => this.get<{ projects: Project[] }>('studio-projects'),
+
+    get: (id: string) => this.get<Project>(`studio-projects/${id}`),
+
+    create: (data: Partial<Project>) => this.post<Project>('studio-projects', data),
+
+    update: (id: string, data: Partial<Project>) =>
+      this.put<Project>(`studio-projects/${id}`, data),
+
+    delete: (id: string, deleteWorkspace = false) =>
+      this.delete<void>(`studio-projects/${id}${deleteWorkspace ? '?deleteWorkspace=true' : ''}`),
+
+    getAgents: (id: string) => this.get<AgentInstance[]>(`studio-projects/${id}/agents`),
+
+    getAgentsWithShortIds: (id: string) =>
+      this.get<{ agents: AgentInstance[] }>(`studio-projects/${id}/agents/short-ids`),
+
+    addAgent: (id: string, data: { role: string; agentConfigId: string; customTools?: string[] }) =>
+      this.post<Project>(`studio-projects/${id}/agents`, data),
+
+    removeAgent: (id: string, role: string) =>
+      this.delete<Project>(`studio-projects/${id}/agents/${role}`),
+
+    createTeamTemplate: (id: string, name: string, description?: string) =>
+      this.post<{ templateId: string }>(`studio-projects/${id}/team-template`, {
+        name,
+        description,
+      }),
+
+    getSessions: (id: string) =>
+      this.get<{ sessions: SessionInfo[] }>(`studio-projects/${id}/sessions`),
+
+    getSessionMessages: (
+      id: string,
+      sessionId: string,
+      options?: { cursor?: string; limit?: number }
+    ) => {
+      const queryParams = options
+        ? {
+            ...(options.cursor && { cursor: options.cursor }),
+            ...(options.limit && { limit: options.limit.toString() }),
+          }
+        : undefined
+      return this.get<PaginatedResponse<Message>>(
+        `studio-projects/${id}/sessions/${sessionId}/messages`,
+        queryParams
+      )
+    },
+
+    deleteSession: (id: string, sessionId: string) =>
+      this.delete<void>(`studio-projects/${id}/sessions/${sessionId}`),
+
+    exportSession: (id: string, sessionId: string) =>
+      this.get<string>(`studio-projects/${id}/sessions/${sessionId}/export`),
+  }
 }

@@ -10,7 +10,7 @@ export function SingleView({ selectedAgentId }: SingleViewProps) {
   const activeProjectId = useProjectStore((state) => state.activeProjectId)
   const getAgent = useAgentStore((state) => state.getAgent)
   const agents = useAgentStore((state) => state.agents)
-  
+
   // Check if agents have been loaded yet
   const agentsLoaded = agents.length > 0
 
@@ -32,13 +32,14 @@ export function SingleView({ selectedAgentId }: SingleViewProps) {
   const messageHistoryViewer = useMemo(() => {
     if (!selectedAgent || !activeProjectId) return null
 
-    const sessionId = selectedAgent.sessionId || selectedAgent.id
+    // Only use sessionId if it exists, don't fall back to agent ID
+    const sessionId = selectedAgent.sessionId
     console.log('[SingleView] Creating MessageHistoryViewer with sessionId:', sessionId)
-    
+
     return (
       <MessageHistoryViewer
-        key={`${selectedAgent.id}-${sessionId}`} // Force re-mount when sessionId changes
-        sessionId={sessionId}
+        key={`${selectedAgent.id}-${sessionId || 'no-session'}`} // Force re-mount when sessionId changes
+        sessionId={sessionId || ''} // Pass empty string if no session
         projectId={activeProjectId}
         agentName={selectedAgent.name}
         agentId={selectedAgent.id}
@@ -52,9 +53,7 @@ export function SingleView({ selectedAgentId }: SingleViewProps) {
       <div className="flex-1 flex items-center justify-center bg-background">
         <div className="text-center space-y-2">
           <h3 className="text-lg font-semibold text-foreground">Loading Agent...</h3>
-          <p className="text-muted-foreground">
-            Initializing workspace
-          </p>
+          <p className="text-muted-foreground">Initializing workspace</p>
         </div>
       </div>
     )

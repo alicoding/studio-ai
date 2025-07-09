@@ -19,14 +19,17 @@ export interface ProjectConfig {
   name: string
   description: string
   workspacePath: string
-  created: string
-  lastModified: string
-  activeAgents: string[]
-  settings: {
-    envVars: Record<string, string>
-    disabledTools: string[]
-    mcpServers: string[]
+  createdAt: string | null
+  updatedAt: string | null
+  settings?: {
+    envVars?: Record<string, string>
+    disabledTools?: string[]
+    mcpServers?: string[]
   }
+  // Legacy fields for compatibility
+  created?: string
+  lastModified?: string
+  activeAgents?: string[]
 }
 
 export interface CreateProjectInput {
@@ -69,6 +72,24 @@ export interface ProjectAgent {
   hasSession: boolean
 }
 
+export interface ProjectAgentWithShortId {
+  shortId: string
+  role: string
+  agentConfigId: string
+  agentConfig?: {
+    id: string
+    name: string
+    role: string
+    systemPrompt: string
+    tools: string[]
+    model: string
+    createdAt: string
+    updatedAt: string
+    usedInProjects?: string[]
+  }
+  hasSession?: boolean
+}
+
 /**
  * List all projects
  *
@@ -77,30 +98,31 @@ export interface ProjectAgent {
  */
 export async function handleListProjects(): Promise<TextContent> {
   try {
-    const projects = await ky
-      .get(`${API_BASE}/projects`, {
+    const response = await ky
+      .get(`${API_BASE}/studio-projects`, {
         timeout: 30000,
       })
-      .json<ProjectConfig[]>()
+      .json<{ projects: ProjectConfig[] }>()
 
-    if (projects.length === 0) {
+    if (response.projects.length === 0) {
       return {
         type: 'text',
         text: 'No projects found.',
       }
     }
 
-    const projectList = projects
-      .map((project) => {
+    const projectList = response.projects
+      .map((project: ProjectConfig) => {
         const agents =
-          project.activeAgents.length > 0
+          project.activeAgents && project.activeAgents.length > 0
             ? `\n  Active Agents: ${project.activeAgents.join(', ')}`
             : ''
         const mcpServers =
-          project.settings.mcpServers.length > 0
+          project.settings?.mcpServers && project.settings.mcpServers.length > 0
             ? `\n  MCP Servers: ${project.settings.mcpServers.join(', ')}`
             : ''
-        return `**${project.name}** (${project.id})\n  ${project.description}\n  Path: ${project.workspacePath}${agents}${mcpServers}\n  Last Modified: ${project.lastModified}`
+        const lastModified = project.updatedAt || project.lastModified || 'N/A'
+        return `**${project.name}** (${project.id})\n  ${project.description}\n  Path: ${project.workspacePath}${agents}${mcpServers}\n  Last Modified: ${lastModified}`
       })
       .join('\n\n')
 
@@ -150,7 +172,7 @@ export async function handleCreateProject(args: CreateProjectInput): Promise<Tex
     }
 
     const project = await ky
-      .post(`${API_BASE}/projects`, {
+      .post(`${API_BASE}/studio-projects`, {
         json: requestBody,
         timeout: 30000,
       })
@@ -231,7 +253,7 @@ export async function handleUpdateProject(args: {
     }
 
     const project = await ky
-      .put(`${API_BASE}/projects/${args.id}`, {
+      .put(`${API_BASE}/studio-projects/${args.id}`, {
         json: requestBody,
         timeout: 30000,
       })
@@ -262,7 +284,10 @@ export async function handleUpdateProject(args: {
  * @example
  * { "id": "project-123" }
  */
-export async function handleDeleteProject(args: { id: string }): Promise<TextContent> {
+export async function handleDeleteProject(args: {
+  id: string
+  deleteWorkspace?: boolean
+}): Promise<TextContent> {
   try {
     if (!args.id) {
       throw new Error('Project ID is required')
@@ -272,7 +297,7 @@ export async function handleDeleteProject(args: { id: string }): Promise<TextCon
     let projectName = args.id
     try {
       const project = await ky
-        .get(`${API_BASE}/projects/${args.id}`, {
+        .get(`${API_BASE}/studio-projects/${args.id}`, {
           timeout: 30000,
         })
         .json<ProjectConfig>()
@@ -281,13 +306,19 @@ export async function handleDeleteProject(args: { id: string }): Promise<TextCon
       // If we can't get the project, continue with deletion anyway
     }
 
-    await ky.delete(`${API_BASE}/projects/${args.id}`, {
+    const url = args.deleteWorkspace
+      ? `${API_BASE}/studio-projects/${args.id}?deleteWorkspace=true`
+      : `${API_BASE}/studio-projects/${args.id}`
+
+    await ky.delete(url, {
       timeout: 30000,
     })
 
     return {
       type: 'text',
-      text: `Successfully deleted project ${projectName} (${args.id})`,
+      text: args.deleteWorkspace
+        ? `Successfully deleted project ${projectName} (${args.id}) and moved workspace to trash`
+        : `Successfully deleted project ${projectName} (${args.id}) from Claude Studio`,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
@@ -311,30 +342,30 @@ export async function handleGetProject(args: { id: string }): Promise<TextConten
     }
 
     const project = await ky
-      .get(`${API_BASE}/projects/${args.id}`, {
+      .get(`${API_BASE}/studio-projects/${args.id}`, {
         timeout: 30000,
       })
       .json<ProjectConfig>()
 
     const activeAgents =
-      project.activeAgents.length > 0
+      project.activeAgents && project.activeAgents.length > 0
         ? `\nActive Agents: ${project.activeAgents.join(', ')}`
         : '\nActive Agents: None'
 
     const envVars =
-      Object.keys(project.settings.envVars).length > 0
+      project.settings?.envVars && Object.keys(project.settings.envVars).length > 0
         ? `\nEnvironment Variables:\n${Object.entries(project.settings.envVars)
             .map(([key, value]) => `  ${key}: ${value}`)
             .join('\n')}`
         : ''
 
     const disabledTools =
-      project.settings.disabledTools.length > 0
+      project.settings?.disabledTools && project.settings.disabledTools.length > 0
         ? `\nDisabled Tools: ${project.settings.disabledTools.join(', ')}`
         : ''
 
     const mcpServers =
-      project.settings.mcpServers.length > 0
+      project.settings?.mcpServers && project.settings.mcpServers.length > 0
         ? `\nMCP Servers: ${project.settings.mcpServers.join(', ')}`
         : ''
 
@@ -435,7 +466,7 @@ export async function handleUnassignRole(args: {
       .json<ProjectConfig>()
 
     // Remove agent from active agents
-    const activeAgents = project.activeAgents.filter((id) => id !== args.agentId)
+    const activeAgents = (project.activeAgents || []).filter((id) => id !== args.agentId)
 
     // Update project
     await ky.put(`${API_BASE}/projects/${args.projectId}`, {
@@ -477,7 +508,7 @@ export async function handleListRoles(args: { projectId: string }): Promise<Text
       })
       .json<ProjectConfig>()
 
-    if (project.activeAgents.length === 0) {
+    if (!project.activeAgents || project.activeAgents.length === 0) {
       return {
         type: 'text',
         text: `No agents assigned to project ${project.name}`,
@@ -538,10 +569,10 @@ export async function handleListProjectAgents(args: { projectId?: string }): Pro
 
     // Get project agents from the API
     const response = await ky
-      .get(`${API_BASE}/projects/${encodeURIComponent(projectId)}/agents`, {
+      .get(`${API_BASE}/studio-projects/${encodeURIComponent(projectId)}/agents/short-ids`, {
         timeout: 30000,
       })
-      .json<{ agents: ProjectAgent[] }>()
+      .json<{ agents: ProjectAgentWithShortId[] }>()
 
     if (!response.agents || response.agents.length === 0) {
       return {
@@ -550,24 +581,14 @@ export async function handleListProjectAgents(args: { projectId?: string }): Pro
       }
     }
 
-    // Group agents by role and create short IDs
-    const roleGroups: Record<string, ProjectAgent[]> = {}
-    response.agents.forEach((agent) => {
-      if (!roleGroups[agent.role]) {
-        roleGroups[agent.role] = []
-      }
-      roleGroups[agent.role].push(agent)
-    })
-
     // Create agent list with short IDs
     const agentList: string[] = []
-    for (const [role, agents] of Object.entries(roleGroups)) {
-      agents.forEach((agent, index) => {
-        const shortId = `${role}_${String(index + 1).padStart(2, '0')}`
-        const status = agent.hasSession ? '✓' : '○'
-        agentList.push(`- ${agent.name} (${shortId}) - Role: ${role} ${status}`)
-      })
-    }
+    response.agents.forEach((agent) => {
+      const status = agent.hasSession ? '✓' : '○'
+      const name = agent.agentConfig?.name || 'Unknown'
+      const shortId = agent.shortId || `${agent.role}_01`
+      agentList.push(`- ${name} (${shortId}) - Role: ${agent.role} ${status}`)
+    })
 
     const header = `Project agents for ${projectId}:`
     const footer = '\n\n✓ = Has active session, ○ = No session yet'
@@ -582,6 +603,240 @@ export async function handleListProjectAgents(args: { projectId?: string }): Pro
     return {
       type: 'text',
       text: `Error listing project agents: ${message}`,
+    }
+  }
+}
+
+/**
+ * Add a single agent to a project with custom name
+ *
+ * @example
+ * {
+ *   "projectId": "studio-project-123",
+ *   "agentConfigId": "dev-1751310141224",
+ *   "role": "developer",
+ *   "name": "Senior Developer"
+ * }
+ * or
+ * {
+ *   "agentConfigId": "dev-1751310141224",
+ *   "role": "developer",
+ *   "name": "Senior Developer"
+ * } // Uses project ID from environment context
+ */
+export async function handleAddAgentToProject(args: {
+  projectId?: string
+  agentConfigId: string
+  role: string
+  name?: string
+  customTools?: string[]
+}): Promise<TextContent> {
+  try {
+    // Use project ID from args or environment context
+    const projectId = args.projectId || process.env.CLAUDE_STUDIO_PROJECT_ID
+
+    if (!projectId) {
+      return {
+        type: 'text',
+        text: 'Error: No project ID provided and no Studio project context found.\n\nPlease provide a projectId or ensure you are running within a Studio project context.',
+      }
+    }
+
+    if (!args.agentConfigId || !args.role) {
+      throw new Error('Required fields: agentConfigId and role')
+    }
+
+    // Get the caller's agent ID if available
+    const callerId = process.env.CLAUDE_STUDIO_AGENT_ID
+
+    // Add agent to project using studio-projects API
+    const response = await ky
+      .post(`${API_BASE}/studio-projects/${encodeURIComponent(projectId)}/agents`, {
+        json: {
+          agentConfigId: args.agentConfigId,
+          role: args.role,
+          name: args.name,
+          customTools: args.customTools,
+        },
+        timeout: 30000,
+      })
+      .json<{ id: string; name: string; description: string }>()
+
+    const callerInfo = callerId ? `\n(Called by: ${callerId})` : ''
+
+    return {
+      type: 'text',
+      text: `Successfully added agent to project ${response.name}:${callerInfo}\n\n- Agent Config: ${args.agentConfigId}\n- Role: ${args.role}\n- Name: ${args.name || 'Default name'}\n\nUse 'list_project_agents' to see all agents with their short IDs.`,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return {
+      type: 'text',
+      text: `Error adding agent to project: ${message}`,
+    }
+  }
+}
+
+/**
+ * Add a team template to a project (batch add agents)
+ *
+ * @example
+ * {
+ *   "projectId": "studio-project-123",
+ *   "teamId": "team_1751455976208"
+ * }
+ * or
+ * {
+ *   "teamId": "team_1751455976208"
+ * } // Uses project ID from environment context
+ */
+export async function handleAddTeamToProject(args: {
+  projectId?: string
+  teamId: string
+}): Promise<TextContent> {
+  try {
+    // Use project ID from args or environment context
+    const projectId = args.projectId || process.env.CLAUDE_STUDIO_PROJECT_ID
+
+    if (!projectId) {
+      return {
+        type: 'text',
+        text: 'Error: No project ID provided and no Studio project context found.\n\nPlease provide a projectId or ensure you are running within a Studio project context.',
+      }
+    }
+
+    if (!args.teamId) {
+      throw new Error('Required field: teamId')
+    }
+
+    // Get the caller's agent ID if available
+    const callerId = process.env.CLAUDE_STUDIO_AGENT_ID
+
+    // First, get the team template
+    const teams = await ky
+      .get(`${API_BASE}/teams`, {
+        timeout: 30000,
+      })
+      .json<
+        Array<{
+          id: string
+          name: string
+          description: string
+          agents: Array<{
+            role: string
+            name: string
+            configId: string
+            customizations?: Record<string, unknown>
+          }>
+        }>
+      >()
+
+    const team = teams.find((t) => t.id === args.teamId)
+    if (!team) {
+      return {
+        type: 'text',
+        text: `Error: Team template ${args.teamId} not found.\n\nUse the teams API to see available team templates.`,
+      }
+    }
+
+    if (team.agents.length === 0) {
+      return {
+        type: 'text',
+        text: `Error: Team template ${team.name} has no agents defined.`,
+      }
+    }
+
+    // Add each agent from the team to the project
+    const results: string[] = []
+    for (const agent of team.agents) {
+      try {
+        await ky.post(`${API_BASE}/studio-projects/${encodeURIComponent(projectId)}/agents`, {
+          json: {
+            agentConfigId: agent.configId,
+            role: agent.role,
+            name: agent.name,
+            customTools: agent.customizations?.customTools as string[] | undefined,
+          },
+          timeout: 30000,
+        })
+        results.push(`✓ ${agent.name} (${agent.role})`)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error'
+        results.push(`✗ ${agent.name} (${agent.role}) - ${message}`)
+      }
+    }
+
+    const callerInfo = callerId ? `\n(Called by: ${callerId})` : ''
+
+    return {
+      type: 'text',
+      text: `Added team "${team.name}" to project:${callerInfo}\n\n${results.join('\n')}\n\nUse 'list_project_agents' to see all agents with their short IDs.`,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return {
+      type: 'text',
+      text: `Error adding team to project: ${message}`,
+    }
+  }
+}
+
+/**
+ * Remove an agent from a project
+ *
+ * @example
+ * {
+ *   "projectId": "studio-project-123",
+ *   "agentRole": "developer"
+ * }
+ * or
+ * {
+ *   "agentRole": "developer"
+ * } // Uses project ID from environment context
+ */
+export async function handleRemoveAgentFromProject(args: {
+  projectId?: string
+  agentRole: string
+}): Promise<TextContent> {
+  try {
+    // Use project ID from args or environment context
+    const projectId = args.projectId || process.env.CLAUDE_STUDIO_PROJECT_ID
+
+    if (!projectId) {
+      return {
+        type: 'text',
+        text: 'Error: No project ID provided and no Studio project context found.\n\nPlease provide a projectId or ensure you are running within a Studio project context.',
+      }
+    }
+
+    if (!args.agentRole) {
+      throw new Error('Required field: agentRole')
+    }
+
+    // Get the caller's agent ID if available
+    const callerId = process.env.CLAUDE_STUDIO_AGENT_ID
+
+    // Remove agent from project using studio-projects API
+    const response = await ky
+      .delete(
+        `${API_BASE}/studio-projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(args.agentRole)}`,
+        {
+          timeout: 30000,
+        }
+      )
+      .json<{ id: string; name: string; description: string }>()
+
+    const callerInfo = callerId ? `\n(Called by: ${callerId})` : ''
+
+    return {
+      type: 'text',
+      text: `Successfully removed agent with role "${args.agentRole}" from project ${response.name}${callerInfo}\n\nUse 'list_project_agents' to see remaining agents.`,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return {
+      type: 'text',
+      text: `Error removing agent from project: ${message}`,
     }
   }
 }

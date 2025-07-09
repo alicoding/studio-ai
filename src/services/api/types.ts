@@ -517,6 +517,35 @@ export interface StudioProvider extends ApiProvider {
     capture(data: { projectId: string; agentId: string; description?: string }): Promise<Screenshot>
   }
 
+  // Studio Projects operations - new project management endpoints
+  studioProjects: {
+    getAll(): Promise<{ projects: Project[] }>
+    get(id: string): Promise<Project>
+    create(data: Partial<Project>): Promise<Project>
+    update(id: string, data: Partial<Project>): Promise<Project>
+    delete(id: string, deleteWorkspace?: boolean): Promise<void>
+    getAgents(id: string): Promise<AgentInstance[]>
+    getAgentsWithShortIds(id: string): Promise<{ agents: AgentInstance[] }>
+    addAgent(
+      id: string,
+      data: { role: string; agentConfigId: string; customTools?: string[] }
+    ): Promise<Project>
+    removeAgent(id: string, role: string): Promise<Project>
+    createTeamTemplate(
+      id: string,
+      name: string,
+      description?: string
+    ): Promise<{ templateId: string }>
+    getSessions(id: string): Promise<{ sessions: SessionInfo[] }>
+    getSessionMessages(
+      id: string,
+      sessionId: string,
+      options?: { cursor?: string; limit?: number }
+    ): Promise<PaginatedResponse<Message>>
+    deleteSession(id: string, sessionId: string): Promise<void>
+    exportSession(id: string, sessionId: string): Promise<string>
+  }
+
   // Agent roles operations
   agentRoles: {
     getAll(): Promise<AgentRole[]>

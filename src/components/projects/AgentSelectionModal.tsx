@@ -7,16 +7,7 @@ import { Checkbox } from '../ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import { Search, User } from 'lucide-react'
-
-interface AgentConfig {
-  id: string
-  name: string
-  role: string
-  systemPrompt: string
-  tools: string[]
-  model: string
-  projectsUsing: string[]
-}
+import type { AgentConfig } from '../../stores/agents'
 
 interface AgentSelectionModalProps {
   isOpen: boolean
@@ -163,7 +154,7 @@ export function AgentSelectionModal({
                     </div>
                     <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
                       <span>{agent.model}</span>
-                      <span>{agent.tools.length} tools</span>
+                      <span>{agent.tools.filter((tool) => tool.enabled).length} tools</span>
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-2">
                       {agent.systemPrompt.length > 100

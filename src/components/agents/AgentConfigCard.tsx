@@ -2,16 +2,7 @@ import { Button } from '../ui/button'
 import { Card } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Edit3, Copy, Trash2, Bot, Briefcase } from 'lucide-react'
-
-interface AgentConfig {
-  id: string
-  name: string
-  role: string
-  systemPrompt: string
-  tools: string[]
-  model: string
-  projectsUsing?: string[]
-}
+import type { AgentConfig } from '../../stores/agents'
 
 interface AgentConfigCardProps {
   agent: AgentConfig
@@ -39,14 +30,17 @@ export function AgentConfigCard({ agent, onEdit, onClone, onDelete }: AgentConfi
         </p>
 
         <div className="flex flex-wrap gap-1">
-          {agent.tools.slice(0, 3).map((tool) => (
-            <Badge key={tool} variant="outline" className="text-xs">
-              {tool}
-            </Badge>
-          ))}
-          {agent.tools.length > 3 && (
+          {agent.tools
+            .filter((tool) => tool.enabled)
+            .slice(0, 3)
+            .map((tool) => (
+              <Badge key={tool.name} variant="outline" className="text-xs">
+                {tool.name}
+              </Badge>
+            ))}
+          {agent.tools.filter((tool) => tool.enabled).length > 3 && (
             <Badge variant="outline" className="text-xs">
-              +{agent.tools.length - 3} more
+              +{agent.tools.filter((tool) => tool.enabled).length - 3} more
             </Badge>
           )}
         </div>

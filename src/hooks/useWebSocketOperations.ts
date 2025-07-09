@@ -1,6 +1,6 @@
 /**
  * useWebSocketOperations - WebSocket Event Handling Hook
- * 
+ *
  * SOLID: Single Responsibility - Only handles WebSocket events
  * DRY: Centralizes WebSocket event handling
  * KISS: Simple event registration pattern
@@ -26,22 +26,54 @@ export function useWebSocketOperations() {
    * Updates UI when agent status changes via WebSocket
    */
   useEffect(() => {
-    if (!socket) return
+    if (!socket) {
+      console.log('[WebSocket] No socket available for status updates')
+      return
+    }
+
+    console.log('[WebSocket] Setting up agent status update handler')
 
     const handleAgentStatusUpdate = (data: WebSocketEventData) => {
-      console.log('Agent status update:', data)
-      
+      console.log('[WebSocket] Agent status update received:', data)
+
       if (data.agentId && data.status) {
+        console.log(`[WebSocket] Updating agent ${data.agentId} status to ${data.status}`)
         updateAgentStatus(data.agentId, data.status as 'ready' | 'online' | 'busy' | 'offline')
+      } else {
+        console.log('[WebSocket] Invalid status update data:', data)
       }
     }
 
     // Register event handler
     socket.on('agent:status-changed', handleAgentStatusUpdate)
+    console.log('[WebSocket] Registered handler for agent:status-changed')
+
+    // Also log all events for debugging
+    const debugHandler =
+      (eventName: string) =>
+      (...args: unknown[]) => {
+        if (eventName.includes('agent:')) {
+          console.log(`[WebSocket DEBUG] Event '${eventName}' received:`, args)
+        }
+      }
+
+    // Listen to common agent events for debugging
+    const debugEvents = [
+      'agent:status-changed',
+      'agent:token-usage',
+      'message:new',
+      'message:aborted',
+    ]
+    debugEvents.forEach((event) => {
+      socket.on(event, debugHandler(event))
+    })
 
     // Cleanup
     return () => {
       socket.off('agent:status-changed', handleAgentStatusUpdate)
+      debugEvents.forEach((event) => {
+        socket.off(event, debugHandler(event))
+      })
     }
   }, [socket, updateAgentStatus])
 
@@ -51,9 +83,13 @@ export function useWebSocketOperations() {
   useEffect(() => {
     if (!socket) return
 
-    const handleTokenUsageUpdate = (data: { agentId: string; tokens: number; maxTokens: number }) => {
+    const handleTokenUsageUpdate = (data: {
+      agentId: string
+      tokens: number
+      maxTokens: number
+    }) => {
       console.log('Agent token usage update:', data)
-      
+
       if (data.agentId && typeof data.tokens === 'number') {
         updateAgentTokens(data.agentId, data.tokens, data.maxTokens)
       }
@@ -77,7 +113,7 @@ export function useWebSocketOperations() {
 
     const handleMessageAborted = (data: { agentId: string; projectId: string }) => {
       console.log('Message aborted event received:', data)
-      
+
       if (data.agentId) {
         // Update agent status back to online when message is aborted
         updateAgentStatus(data.agentId, 'online')

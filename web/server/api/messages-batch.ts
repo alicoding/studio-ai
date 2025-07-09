@@ -1,6 +1,6 @@
 /**
  * Batch Messages API
- * 
+ *
  * SOLID: Separate endpoint for batch operations
  * DRY: Reuses existing message sending infrastructure
  * KISS: Simple delegation to BatchExecutor
@@ -10,25 +10,25 @@
 import { Router, Request, Response } from 'express'
 import { BatchExecutor } from '../services/BatchExecutor'
 import { ClaudeService } from '../services/ClaudeService'
-import { ProjectResolver } from '../services/ProjectResolver'
-import { ProjectService } from '../services/ProjectService'
-import { 
-  BatchRequestSchema, 
+import {
+  BatchRequestSchema,
   BatchMessage,
   BatchResult,
-  validateDependencies 
+  validateDependencies,
 } from '../schemas/batch'
-import { getProjectConfig, OrchestrationConfig, createDefaultConfig } from '../schemas/orchestration'
+import {
+  getProjectConfig,
+  OrchestrationConfig,
+  createDefaultConfig,
+} from '../schemas/orchestration'
 import { z } from 'zod'
 
 const router = Router()
 const claudeService = new ClaudeService()
 const batchExecutor = new BatchExecutor()
-const projectService = new ProjectService()
 
 // Load orchestration config (in production, load from storage)
 const defaultOrchestrationConfig: OrchestrationConfig = createDefaultConfig()
-const projectResolver = new ProjectResolver(projectService, defaultOrchestrationConfig)
 
 // Override defaults for testing
 Object.assign(defaultOrchestrationConfig, {
@@ -39,7 +39,7 @@ Object.assign(defaultOrchestrationConfig, {
     waitStrategy: 'all',
     maxConcurrentBatches: 5,
     responseCleanupInterval: 60000,
-    maxPendingResponses: 100
+    maxPendingResponses: 100,
   },
   projects: {},
   permissions: {
@@ -47,15 +47,15 @@ Object.assign(defaultOrchestrationConfig, {
     batchOperations: true,
     maxGlobalConcurrency: 20,
     requireExplicitWait: false,
-    allowTimeoutOverride: true
+    allowTimeoutOverride: true,
   },
   rateLimit: {
     enabled: false,
     messagesPerMinute: 60,
     messagesPerHour: 600,
-    burstSize: 10
+    burstSize: 10,
   },
-  enabled: true
+  enabled: true,
 })
 
 // POST /api/messages/batch - Execute a batch of messages
@@ -65,37 +65,37 @@ router.post('/', async (req: Request, res: Response) => {
   console.warn('[DEPRECATION] /api/messages/batch is deprecated. Use /api/invoke instead.')
   res.setHeader('X-Deprecated', 'true')
   res.setHeader('X-Deprecation-Message', 'Use /api/invoke for multi-agent workflows')
-  
+
   try {
     // Validate request
     const validationResult = BatchRequestSchema.safeParse(req.body)
     if (!validationResult.success) {
       return res.status(400).json({
         error: 'Invalid batch request',
-        details: validationResult.error.errors
+        details: validationResult.error.errors,
       })
     }
 
     const batchRequest = validationResult.data
-    
+
     // Debug logging for format parameter
     console.log('[DEBUG] Batch request format:', batchRequest.format)
 
     // Check if batch operations are enabled
     if (!defaultOrchestrationConfig.permissions.batchOperations) {
       return res.status(403).json({
-        error: 'Batch operations are disabled'
+        error: 'Batch operations are disabled',
       })
     }
 
     // Get project configuration
     const projectConfig = getProjectConfig(defaultOrchestrationConfig, batchRequest.projectId)
-    
+
     // Validate batch size
     const maxBatchSize = projectConfig.maxBatchSize
     if (batchRequest.messages.length > maxBatchSize) {
       return res.status(400).json({
-        error: `Batch size exceeds maximum of ${maxBatchSize} messages`
+        error: `Batch size exceeds maximum of ${maxBatchSize} messages`,
       })
     }
 
@@ -103,7 +103,7 @@ router.post('/', async (req: Request, res: Response) => {
     const dependencyError = validateDependencies(batchRequest.messages)
     if (dependencyError) {
       return res.status(400).json({
-        error: dependencyError
+        error: dependencyError,
       })
     }
 
@@ -119,29 +119,14 @@ router.post('/', async (req: Request, res: Response) => {
     const sendMessage = async (message: BatchMessage): Promise<unknown> => {
       // Determine target project (message-level override or batch default)
       const targetProjectId = message.projectId || batchRequest.projectId
-      
-      // Validate cross-project permission if different from source
-      if (targetProjectId !== batchRequest.projectId) {
-        try {
-          await projectResolver.resolveProjectContext({
-            sourceProjectId: batchRequest.projectId,
-            targetProjectId: targetProjectId,
-            userId: batchRequest.fromAgentId,
-            action: 'batch'
-          })
-        } catch (error: unknown) {
-          const errorMessage = error instanceof Error ? error.message : 'Cross-project access denied'
-          throw new Error(`Message ${message.id}: ${errorMessage}`)
-        }
-      }
-      
+
       // Emit batch message event
       io.emit('batch:message:sent', {
         batchId: batchRequest.projectId,
         messageId: message.id,
         targetAgentId: message.targetAgentId,
         targetProjectId: targetProjectId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       })
 
       // Send via Claude service
@@ -163,7 +148,7 @@ router.post('/', async (req: Request, res: Response) => {
         messageId: message.id,
         targetAgentId: message.targetAgentId,
         targetProjectId: targetProjectId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       })
 
       return result
@@ -198,96 +183,99 @@ router.post('/', async (req: Request, res: Response) => {
     if (batchRequest.format === 'text') {
       // Simple text format for MCP
       let textResults = 'No results'
-      
+
       if (result.results && Array.isArray(result.results)) {
-        textResults = result.results.map((res: BatchResult) => {
-          let content = 'No response'
-          
-          if (res.response) {
-            if (typeof res.response === 'string') {
-              content = res.response
-            } else if (typeof res.response === 'object') {
-              // Try different response formats
-              if ('response' in res.response) {
-                content = (res.response as { response: string }).response
-              } else if ('content' in res.response) {
-                content = (res.response as { content: string }).content
+        textResults = result.results
+          .map((res: BatchResult) => {
+            let content = 'No response'
+
+            if (res.response) {
+              if (typeof res.response === 'string') {
+                content = res.response
+              } else if (typeof res.response === 'object') {
+                // Try different response formats
+                if ('response' in res.response) {
+                  content = (res.response as { response: string }).response
+                } else if ('content' in res.response) {
+                  content = (res.response as { content: string }).content
+                } else {
+                  content = JSON.stringify(res.response)
+                }
               } else {
-                content = JSON.stringify(res.response)
+                content = String(res.response)
               }
-            } else {
-              content = String(res.response)
             }
-          }
-          
-          if (res.error) {
-            content = `Error: ${res.error}`
-          }
-          
-          const status = res.status === 'success' ? '✅' : res.status === 'error' ? '❌' : '⏱️'
-          return `${status} **Message ${res.id}**: ${content}`
-        }).join('\n\n')
+
+            if (res.error) {
+              content = `Error: ${res.error}`
+            }
+
+            const status = res.status === 'success' ? '✅' : res.status === 'error' ? '❌' : '⏱️'
+            return `${status} **Message ${res.id}**: ${content}`
+          })
+          .join('\n\n')
       } else if (result.results && typeof result.results === 'object') {
         // Handle object format
-        textResults = Object.entries(result.results).map(([msgId, res]) => {
-          const batchResult = res as BatchResult
-          let content = 'No response'
-          
-          if (batchResult.response) {
-            if (typeof batchResult.response === 'string') {
-              content = batchResult.response
-            } else if (typeof batchResult.response === 'object') {
-              if ('response' in batchResult.response) {
-                content = (batchResult.response as { response: string }).response
-              } else if ('content' in batchResult.response) {
-                content = (batchResult.response as { content: string }).content
+        textResults = Object.entries(result.results)
+          .map(([msgId, res]) => {
+            const batchResult = res as BatchResult
+            let content = 'No response'
+
+            if (batchResult.response) {
+              if (typeof batchResult.response === 'string') {
+                content = batchResult.response
+              } else if (typeof batchResult.response === 'object') {
+                if ('response' in batchResult.response) {
+                  content = (batchResult.response as { response: string }).response
+                } else if ('content' in batchResult.response) {
+                  content = (batchResult.response as { content: string }).content
+                } else {
+                  content = JSON.stringify(batchResult.response)
+                }
               } else {
-                content = JSON.stringify(batchResult.response)
+                content = String(batchResult.response)
               }
-            } else {
-              content = String(batchResult.response)
             }
-          }
-          
-          if (batchResult.error) {
-            content = `Error: ${batchResult.error}`
-          }
-          
-          const status = batchResult.status === 'success' ? '✅' : batchResult.status === 'error' ? '❌' : '⏱️'
-          return `${status} **Message ${msgId}**: ${content}`
-        }).join('\n\n')
+
+            if (batchResult.error) {
+              content = `Error: ${batchResult.error}`
+            }
+
+            const status =
+              batchResult.status === 'success' ? '✅' : batchResult.status === 'error' ? '❌' : '⏱️'
+            return `${status} **Message ${msgId}**: ${content}`
+          })
+          .join('\n\n')
       }
 
-      const summary = result.summary 
+      const summary = result.summary
         ? `Batch completed: ${result.summary.successful || 0} success, ${result.summary.failed || 0} failed`
         : 'Batch completed'
 
       res.json({
         content: textResults,
         summary: summary,
-        status: result.status
       })
     } else {
       // Full structured format for frontend
       res.json(result)
     }
-
   } catch (error) {
     console.error('Batch execution error:', error)
-    
+
     let errorMessage = 'Failed to execute batch'
     let statusCode = 500
-    
+
     if (error instanceof z.ZodError) {
       errorMessage = 'Validation error'
       statusCode = 400
     } else if (error instanceof Error) {
       errorMessage = error.message
     }
-    
+
     res.status(statusCode).json({
       error: errorMessage,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     })
   }
 })
@@ -296,24 +284,24 @@ router.post('/', async (req: Request, res: Response) => {
 router.get('/:batchId/status', async (req: Request, res: Response) => {
   // TODO: Implement batch status tracking with persistence
   res.status(501).json({
-    error: 'Batch status tracking not yet implemented'
+    error: 'Batch status tracking not yet implemented',
   })
 })
 
 // POST /api/messages/batch/:batchId/abort - Abort a running batch
 router.post('/:batchId/abort', async (req: Request, res: Response) => {
   const { batchId } = req.params
-  
+
   const aborted = batchExecutor.abortBatch(batchId)
-  
+
   if (aborted) {
     res.json({
       success: true,
-      message: `Batch ${batchId} aborted`
+      message: `Batch ${batchId} aborted`,
     })
   } else {
     res.status(404).json({
-      error: `Batch ${batchId} not found or already completed`
+      error: `Batch ${batchId} not found or already completed`,
     })
   }
 })

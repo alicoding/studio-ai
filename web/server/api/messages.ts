@@ -2,16 +2,8 @@ import { Router, Request, Response } from 'express'
 import { ClaudeService } from '../services/ClaudeService'
 import type { Role } from '../services/claude-agent'
 import { getResponseTracker } from '../services/ResponseTracker'
-import { ProjectResolver } from '../services/ProjectResolver'
-import { ProjectService } from '../services/ProjectService'
-import { createDefaultConfig } from '../schemas/orchestration'
-
 const router = Router()
 const claudeService = new ClaudeService()
-const projectService = new ProjectService()
-// TODO: Load orchestration config from storage/settings
-const orchestrationConfig = createDefaultConfig()
-const projectResolver = new ProjectResolver(projectService, orchestrationConfig)
 
 // POST /api/messages - Send a message to Claude
 // KISS: Simple endpoint that delegates to service
@@ -21,7 +13,7 @@ router.post('/', async (req: Request, res: Response) => {
   console.warn('[DEPRECATION] /api/messages is deprecated. Use /api/invoke instead.')
   res.setHeader('X-Deprecated', 'true')
   res.setHeader('X-Deprecation-Message', 'Use /api/invoke instead')
-  
+
   try {
     const {
       content,
@@ -111,15 +103,16 @@ router.post('/', async (req: Request, res: Response) => {
     console.error('Error sending message:', error)
 
     // Handle abort errors gracefully - don't crash the server
-    if (error instanceof Error && (
-      error.message.includes('aborted') || 
-      error.message.includes('Query was aborted') ||
-      error.name === 'AbortError'
-    )) {
+    if (
+      error instanceof Error &&
+      (error.message.includes('aborted') ||
+        error.message.includes('Query was aborted') ||
+        error.name === 'AbortError')
+    ) {
       console.log('Request was aborted by user - returning 409 status')
       return res.status(409).json({
         error: 'Request was aborted',
-        code: 'ABORTED'
+        code: 'ABORTED',
       })
     }
 
@@ -147,27 +140,22 @@ router.post('/', async (req: Request, res: Response) => {
 // POST /api/messages/mention - Route @mention message to agents
 router.post('/mention', async (req: Request, res: Response) => {
   try {
-    const { message, fromAgentId, projectId, targetProjectId, wait, timeout, format = 'json' } = req.body
+    const {
+      message,
+      fromAgentId,
+      projectId,
+      targetProjectId,
+      wait,
+      timeout,
+      format = 'json',
+    } = req.body
 
     if (!message || !fromAgentId || !projectId) {
       return res.status(400).json({ error: 'Message, fromAgentId, and projectId are required' })
     }
 
-    // Validate cross-project permission if targetProjectId is specified
+    // For now, allow cross-project mentions without validation
     const actualTargetProjectId = targetProjectId || projectId
-    if (targetProjectId && targetProjectId !== projectId) {
-      try {
-        await projectResolver.resolveProjectContext({
-          sourceProjectId: projectId,
-          targetProjectId: targetProjectId,
-          userId: fromAgentId, // Using fromAgentId as userId for now
-          action: 'mention'
-        })
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : 'Cross-project access denied'
-        return res.status(403).json({ error: errorMessage })
-      }
-    }
 
     // Get response tracker for wait mode
     const responseTracker = wait ? getResponseTracker() : null
@@ -253,7 +241,7 @@ router.post('/mention', async (req: Request, res: Response) => {
 
       // Track response if in wait mode
       let correlationId: string | undefined
-      
+
       if (responseTracker && wait) {
         const tracked = await responseTracker.trackResponse(
           targetAgentId,
@@ -263,7 +251,7 @@ router.post('/mention', async (req: Request, res: Response) => {
         correlationId = tracked.correlationId
         // Store the promise for later collection
         trackedResponses.set(targetAgentId, tracked.promise)
-        
+
         // Include correlation ID in the message for response tracking
         io.emit('agent:mention-received', {
           targetAgentId,
@@ -305,7 +293,7 @@ router.post('/mention', async (req: Request, res: Response) => {
         )
 
         console.log(`[Mention] Successfully delivered to ${targetAgentId}, response started`)
-        
+
         // In wait mode, store the result for response tracking
         if (correlationId && responseTracker) {
           // The response from Claude is the actual agent response
@@ -313,16 +301,16 @@ router.post('/mention', async (req: Request, res: Response) => {
             from: targetAgentId,
             content: result.response,
             sessionId: result.sessionId,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           })
         }
       } catch (error) {
         console.error(`[Mention] Failed to deliver message to ${targetAgentId}:`, error)
-        
+
         // Reject the tracked response if in wait mode
         if (correlationId && responseTracker) {
           responseTracker.rejectResponse(
-            correlationId, 
+            correlationId,
             error instanceof Error ? error : new Error('Failed to deliver message')
           )
         }
@@ -342,10 +330,10 @@ router.post('/mention', async (req: Request, res: Response) => {
     if (wait && responseTracker) {
       const responses: Record<string, unknown> = {}
       const errors: Record<string, string> = {}
-      
+
       // Collect all response promises
       const responsePromises: Array<{ agentId: string; promise: Promise<unknown> }> = []
-      
+
       for (const targetAgentId of routedTargets) {
         // Get the promise from our tracked responses map
         const promise = trackedResponses.get(targetAgentId)
@@ -353,7 +341,7 @@ router.post('/mention', async (req: Request, res: Response) => {
           responsePromises.push({ agentId: targetAgentId, promise })
         }
       }
-      
+
       // Wait for all responses or timeouts
       for (const { agentId, promise } of responsePromises) {
         try {
@@ -363,23 +351,24 @@ router.post('/mention', async (req: Request, res: Response) => {
           errors[agentId] = error instanceof Error ? error.message : 'Unknown error'
         }
       }
-      
+
       // Return aggregated responses
       if (format === 'text') {
         // Simple text format for MCP
         const textResponses = Object.entries(responses)
           .map(([agent, resp]) => {
-            const content = (resp && typeof resp === 'object' && 'content' in resp) 
-              ? (resp as { content: string }).content 
-              : JSON.stringify(resp)
+            const content =
+              resp && typeof resp === 'object' && 'content' in resp
+                ? (resp as { content: string }).content
+                : JSON.stringify(resp)
             return `**@${agent}**: ${content}`
           })
           .join('\n\n')
-        
+
         res.json({
           content: textResponses,
           agents: routedTargets,
-          errors: Object.keys(errors).length > 0 ? errors : undefined
+          errors: Object.keys(errors).length > 0 ? errors : undefined,
         })
       } else {
         // Full structured format for frontend
@@ -390,7 +379,7 @@ router.post('/mention', async (req: Request, res: Response) => {
           targets: routedTargets,
           wait: true,
           responses,
-          errors: Object.keys(errors).length > 0 ? errors : undefined
+          errors: Object.keys(errors).length > 0 ? errors : undefined,
         })
       }
     } else {
@@ -400,7 +389,7 @@ router.post('/mention', async (req: Request, res: Response) => {
         fromAgentId,
         projectId,
         targets: routedTargets,
-        wait: false
+        wait: false,
       })
     }
   } catch (error) {

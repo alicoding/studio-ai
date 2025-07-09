@@ -1,4 +1,13 @@
-import { Trash2, X, Sparkles, UserCog, CheckSquare, Square, GripVertical, Loader2 } from 'lucide-react'
+import {
+  Trash2,
+  X,
+  Sparkles,
+  UserCog,
+  CheckSquare,
+  Square,
+  GripVertical,
+  Loader2,
+} from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useEffect, useState } from 'react'
@@ -53,8 +62,8 @@ function TypingIndicator({ agentName: _agentName }: { agentName: string }) {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setDots(d => d.length >= 3 ? '.' : d + '.')
-      setElapsedTime(t => t + 1)
+      setDots((d) => (d.length >= 3 ? '.' : d + '.'))
+      setElapsedTime((t) => t + 1)
     }, 500)
 
     return () => clearInterval(interval)
@@ -64,9 +73,7 @@ function TypingIndicator({ agentName: _agentName }: { agentName: string }) {
     <div className="flex items-center gap-1">
       <Sparkles className="w-3 h-3 animate-pulse text-primary" />
       <span>Typing{dots}</span>
-      <span className="text-[10px] opacity-60">
-        ({elapsedTime}s · ESC to interrupt)
-      </span>
+      <span className="text-[10px] opacity-60">({elapsedTime}s · ESC to interrupt)</span>
     </div>
   )
 }
@@ -145,7 +152,10 @@ export function AgentCard({
             className="w-2 h-2 rounded-full"
             style={{ backgroundColor: statusColors[agent.status] }}
           ></span>
-          <span className="text-foreground font-medium text-sm">{agent.name}</span>
+          <span className="text-foreground font-medium text-sm">
+            {agent.name}
+            <span className="text-muted-foreground text-xs ml-1">({agent.id})</span>
+          </span>
         </div>
         <span
           className={`text-xs font-medium px-2 py-0.5 rounded-full ${
@@ -171,10 +181,11 @@ export function AgentCard({
             ></div>
           </div>
           <span className="text-muted-foreground text-xs">
-            {agent.tokens < 1000 
-              ? `${agent.tokens} / ${agent.maxTokens / 1000}K tokens`
-              : `${Math.round(agent.tokens / 1000)}K / ${agent.maxTokens / 1000}K tokens`
-            }
+            {agent.tokens === 0
+              ? `No session / ${agent.maxTokens / 1000}K tokens`
+              : agent.tokens < 1000
+                ? `${agent.tokens} / ${agent.maxTokens / 1000}K tokens`
+                : `${Math.round(agent.tokens / 1000)}K / ${agent.maxTokens / 1000}K tokens`}
           </span>
         </div>
         <div className="text-muted-foreground text-xs line-clamp-2 min-h-[2rem]">

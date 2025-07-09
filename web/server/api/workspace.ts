@@ -13,9 +13,9 @@ import {
   type AgentConfig,
   type AgentRoleAssignment,
 } from '../services/UnifiedAgentConfigService'
-import { ProjectService } from '../services/ProjectService'
-import { AgentConfigService } from '../services/AgentConfigService'
-import { StudioProjectService } from '../services/StudioProjectService.js'
+import { StudioProjectService } from '../services/StudioProjectService'
+import { StudioSessionService } from '../services/StudioSessionService'
+import { SessionService } from '../services/SessionService'
 
 interface ProjectAgent {
   id: string
@@ -28,6 +28,7 @@ interface ProjectAgent {
   totalTokens: number
   lastMessage: string
   hasSession: boolean
+  customTools?: string[]
 }
 
 interface ProjectWithAgents {
@@ -41,9 +42,10 @@ interface ProjectWithAgents {
 
 const router = Router()
 const agentConfigService = UnifiedAgentConfigService.getInstance()
-const projectService = new ProjectService()
-const legacyAgentService = AgentConfigService.getInstance()
+// Legacy agent service removed - using UnifiedAgentConfigService
 const studioProjectService = new StudioProjectService()
+const studioSessionService = StudioSessionService.getInstance()
+const sessionService = SessionService.getInstance()
 
 interface WorkspaceData {
   projects: ProjectWithAgents[]
@@ -94,21 +96,8 @@ router.get('/', async (req: Request, res: Response) => {
         // Try new unified service first
         workspaceData.agentConfigs = await agentConfigService.getAllConfigs()
       } catch (error) {
-        console.log('Falling back to legacy agent service:', error)
-        // Fallback to legacy service
-        const legacyAgents = await legacyAgentService.getAllAgents()
-        workspaceData.agentConfigs = legacyAgents.map((agent) => ({
-          id: agent.id,
-          name: agent.name,
-          role: agent.role,
-          systemPrompt: agent.systemPrompt,
-          tools: agent.tools,
-          model: agent.model,
-          maxTokens: agent.maxTokens || 200000,
-          temperature: agent.temperature || 0.7,
-          createdAt: agent.created || new Date().toISOString(),
-          updatedAt: agent.created || new Date().toISOString(),
-        }))
+        console.log('Error loading agent configs:', error)
+        workspaceData.agentConfigs = []
       }
       console.timeEnd('load-agent-configs')
     }
@@ -134,19 +123,77 @@ router.get('/', async (req: Request, res: Response) => {
         // Get agents with short IDs from Studio Projects
         const agentsWithShortIds = await studioProjectService.getProjectAgentsWithShortIds(pid)
 
-        // Convert to ProjectAgent format
-        const projectAgents: ProjectAgent[] = agentsWithShortIds.map((a) => ({
-          id: a.shortId,
-          configId: a.agentConfigId,
-          name: a.agentConfig?.name || a.role,
-          role: a.role,
-          status: 'offline' as const,
-          sessionId: null,
-          messageCount: 0,
-          totalTokens: 0,
-          lastMessage: '',
-          hasSession: false,
-        }))
+        // Get project to get workspace path
+        const project = projects.find((p) => p.id === pid)
+        if (!project) continue
+
+        // Get sessions for the project
+        const sessions = await studioSessionService.listProjectSessions(project.workspacePath)
+
+        // Convert to ProjectAgent format with real session data
+        const projectAgents: ProjectAgent[] = await Promise.all(
+          agentsWithShortIds.map(async (a) => {
+            // Get the tracked session ID for this agent
+            const trackedSessionId = await sessionService.getSession(pid, a.shortId)
+
+            // Find session using the tracked session ID
+            const agentSession = trackedSessionId
+              ? sessions.find((s) => s.sessionId === trackedSessionId)
+              : undefined
+
+            let messageCount = 0
+            let lastMessage = ''
+            let totalTokens = 0
+
+            if (agentSession) {
+              try {
+                // Get last few messages to extract info
+                const messages = await studioSessionService.getSessionMessages(
+                  project.workspacePath,
+                  agentSession.sessionId,
+                  { limit: 10 }
+                )
+
+                messageCount = messages.messages.length
+
+                // Find last user or assistant message
+                const lastMsg = messages.messages
+                  .reverse()
+                  .find((m) => m.role === 'assistant' || m.role === 'user')
+
+                if (lastMsg) {
+                  lastMessage =
+                    typeof lastMsg.content === 'string'
+                      ? lastMsg.content.substring(0, 100)
+                      : 'Complex message'
+
+                  // Sum up token usage
+                  messages.messages.forEach((m) => {
+                    if (m.usage) {
+                      totalTokens += (m.usage.input_tokens || 0) + (m.usage.output_tokens || 0)
+                    }
+                  })
+                }
+              } catch (err) {
+                console.log(`Could not read session ${agentSession.sessionId}:`, err)
+              }
+            }
+
+            return {
+              id: a.shortId,
+              configId: a.agentConfigId,
+              name: a.agentConfig?.name || a.role,
+              role: a.role,
+              status: agentSession ? ('online' as const) : ('offline' as const),
+              sessionId: agentSession?.sessionId || null,
+              messageCount,
+              totalTokens,
+              lastMessage,
+              hasSession: !!agentSession,
+              customTools: a.customTools,
+            }
+          })
+        )
 
         workspaceData.projectAgents[pid] = projectAgents
       } catch (error) {
@@ -207,20 +254,8 @@ router.get('/:projectId', async (req: Request, res: Response) => {
       try {
         workspaceData.agentConfigs = await agentConfigService.getAllConfigs()
       } catch (error) {
-        console.log('Falling back to legacy agent service for single project:', error)
-        const legacyAgents = await legacyAgentService.getAllAgents()
-        workspaceData.agentConfigs = legacyAgents.map((agent) => ({
-          id: agent.id,
-          name: agent.name,
-          role: agent.role,
-          systemPrompt: agent.systemPrompt,
-          tools: agent.tools,
-          model: agent.model,
-          maxTokens: agent.maxTokens || 200000,
-          temperature: agent.temperature || 0.7,
-          createdAt: agent.created || new Date().toISOString(),
-          updatedAt: agent.created || new Date().toISOString(),
-        }))
+        console.log('Error loading agent configs for single project:', error)
+        workspaceData.agentConfigs = []
       }
       console.timeEnd('load-agent-configs-single')
     }
@@ -239,19 +274,85 @@ router.get('/:projectId', async (req: Request, res: Response) => {
       // Get agents with short IDs from Studio Projects
       const agentsWithShortIds = await studioProjectService.getProjectAgentsWithShortIds(projectId)
 
-      // Convert to ProjectAgent format
-      const projectAgents: ProjectAgent[] = agentsWithShortIds.map((a) => ({
-        id: a.shortId,
-        configId: a.agentConfigId,
-        name: a.agentConfig?.name || a.role,
-        role: a.role,
-        status: 'offline' as const,
-        sessionId: null,
-        messageCount: 0,
-        totalTokens: 0,
-        lastMessage: '',
-        hasSession: false,
-      }))
+      // Get project to get workspace path
+      const project = workspaceData.projects[0]
+      if (!project.workspacePath) {
+        console.log('Project has no workspace path')
+        workspaceData.projectAgents[projectId] = []
+        console.timeEnd('load-project-agents-single')
+        console.timeEnd(`workspace-data-load-${projectId}`)
+        res.json(workspaceData)
+        return
+      }
+
+      const workspacePath = project.workspacePath
+
+      // Get sessions for the project
+      const sessions = await studioSessionService.listProjectSessions(workspacePath)
+
+      // Convert to ProjectAgent format with real session data
+      const projectAgents: ProjectAgent[] = await Promise.all(
+        agentsWithShortIds.map(async (a) => {
+          // Get the tracked session ID for this agent
+          const trackedSessionId = await sessionService.getSession(projectId, a.shortId)
+
+          // Find session using the tracked session ID
+          const agentSession = trackedSessionId
+            ? sessions.find((s) => s.sessionId === trackedSessionId)
+            : undefined
+
+          let messageCount = 0
+          let lastMessage = ''
+          let totalTokens = 0
+
+          if (agentSession) {
+            try {
+              // Get last few messages to extract info
+              const messages = await studioSessionService.getSessionMessages(
+                workspacePath,
+                agentSession.sessionId,
+                { limit: 10 }
+              )
+
+              messageCount = messages.messages.length
+
+              // Find last user or assistant message
+              const lastMsg = messages.messages
+                .reverse()
+                .find((m) => m.role === 'assistant' || m.role === 'user')
+
+              if (lastMsg) {
+                lastMessage =
+                  typeof lastMsg.content === 'string'
+                    ? lastMsg.content.substring(0, 100)
+                    : 'Complex message'
+
+                // Sum up token usage
+                messages.messages.forEach((m) => {
+                  if (m.usage) {
+                    totalTokens += (m.usage.input_tokens || 0) + (m.usage.output_tokens || 0)
+                  }
+                })
+              }
+            } catch (err) {
+              console.log(`Could not read session ${agentSession.sessionId}:`, err)
+            }
+          }
+
+          return {
+            id: a.shortId,
+            configId: a.agentConfigId,
+            name: a.agentConfig?.name || a.role,
+            role: a.role,
+            status: agentSession ? ('online' as const) : ('offline' as const),
+            sessionId: agentSession?.sessionId || null,
+            messageCount,
+            totalTokens,
+            lastMessage,
+            hasSession: !!agentSession,
+          }
+        })
+      )
 
       workspaceData.projectAgents[projectId] = projectAgents
     } catch (error) {
@@ -299,7 +400,7 @@ router.get('/health', async (req: Request, res: Response) => {
 
     // Test project service
     try {
-      await projectService.getAllProjects()
+      await studioProjectService.listProjects()
       health.services.projects = 'healthy'
     } catch (_error) {
       health.services.projects = 'unhealthy'
@@ -317,9 +418,9 @@ router.get('/health', async (req: Request, res: Response) => {
 
     // Test project agents
     try {
-      const projects = await projectService.getAllProjects()
+      const projects = await studioProjectService.listProjects()
       if (projects.length > 0) {
-        await projectService.getProjectAgents(projects[0].id)
+        await studioProjectService.getProjectAgentsWithShortIds(projects[0].id)
       }
       health.services.projectAgents = 'healthy'
     } catch (_error) {

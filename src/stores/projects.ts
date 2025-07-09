@@ -8,6 +8,7 @@ interface StudioProjectResponse {
   workspacePath: string
   createdAt?: string
   updatedAt?: string
+  lastActivityAt?: string | null
 }
 
 export interface Project {
@@ -20,6 +21,7 @@ export interface Project {
   lastSessionAt?: Date | string
   status: 'active' | 'archived' | 'draft'
   lastModified: Date | string
+  lastActivityAt?: Date | string | null
   tags: string[]
   favorite: boolean
   studioMetadata?: {
@@ -141,6 +143,7 @@ export const useProjectStore = createPersistentStore<ProjectState>(
                 path: p.workspacePath,
                 createdAt: p.createdAt || new Date().toISOString(),
                 lastModified: p.updatedAt || new Date().toISOString(),
+                lastActivityAt: p.lastActivityAt,
                 sessionCount: agentCount, // Using agent count instead of sessions
                 lastSessionAt: undefined,
                 status: 'active' as const,
@@ -156,6 +159,7 @@ export const useProjectStore = createPersistentStore<ProjectState>(
                 path: p.workspacePath,
                 createdAt: p.createdAt || new Date().toISOString(),
                 lastModified: p.updatedAt || new Date().toISOString(),
+                lastActivityAt: p.lastActivityAt,
                 sessionCount: 0,
                 lastSessionAt: undefined,
                 status: 'active' as const,

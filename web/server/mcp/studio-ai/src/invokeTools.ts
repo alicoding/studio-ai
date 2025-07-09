@@ -8,7 +8,7 @@
  */
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js'
-import ky from 'ky'
+import ky, { HTTPError } from 'ky'
 
 // Copy types locally to avoid rootDir issues
 interface WorkflowStep {
@@ -101,6 +101,35 @@ DOCUMENTATION: See docs/mcp-invoke-production-guide.md for complete usage guide.
     required: ['workflow'],
     properties: {
       workflow: {
+        oneOf: [
+          {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              role: { type: 'string' },
+              agentId: { type: 'string' },
+              task: { type: 'string' },
+              deps: { type: 'array', items: { type: 'string' } },
+            },
+            required: ['task'],
+            additionalProperties: false,
+          },
+          {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                role: { type: 'string' },
+                agentId: { type: 'string' },
+                task: { type: 'string' },
+                deps: { type: 'array', items: { type: 'string' } },
+              },
+              required: ['task'],
+              additionalProperties: false,
+            },
+          },
+        ],
         description:
           'Single step {role:"dev", task:"code"} OR multi-step array [{id:"step1", role:"dev", task:"code"}, {id:"step2", role:"ux", task:"design UI based on {step1.output}", deps:["step1"]}]. Use deps array for sequential workflows. Template variables {stepId.output} pass data between steps.',
       },
@@ -127,6 +156,9 @@ DOCUMENTATION: See docs/mcp-invoke-production-guide.md for complete usage guide.
 }
 
 export async function handleInvoke(args: unknown): Promise<{ type: 'text'; text: string }> {
+  console.error('[handleInvoke] Received args:', JSON.stringify(args, null, 2))
+  console.error('[handleInvoke] Type of args:', typeof args)
+
   const request = args as InvokeRequest
 
   try {
@@ -135,8 +167,17 @@ export async function handleInvoke(args: unknown): Promise<{ type: 'text'; text:
       throw new Error('Missing workflow in request')
     }
 
-    // Pass workflow directly to API - let the backend validate
-    const workflow = request.workflow
+    // Check if workflow is a string and parse it
+    let workflow = request.workflow
+    if (typeof workflow === 'string') {
+      console.error('[handleInvoke] Workflow is a string, parsing...')
+      try {
+        workflow = JSON.parse(workflow)
+      } catch (e) {
+        console.error('[handleInvoke] Failed to parse workflow string:', e)
+        throw new Error('Invalid workflow format - could not parse JSON string')
+      }
+    }
 
     // Use the actual invoke API endpoint with full workflow
     const invokeResponse = await ky
@@ -174,7 +215,18 @@ export async function handleInvoke(args: unknown): Promise<{ type: 'text'; text:
       text: formattedResponse,
     }
   } catch (error) {
-    if (error instanceof Error) {
+    console.error('MCP invoke error:', error)
+    if (error instanceof HTTPError) {
+      // It's a ky HTTPError, we can get more details
+      try {
+        const errorBody = await error.response.json()
+        console.error('Error response body:', errorBody)
+        throw new Error(`Invoke failed: ${error.message} - ${JSON.stringify(errorBody)}`)
+      } catch {
+        // If we can't parse the error body, just use the message
+        throw new Error(`Invoke failed: ${error.message}`)
+      }
+    } else if (error instanceof Error) {
       throw new Error(`Invoke failed: ${error.message}`)
     }
     throw error
@@ -247,5 +299,140 @@ export async function handleGetRoles(_args: unknown): Promise<{ type: 'text'; te
       throw new Error(`Failed to get roles: ${error.message}`)
     }
     throw error
+  }
+}
+
+/**
+ * Tool: invoke_async
+ * Start workflow asynchronously and return immediately
+ */
+export const invokeAsyncTool: Tool = {
+  name: 'invoke_async',
+  description: `Start workflow asynchronously and return immediately with tracking ID.
+
+WHEN TO USE:
+• Long-running workflows (minutes to hours)
+• Multiple parallel workflows
+• When you need to continue other work
+
+RETURNS:
+• threadId: Use to track progress and get results
+• status: 'started'
+
+EXAMPLE:
+invoke_async({ workflow: { role: 'dev', task: 'implement feature' } })
+// Returns: { threadId: "abc-123", status: "started" }`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      workflow: {
+        oneOf: [
+          {
+            type: 'object',
+            properties: {
+              id: { type: 'string' },
+              role: { type: 'string' },
+              agentId: { type: 'string' },
+              task: { type: 'string', description: 'The task to execute' },
+              sessionId: { type: 'string' },
+              deps: { type: 'array', items: { type: 'string' } },
+            },
+            required: ['task'],
+          },
+          {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                role: { type: 'string' },
+                agentId: { type: 'string' },
+                task: { type: 'string' },
+                sessionId: { type: 'string' },
+                deps: { type: 'array', items: { type: 'string' } },
+              },
+              required: ['task'],
+            },
+          },
+        ],
+      },
+      projectId: { type: 'string' },
+      threadId: { type: 'string', description: 'Optional - provide to resume' },
+      startNewConversation: { type: 'boolean' },
+    },
+    required: ['workflow'],
+  },
+}
+
+export async function handleInvokeAsync(args: unknown): Promise<{ type: 'text'; text: string }> {
+  try {
+    const { workflow, projectId, threadId, startNewConversation } = args as InvokeRequest
+
+    const response = await ky
+      .post(`${API_URL}/invoke/async`, {
+        json: { workflow, projectId, threadId, startNewConversation },
+        timeout: 30000, // 30 seconds for async start
+      })
+      .json<{ threadId: string; status: string }>()
+
+    return {
+      type: 'text',
+      text: JSON.stringify(response, null, 2),
+    }
+  } catch (error) {
+    console.error('MCP invoke_async error:', error)
+    throw new Error(
+      `Failed to start async workflow: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+}
+
+/**
+ * Tool: invoke_status
+ * Check the status of an async workflow
+ */
+export const invokeStatusTool: Tool = {
+  name: 'invoke_status',
+  description: `Check the status of an async workflow.
+
+RETURNS:
+• status: 'running', 'completed', 'failed', 'aborted'
+• sessionIds: Active sessions for recovery
+• currentStep: Which step is executing
+• completedSteps: Steps that finished
+• results: Final results (if completed)
+
+USE FOR:
+• Monitoring long workflows
+• Checking if safe to resume
+• Getting final results`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      threadId: { type: 'string', description: 'The workflow thread ID' },
+    },
+    required: ['threadId'],
+  },
+}
+
+export async function handleInvokeStatus(args: unknown): Promise<{ type: 'text'; text: string }> {
+  try {
+    const { threadId } = args as { threadId: string }
+
+    const response = await ky
+      .get(`${API_URL}/invoke/status/${threadId}`, {
+        timeout: 10000,
+      })
+      .json()
+
+    return {
+      type: 'text',
+      text: JSON.stringify(response, null, 2),
+    }
+  } catch (error) {
+    console.error('MCP invoke_status error:', error)
+    throw new Error(
+      `Failed to get workflow status: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
 }

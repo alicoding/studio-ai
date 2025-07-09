@@ -43,41 +43,41 @@ This eliminates the need for:
 
 ### Phase 1: MCP Tools for Project Agent Management
 
-#### 1.1 List Project Agents
+#### 1.1 List Project Agents ✅ COMPLETED
 
 - [x] Test existing `/api/projects/:id/agents` endpoint
 - [x] Create MCP tool: `list_project_agents`
 - [x] Return format includes short IDs (e.g., `dev_01`)
 - [x] Test with API first
 - [x] Update to use ENV context (no path conversion)
-- [ ] Test with MCP after restart
+- [x] Test with MCP after restart - WORKING ✅
 
-#### 1.2 Add Agent to Project
+#### 1.2 Add Agent to Project ✅ COMPLETED
 
-- [ ] Test existing `/api/projects/:id/agents` endpoint
-- [ ] Create MCP tool: `add_agent_to_project`
-- [ ] Support custom naming
-- [ ] Auto-generate short IDs
-- [ ] Test with API first
-- [ ] Test with MCP after restart
+- [x] Test existing `/api/studio-projects/:id/agents` endpoint
+- [x] Create MCP tool: `add_agent_to_project`
+- [x] Support custom naming
+- [x] Auto-generate short IDs
+- [x] Test with API first
+- [x] Test with MCP after restart - WORKING ✅
 
-#### 1.3 Add Team to Project
+#### 1.3 Add Team to Project ✅ COMPLETED
 
-- [ ] Test existing `/api/teams` endpoint
-- [ ] Test batch add through projects API
-- [ ] Create MCP tool: `add_team_to_project`
-- [ ] Batch add all agents from team
-- [ ] Auto-generate short IDs for each
-- [ ] Test with API first
-- [ ] Test with MCP after restart
+- [x] Test existing `/api/teams` endpoint
+- [x] Test batch add through projects API
+- [x] Create MCP tool: `add_team_to_project`
+- [x] Batch add all agents from team
+- [x] Auto-generate short IDs for each
+- [x] Test with API first
+- [x] Test with MCP JSON-RPC after restart - WORKING ✅
 
-#### 1.4 Remove Agent from Project
+#### 1.4 Remove Agent from Project ✅ COMPLETED
 
-- [ ] Test existing remove endpoint
-- [ ] Create MCP tool: `remove_agent_from_project`
-- [ ] Remove by instance ID or short ID
-- [ ] Test with API first
-- [ ] Test with MCP after restart
+- [x] Test existing remove endpoint
+- [x] Create MCP tool: `remove_agent_from_project`
+- [x] Remove by role (agent instance)
+- [x] Test with API first
+- [x] Test with MCP JSON-RPC after restart - WORKING ✅
 
 ### Phase 2: Short Agent ID System
 

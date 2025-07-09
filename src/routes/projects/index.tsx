@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { ProjectCard } from '../../components/projects/ProjectCard'
 import { CreateProjectModal } from '../../components/projects/CreateProjectModal'
 import { EditProjectModal } from '../../components/projects/EditProjectModal'
-import { DeleteProjectModal } from '../../components/modals/DeleteProjectModal'
+import { EnhancedDeleteProjectModal } from '../../components/modals/EnhancedDeleteProjectModal'
 import { PageLayout } from '../../components/layout/PageLayout'
 import { useProjectStore, type Project } from '../../stores'
 import { useProjects } from '../../hooks/useProjects'
@@ -116,13 +116,17 @@ function ProjectsListingPage() {
     setShowDeleteModal(true)
   }
 
-  const handleDeleteProjectFromAPI = async () => {
+  const handleDeleteProjectFromAPI = async (deleteWorkspace: boolean) => {
     if (!deletingProject) return
 
     setIsDeleting(true)
     try {
-      // Delete from Studio Projects API
-      await ky.delete(`/api/studio-projects/${deletingProject.id}`)
+      // Delete from Studio Projects API with optional workspace deletion
+      const url = deleteWorkspace
+        ? `/api/studio-projects/${deletingProject.id}?deleteWorkspace=true`
+        : `/api/studio-projects/${deletingProject.id}`
+
+      await ky.delete(url)
 
       // Refresh projects list to reflect the deletion
       await fetchProjects()
@@ -132,7 +136,8 @@ function ProjectsListingPage() {
       setDeletingProject(null)
     } catch (error) {
       console.error('Error deleting project:', error)
-      alert('Failed to delete project. Please try again.')
+      // Re-throw to let modal handle the error display
+      throw error
     } finally {
       setIsDeleting(false)
     }
@@ -291,11 +296,12 @@ function ProjectsListingPage() {
           onSave={handleSaveProjectMetadata}
         />
 
-        <DeleteProjectModal
+        <EnhancedDeleteProjectModal
           isOpen={showDeleteModal}
           onClose={handleCloseDeleteModal}
           onConfirm={handleDeleteProjectFromAPI}
           projectName={deletingProject?.name || ''}
+          projectPath={deletingProject?.path || ''}
           isDeleting={isDeleting}
         />
       </div>

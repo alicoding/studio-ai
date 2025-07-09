@@ -13,6 +13,7 @@ import { TeamSelectionModal } from '../components/modals/TeamSelectionModal'
 import { Button } from '../components/ui/button'
 import { Plus } from 'lucide-react'
 import { TeamTemplate } from '../types/teams'
+import { convertToolsToPermissions, type ToolPermission } from '../types/tool-permissions'
 
 import { useAgentStore, useProjectStore, type Agent } from '../stores'
 import { useAgentRoles } from '../hooks/useAgentRoles'
@@ -193,11 +194,12 @@ function ProjectsPage() {
         name: agent.name,
         role: agent.role,
         status: agent.status,
-        tokens: agent.totalTokens,
+        tokens: agent.sessionId ? agent.totalTokens : 0,
         maxTokens: 200000,
         lastMessage: agent.lastMessage,
         sessionId: agent.sessionId || undefined,
         order: index,
+        customTools: agent.customTools,
       }))
       setAgents(agentsWithOrder)
     } else if (currentProjectAgents.length === 0 && !loadingAgents) {
@@ -219,11 +221,11 @@ function ProjectsPage() {
   useEffect(() => {
     // Only load if agent IDs have actually changed and we haven't loaded them yet
     if (agentIdsString !== loadedAgentIds && agentIds.length > 0) {
-      console.log('Loading role assignments for agents:', agentIds)
-      loadAssignments(agentIds)
+      console.log('Loading role assignments for agents:', agentIds, 'in project:', activeProjectId)
+      loadAssignments(agentIds, activeProjectId || undefined)
       setLoadedAgentIds(agentIdsString)
     }
-  }, [agentIdsString, loadedAgentIds, agentIds, loadAssignments])
+  }, [agentIdsString, loadedAgentIds, agentIds, loadAssignments, activeProjectId])
 
   // Merge store agents with their role assignments
   const agentsWithRoles = storeAgents.map((agent) => {
@@ -241,10 +243,25 @@ function ProjectsPage() {
   useEffect(() => {
     if (agentConfigs.length > 0) {
       setAgentConfigs(
-        agentConfigs.map((config) => ({
-          ...config,
-          projectsUsing: [],
-        }))
+        agentConfigs.map((config) => {
+          // Convert string[] tools to ToolPermission[] if needed
+          let tools: ToolPermission[]
+          if (
+            Array.isArray(config.tools) &&
+            config.tools.length > 0 &&
+            typeof config.tools[0] === 'string'
+          ) {
+            tools = convertToolsToPermissions(config.tools as string[])
+          } else {
+            tools = config.tools as unknown as ToolPermission[]
+          }
+
+          return {
+            ...config,
+            projectsUsing: [],
+            tools,
+          }
+        })
       )
     }
   }, [agentConfigs, setAgentConfigs])
@@ -384,12 +401,13 @@ function ProjectsPage() {
       return
     }
 
-    // Add all agents from the team to the project with their custom names
+    // Add all agents from the team to the project with their custom names and roles
     const agentsToAdd = team.agents
       .filter((agent) => agent.configId)
       .map((agent) => ({
         configId: agent.configId!,
         name: agent.name,
+        role: agent.role, // Include the role from the team configuration
       }))
 
     if (agentsToAdd.length > 0) {
@@ -519,6 +537,7 @@ function ProjectsPage() {
         }}
         isReassignment={roleOps.getLegacyAgentSelection().isReassignment}
         currentRole={roleOps.selectedLegacyAgent?.role}
+        currentCustomTools={roleOps.selectedLegacyAgent?.customTools}
       />
 
       <CreateProjectModal

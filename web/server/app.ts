@@ -10,7 +10,6 @@ import createGracefulShutdown from 'http-graceful-shutdown'
 // Import API routes
 import agentsRouter from './api/agents'
 import agentRolesRouter from './api/agent-roles'
-import projectsRouter from './api/projects'
 import teamsRouter from './api/teams'
 import messagesRouter from './api/messages'
 import systemRouter from './api/system'
@@ -31,9 +30,13 @@ import sessionSearchRouter from './api/session-search'
 import claudeProjectsRouter from './api/claude-projects.js'
 import claudeLaunchRouter from './api/claude-launch.js'
 import studioProjectsRouter from './api/studio-projects.js'
+import toolPermissionsRouter from './api/tool-permissions.js'
+import healthRouter from './api/health'
+// import configRouter from './api/config.js' // Temporarily disabled due to client-side dependency
 
 // Import WebSocket handler
 import { setupWebSocket } from './websocket'
+import { WorkflowMonitor } from './services/WorkflowMonitor'
 
 // Process management removed - using Claude SDK instances instead
 
@@ -82,6 +85,20 @@ app.use(express.urlencoded({ extended: true }))
 // Make io available to routes
 app.set('io', io)
 
+// Initialize EventSystem with Socket.IO
+import { eventSystem } from './services/EventSystem'
+eventSystem
+  .initialize({
+    type: 'in-memory',
+    socketIO: io,
+  })
+  .then(() => {
+    console.log('✅ EventSystem initialized with Socket.IO')
+  })
+  .catch((err) => {
+    console.error('Failed to initialize EventSystem:', err)
+  })
+
 // Static file serving (for production)
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../../dist')))
@@ -90,12 +107,11 @@ if (process.env.NODE_ENV === 'production') {
 // API Routes
 app.use('/api/agents', agentsRouter)
 app.use('/api/agent-roles', agentRolesRouter)
-app.use('/api/projects', projectsRouter)
 app.use('/api/teams', teamsRouter)
-app.use('/api/messages', messagesRouter)
 app.use('/api/messages/batch', messagesBatchRouter)
+app.use('/api/messages', messagesRouter)
 app.use('/api/invoke', invokeRouter)
-app.use('/api', invokeStatusRouter)
+app.use('/api/invoke-status', invokeStatusRouter)
 app.use('/api/operator', operatorRouter)
 app.use('/api/system', systemRouter)
 app.use('/api/settings', settingsRouter)
@@ -107,21 +123,15 @@ app.use('/api/ai', aiRouter)
 app.use('/api/langchain', langchainRouter)
 app.use('/api/storage', storageRouter)
 app.use('/api/workspace', workspaceRouter)
-app.use('/api/session', sessionSearchRouter)
+app.use('/api/session-search', sessionSearchRouter)
 app.use('/api/claude-projects', claudeProjectsRouter)
-app.use('/api/claude', claudeLaunchRouter)
+app.use('/api/claude-launch', claudeLaunchRouter)
 app.use('/api/studio-projects', studioProjectsRouter)
+app.use('/api/tool-permissions', toolPermissionsRouter)
+app.use('/api/health', healthRouter)
+// app.use('/api/config', configRouter) // Temporarily disabled due to client-side dependency
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
-    port: process.env.PORT || 3456,
-  })
-})
+// Health check endpoint is now handled by healthRouter
 
 // Setup WebSocket
 setupWebSocket(io)
@@ -164,6 +174,11 @@ const PORT = process.env.PORT || 3456
 httpServer.listen(PORT, async () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`)
   console.log(`📡 WebSocket listening on ws://localhost:${PORT}`)
+
+  // Start workflow monitoring for auto-resume
+  const monitor = WorkflowMonitor.getInstance()
+  monitor.start()
+  console.log('🔍 Workflow monitoring started for auto-resume')
 
   // Initialize Studio Intelligence (smart defaults)
   await initializeStudioIntelligence()

@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useState } from 'react'
-import { useAgentStore } from '../stores'
+import { useAgentStore, useProjectStore } from '../stores'
 import { useAgentRoles } from './useAgentRoles'
 import type { Agent } from '../stores/agents'
 
@@ -24,6 +24,7 @@ interface LegacyAgentSelection {
 
 export function useRoleOperations() {
   const { configs } = useAgentStore() // Updated from availableConfigs
+  const { activeProjectId } = useProjectStore()
   const { assignRole, roleAssignments, loadAssignments } = useAgentRoles()
 
   // Local state for selected legacy agent
@@ -34,27 +35,33 @@ export function useRoleOperations() {
    * Start agent conversion process
    * Opens role assignment modal for legacy agent
    */
-  const startAgentConversion = useCallback(async (agent: Agent) => {
-    // Ensure role assignments are loaded for this agent
-    console.log('Loading role assignments for agent conversion:', agent.id)
-    await loadAssignments([agent.id])
-    
-    setSelectedLegacyAgent(agent)
-    setShowAssignRole(true)
-  }, [loadAssignments])
+  const startAgentConversion = useCallback(
+    async (agent: Agent) => {
+      // Ensure role assignments are loaded for this agent
+      console.log('Loading role assignments for agent conversion:', agent.id)
+      await loadAssignments([agent.id])
+
+      setSelectedLegacyAgent(agent)
+      setShowAssignRole(true)
+    },
+    [loadAssignments]
+  )
 
   /**
    * Start role reassignment process
    * Opens role assignment modal for agent with existing role
    */
-  const startRoleReassignment = useCallback(async (agent: Agent) => {
-    // Ensure role assignments are loaded for this agent
-    console.log('Loading role assignments for agent reassignment:', agent.id)
-    await loadAssignments([agent.id])
-    
-    setSelectedLegacyAgent(agent)
-    setShowAssignRole(true)
-  }, [loadAssignments])
+  const startRoleReassignment = useCallback(
+    async (agent: Agent) => {
+      // Ensure role assignments are loaded for this agent
+      console.log('Loading role assignments for agent reassignment:', agent.id)
+      await loadAssignments([agent.id])
+
+      setSelectedLegacyAgent(agent)
+      setShowAssignRole(true)
+    },
+    [loadAssignments]
+  )
 
   /**
    * Assign role to agent
@@ -78,8 +85,8 @@ export function useRoleOperations() {
           }
         }
 
-        // Assign the role to the agent
-        await assignRole(selectedLegacyAgent.id, roleId, customTools)
+        // Assign the role to the agent (pass activeProjectId for studio projects)
+        await assignRole(selectedLegacyAgent.id, roleId, customTools, activeProjectId || undefined)
 
         // Clear selection
         setSelectedLegacyAgent(null)
@@ -94,7 +101,7 @@ export function useRoleOperations() {
         }
       }
     },
-    [selectedLegacyAgent, configs, assignRole]
+    [selectedLegacyAgent, configs, assignRole, activeProjectId]
   )
 
   /**

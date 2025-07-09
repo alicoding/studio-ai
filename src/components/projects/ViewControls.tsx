@@ -1,5 +1,5 @@
-import { Menu, Square, Grid3X3, SplitSquareHorizontal } from 'lucide-react'
-import { useAgentStore } from '../../stores'
+import { Menu, Square, Grid3X3, SplitSquareHorizontal, Download } from 'lucide-react'
+import { useAgentStore, useProjectStore } from '../../stores'
 
 type ViewMode = 'single' | 'split' | 'grid'
 
@@ -27,6 +27,41 @@ export function ViewControls({
     selectedAgentId ? state.agents.find((a) => a.id === selectedAgentId) : null
   )
 
+  const activeProjectId = useProjectStore((state) => state.activeProjectId)
+  const projects = useProjectStore((state) => state.projects)
+  const activeProject = projects.find((p) => p.id === activeProjectId)
+
+  const handleExportSession = async () => {
+    if (!selectedAgent || !activeProject || !selectedAgent.sessionId) {
+      alert('No session to export. Please select an agent with an active session.')
+      return
+    }
+
+    try {
+      // Fetch the session messages in JSONL format
+      const response = await fetch(
+        `/api/studio-projects/${activeProjectId}/sessions/${selectedAgent.sessionId}/export`
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to export session')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${selectedAgent.name}-${selectedAgent.sessionId}.jsonl`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error('Failed to export session:', error)
+      alert('Failed to export session. Please try again.')
+    }
+  }
+
   return (
     <div className="flex items-center gap-2 p-2 bg-card border-b">
       <button
@@ -53,6 +88,17 @@ export function ViewControls({
           </button>
         ))}
       </div>
+
+      {selectedAgent && selectedAgent.sessionId && (
+        <button
+          className="ml-auto mr-2 flex items-center gap-1 px-3 py-1.5 text-sm text-muted-foreground hover:text-white hover:bg-secondary rounded transition-colors"
+          onClick={handleExportSession}
+          title="Export session as JSONL"
+        >
+          <Download className="w-3 h-3" />
+          Export
+        </button>
+      )}
 
       <span className="text-muted-foreground text-sm ml-auto">
         {selectedAgent ? `→ ${selectedAgent.name}` : '→ No agent selected'}

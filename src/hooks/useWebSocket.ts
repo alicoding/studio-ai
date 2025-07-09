@@ -8,7 +8,11 @@ interface UseWebSocketOptions {
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
-  const { url = 'http://localhost:3456', reconnectAttempts = 5, reconnectDelay = 1000 } = options
+  // Connect to the same server that serves the frontend for consistency
+  // This ensures events emitted from API calls reach the WebSocket
+  const defaultUrl = window.location.origin
+
+  const { url = defaultUrl, reconnectAttempts = 5, reconnectDelay = 1000 } = options
 
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -34,6 +38,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     socket.on('disconnect', () => {
       setIsConnected(false)
       console.log('WebSocket disconnected')
+    })
+
+    socket.on('reconnect', (attemptNumber: number) => {
+      console.log(`WebSocket reconnected after ${attemptNumber} attempts`)
+      // Emit custom event for components to re-establish their subscriptions
+      window.dispatchEvent(new CustomEvent('websocket-reconnected'))
     })
 
     socket.on('connect_error', (err) => {
