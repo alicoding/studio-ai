@@ -19,6 +19,18 @@
   - `WorkflowList.tsx` - Simplified list that opens modal on click
 - **Benefits**: Better readability, more space for step details, cleaner sidebar
 - **SSE Pattern**: Single global SSE connection in `useWorkflowEvents` hook prevents connection storms
+- **Infinite Loop Fix**: Use stable `workflowList` array in store instead of `Object.values()`
+
+## LangGraph Workflow Listing (2025-01-10)
+
+- **Finding**: LangGraph's BaseCheckpointSaver has a `list()` method to list checkpoints
+- **But**: CheckpointMetadata only contains basic fields: source, step, writes, parents
+- **Not**: Custom workflow metadata like status, projectName, sessionIds, etc.
+- **Current Solution**: In-memory Map in `/api/invoke-status/workflows` is reasonable
+- **Why**: LangGraph's metadata structure is too limited for rich workflow information
+- **Future**: Could store workflow metadata separately in PostgreSQL alongside checkpoints
+- **Note**: The in-memory approach means workflows are lost on server restart
+- **Alternative**: Extend CheckpointMetadata type or maintain separate workflow metadata table
 
 ## HTTP & API
 
