@@ -63,7 +63,7 @@ router.post('/status/:threadId', async (req: Request, res: Response) => {
 router.get('/workflows', async (req: Request, res: Response) => {
   try {
     const registry = WorkflowRegistry.getInstance()
-    const workflows = await registry.listWorkflows()
+    const workflows = await registry.listWorkflows({ limit: 100 }) // Limit to 100 recent workflows
 
     res.json({ workflows })
   } catch (error) {
