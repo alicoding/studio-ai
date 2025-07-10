@@ -87,11 +87,42 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
     // Keep selectedWorkflow for animation purposes
   }
 
+  const handleViewHistoryClick = () => {
+    // Show modal even when no workflows exist - for clarity
+    setSelectedWorkflow(null)
+    setIsModalOpen(true)
+  }
+
   if (allWorkflows.length === 0) {
     return (
-      <div className={`p-4 text-center text-sm text-muted-foreground ${className}`}>
-        No workflows to display
-      </div>
+      <>
+        <div className={className}>
+          <div className="p-3 border-b border-border flex items-center gap-2">
+            <Activity className="w-4 h-4 text-primary" />
+            <h3 className="text-sm font-medium">Workflows</h3>
+            <button
+              onClick={handleViewHistoryClick}
+              className="text-xs text-primary hover:text-primary/80 ml-auto"
+            >
+              View History
+            </button>
+          </div>
+          <div className="p-4 text-center text-sm text-muted-foreground">
+            <div className="flex flex-col items-center gap-2">
+              <Activity className="w-8 h-8 text-muted-foreground/50" />
+              <div>
+                <p className="font-medium">No active workflows</p>
+                <p className="text-xs">Workflows will appear here when created</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <WorkflowModal
+          isOpen={isModalOpen}
+          onClose={handleCloseModal}
+          workflow={selectedWorkflow}
+        />
+      </>
     )
   }
 

@@ -32,7 +32,70 @@ const statusColors = {
 }
 
 export function WorkflowModal({ workflow, isOpen, onClose }: WorkflowModalProps) {
-  if (!isOpen || !workflow) return null
+  if (!isOpen) return null
+
+  // Handle empty state when no workflow is selected
+  if (!workflow) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+        onClick={onClose}
+      >
+        <div
+          className="bg-background border border-border rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-border">
+            <div className="flex items-center gap-3">
+              <Activity className="w-5 h-5 text-primary" />
+              <div>
+                <h2 className="text-lg font-semibold">Workflow History</h2>
+                <p className="text-sm text-muted-foreground">No workflows found</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-secondary rounded-md transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Empty state content */}
+          <div className="flex-1 overflow-y-auto p-8">
+            <div className="text-center text-muted-foreground">
+              <div className="flex flex-col items-center gap-4">
+                <Activity className="w-16 h-16 text-muted-foreground/30" />
+                <div>
+                  <h3 className="text-lg font-medium text-foreground mb-2">No Workflows Yet</h3>
+                  <p className="text-sm">
+                    Workflows will appear here when you use the invoke tool or create multi-agent
+                    tasks.
+                  </p>
+                  <p className="text-sm mt-2">
+                    This is expected behavior when no workflows have been created.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-border bg-secondary/20">
+            <div className="flex justify-end">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const getStepStatus = (step: WorkflowStep) => {
     const Icon = statusIcons[step.status as keyof typeof statusIcons]

@@ -51,13 +51,29 @@ describe('WorkflowList', () => {
     vi.clearAllMocks()
   })
 
-  describe('Empty State', () => {
-    it('renders empty state when no workflows exist', () => {
+  describe('Empty State - Expected Behavior', () => {
+    it('renders empty state when no workflows exist - this is expected, not a bug', () => {
       mockUseWorkflowStore.mockReturnValue([])
 
       render(<WorkflowList />)
 
-      expect(screen.getByText('No workflows to display')).toBeInTheDocument()
+      expect(screen.getByText('Workflows')).toBeInTheDocument()
+      expect(screen.getByText('No active workflows')).toBeInTheDocument()
+      expect(screen.getByText('Workflows will appear here when created')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /view history/i })).toBeInTheDocument()
+    })
+
+    it('makes modal accessible via "View History" button when no workflows exist', async () => {
+      mockUseWorkflowStore.mockReturnValue([])
+
+      render(<WorkflowList />)
+
+      const viewHistoryButton = screen.getByRole('button', { name: /view history/i })
+      fireEvent.click(viewHistoryButton)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('workflow-modal')).toBeInTheDocument()
+      })
     })
 
     it('applies className to empty state', () => {
@@ -67,6 +83,19 @@ describe('WorkflowList', () => {
 
       // The className is applied to the root div containing the empty state
       expect(container.querySelector('.custom-class')).toBeInTheDocument()
+    })
+
+    it('shows clear messaging that empty state is expected behavior', () => {
+      mockUseWorkflowStore.mockReturnValue([])
+
+      render(<WorkflowList />)
+
+      // These texts make it clear this is expected, not an error
+      expect(screen.getByText('No active workflows')).toBeInTheDocument()
+      expect(screen.getByText('Workflows will appear here when created')).toBeInTheDocument()
+
+      // Activity icon should be visible in the header
+      expect(screen.getByText('Workflows')).toBeInTheDocument()
     })
   })
 
