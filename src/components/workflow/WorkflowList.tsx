@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useWorkflowStore, WorkflowInfo, WorkflowStep } from '../../stores/workflows'
 import { useWorkflowSSE } from '../../hooks/useWorkflowSSE'
 
@@ -169,8 +169,13 @@ const WorkflowItem: React.FC<{ workflow: WorkflowInfo }> = ({ workflow }) => {
 }
 
 export const WorkflowList: React.FC<WorkflowListProps> = ({ className = '' }) => {
-  const { workflows } = useWorkflowStore()
+  const { workflows, fetchWorkflows } = useWorkflowStore()
   const workflowList = Object.values(workflows)
+
+  // Fetch workflows when component mounts
+  useEffect(() => {
+    fetchWorkflows()
+  }, [fetchWorkflows])
 
   // Sort workflows: running first, then by last update
   const sortedWorkflows = workflowList.sort((a, b) => {

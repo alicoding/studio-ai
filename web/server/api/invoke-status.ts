@@ -20,6 +20,23 @@ const workflowStatus = new Map<
     lastUpdate: Date
     status: 'running' | 'completed' | 'aborted' | 'failed'
     currentStep?: string
+    startedBy?: string
+    invocation?: string
+    projectId?: string
+    projectName?: string
+    webhook?: string
+    webhookType?: string
+    steps?: Array<{
+      id: string
+      role?: string
+      agentId?: string
+      task: string
+      status: 'pending' | 'running' | 'completed' | 'failed'
+      startTime?: string
+      endTime?: string
+      error?: string
+      dependencies?: string[]
+    }>
   }
 >()
 
@@ -47,6 +64,14 @@ router.post('/status/:threadId', async (req: Request, res: Response) => {
 })
 
 /**
+ * Get all workflow statuses
+ */
+router.get('/workflows', (req: Request, res: Response) => {
+  const workflows = Array.from(workflowStatus.values())
+  res.json({ workflows })
+})
+
+/**
  * Get workflow status by threadId (legacy - using in-memory tracking)
  */
 router.get('/status/:threadId', (req: Request, res: Response) => {
@@ -69,6 +94,23 @@ export function updateWorkflowStatus(
     sessionIds: Record<string, string>
     status: 'running' | 'completed' | 'aborted' | 'failed'
     currentStep: string
+    startedBy: string
+    invocation: string
+    projectId: string
+    projectName: string
+    webhook: string
+    webhookType: string
+    steps: Array<{
+      id: string
+      role?: string
+      agentId?: string
+      task: string
+      status: 'pending' | 'running' | 'completed' | 'failed'
+      startTime?: string
+      endTime?: string
+      error?: string
+      dependencies?: string[]
+    }>
   }>
 ) {
   const existing = workflowStatus.get(threadId) || {

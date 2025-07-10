@@ -150,6 +150,18 @@ export class WorkflowOrchestrator {
     updateWorkflowStatus(threadId, {
       status: 'running',
       currentStep: normalizedSteps[0]?.id,
+      startedBy: 'Claude Code CLI', // Default since MCP tools don't send this
+      invocation: this.generateInvocationSummary(normalizedSteps),
+      projectId: request.projectId,
+      projectName: 'Current Project', // Default until we fetch project name
+      steps: normalizedSteps.map((step) => ({
+        id: step.id!,
+        role: step.role,
+        agentId: step.agentId,
+        task: step.task,
+        status: 'pending' as const,
+        dependencies: step.deps || [],
+      })),
     })
 
     // Build and execute workflow
@@ -747,6 +759,24 @@ export class WorkflowOrchestrator {
         canResume: false,
       }
     }
+  }
+
+  /**
+   * Generate a readable summary of the workflow invocation
+   */
+  private generateInvocationSummary(steps: WorkflowStep[]): string {
+    if (steps.length === 1) {
+      return steps[0].task
+    }
+
+    const taskCount = steps.length
+    const roles = [...new Set(steps.map((step) => step.role || step.agentId).filter(Boolean))]
+
+    if (roles.length === 1) {
+      return `${taskCount} tasks for ${roles[0]}`
+    }
+
+    return `${taskCount} tasks across ${roles.length} agents`
   }
 
   /**
