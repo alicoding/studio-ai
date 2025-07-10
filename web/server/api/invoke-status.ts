@@ -31,34 +31,8 @@ interface WorkflowEvent {
   error?: string
 }
 
-// In-memory status tracking (could be Redis in production)
-const workflowStatus = new Map<
-  string,
-  {
-    threadId: string
-    sessionIds: Record<string, string>
-    lastUpdate: Date
-    status: 'running' | 'completed' | 'aborted' | 'failed'
-    currentStep?: string
-    startedBy?: string
-    invocation?: string
-    projectId?: string
-    projectName?: string
-    webhook?: string
-    webhookType?: string
-    steps?: Array<{
-      id: string
-      role?: string
-      agentId?: string
-      task: string
-      status: 'pending' | 'running' | 'completed' | 'failed'
-      startTime?: string
-      endTime?: string
-      error?: string
-      dependencies?: string[]
-    }>
-  }
->()
+// Import WorkflowRegistry for persistent storage
+import { WorkflowRegistry } from '../services/WorkflowRegistry'
 
 const router = Router()
 
@@ -84,11 +58,21 @@ router.post('/status/:threadId', async (req: Request, res: Response) => {
 })
 
 /**
- * Get all workflow statuses
+ * Get all workflow statuses from database
  */
-router.get('/workflows', (req: Request, res: Response) => {
-  const workflows = Array.from(workflowStatus.values())
-  res.json({ workflows })
+router.get('/workflows', async (req: Request, res: Response) => {
+  try {
+    const registry = WorkflowRegistry.getInstance()
+    const workflows = await registry.listWorkflows()
+
+    res.json({ workflows })
+  } catch (error) {
+    console.error('[Workflows API] Error listing workflows:', error)
+    res.status(500).json({
+      error: 'Failed to list workflows',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    })
+  }
 })
 
 /**
@@ -163,23 +147,33 @@ router.get('/events', (req: Request, res: Response) => {
 })
 
 /**
- * Get workflow status by threadId (legacy - using in-memory tracking)
+ * Get workflow status by threadId from database
  */
-router.get('/status/:threadId', (req: Request, res: Response) => {
+router.get('/status/:threadId', async (req: Request, res: Response) => {
   const { threadId } = req.params
-  const status = workflowStatus.get(threadId)
 
-  if (!status) {
-    return res.status(404).json({ error: 'Workflow not found' })
+  try {
+    const registry = WorkflowRegistry.getInstance()
+    const workflow = await registry.getWorkflow(threadId)
+
+    if (!workflow) {
+      return res.status(404).json({ error: 'Workflow not found' })
+    }
+
+    res.json(workflow)
+  } catch (error) {
+    console.error('[Status API] Error getting workflow:', error)
+    res.status(500).json({
+      error: 'Failed to get workflow status',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    })
   }
-
-  res.json(status)
 })
 
 /**
- * Update workflow status (internal use)
+ * Update workflow status in database (internal use)
  */
-export function updateWorkflowStatus(
+export async function updateWorkflowStatus(
   threadId: string,
   update: Partial<{
     sessionIds: Record<string, string>
@@ -204,27 +198,36 @@ export function updateWorkflowStatus(
     }>
   }>
 ) {
-  const existing = workflowStatus.get(threadId) || {
-    threadId,
-    sessionIds: {},
-    lastUpdate: new Date(),
-    status: 'running' as const,
-  }
+  try {
+    const registry = WorkflowRegistry.getInstance()
 
-  workflowStatus.set(threadId, {
-    ...existing,
-    ...update,
-    sessionIds: { ...existing.sessionIds, ...update.sessionIds },
-    lastUpdate: new Date(),
-  })
+    // Check if workflow exists, if not create it
+    const existing = await registry.getWorkflow(threadId)
 
-  // Clean up old entries after 1 hour
-  setTimeout(() => {
-    const current = workflowStatus.get(threadId)
-    if (current && current.lastUpdate.getTime() === existing.lastUpdate.getTime()) {
-      workflowStatus.delete(threadId)
+    if (!existing) {
+      // Create new workflow entry
+      await registry.registerWorkflow({
+        threadId,
+        status: update.status || 'running',
+        projectId: update.projectId,
+        projectName: update.projectName,
+        startedBy: update.startedBy,
+        invocation: update.invocation,
+        webhook: update.webhook,
+        webhookType: update.webhookType,
+        currentStep: update.currentStep,
+        lastUpdate: new Date().toISOString(),
+        sessionIds: update.sessionIds || {},
+        steps: update.steps || [],
+      })
+    } else {
+      // Update existing workflow
+      await registry.updateWorkflow(threadId, update)
     }
-  }, 3600000)
+  } catch (error) {
+    console.error('[updateWorkflowStatus] Failed to update workflow:', error)
+    throw error
+  }
 }
 
 export default router

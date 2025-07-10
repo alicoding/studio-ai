@@ -147,7 +147,7 @@ export class WorkflowOrchestrator {
     monitor.registerWorkflow(threadId, request)
 
     // Update status when workflow starts
-    updateWorkflowStatus(threadId, {
+    await updateWorkflowStatus(threadId, {
       status: 'running',
       currentStep: normalizedSteps[0]?.id,
       startedBy: 'Claude Code CLI', // Default since MCP tools don't send this
@@ -181,7 +181,7 @@ export class WorkflowOrchestrator {
 
     try {
       // Initialize status tracking
-      updateWorkflowStatus(threadId, {
+      await updateWorkflowStatus(threadId, {
         status: 'running',
         sessionIds: {},
         currentStep: normalizedSteps[0]?.id,
@@ -194,7 +194,7 @@ export class WorkflowOrchestrator {
 
       // Update final status
       const finalStatus = this.determineOverallStatus(finalState.stepResults)
-      updateWorkflowStatus(threadId, {
+      await updateWorkflowStatus(threadId, {
         status: finalStatus === 'completed' ? 'completed' : 'failed',
         sessionIds: finalState.sessionIds,
       })
@@ -245,7 +245,7 @@ export class WorkflowOrchestrator {
 
       // Update status on error/abort
       const abortInfo = detectAbortError(error)
-      updateWorkflowStatus(threadId, {
+      await updateWorkflowStatus(threadId, {
         status: abortInfo.isAbort ? 'aborted' : 'failed',
       })
 
@@ -537,7 +537,7 @@ export class WorkflowOrchestrator {
         if (result.sessionId) {
           const sessionIds: Record<string, string> = {}
           sessionIds[step.id!] = result.sessionId
-          updateWorkflowStatus(state.threadId, {
+          await updateWorkflowStatus(state.threadId, {
             sessionIds,
             currentStep: step.id,
           })

@@ -172,9 +172,9 @@ router.post('/async', async (req: Request, res: Response) => {
     executor.setWorkflowEvents(workflowEvents)
 
     // Start workflow in background - properly managed
-    executor.executeAsync({ ...request, threadId }).catch((error) => {
+    executor.executeAsync({ ...request, threadId }).catch(async (error) => {
       console.error(`Async workflow ${threadId} failed:`, error)
-      updateWorkflowStatus(threadId, { status: 'failed' })
+      await updateWorkflowStatus(threadId, { status: 'failed' })
     })
 
     // Return immediately with threadId
