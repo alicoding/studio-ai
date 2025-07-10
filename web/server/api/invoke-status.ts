@@ -11,6 +11,25 @@ import type { Request, Response } from 'express'
 import { WorkflowOrchestrator } from '../services/WorkflowOrchestrator'
 import type { WorkflowStep } from '../schemas/invoke'
 
+// Workflow event types
+interface WorkflowEvent {
+  type:
+    | 'workflow_created'
+    | 'step_start'
+    | 'step_complete'
+    | 'step_failed'
+    | 'workflow_complete'
+    | 'workflow_failed'
+  threadId: string
+  stepId?: string
+  sessionId?: string
+  retry?: number
+  status?: string
+  lastStep?: string
+  projectId?: string
+  error?: string
+}
+
 // In-memory status tracking (could be Redis in production)
 const workflowStatus = new Map<
   string,
@@ -69,6 +88,64 @@ router.post('/status/:threadId', async (req: Request, res: Response) => {
 router.get('/workflows', (req: Request, res: Response) => {
   const workflows = Array.from(workflowStatus.values())
   res.json({ workflows })
+})
+
+/**
+ * SSE endpoint for global workflow events
+ */
+router.get('/events', (req: Request, res: Response) => {
+  // Set SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  })
+
+  // Send initial connection event
+  res.write(`event: connected\ndata: {}\n\n`)
+
+  // Get workflow events emitter
+  const workflowEvents = req.app.get('workflowEvents')
+
+  if (!workflowEvents) {
+    console.error('[WorkflowEvents] No workflow event emitter found')
+    res.end()
+    return
+  }
+
+  // Listen for workflow events
+  const handleWorkflowUpdate = (data: WorkflowEvent) => {
+    // Emit different event types based on the data
+    if (data.type === 'workflow_created') {
+      res.write(`event: workflow_created\ndata: ${JSON.stringify(data)}\n\n`)
+    } else if (
+      data.type === 'step_start' ||
+      data.type === 'step_complete' ||
+      data.type === 'step_failed'
+    ) {
+      res.write(
+        `event: step_update\ndata: ${JSON.stringify({
+          ...data,
+          status: data.type.replace('step_', ''),
+        })}\n\n`
+      )
+    } else if (data.type === 'workflow_complete' || data.type === 'workflow_failed') {
+      res.write(
+        `event: workflow_status\ndata: ${JSON.stringify({
+          ...data,
+          status: data.type.replace('workflow_', ''),
+        })}\n\n`
+      )
+    }
+  }
+
+  workflowEvents.on('workflow:update', handleWorkflowUpdate)
+
+  // Clean up on client disconnect
+  req.on('close', () => {
+    workflowEvents.off('workflow:update', handleWorkflowUpdate)
+  })
 })
 
 /**

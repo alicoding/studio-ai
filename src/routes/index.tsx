@@ -28,6 +28,7 @@ import { useModalOperations } from '../hooks/useModalOperations'
 import { useWorkspaceLayout } from '../hooks/useWorkspaceLayout'
 import { useWebSocketOperations } from '../hooks/useWebSocketOperations'
 import { useWorkspaceShortcuts } from '../hooks/useShortcuts'
+import { useWorkflowEvents } from '../hooks/useWorkflowEvents'
 
 import { SingleView } from '../components/projects/views/SingleView'
 import { SplitView } from '../components/projects/views/SplitView'
@@ -144,6 +145,9 @@ function ProjectsPage() {
 
   // WebSocket operations (handles event registration)
   useWebSocketOperations()
+
+  // Global workflow events (SSE for workflow updates)
+  useWorkflowEvents()
 
   // Get only the open projects for workspace tabs
   const openProjects = getOpenProjects()

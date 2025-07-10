@@ -1,612 +1,300 @@
 /**
- * Comprehensive tests for WorkflowList component
+ * Tests for WorkflowList component with modal
  *
- * SOLID: Single responsibility - test workflow list display and interactions
- * DRY: Reusable mock factories and test utilities
- * KISS: Clear test scenarios with descriptive names
+ * SOLID: Test single responsibility
+ * DRY: Reuse test utilities
+ * KISS: Simple, focused tests
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { WorkflowList } from '../WorkflowList'
-import { useWorkflowStore, WorkflowInfo } from '../../../stores/workflows'
-import { useWorkflowSSE } from '../../../hooks/useWorkflowSSE'
+import { useWorkflowStore, type WorkflowInfo } from '../../../stores/workflows'
 
 // Mock the workflow store
-vi.mock('../../../stores/workflows', () => ({
-  useWorkflowStore: vi.fn(),
+vi.mock('../../../stores/workflows')
+
+// Mock the WorkflowModal to prevent portal issues in tests
+vi.mock('../WorkflowModal', () => ({
+  WorkflowModal: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) =>
+    isOpen ? (
+      <div data-testid="workflow-modal">
+        <button onClick={onClose}>Close</button>
+      </div>
+    ) : null,
 }))
-
-// Mock the useWorkflowSSE hook
-vi.mock('../../../hooks/useWorkflowSSE', () => ({
-  useWorkflowSSE: vi.fn(),
-}))
-
-// Mock fetch for retry functionality
-global.fetch = vi.fn()
-
-// Mock console methods to avoid test noise
-const consoleSpy = {
-  log: vi.spyOn(console, 'log').mockImplementation(() => {}),
-  error: vi.spyOn(console, 'error').mockImplementation(() => {}),
-}
 
 describe('WorkflowList', () => {
-  let mockWorkflows: Record<string, WorkflowInfo>
-  let mockFetch: Mock
-
-  // Type for mocked workflow store
-  type MockWorkflowStore = {
-    workflows: Record<string, WorkflowInfo>
-  }
-
-  const mockStore = (workflows: Record<string, WorkflowInfo>): MockWorkflowStore => ({
-    workflows,
-  })
+  const mockUseWorkflowStore = vi.mocked(useWorkflowStore)
 
   const createMockWorkflow = (overrides: Partial<WorkflowInfo> = {}): WorkflowInfo => ({
     threadId: 'test-thread-123',
     status: 'running',
     startedBy: 'Claude Code CLI',
-    invocation: 'Test workflow invocation',
+    invocation: 'Test workflow',
     projectId: 'project-123',
     projectName: 'Test Project',
-    webhook: 'http://localhost:8080/webhook',
-    webhookType: 'tmux send-keys',
-    currentStep: 'step1',
     steps: [
       {
-        id: 'step1',
-        role: 'developer',
+        id: 'step-1',
+        task: 'Test Step 1',
+        status: 'completed',
         agentId: 'dev_01',
-        task: 'Create test files',
-        status: 'running',
-        startTime: '2025-01-09T10:00:00Z',
-        dependencies: [],
       },
     ],
-    lastUpdate: '2025-01-09T10:00:00Z',
-    sessionIds: { dev_01: 'session-123' },
+    lastUpdate: new Date().toISOString(),
+    sessionIds: {},
     ...overrides,
   })
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockWorkflows = {}
-    mockFetch = vi.mocked(fetch)
-
-    // Setup store mock
-    vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
-
-    // Setup SSE hook mock
-    vi.mocked(useWorkflowSSE).mockReturnValue({
-      isConnected: true,
-      error: null,
-      disconnect: vi.fn(),
-      reconnect: vi.fn(),
-    })
-  })
-
-  afterEach(() => {
-    consoleSpy.log.mockClear()
-    consoleSpy.error.mockClear()
   })
 
   describe('Empty State', () => {
-    it('should display empty state when no workflows exist', () => {
-      // Act
+    it('renders empty state when no workflows exist', () => {
+      mockUseWorkflowStore.mockReturnValue([])
+
       render(<WorkflowList />)
 
-      // Assert
       expect(screen.getByText('No workflows to display')).toBeInTheDocument()
     })
 
-    it('should apply custom className to empty state', () => {
-      // Act
-      render(<WorkflowList className="custom-class" />)
+    it('applies className to empty state', () => {
+      mockUseWorkflowStore.mockReturnValue([])
 
-      // Assert
-      const emptyState = screen.getByText('No workflows to display')
-      expect(emptyState).toHaveClass('custom-class')
+      const { container } = render(<WorkflowList className="custom-class" />)
+
+      // The className is applied to the root div containing the empty state
+      expect(container.querySelector('.custom-class')).toBeInTheDocument()
     })
   })
 
   describe('Workflow Display', () => {
-    beforeEach(() => {
-      const workflow = createMockWorkflow()
-      mockWorkflows = { [workflow.threadId]: workflow }
+    it('renders workflow list correctly', () => {
+      const workflows = [
+        createMockWorkflow({ threadId: 'wf-1', status: 'running' }),
+        createMockWorkflow({ threadId: 'wf-2', status: 'completed' }),
+        createMockWorkflow({ threadId: 'wf-3', status: 'failed' }),
+      ]
 
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
-    })
+      mockUseWorkflowStore.mockReturnValue(workflows)
 
-    it('should display workflow header information', () => {
-      // Act
       render(<WorkflowList />)
 
-      // Assert
-      expect(screen.getByText('Workflow test-thr...')).toBeInTheDocument()
-      expect(screen.getByText('(running)')).toBeInTheDocument()
-      expect(screen.getByText('Workflows (1)')).toBeInTheDocument()
+      // Check header
+      expect(screen.getByText('Workflows')).toBeInTheDocument()
+      expect(screen.getByText('1 active')).toBeInTheDocument()
+
+      // Check workflow statuses
+      expect(screen.getByText('running')).toBeInTheDocument()
+      expect(screen.getByText('completed')).toBeInTheDocument()
+      expect(screen.getByText('failed')).toBeInTheDocument()
     })
 
-    it('should display workflow context information', () => {
-      // Act
+    it('truncates thread IDs correctly', () => {
+      const workflow = createMockWorkflow({ threadId: 'very-long-thread-id-123456789' })
+      mockUseWorkflowStore.mockReturnValue([workflow])
+
       render(<WorkflowList />)
 
-      // Assert
-      expect(screen.getByText(/Invocation:/)).toBeInTheDocument()
-      expect(screen.getByText(/Test workflow invocation/)).toBeInTheDocument()
-      expect(screen.getByText(/Started by:/)).toBeInTheDocument()
-      expect(screen.getByText(/Claude Code CLI/)).toBeInTheDocument()
-      expect(screen.getByText(/Project:/)).toBeInTheDocument()
-      expect(screen.getByText(/Test Project/)).toBeInTheDocument()
+      expect(screen.getByText('very-lon...')).toBeInTheDocument()
     })
 
-    it('should display webhook information when configured', () => {
-      // Act
-      render(<WorkflowList />)
-
-      // Assert
-      expect(screen.getByText(/Webhook:/)).toBeInTheDocument()
-      expect(screen.getByText(/http:\/\/localhost:8080\/webhook/)).toBeInTheDocument()
-      expect(screen.getByText(/(tmux send-keys)/)).toBeInTheDocument()
-    })
-
-    it('should display "Not configured" when webhook is missing', () => {
-      // Arrange
-      const workflow = createMockWorkflow({ webhook: undefined, webhookType: undefined })
-      mockWorkflows = { [workflow.threadId]: workflow }
-
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
-
-      // Act
-      render(<WorkflowList />)
-
-      // Assert
-      expect(screen.getByText(/Webhook:/)).toBeInTheDocument()
-      expect(screen.getByText(/Not configured/)).toBeInTheDocument()
-    })
-
-    it('should truncate long invocation text', () => {
-      // Arrange
-      const longInvocation =
-        'This is a very long workflow invocation that should be truncated because it exceeds the character limit'
-      const workflow = createMockWorkflow({ invocation: longInvocation })
-      mockWorkflows = { [workflow.threadId]: workflow }
-
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
-
-      // Act
-      render(<WorkflowList />)
-
-      // Assert
-      const truncatedText = screen.getByText(
-        /This is a very long workflow invocation that should be\.\.\./
-      )
-      expect(truncatedText).toBeInTheDocument()
-    })
-  })
-
-  describe('Step Display', () => {
-    it('should display step information with status icons', () => {
-      // Act
-      render(<WorkflowList />)
-
-      // Assert
-      expect(screen.getByText('step1:')).toBeInTheDocument()
-      expect(screen.getByText('"Create test files"')).toBeInTheDocument()
-      expect(screen.getByText('(dev_01)')).toBeInTheDocument()
-      expect(screen.getByText('🔄')).toBeInTheDocument() // Running status icon
-    })
-
-    it('should display step duration for completed steps', () => {
-      // Arrange
+    it('displays project names and step counts', () => {
       const workflow = createMockWorkflow({
+        projectName: 'My Project',
         steps: [
-          {
-            id: 'step1',
-            role: 'developer',
-            agentId: 'dev_01',
-            task: 'Completed task',
-            status: 'completed',
-            startTime: '2025-01-09T10:00:00Z',
-            endTime: '2025-01-09T10:05:00Z',
-            dependencies: [],
-          },
+          { id: 'step-1', task: 'Task 1', status: 'completed' },
+          { id: 'step-2', task: 'Task 2', status: 'running' },
         ],
       })
-      mockWorkflows = { [workflow.threadId]: workflow }
+      mockUseWorkflowStore.mockReturnValue([workflow])
 
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
-
-      // Act
       render(<WorkflowList />)
 
-      // Assert
-      expect(screen.getByText('✅')).toBeInTheDocument() // Completed status icon
-      expect(screen.getByText('300s')).toBeInTheDocument() // Duration calculation
+      expect(screen.getByText('My Project')).toBeInTheDocument()
+      expect(screen.getByText('2 steps')).toBeInTheDocument()
     })
 
-    it('should display step error messages', () => {
-      // Arrange
-      const workflow = createMockWorkflow({
-        steps: [
-          {
-            id: 'step1',
-            role: 'developer',
-            agentId: 'dev_01',
-            task: 'Failed task',
-            status: 'failed',
-            startTime: '2025-01-09T10:00:00Z',
-            endTime: '2025-01-09T10:03:00Z',
-            error: 'Agent conflict detected',
-            dependencies: [],
-          },
-        ],
-      })
-      mockWorkflows = { [workflow.threadId]: workflow }
+    it('handles missing project name', () => {
+      const workflow = createMockWorkflow({ projectName: undefined })
+      mockUseWorkflowStore.mockReturnValue([workflow])
 
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
-
-      // Act
       render(<WorkflowList />)
 
-      // Assert
-      expect(screen.getByText('❌')).toBeInTheDocument() // Failed status icon
-      expect(screen.getByText('Error: Agent conflict detected')).toBeInTheDocument()
-    })
-
-    it('should handle multiple steps correctly', () => {
-      // Arrange
-      const workflow = createMockWorkflow({
-        steps: [
-          {
-            id: 'step1',
-            role: 'developer',
-            agentId: 'dev_01',
-            task: 'First step',
-            status: 'completed',
-            startTime: '2025-01-09T10:00:00Z',
-            endTime: '2025-01-09T10:05:00Z',
-            dependencies: [],
-          },
-          {
-            id: 'step2',
-            role: 'reviewer',
-            agentId: 'reviewer_01',
-            task: 'Second step',
-            status: 'running',
-            startTime: '2025-01-09T10:05:00Z',
-            dependencies: ['step1'],
-          },
-          {
-            id: 'step3',
-            role: 'tester',
-            agentId: 'tester_01',
-            task: 'Third step',
-            status: 'pending',
-            dependencies: ['step2'],
-          },
-        ],
-      })
-      mockWorkflows = { [workflow.threadId]: workflow }
-
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
-
-      // Act
-      render(<WorkflowList />)
-
-      // Assert
-      expect(screen.getByText('step1:')).toBeInTheDocument()
-      expect(screen.getByText('step2:')).toBeInTheDocument()
-      expect(screen.getByText('step3:')).toBeInTheDocument()
-      expect(screen.getByText('✅')).toBeInTheDocument() // Completed
-      expect(screen.getByText('🔄')).toBeInTheDocument() // Running
-      expect(screen.getByText('⏳')).toBeInTheDocument() // Pending
+      expect(screen.getByText('Unknown project')).toBeInTheDocument()
     })
   })
 
-  describe('Live Indicator', () => {
-    it('should show live indicator when workflows are running', () => {
-      // Arrange
-      const workflow1 = createMockWorkflow({ threadId: 'thread-1', status: 'running' })
-      const workflow2 = createMockWorkflow({ threadId: 'thread-2', status: 'completed' })
-      mockWorkflows = {
-        [workflow1.threadId]: workflow1,
-        [workflow2.threadId]: workflow2,
-      }
+  describe('Sorting and Filtering', () => {
+    it('shows active workflows first', () => {
+      const workflows = [
+        createMockWorkflow({
+          threadId: 'completed-1',
+          status: 'completed',
+          lastUpdate: new Date(Date.now() + 10000).toISOString(), // newer
+        }),
+        createMockWorkflow({
+          threadId: 'running-1',
+          status: 'running',
+          lastUpdate: new Date(Date.now() - 10000).toISOString(), // older
+        }),
+      ]
 
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
+      mockUseWorkflowStore.mockReturnValue(workflows)
 
-      // Act
       render(<WorkflowList />)
 
-      // Assert
-      expect(screen.getByText('Live')).toBeInTheDocument()
-      expect(screen.getByText('●')).toBeInTheDocument()
+      const buttons = screen.getAllByRole('button')
+      // First workflow button should be the running one
+      expect(buttons[0]).toHaveTextContent('running-...')
+      expect(buttons[0]).toHaveTextContent('running')
     })
 
-    it('should not show live indicator when no workflows are running', () => {
-      // Arrange
-      const workflow = createMockWorkflow({ status: 'completed' })
-      mockWorkflows = { [workflow.threadId]: workflow }
+    it('sorts non-running workflows by last update', () => {
+      const workflows = [
+        createMockWorkflow({
+          threadId: 'older',
+          status: 'completed',
+          lastUpdate: new Date(Date.now() - 10000).toISOString(),
+        }),
+        createMockWorkflow({
+          threadId: 'newer',
+          status: 'completed',
+          lastUpdate: new Date(Date.now()).toISOString(),
+        }),
+      ]
 
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
+      mockUseWorkflowStore.mockReturnValue(workflows)
 
-      // Act
       render(<WorkflowList />)
 
-      // Assert
-      expect(screen.queryByText('Live')).not.toBeInTheDocument()
-    })
-  })
-
-  describe('SSE Connection Status', () => {
-    it('should show disconnection warning for running workflows', () => {
-      // Arrange
-      vi.mocked(useWorkflowSSE).mockReturnValue({
-        isConnected: false,
-        error: null,
-        disconnect: vi.fn(),
-        reconnect: vi.fn(),
-      })
-
-      // Act
-      render(<WorkflowList />)
-
-      // Assert
-      expect(screen.getByTitle('SSE disconnected')).toBeInTheDocument()
-      expect(screen.getByText('📡❌')).toBeInTheDocument()
+      const buttons = screen.getAllByRole('button')
+      expect(buttons[0]).toHaveTextContent('newer...')
+      expect(buttons[1]).toHaveTextContent('older...')
     })
 
-    it('should show error indicator when SSE has errors', () => {
-      // Arrange
-      vi.mocked(useWorkflowSSE).mockReturnValue({
-        isConnected: true,
-        error: 'Connection failed',
-        disconnect: vi.fn(),
-        reconnect: vi.fn(),
-      })
-
-      // Act
-      render(<WorkflowList />)
-
-      // Assert
-      expect(screen.getByTitle('SSE error: Connection failed')).toBeInTheDocument()
-      expect(screen.getByText('⚠️')).toBeInTheDocument()
-    })
-
-    it('should not show connection indicators when connected and no errors', () => {
-      // Act
-      render(<WorkflowList />)
-
-      // Assert
-      expect(screen.queryByTitle(/SSE/)).not.toBeInTheDocument()
-    })
-  })
-
-  describe('Retry Functionality', () => {
-    beforeEach(() => {
-      const failedWorkflow = createMockWorkflow({
-        status: 'failed',
-        steps: [
-          {
-            id: 'step1',
-            role: 'developer',
-            agentId: 'dev_01',
-            task: 'Failed task',
-            status: 'failed',
-            error: 'Test error',
-            dependencies: [],
-          },
-        ],
-      })
-      mockWorkflows = { [failedWorkflow.threadId]: failedWorkflow }
-
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
-    })
-
-    it('should show retry button for failed workflows', () => {
-      // Act
-      render(<WorkflowList />)
-
-      // Assert
-      expect(screen.getByText('Retry')).toBeInTheDocument()
-    })
-
-    it('should not show retry button for non-failed workflows', () => {
-      // Arrange
-      const runningWorkflow = createMockWorkflow({ status: 'running' })
-      mockWorkflows = { [runningWorkflow.threadId]: runningWorkflow }
-
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
-
-      // Act
-      render(<WorkflowList />)
-
-      // Assert
-      expect(screen.queryByText('Retry')).not.toBeInTheDocument()
-    })
-
-    it('should call retry API when retry button is clicked', async () => {
-      // Arrange
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true }),
-      } as Response)
-
-      // Act
-      render(<WorkflowList />)
-      const retryButton = screen.getByText('Retry')
-      fireEvent.click(retryButton)
-
-      // Assert
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/invoke/async', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            threadId: 'test-thread-123',
-            workflow: [
-              {
-                id: 'step1',
-                role: 'developer',
-                agentId: 'dev_01',
-                task: 'Failed task',
-                dependencies: [],
-              },
-            ],
-          }),
+    it('limits recent workflows to 5', () => {
+      const workflows = Array.from({ length: 10 }, (_, i) =>
+        createMockWorkflow({
+          threadId: `completed-${i}`,
+          status: 'completed',
+          lastUpdate: new Date(Date.now() - i * 1000).toISOString(),
         })
+      )
+
+      mockUseWorkflowStore.mockReturnValue(workflows)
+
+      render(<WorkflowList />)
+
+      const buttons = screen.getAllByRole('button')
+      expect(buttons).toHaveLength(5)
+    })
+  })
+
+  describe('Modal Interaction', () => {
+    it('opens modal when workflow is clicked', async () => {
+      const workflow = createMockWorkflow()
+      mockUseWorkflowStore.mockReturnValue([workflow])
+
+      render(<WorkflowList />)
+
+      const workflowButton = screen.getByRole('button')
+      fireEvent.click(workflowButton)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('workflow-modal')).toBeInTheDocument()
       })
     })
 
-    it('should handle retry API errors gracefully', async () => {
-      // Arrange
-      mockFetch.mockRejectedValueOnce(new Error('Network error'))
+    it('closes modal when close button is clicked', async () => {
+      const workflow = createMockWorkflow()
+      mockUseWorkflowStore.mockReturnValue([workflow])
 
-      // Act
       render(<WorkflowList />)
-      const retryButton = screen.getByText('Retry')
-      fireEvent.click(retryButton)
 
-      // Assert
+      // Open modal
+      const workflowButton = screen.getByRole('button')
+      fireEvent.click(workflowButton)
+
+      // Close modal
+      const closeButton = await screen.findByText('Close')
+      fireEvent.click(closeButton)
+
       await waitFor(() => {
-        expect(consoleSpy.error).toHaveBeenCalledWith(
-          'Failed to retry workflow:',
-          expect.any(Error)
-        )
-      })
-    })
-
-    it('should handle retry API response errors', async () => {
-      // Arrange
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: 'Internal Server Error',
-      } as Response)
-
-      // Act
-      render(<WorkflowList />)
-      const retryButton = screen.getByText('Retry')
-      fireEvent.click(retryButton)
-
-      // Assert
-      await waitFor(() => {
-        expect(consoleSpy.error).toHaveBeenCalledWith(
-          'Failed to retry workflow:',
-          expect.any(Error)
-        )
+        expect(screen.queryByTestId('workflow-modal')).not.toBeInTheDocument()
       })
     })
   })
 
-  describe('Workflow Sorting', () => {
-    it('should sort running workflows first', () => {
-      // Arrange
-      const completedWorkflow = createMockWorkflow({
-        threadId: 'completed-1',
-        status: 'completed',
-        lastUpdate: '2025-01-09T10:30:00Z',
-      })
-      const runningWorkflow = createMockWorkflow({
-        threadId: 'running-1',
-        status: 'running',
-        lastUpdate: '2025-01-09T10:00:00Z',
-      })
+  describe('Status Colors', () => {
+    it('applies correct status colors', () => {
+      const workflows = [
+        createMockWorkflow({ threadId: 'wf-1', status: 'running' }),
+        createMockWorkflow({ threadId: 'wf-2', status: 'completed' }),
+        createMockWorkflow({ threadId: 'wf-3', status: 'failed' }),
+        createMockWorkflow({ threadId: 'wf-4', status: 'aborted' }),
+      ]
 
-      mockWorkflows = {
-        [completedWorkflow.threadId]: completedWorkflow,
-        [runningWorkflow.threadId]: runningWorkflow,
-      }
+      mockUseWorkflowStore.mockReturnValue(workflows)
 
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
-
-      // Act
       render(<WorkflowList />)
 
-      // Assert
-      const workflowElements = screen.getAllByText(/Workflow/)
-      expect(workflowElements[0]).toHaveTextContent('running-1')
-      expect(workflowElements[1]).toHaveTextContent('completed-1')
-    })
-
-    it('should sort by lastUpdate for workflows with same status', () => {
-      // Arrange
-      const olderWorkflow = createMockWorkflow({
-        threadId: 'older-1',
-        status: 'completed',
-        lastUpdate: '2025-01-09T10:00:00Z',
-      })
-      const newerWorkflow = createMockWorkflow({
-        threadId: 'newer-1',
-        status: 'completed',
-        lastUpdate: '2025-01-09T10:30:00Z',
-      })
-
-      mockWorkflows = {
-        [olderWorkflow.threadId]: olderWorkflow,
-        [newerWorkflow.threadId]: newerWorkflow,
-      }
-
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
-
-      // Act
-      render(<WorkflowList />)
-
-      // Assert
-      const workflowElements = screen.getAllByText(/Workflow/)
-      expect(workflowElements[0]).toHaveTextContent('newer-1')
-      expect(workflowElements[1]).toHaveTextContent('older-1')
+      expect(screen.getByText('running')).toHaveClass('bg-blue-500/20')
+      expect(screen.getByText('completed')).toHaveClass('bg-green-500/20')
+      expect(screen.getByText('failed')).toHaveClass('bg-red-500/20')
+      expect(screen.getByText('aborted')).toHaveClass('bg-orange-500/20')
     })
   })
 
-  describe('Accessibility', () => {
-    it('should have proper ARIA labels and structure', () => {
-      // Act
-      render(<WorkflowList />)
+  describe('Performance', () => {
+    it('uses memoization for computed workflows', () => {
+      // Test that useMemo is working by checking that the component
+      // doesn't cause excessive renders
+      const workflows = Array.from({ length: 20 }, (_, i) =>
+        createMockWorkflow({
+          threadId: `workflow-${i}`,
+          status: i < 5 ? 'running' : 'completed',
+        })
+      )
 
-      // Assert
-      expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent('Workflows (1)')
+      mockUseWorkflowStore.mockReturnValue(workflows)
+
+      // Should render without issues even with many workflows
+      const { container } = render(<WorkflowList />)
+
+      // Check that only the expected number of workflows are displayed
+      const workflowButtons = container.querySelectorAll('button')
+      // 5 running + 5 recent = 10 max
+      expect(workflowButtons.length).toBeLessThanOrEqual(10)
     })
 
-    it('should have accessible button for retry functionality', () => {
-      // Arrange
-      const failedWorkflow = createMockWorkflow({ status: 'failed' })
-      mockWorkflows = { [failedWorkflow.threadId]: failedWorkflow }
+    it('does not cause infinite re-renders', () => {
+      const workflows = [createMockWorkflow()]
+      let renderCount = 0
 
-      vi.mocked(useWorkflowStore).mockReturnValue(mockStore(mockWorkflows))
+      mockUseWorkflowStore.mockImplementation(() => {
+        renderCount++
+        if (renderCount > 10) {
+          throw new Error('Too many renders')
+        }
+        return workflows
+      })
 
-      // Act
-      render(<WorkflowList />)
-
-      // Assert
-      const retryButton = screen.getByRole('button', { name: 'Retry' })
-      expect(retryButton).toBeInTheDocument()
-      expect(retryButton).toHaveClass('hover:bg-blue-600')
+      expect(() => render(<WorkflowList />)).not.toThrow()
+      expect(renderCount).toBeLessThanOrEqual(2) // Allow for StrictMode double render
     })
   })
 
   describe('Custom Styling', () => {
-    it('should apply custom className to container', () => {
-      // Act
-      const { container } = render(<WorkflowList className="custom-workflow-list" />)
+    it('applies custom className', () => {
+      const workflow = createMockWorkflow()
+      mockUseWorkflowStore.mockReturnValue([workflow])
 
-      // Assert
-      expect(container.firstChild).toHaveClass('custom-workflow-list')
-    })
-
-    it('should maintain default styling alongside custom className', () => {
-      // Act
       const { container } = render(<WorkflowList className="custom-class" />)
 
-      // Assert
-      const element = container.firstChild as HTMLElement
-      expect(element.className).toContain('custom-class')
-      expect(element.className).toContain('text-center') // Default empty state class
+      expect(container.querySelector('.custom-class')).toBeInTheDocument()
     })
   })
 })

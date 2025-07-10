@@ -1,5 +1,25 @@
 # Claude Studio Gotchas
 
+## React Hooks & Infinite Loops (2025-01-10)
+
+- **Problem**: "Maximum update depth exceeded" error when using Zustand store functions in useEffect dependencies
+- **Root Cause**: Including non-memoized functions like `fetchWorkflows` in dependency arrays causes infinite re-renders
+- **Solution**: Either:
+  1. Use separate useEffect hooks with empty dependency arrays for mount-only effects
+  2. Extract store functions with individual selectors: `useStore((state) => state.function)`
+  3. Add ESLint disable comments when intentionally omitting dependencies
+- **Pattern**: Zustand store functions are stable and don't need to be in dependency arrays
+- **Files affected**: `useWorkflowEvents.ts` - fixed by separating mount effect from SSE setup
+
+## Workflow Visibility UI (2025-01-10)
+
+- **Enhancement**: Workflow details moved from cramped sidebar to spacious modal
+- **Components**:
+  - `WorkflowModal.tsx` - Full-featured modal for workflow details
+  - `WorkflowList.tsx` - Simplified list that opens modal on click
+- **Benefits**: Better readability, more space for step details, cleaner sidebar
+- **SSE Pattern**: Single global SSE connection in `useWorkflowEvents` hook prevents connection storms
+
 ## HTTP & API
 
 - Use `ky` not `fetch`
