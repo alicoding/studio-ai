@@ -72,3 +72,57 @@ Updated `getClaudeProjectFolder()` to check which directory has more recent JSON
 4. Each server broadcasts to its WebSocket clients
 
 See also: [architecture.md](./architecture.md#cross-server-communication-architecture)
+
+## Workflow Agent Allocation Issues
+
+### Problem: Agent Conflicts in Parallel Tasks
+
+**Symptoms:**
+- Workflow fails at execution time rather than validation
+- Same agent assigned to multiple parallel tasks
+- "Agent busy" errors during workflow execution
+
+**Root Cause:**
+Using specific agentId for parallel tasks causes conflicts:
+```javascript
+// ❌ WRONG - Causes conflict
+{ id: "task1", agentId: "dev_01", task: "..." },
+{ id: "task2", agentId: "dev_01", task: "..." }  // Same agent!
+```
+
+**Solutions:**
+
+1. **Use roles for parallel tasks:**
+```javascript
+// ✅ CORRECT - System assigns different developers
+{ id: "task1", role: "developer", task: "..." },
+{ id: "task2", role: "developer", task: "..." }
+```
+
+2. **Use different specific agents:**
+```javascript
+// ✅ CORRECT - Different agents
+{ id: "task1", agentId: "dev_01", task: "..." },
+{ id: "task2", agentId: "developer_01", task: "..." }
+```
+
+### Future Enhancement Needed: Pre-flight Validation
+
+The invoke system should validate workflows before execution:
+- Count required agents per role
+- Check agent availability  
+- Detect agent ID conflicts
+- Provide auto-provisioning options
+
+### Workaround Until Fixed
+
+Always use role-based assignment for parallel workflows:
+```javascript
+// Safe pattern for parallel execution
+workflow: [
+  { role: "orchestrator", task: "analyze requirements" },
+  { role: "developer", task: "create tests A" },
+  { role: "developer", task: "create tests B" },  // Different developer
+  { role: "reviewer", task: "review all tests", deps: ["task_a", "task_b"] }
+]
+```

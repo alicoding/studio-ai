@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude (claude.ai) when working with the Claude Studio codebase.
 
+## MCP (Model Context Protocol) Usage
+
+### IMPORTANT: Claude Studio Encourages MCP Usage
+
+When working on this project, agents should actively use MCP tools whenever available:
+- Use `mcp__studio-ai__*` tools for multi-agent coordination
+- Use `mcp__taskmaster-ai__*` for task management
+- Use `mcp__sequential-thinking__*` for complex problem solving
+- Use other MCP tools as appropriate for the task
+
+MCP tools enable better cross-agent collaboration and should be preferred over manual approaches when they provide value.
+
 ## Development Principles
 
 ### MANDATORY Requirements:
