@@ -259,3 +259,40 @@
 - Mock EventSource for unit tests to simulate SSE events without real server
 - Status endpoints may return 404 initially - handle this gracefully in tests
 - Use `ky` for HTTP requests to match production code patterns
+
+## Comprehensive Workflow Testing Patterns (2025-01-09)
+
+### Test Coverage Requirements
+
+- **Basic Operations**: sync/async execution, template variables, dependencies
+- **Edge Cases**: circular dependencies, missing variables, special characters
+- **Concurrency**: multiple agents, session isolation, race conditions
+- **Error Handling**: agent failures, network errors, partial failures
+- **Performance**: parallel execution timing, resource contention
+- **SSE Streaming**: event isolation, rapid connect/disconnect, concurrent streams
+
+### Key Testing Scenarios
+
+- Template variable resolution across concurrent workflows (prevent cross-contamination)
+- Session isolation when same agent handles multiple workflows
+- Database race conditions during rapid session creation
+- WebSocket event broadcasting to multiple SSE clients
+- Mixed sync/async workflow execution
+- Resource limits with many concurrent workflows (8+ recommended)
+- Error propagation isolation between concurrent workflows
+- Large workflow handling (10+ steps with dependencies)
+
+### Test File Organization
+
+- `invoke-async.test.ts`: Basic async/sync functionality
+- `invoke-edge-cases.test.ts`: Edge cases and bug prevention
+- `invoke-concurrency.test.ts`: Race conditions and concurrent execution
+- `invoke-comprehensive.test.ts`: Integration test patterns
+- `run-all-workflow-tests.ts`: Comprehensive test runner
+
+### Performance Benchmarks
+
+- Concurrent workflows should complete faster than sequential
+- 8+ concurrent workflows should finish within 2 minutes
+- Session creation should handle rapid bursts without conflicts
+- SSE connections should handle rapid connect/disconnect cycles
