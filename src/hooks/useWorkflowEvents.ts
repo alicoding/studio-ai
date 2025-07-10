@@ -23,15 +23,30 @@ export const useWorkflowEvents = () => {
 
   useEffect(() => {
     // Create global SSE connection for workflow events
-    const eventSource = new EventSource('/api/invoke-status/events')
+    // Use full URL to ensure it connects to the correct server
+    const eventSource = new EventSource(`${window.location.origin}/api/invoke-status/events`)
     eventSourceRef.current = eventSource
+    let reconnectAttempts = 0
+    const maxReconnectAttempts = 3
 
     eventSource.onopen = () => {
       console.log('[WorkflowEvents] Connected to global workflow events')
+      reconnectAttempts = 0 // Reset on successful connection
     }
 
     eventSource.onerror = (error) => {
       console.error('[WorkflowEvents] SSE error:', error)
+
+      // Check if this is a connection failure
+      if (eventSource.readyState === EventSource.CLOSED) {
+        reconnectAttempts++
+
+        if (reconnectAttempts >= maxReconnectAttempts) {
+          console.error('[WorkflowEvents] Max reconnection attempts reached. Stopping.')
+          eventSource.close()
+          eventSourceRef.current = null
+        }
+      }
     }
 
     // Handle workflow created events

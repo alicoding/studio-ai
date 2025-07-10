@@ -135,7 +135,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   fetchWorkflows: async () => {
     try {
       // Use the existing invoke-status endpoint which has the full workflow metadata
-      const response = await fetch('/api/invoke-status/workflows')
+      const response = await fetch(`${window.location.origin}/api/invoke-status/workflows`)
       if (!response.ok) {
         throw new Error(`Failed to fetch workflows: ${response.statusText}`)
       }
