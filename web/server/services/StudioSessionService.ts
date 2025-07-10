@@ -89,11 +89,40 @@ export class StudioSessionService {
     const privatePath = path.join(os.homedir(), '.claude', 'projects', `-private${normalized}`)
     const regularPath = path.join(os.homedir(), '.claude', 'projects', normalized)
 
-    // Return the one that exists, preferring private path
+    // Return the one that has more recent JSONL files (Claude SDK may use either)
     try {
+      // Check if private path exists and has recent sessions
       fsSync.accessSync(privatePath)
-      return privatePath
+      const privateFiles = fsSync.readdirSync(privatePath).filter((f) => f.endsWith('.jsonl'))
+
+      // Check if regular path exists and has recent sessions
+      try {
+        fsSync.accessSync(regularPath)
+        const regularFiles = fsSync.readdirSync(regularPath).filter((f) => f.endsWith('.jsonl'))
+
+        // If regular path has more JSONL files, use it
+        // This handles the case where Claude SDK switched from private to regular
+        if (regularFiles.length > privateFiles.length) {
+          return regularPath
+        }
+
+        // If both have files, check which has more recent activity
+        if (privateFiles.length > 0 && regularFiles.length > 0) {
+          const privateStat = fsSync.statSync(path.join(privatePath, privateFiles[0]))
+          const regularStat = fsSync.statSync(path.join(regularPath, regularFiles[0]))
+
+          // Use the directory with more recent files
+          return regularStat.mtime > privateStat.mtime ? regularPath : privatePath
+        }
+
+        // Default to private if it has files
+        return privateFiles.length > 0 ? privatePath : regularPath
+      } catch {
+        // Regular path doesn't exist, use private
+        return privatePath
+      }
     } catch {
+      // Private path doesn't exist, use regular
       return regularPath
     }
   }

@@ -87,11 +87,10 @@ export class ClaudeService {
     try {
       // Pass the agentId as the sessionId parameter for UI compatibility
       const response = await agent.sendMessage(content, projectPath, io, agentId, forceNewSession)
-      const agentInfo = agent.getInfo()
 
       return {
         response,
-        sessionId: agentInfo.sessionId,
+        sessionId: agentId, // Return stable agent ID, not Claude's changing session ID
       }
     } catch (error) {
       console.error('Error sending message via Claude:', error)

@@ -296,3 +296,33 @@
 - 8+ concurrent workflows should finish within 2 minutes
 - Session creation should handle rapid bursts without conflicts
 - SSE connections should handle rapid connect/disconnect cycles
+
+## Cross-Server Communication & Message Loading (2025-01-10)
+
+### Redis EventSystem Implementation
+
+- Implemented EventSystem abstraction to enable cross-server communication
+- Frontend connects to dev server (3457) but needs events from both servers
+- Redis adapter publishes events to all servers via pub/sub channels
+- Socket.IO broadcasts Redis events to connected clients
+- Enables real-time updates regardless of which server handles the agent
+- See `.claude-studio/knowledge/architecture.md` for full details
+
+### Claude Session File Location Fix
+
+- **Problem**: StudioSessionService couldn't find messages - "Session not found in Claude projects"
+- **Root Cause**: `getClaudeProjectFolder` preferred empty `-private` directories over active ones
+- **Solution**: Check for most recent JSONL files instead of just directory existence
+- Claude creates both `project-name` and `project-name-private` directories
+- Fixed by comparing file modification times to find active directory
+- Location: `web/server/services/StudioSessionService.ts` lines 79-128
+- See `.claude-studio/knowledge/gotchas.md` for debugging steps
+
+### WebSocket Message Routing Pattern
+
+- Messages routed by stable agentId (e.g., "dev_01") not changing sessionId
+- Frontend filters all WebSocket events by agentId match
+- Internal Claude session IDs mapped via agent_claude_sessions table
+- Pattern: Use stable IDs for routing, internal IDs for SDK only
+- Prevents message contamination between agents
+- See `.claude-studio/knowledge/patterns.md` for implementation details

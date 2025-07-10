@@ -100,11 +100,8 @@ export class EventSystem {
     // Factory pattern - create transport based on config
     switch (config.type) {
       case 'redis-adapter':
-        // TODO: Implement when needed
-        // const { RedisAdapterTransport } = await import('./transports/RedisAdapterTransport')
-        // this.transport = new RedisAdapterTransport()
-        console.warn('[EventSystem] Redis adapter not implemented yet, falling back to in-memory')
-        this.transport = new InMemoryTransport()
+        const { RedisAdapterTransport } = await import('./transports/RedisAdapterTransport')
+        this.transport = new RedisAdapterTransport()
         break
 
       case 'bullmq':

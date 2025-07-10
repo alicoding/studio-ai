@@ -388,7 +388,7 @@ export class ClaudeAgent {
       this.config.tools
     )
 
-    // Get the correct tool names from ToolDiscoveryService
+    // Get the correct tool names from ToolDiscoveryService (these have proper capitalization)
     const { ToolDiscoveryService } = await import('./ToolDiscoveryService')
     const toolDiscovery = ToolDiscoveryService.getInstance()
     const availableTools = await toolDiscovery.discoverTools()
@@ -419,6 +419,7 @@ export class ClaudeAgent {
         )
 
         if (correctToolName) {
+          // Use the EXACT name from ToolDiscoveryService - no conversion!
           restrictions.push(correctToolName)
         } else {
           console.warn(

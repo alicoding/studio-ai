@@ -86,18 +86,27 @@ app.use(express.urlencoded({ extended: true }))
 // Make io available to routes
 app.set('io', io)
 
-// Initialize EventSystem with Socket.IO
+// Initialize EventSystem with Redis adapter for cross-server communication
 import { eventSystem } from './services/EventSystem'
 eventSystem
   .initialize({
-    type: 'in-memory',
+    type: 'redis-adapter',
     socketIO: io,
+    redis: {
+      url: process.env.REDIS_URL || 'redis://localhost:6379',
+    },
   })
   .then(() => {
-    console.log('✅ EventSystem initialized with Socket.IO')
+    console.log('✅ EventSystem initialized with Redis adapter for cross-server communication')
   })
   .catch((err) => {
     console.error('Failed to initialize EventSystem:', err)
+    // Fallback to in-memory if Redis is not available
+    console.log('⚠️  Falling back to in-memory transport (no cross-server communication)')
+    return eventSystem.initialize({
+      type: 'in-memory',
+      socketIO: io,
+    })
   })
 
 // Static file serving (for production)
