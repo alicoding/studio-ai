@@ -4,11 +4,11 @@ import { useWorkflowStore, WorkflowInfo } from '../workflows'
 describe('Workflow Store', () => {
   beforeEach(() => {
     // Clear store before each test
-    useWorkflowStore.setState({ workflows: {} })
+    useWorkflowStore.setState({ workflows: {}, workflowList: [] })
   })
 
   describe('Basic Operations', () => {
-    it('should add a workflow', () => {
+    it('should add a workflow and update workflowList', () => {
       const store = useWorkflowStore.getState()
 
       const workflow: WorkflowInfo = {
@@ -40,6 +40,8 @@ describe('Workflow Store', () => {
 
       const state = useWorkflowStore.getState()
       expect(state.workflows['test-thread-123']).toEqual(workflow)
+      expect(state.workflowList).toHaveLength(1)
+      expect(state.workflowList[0]).toEqual(workflow)
     })
 
     it('should update workflow with lastUpdate timestamp', () => {

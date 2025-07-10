@@ -29,6 +29,7 @@ export interface WorkflowInfo {
 
 interface WorkflowStore {
   workflows: Record<string, WorkflowInfo>
+  workflowList: WorkflowInfo[] // Stable array reference
   addWorkflow: (workflow: WorkflowInfo) => void
   updateWorkflow: (threadId: string, updates: Partial<WorkflowInfo>) => void
   updateStep: (threadId: string, stepId: string, updates: Partial<WorkflowStep>) => void
@@ -41,29 +42,37 @@ interface WorkflowStore {
 
 export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   workflows: {},
+  workflowList: [],
 
   addWorkflow: (workflow) =>
-    set((state) => ({
-      workflows: {
+    set((state) => {
+      const workflows = {
         ...state.workflows,
         [workflow.threadId]: workflow,
-      },
-    })),
+      }
+      return {
+        workflows,
+        workflowList: Object.values(workflows),
+      }
+    }),
 
   updateWorkflow: (threadId, updates) =>
     set((state) => {
       const existing = state.workflows[threadId]
       if (!existing) return state
 
-      return {
-        workflows: {
-          ...state.workflows,
-          [threadId]: {
-            ...existing,
-            ...updates,
-            lastUpdate: new Date().toISOString(),
-          },
+      const workflows = {
+        ...state.workflows,
+        [threadId]: {
+          ...existing,
+          ...updates,
+          lastUpdate: new Date().toISOString(),
         },
+      }
+
+      return {
+        workflows,
+        workflowList: Object.values(workflows),
       }
     }),
 
@@ -81,24 +90,31 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
         ...updates,
       }
 
-      return {
-        workflows: {
-          ...state.workflows,
-          [threadId]: {
-            ...workflow,
-            steps: updatedSteps,
-            lastUpdate: new Date().toISOString(),
-          },
+      const workflows = {
+        ...state.workflows,
+        [threadId]: {
+          ...workflow,
+          steps: updatedSteps,
+          lastUpdate: new Date().toISOString(),
         },
+      }
+
+      return {
+        workflows,
+        workflowList: Object.values(workflows),
       }
     }),
 
   removeWorkflow: (threadId) =>
-    set((state) => ({
-      workflows: Object.fromEntries(
+    set((state) => {
+      const workflows = Object.fromEntries(
         Object.entries(state.workflows).filter(([id]) => id !== threadId)
-      ),
-    })),
+      )
+      return {
+        workflows,
+        workflowList: Object.values(workflows),
+      }
+    }),
 
   getWorkflow: (threadId) => get().workflows[threadId],
 
@@ -106,11 +122,15 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
     Object.values(get().workflows).filter((workflow) => workflow.status === 'running'),
 
   clearCompletedWorkflows: () =>
-    set((state) => ({
-      workflows: Object.fromEntries(
+    set((state) => {
+      const workflows = Object.fromEntries(
         Object.entries(state.workflows).filter(([, workflow]) => workflow.status === 'running')
-      ),
-    })),
+      )
+      return {
+        workflows,
+        workflowList: Object.values(workflows),
+      }
+    }),
 
   fetchWorkflows: async () => {
     try {
@@ -166,7 +186,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
         }
       )
 
-      set({ workflows: workflowMap })
+      set({ workflows: workflowMap, workflowList: Object.values(workflowMap) })
     } catch (error) {
       console.error('Failed to fetch workflows:', error)
     }

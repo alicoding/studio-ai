@@ -61,7 +61,7 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowInfo | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  const workflows = useWorkflowStore((state) => Object.values(state.workflows))
+  const workflows = useWorkflowStore((state) => state.workflowList)
 
   // Memoize computed values to prevent infinite loops
   const { activeWorkflows, allWorkflows } = useMemo(() => {
