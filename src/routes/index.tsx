@@ -192,7 +192,7 @@ function ProjectsPage() {
 
   // Sync project agents from workspace data into Zustand store
   useEffect(() => {
-    if (currentProjectAgents.length > 0) {
+    if (currentProjectAgents.length > 0 && activeProjectId) {
       const agentsWithOrder: Agent[] = currentProjectAgents.map((agent, index) => ({
         id: agent.id,
         name: agent.name,
@@ -204,13 +204,14 @@ function ProjectsPage() {
         sessionId: agent.sessionId || undefined,
         order: index,
         customTools: agent.customTools,
+        projectId: activeProjectId, // Set the project ID for proper filtering
       }))
       setAgents(agentsWithOrder)
     } else if (currentProjectAgents.length === 0 && !loadingAgents) {
       // Clear agents when no agents found (not loading)
       setAgents([])
     }
-  }, [currentProjectAgents, loadingAgents, setAgents])
+  }, [currentProjectAgents, loadingAgents, setAgents, activeProjectId])
 
   // Get agents from Zustand store instead of useProjectAgents hook
   const storeAgents = getStoreProjectAgents(activeProjectId || '')

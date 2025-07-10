@@ -97,23 +97,19 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
     return (
       <>
         <div className={className}>
-          <div className="p-3 border-b border-border flex items-center gap-2">
-            <Activity className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-medium">Workflows</h3>
-            <button
-              onClick={handleViewHistoryClick}
-              className="text-xs text-primary hover:text-primary/80 ml-auto"
-            >
-              View History
-            </button>
-          </div>
-          <div className="p-4 text-center text-sm text-muted-foreground">
-            <div className="flex flex-col items-center gap-2">
+          <div className="p-8 text-center text-muted-foreground">
+            <div className="flex flex-col items-center gap-3">
               <Activity className="w-8 h-8 text-muted-foreground/50" />
               <div>
-                <p className="font-medium">No active workflows</p>
-                <p className="text-xs">Workflows will appear here when created</p>
+                <p className="text-sm font-medium">No active workflows</p>
+                <p className="text-xs mt-1">Workflows will appear here when created</p>
               </div>
+              <button
+                onClick={handleViewHistoryClick}
+                className="text-xs text-primary hover:text-primary/80 mt-2 px-3 py-1 rounded-md border border-primary/20 hover:bg-primary/5 transition-colors"
+              >
+                View History
+              </button>
             </div>
           </div>
         </div>

@@ -10,7 +10,6 @@ import {
 } from 'lucide-react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useEffect, useState } from 'react'
 
 interface AgentInfo {
   id: string
@@ -55,29 +54,6 @@ const roleDisplayNames: Record<string, string> = {
   'Legacy Agent': 'Legacy Agent',
 }
 
-// Simple inline typing indicator
-function TypingIndicator({ agentName: _agentName }: { agentName: string }) {
-  const [dots, setDots] = useState('.')
-  const [elapsedTime, setElapsedTime] = useState(0)
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDots((d) => (d.length >= 3 ? '.' : d + '.'))
-      setElapsedTime((t) => t + 1)
-    }, 500)
-
-    return () => clearInterval(interval)
-  }, [])
-
-  return (
-    <div className="flex items-center gap-1">
-      <Sparkles className="w-3 h-3 animate-pulse text-primary" />
-      <span>Typing{dots}</span>
-      <span className="text-[10px] opacity-60">({elapsedTime}s · ESC to interrupt)</span>
-    </div>
-  )
-}
-
 export function AgentCard({
   agent,
   isSelected,
@@ -109,12 +85,12 @@ export function AgentCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`p-4 rounded-lg border transition-all duration-200 ${
+      className={`relative group rounded-lg border transition-all duration-150 overflow-hidden ${
         isSelected
-          ? 'bg-primary/10 border-primary ring-2 ring-primary/20'
-          : 'bg-card border-border hover:bg-secondary hover:border-border'
+          ? 'bg-primary/8 border-primary/30 ring-1 ring-primary/20'
+          : 'bg-card border-border hover:bg-accent/50 hover:border-border/80'
       } ${isSelectionMode ? 'cursor-pointer select-none' : 'cursor-pointer'} ${
-        isDragging ? 'z-50 shadow-lg' : ''
+        isDragging ? 'z-50 shadow-lg scale-[1.02]' : ''
       }`}
       data-agent-id={agent.id}
       data-status={agent.status}
@@ -126,108 +102,122 @@ export function AgentCard({
         }
       }}
     >
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          {isSelectionMode ? (
-            <div className="flex items-center">
-              {isSelected ? (
-                <CheckSquare className="w-4 h-4 text-primary" />
-              ) : (
-                <Square className="w-4 h-4 text-muted-foreground" />
-              )}
-            </div>
-          ) : (
-            !isDragDisabled && (
-              <div
-                className="flex items-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
-                {...attributes}
-                {...listeners}
-                onClick={(e) => e.stopPropagation()} // Prevent card selection when dragging
-              >
-                <GripVertical className="w-4 h-4" />
-              </div>
-            )
-          )}
-          <span
-            className="w-2 h-2 rounded-full"
-            style={{ backgroundColor: statusColors[agent.status] }}
-          ></span>
-          <span className="text-foreground font-medium text-sm">
-            {agent.name}
-            <span className="text-muted-foreground text-xs ml-1">({agent.id})</span>
-          </span>
-        </div>
+      {/* Top legend */}
+      <div className="flex items-center justify-between px-3 pt-2 pb-1">
         <span
-          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+          className={`text-xs font-medium px-1.5 py-0.5 rounded text-uppercase tracking-wide ${
             agent.role === 'Legacy Agent'
-              ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-              : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+              ? 'text-muted-foreground bg-muted/50'
+              : 'text-primary bg-primary/10'
           }`}
         >
-          {roleDisplayNames[agent.role] || agent.role}
+          {(roleDisplayNames[agent.role] || agent.role).toUpperCase()}
         </span>
+
+        {isSelectionMode && (
+          <div className="flex items-center">
+            {isSelected ? (
+              <CheckSquare className="w-3.5 h-3.5 text-primary" />
+            ) : (
+              <Square className="w-3.5 h-3.5 text-muted-foreground" />
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="space-y-2">
-        <div className="space-y-1">
-          <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden">
+      {/* Main content */}
+      <div className="flex items-center gap-2 px-3 pb-3">
+        {!isSelectionMode && !isDragDisabled && (
+          <div
+            className="flex items-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </div>
+        )}
+
+        {/* Status indicator */}
+        <div
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ backgroundColor: statusColors[agent.status] }}
+        />
+
+        {/* Agent info - full width */}
+        <div className="min-w-0 flex-1">
+          <div className="font-medium text-sm text-foreground truncate">{agent.name}</div>
+          <div className="text-xs text-muted-foreground truncate">{agent.id}</div>
+        </div>
+      </div>
+
+      {/* Compact Content */}
+      <div className="px-3 pb-3 space-y-2">
+        {/* Inline token usage */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex-1 bg-muted/60 rounded-full h-1.5 overflow-hidden">
             <div
-              className="h-full transition-all duration-300"
+              className="h-full transition-all duration-300 rounded-full"
               style={{
                 width: `${tokenPercentage}%`,
                 backgroundColor:
                   tokenPercentage > 80 ? '#ef4444' : tokenPercentage > 60 ? '#f59e0b' : '#10b981',
               }}
-            ></div>
+            />
           </div>
-          <span className="text-muted-foreground text-xs">
-            {agent.tokens === 0
-              ? `No session / ${agent.maxTokens / 1000}K tokens`
-              : agent.tokens < 1000
-                ? `${agent.tokens} / ${agent.maxTokens / 1000}K tokens`
-                : `${Math.round(agent.tokens / 1000)}K / ${agent.maxTokens / 1000}K tokens`}
+          <span className="whitespace-nowrap">
+            {agent.tokens === 0 ? '0K' : `${Math.round(agent.tokens / 1000)}K`} /{' '}
+            {agent.maxTokens / 1000}K
           </span>
         </div>
-        <div className="text-muted-foreground text-xs line-clamp-2 min-h-[2rem]">
+
+        {/* Compact status/message */}
+        <div className="text-xs text-muted-foreground">
           {agent.status === 'busy' ? (
-            <TypingIndicator agentName={agent.name} />
+            <div className="flex items-center gap-1">
+              <Sparkles className="w-3 h-3 animate-pulse text-primary" />
+              <span>Typing...</span>
+            </div>
           ) : (
-            agent.lastMessage || (agent.status === 'offline' ? 'Offline' : 'Ready')
+            <div className="truncate">
+              {agent.lastMessage || (agent.status === 'offline' ? 'Offline' : 'Ready')}
+            </div>
           )}
         </div>
       </div>
 
+      {/* Compact Actions */}
       {!isSelectionMode && (
-        <div className="flex items-center gap-1 mt-3 pt-3 border-t border-border">
-          {isLegacy && onConvert ? (
+        <div className="flex items-center gap-0.5 px-3 pb-3 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          {isLegacy && onConvert && (
             <button
-              className="p-2 text-purple-500 hover:text-purple-400 hover:bg-purple-500/10 rounded-md transition-all"
+              className="p-1.5 text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-md transition-all"
               onClick={(e) => {
                 e.stopPropagation()
                 onConvert()
               }}
               title="Assign role configuration"
             >
-              <Sparkles className="w-4 h-4" />
+              <Sparkles className="w-3.5 h-3.5" />
             </button>
-          ) : null}
+          )}
           {hasConfig && onReassignRole && (
             <button
-              className="p-2 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-md transition-all"
+              className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-md transition-all"
               onClick={(e) => {
                 e.stopPropagation()
                 onReassignRole()
               }}
               title="Change role"
             >
-              <UserCog className="w-4 h-4" />
+              <UserCog className="w-3.5 h-3.5" />
             </button>
           )}
           <button
-            className={`p-2 rounded-md transition-all ${
+            className={`p-1.5 rounded-md transition-all ${
               isClearing
-                ? 'text-blue-500 bg-blue-500/10 cursor-not-allowed'
-                : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                ? 'text-blue-600 bg-blue-50 dark:bg-blue-950/30 cursor-not-allowed'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
             }`}
             onClick={(e) => {
               e.stopPropagation()
@@ -239,20 +229,20 @@ export function AgentCard({
             title={isClearing ? 'Clearing context...' : 'Clear session'}
           >
             {isClearing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-3.5 h-3.5" />
             )}
           </button>
           <button
-            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-all ml-auto"
+            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-all ml-auto"
             onClick={(e) => {
               e.stopPropagation()
               onRemove()
             }}
             title="Remove from team"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}

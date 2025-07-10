@@ -34,7 +34,6 @@ export function useClaudeMessages() {
           },
           body: JSON.stringify({
             content,
-            sessionId: options.sessionId,
             projectId: options.projectId,
             agentId: options.agentId,
             projectPath: options.projectPath,

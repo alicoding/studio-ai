@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { AgentCard } from '../projects/AgentCard'
 import { Button } from '../ui/button'
-import { Separator } from '../ui/separator'
-import { UserPlus, Bot, Users, CheckSquare, Square, Trash2 } from 'lucide-react'
+import { UserPlus, Bot, Users, CheckSquare, Square, Trash2, Activity } from 'lucide-react'
 import { useAgentStore, useProjectStore } from '../../stores'
 import { DeleteAgentModal } from '../modals/DeleteAgentModal'
 import { WorkflowList } from '../workflow/WorkflowList'
+import { WorkflowDebugger } from '../workflow/WorkflowDebugger'
 import {
   DndContext,
   closestCenter,
@@ -34,6 +34,8 @@ interface SidebarProps {
   onLoadTeam: () => void
 }
 
+type SidebarTab = 'agents' | 'workflows'
+
 export function Sidebar({
   isCollapsed,
   isLoading = false,
@@ -55,6 +57,9 @@ export function Sidebar({
     clearingAgentId,
   } = useAgentStore()
   const { activeProjectId } = useProjectStore()
+
+  // Sidebar state
+  const [activeTab, setActiveTab] = useState<SidebarTab>('agents')
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -173,120 +178,207 @@ export function Sidebar({
   const getSelectedAgentsInfo = () => {
     return agents.filter((agent) => selectedAgents.has(agent.id))
   }
+
+  // Render tab content
+  const renderTabContent = () => {
+    if (activeTab === 'agents') {
+      return (
+        <>
+          {/* Selection Mode Controls */}
+          {isSelectionMode && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-accent/20 border-b">
+              <Button variant="ghost" size="sm" onClick={toggleSelectAll} className="text-xs h-6">
+                {selectedAgents.size === agents.length ? 'Deselect All' : 'Select All'}
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteModal(true)}
+                disabled={selectedAgents.size === 0}
+                className="ml-auto h-6"
+              >
+                <Trash2 className="w-3 h-3 mr-1" />
+                Delete ({selectedAgents.size})
+              </Button>
+            </div>
+          )}
+
+          {/* Agents List */}
+          <div className="flex-1 overflow-y-auto scrollbar-hide">
+            {isLoading ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Bot className="w-8 h-8 mx-auto mb-3 opacity-50 animate-pulse" />
+                <p className="text-sm">Loading agents...</p>
+              </div>
+            ) : agents.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Bot className="w-8 h-8 mx-auto mb-3 opacity-50" />
+                <p className="text-sm font-medium">No agents found</p>
+                <p className="text-xs mt-1">Add agents to get started</p>
+              </div>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+                modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+              >
+                <SortableContext
+                  items={agents.map((a) => a.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="p-3 space-y-3">
+                    {agents.map((agent) => {
+                      const hasConfig = configs.some((config) => config.id === agent.id)
+                      return (
+                        <AgentCard
+                          key={agent.id}
+                          agent={agent}
+                          isSelected={
+                            isSelectionMode
+                              ? selectedAgents.has(agent.id)
+                              : agent.id === selectedAgentId
+                          }
+                          isLegacy={!hasConfig}
+                          hasConfig={hasConfig}
+                          onSelect={(event) => onAgentSelect(agent.id, event)}
+                          onClear={() => onAgentClear(agent.id)}
+                          onRemove={() => onAgentRemove(agent.id)}
+                          onConvert={onAgentConvert ? () => onAgentConvert(agent.id) : undefined}
+                          onReassignRole={
+                            onAgentReassignRole ? () => onAgentReassignRole(agent.id) : undefined
+                          }
+                          isSelectionMode={isSelectionMode}
+                          isDragDisabled={isSelectionMode}
+                          isClearing={clearingAgentId === agent.id}
+                        />
+                      )
+                    })}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
+
+          {/* Actions Section */}
+          <div className="p-4 border-t bg-background/50 space-y-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start h-9 text-sm"
+              onClick={onAddAgent}
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Add to Team
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start h-9 text-sm"
+              onClick={onCreateAgent}
+            >
+              <Bot className="w-4 h-4 mr-2" />
+              Create Agent
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full justify-start h-9 text-sm"
+              onClick={onLoadTeam}
+            >
+              <Users className="w-4 h-4 mr-2" />
+              Load Team
+            </Button>
+          </div>
+        </>
+      )
+    }
+
+    if (activeTab === 'workflows') {
+      return (
+        <div className="flex flex-col h-full">
+          <div className="flex-1 overflow-y-auto">
+            <WorkflowList />
+          </div>
+          {/* Temporary debugging */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="px-4 py-2 border-t bg-background/50">
+              <WorkflowDebugger />
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    return null
+  }
+
   return (
     <aside
-      className={`flex flex-col bg-card border-r transition-all duration-200 ${
+      className={`flex bg-card border-r transition-all duration-200 ${
         isCollapsed ? 'w-0 overflow-hidden' : 'w-80'
       } ${isSelectionMode ? 'select-none' : ''}`}
     >
-      <div className="p-4 border-b space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Users className="w-5 h-5" />
-            Project Agents ({agents.length})
-          </h2>
-          <Button
-            variant="ghost"
-            size="sm"
+      {/* Tab Navigation */}
+      <div className="w-16 bg-muted/30 border-r flex flex-col py-2">
+        <button
+          onClick={() => setActiveTab('agents')}
+          className={`flex flex-col items-center gap-2 py-4 px-2 mx-2 rounded-lg hover:bg-accent/50 transition-colors ${
+            activeTab === 'agents' ? 'bg-accent text-primary shadow-sm' : 'text-muted-foreground'
+          }`}
+          title="Agents"
+        >
+          <Users className="w-5 h-5" />
+          <span className="text-[10px] font-medium">Agents</span>
+          {agents.length > 0 && (
+            <span className="text-[10px] bg-primary text-primary-foreground rounded-full px-1.5 min-w-5 h-4 flex items-center justify-center font-medium">
+              {agents.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('workflows')}
+          className={`flex flex-col items-center gap-2 py-4 px-2 mx-2 rounded-lg hover:bg-accent/50 transition-colors ${
+            activeTab === 'workflows' ? 'bg-accent text-primary shadow-sm' : 'text-muted-foreground'
+          }`}
+          title="Workflows"
+        >
+          <Activity className="w-5 h-5" />
+          <span className="text-[10px] font-medium">Workflows</span>
+        </button>
+
+        {/* Selection Mode Toggle (only show on agents tab) */}
+        {activeTab === 'agents' && (
+          <button
             onClick={toggleSelectionMode}
-            className={isSelectionMode ? 'text-primary' : ''}
+            className={`mt-auto mb-2 flex flex-col items-center gap-1 py-3 px-2 mx-2 rounded-lg hover:bg-accent/50 transition-colors ${
+              isSelectionMode ? 'text-primary bg-accent' : 'text-muted-foreground'
+            }`}
             title={isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
           >
             {isSelectionMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-          </Button>
+            <span className="text-[10px] font-medium">Select</span>
+          </button>
+        )}
+      </div>
+
+      {/* Tab Content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Tab Header */}
+        <div className="px-4 py-3 border-b bg-background/50">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold capitalize">{activeTab}</h2>
+            {activeTab === 'agents' && agents.length > 0 && (
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                {agents.length} agent{agents.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
         </div>
 
-        {isSelectionMode && (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={toggleSelectAll} className="text-xs">
-              {selectedAgents.size === agents.length ? 'Deselect All' : 'Select All'}
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowDeleteModal(true)}
-              disabled={selectedAgents.size === 0}
-              className="ml-auto"
-            >
-              <Trash2 className="w-3 h-3 mr-1" />
-              Delete ({selectedAgents.size})
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {isLoading ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Bot className="w-12 h-12 mx-auto mb-2 opacity-50 animate-pulse" />
-            <p className="text-sm">Loading project agents...</p>
-          </div>
-        ) : agents.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Bot className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">No agents found</p>
-            <p className="text-xs">This project has no agent sessions</p>
-          </div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-            modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-          >
-            <SortableContext items={agents.map((a) => a.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-3">
-                {agents.map((agent) => {
-                  const hasConfig = configs.some((config) => config.id === agent.id)
-                  return (
-                    <AgentCard
-                      key={agent.id}
-                      agent={agent}
-                      isSelected={
-                        isSelectionMode
-                          ? selectedAgents.has(agent.id)
-                          : agent.id === selectedAgentId
-                      }
-                      isLegacy={!hasConfig}
-                      hasConfig={hasConfig}
-                      onSelect={(event) => onAgentSelect(agent.id, event)}
-                      onClear={() => onAgentClear(agent.id)}
-                      onRemove={() => onAgentRemove(agent.id)}
-                      onConvert={onAgentConvert ? () => onAgentConvert(agent.id) : undefined}
-                      onReassignRole={
-                        onAgentReassignRole ? () => onAgentReassignRole(agent.id) : undefined
-                      }
-                      isSelectionMode={isSelectionMode}
-                      isDragDisabled={isSelectionMode} // Disable drag during selection mode
-                      isClearing={clearingAgentId === agent.id}
-                    />
-                  )
-                })}
-              </div>
-            </SortableContext>
-          </DndContext>
-        )}
-      </div>
-
-      {/* Workflow Visibility Section */}
-      <div className="border-t">
-        <WorkflowList className="p-4" />
-      </div>
-
-      <div className="p-4 border-t space-y-2">
-        <Button variant="outline" className="w-full justify-start" onClick={onAddAgent}>
-          <UserPlus className="w-4 h-4 mr-2" />
-          Add to Team
-        </Button>
-        <Button variant="outline" className="w-full justify-start" onClick={onCreateAgent}>
-          <Bot className="w-4 h-4 mr-2" />
-          Create New Agent
-        </Button>
-        <Separator />
-        <Button variant="secondary" className="w-full justify-start" onClick={onLoadTeam}>
-          <Users className="w-4 h-4 mr-2" />
-          Load Team Template
-        </Button>
+        {/* Tab Content */}
+        <div className="flex-1 flex flex-col min-h-0">{renderTabContent()}</div>
       </div>
 
       <DeleteAgentModal

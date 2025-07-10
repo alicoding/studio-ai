@@ -223,10 +223,20 @@ export function MessageHistoryViewer({
 
   // Listen for new messages via WebSocket
   useEffect(() => {
+    console.log('Setting up WebSocket message handler:', {
+      hasSocket: !!socket,
+      socketConnected: socket?.connected,
+      sessionId,
+      agentId,
+      projectId,
+    })
+
     if (!socket || !sessionId || !agentId) return
 
     const handleNewMessage = (data: {
       sessionId: string
+      projectId?: string
+      agentId?: string
       message: {
         id?: string
         role: string
@@ -244,16 +254,20 @@ export function MessageHistoryViewer({
 
       console.log('WebSocket message received:', {
         dataSessionId: data.sessionId,
+        dataProjectId: data.projectId,
+        dataAgentId: data.agentId,
         webSocketSessionId: webSocketSessionId,
-        agentId: agentId,
-        sessionId: sessionId,
-        matches: data.sessionId === webSocketSessionId,
+        ourProjectId: projectId,
+        ourAgentId: agentId,
+        ourSessionId: sessionId,
+        matches: data.sessionId === webSocketSessionId && data.projectId === projectId,
         message: data.message,
         isStreaming: data.message.isStreaming,
       })
 
-      // Only handle messages for our agent (using agent instance ID for WebSocket routing)
-      if (data.sessionId === webSocketSessionId) {
+      // Only handle messages for our agent AND project
+      // This prevents cross-project message contamination
+      if (data.sessionId === webSocketSessionId && data.projectId === projectId) {
         const newMessage: Message = {
           id: data.message.id || `msg-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
           role: data.message.role,
@@ -287,6 +301,11 @@ export function MessageHistoryViewer({
     // Set up message handler
     socket.on('message:new', handleNewMessage)
 
+    // Test if we're receiving any events at all
+    socket.onAny((eventName, ...args) => {
+      console.log('WebSocket event received:', eventName, args)
+    })
+
     // Handle WebSocket reconnection
     const handleReconnect = () => {
       console.log('WebSocket reconnected, re-establishing message subscriptions')
@@ -301,9 +320,10 @@ export function MessageHistoryViewer({
 
     return () => {
       socket.off('message:new', handleNewMessage)
+      socket.offAny()
       window.removeEventListener('websocket-reconnected', handleReconnect)
     }
-  }, [socket, sessionId, agentId, agentName, messages.length])
+  }, [socket, sessionId, agentId, agentName, messages.length, projectId])
 
   const loadMoreMessages = useCallback(async () => {
     if (loading || !hasMore || !sessionId || !projectId) return

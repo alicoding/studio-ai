@@ -16,6 +16,7 @@ export interface Agent {
   order: number // Position in agent list for persistent ordering
   consolidatedSession?: ConsolidatedAgentSession // Full consolidated session info for checkpoint UI
   customTools?: string[] // Custom tools assigned to this agent instance
+  projectId?: string // The project this agent instance belongs to
 }
 
 // Configuration state - changes rarely, defines agent behavior
@@ -387,11 +388,16 @@ export const useAgentStore = createPersistentStore<AgentState>(
       }
     },
 
-    getProjectAgents: (_projectId: string) => {
+    getProjectAgents: (projectId: string) => {
       const state = get()
       // Filter agents that belong to this project
-      // For now, return all agents sorted by order - this will be enhanced when we add project filtering
-      return [...state.agents].sort((a, b) => a.order - b.order)
+      if (!projectId) return []
+
+      // Only return agents that match the current project ID
+      // This prevents showing agents from other projects
+      return [...state.agents]
+        .filter((agent) => agent.projectId === projectId)
+        .sort((a, b) => a.order - b.order)
     },
 
     getAgentsWithRoles: () => {

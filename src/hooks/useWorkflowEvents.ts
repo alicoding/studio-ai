@@ -23,7 +23,7 @@ export const useWorkflowEvents = () => {
 
   useEffect(() => {
     // Create global SSE connection for workflow events
-    // Use full URL to ensure it connects to the correct server
+    // Use window.location.origin (dev server has Redis cross-server communication)
     const sseUrl = `${window.location.origin}/api/invoke-status/events`
     console.log('[WorkflowEvents] Creating SSE connection to:', sseUrl)
 
