@@ -120,13 +120,17 @@ export class ClaudeAgent {
         ? path.join(os.homedir(), projectPath.slice(2))
         : projectPath
 
+      // Get tool restrictions (async)
+      const allowedTools = await this.getToolRestrictions('allowed')
+      const disallowedTools = await this.getToolRestrictions('disallowed')
+
       // Build query options from agent configuration
       const queryOptions: Options = {
         maxTurns: this.config?.maxTurns || 500, // Use configured maxTurns or default to 500
         cwd: expandedProjectPath || process.cwd(), // Set working directory to project path
         resume: forceNewSession ? undefined : this.sessionId || this.agent.sessionId || undefined, // Don't resume if forcing new session
-        allowedTools: this.getToolRestrictions('allowed'), // Pass allowed tools if any restrictions
-        disallowedTools: this.getToolRestrictions('disallowed'), // Pass disallowed tools if any restrictions
+        allowedTools, // Pass allowed tools if any restrictions
+        disallowedTools, // Pass disallowed tools if any restrictions
         model: this.mapToValidModel(this.config?.model), // Use valid Claude Code model name
         customSystemPrompt: this.config?.systemPrompt, // Pass agent's system prompt
         // Not supported by SDK: verbose, temperature, maxTokens, outputFormat
@@ -373,7 +377,7 @@ export class ClaudeAgent {
   /**
    * Get tool restrictions for Claude SDK based on agent permissions
    */
-  private getToolRestrictions(type: 'allowed' | 'disallowed'): string[] | undefined {
+  private async getToolRestrictions(type: 'allowed' | 'disallowed'): Promise<string[] | undefined> {
     if (!this.config?.tools || !Array.isArray(this.config.tools)) {
       console.log(`[TOOLS DEBUG] No tools configured for agent ${this.agent.id}`)
       return undefined
@@ -383,21 +387,44 @@ export class ClaudeAgent {
       `[TOOLS DEBUG] Processing ${type} tools for agent ${this.agent.id}:`,
       this.config.tools
     )
+
+    // Get the correct tool names from ToolDiscoveryService
+    const { ToolDiscoveryService } = await import('./ToolDiscoveryService')
+    const toolDiscovery = ToolDiscoveryService.getInstance()
+    const availableTools = await toolDiscovery.discoverTools()
+
     const restrictions: string[] = []
 
     for (const tool of this.config.tools) {
+      let toolName: string
+      let shouldInclude: boolean
+
       // Handle both string format and ToolPermission object format
       if (typeof tool === 'string') {
+        toolName = tool
         // Legacy string format - if we have restrictions, treat as allowed list
-        if (type === 'allowed') {
-          restrictions.push(tool)
-        }
+        shouldInclude = type === 'allowed'
       } else if (this.isToolPermission(tool)) {
+        toolName = tool.name
         // ToolPermission object format
-        if (type === 'allowed' && tool.enabled) {
-          restrictions.push(tool.name)
-        } else if (type === 'disallowed' && !tool.enabled) {
-          restrictions.push(tool.name)
+        shouldInclude = type === 'allowed' ? tool.enabled : !tool.enabled
+      } else {
+        continue
+      }
+
+      if (shouldInclude) {
+        // Find the correct tool name from discovered tools (case-insensitive match)
+        const correctToolName = availableTools.find(
+          (discoveredTool) => discoveredTool.toLowerCase() === toolName.toLowerCase()
+        )
+
+        if (correctToolName) {
+          restrictions.push(correctToolName)
+        } else {
+          console.warn(
+            `[TOOLS DEBUG] Tool ${toolName} not found in discovered tools:`,
+            availableTools
+          )
         }
       }
     }

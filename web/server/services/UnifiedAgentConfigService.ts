@@ -435,8 +435,18 @@ export class UnifiedAgentConfigService {
       agentConfigId: dbRecord.agentConfigId ?? '',
       customTools: dbRecord.customTools ? JSON.parse(dbRecord.customTools) : undefined,
       hasCustomTools: dbRecord.hasCustomTools ?? false,
-      createdAt: dbRecord.createdAt ? dbRecord.createdAt.toISOString() : new Date().toISOString(),
-      updatedAt: dbRecord.updatedAt ? dbRecord.updatedAt.toISOString() : new Date().toISOString(),
+      createdAt:
+        dbRecord.createdAt &&
+        dbRecord.createdAt instanceof Date &&
+        !isNaN(dbRecord.createdAt.getTime())
+          ? dbRecord.createdAt.toISOString()
+          : new Date().toISOString(),
+      updatedAt:
+        dbRecord.updatedAt &&
+        dbRecord.updatedAt instanceof Date &&
+        !isNaN(dbRecord.updatedAt.getTime())
+          ? dbRecord.updatedAt.toISOString()
+          : new Date().toISOString(),
     }
   }
 

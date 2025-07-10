@@ -123,8 +123,29 @@ router.get('/roles/:projectId', async (req: Request, res: Response) => {
 // POST /api/invoke/async - Start workflow asynchronously
 router.post('/async', async (req: Request, res: Response) => {
   try {
-    const parseResult = InvokeRequestSchema.safeParse(req.body)
+    console.log('[DEBUG] Async invoke received body:', JSON.stringify(req.body, null, 2))
+    console.log('[DEBUG] Body type:', typeof req.body)
+    console.log('[DEBUG] Workflow type:', typeof req.body?.workflow)
+
+    // Handle workflow as string (MCP tools send JSON strings)
+    let body = { ...req.body }
+    if (typeof body.workflow === 'string') {
+      console.log('[DEBUG] Parsing workflow string...')
+      try {
+        body.workflow = JSON.parse(body.workflow)
+        console.log('[DEBUG] Parsed workflow:', JSON.stringify(body.workflow, null, 2))
+      } catch (e) {
+        console.log('[DEBUG] Failed to parse workflow string:', e)
+        return res.status(400).json({
+          error: 'Invalid workflow format',
+          message: 'Workflow must be valid JSON object or string',
+        })
+      }
+    }
+
+    const parseResult = InvokeRequestSchema.safeParse(body)
     if (!parseResult.success) {
+      console.log('[DEBUG] Schema validation failed:', parseResult.error.flatten())
       return res.status(400).json({
         error: 'Invalid request',
         details: parseResult.error.flatten(),

@@ -364,26 +364,102 @@ invoke_async({ workflow: { role: 'dev', task: 'implement feature' } })
   },
 }
 
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 1000
+): Promise<T> {
+  let lastError: Error
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+
+      if (attempt === maxRetries) {
+        break
+      }
+
+      // Exponential backoff: 1s, 2s, 4s
+      const delayMs = baseDelayMs * Math.pow(2, attempt)
+      console.error(
+        `[handleInvokeAsync] Attempt ${attempt + 1} failed, retrying in ${delayMs}ms...`
+      )
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
+  }
+
+  throw lastError!
+}
+
 export async function handleInvokeAsync(args: unknown): Promise<{ type: 'text'; text: string }> {
   try {
-    const { workflow, projectId, threadId, startNewConversation } = args as InvokeRequest
+    console.error('[handleInvokeAsync] Received args:', JSON.stringify(args, null, 2))
+    console.error('[handleInvokeAsync] Type of args:', typeof args)
 
-    const response = await ky
-      .post(`${API_URL}/invoke/async`, {
-        json: { workflow, projectId, threadId, startNewConversation },
-        timeout: 30000, // 30 seconds for async start
-      })
-      .json<{ threadId: string; status: string }>()
+    const request = args as InvokeRequest
+    console.error('[handleInvokeAsync] Args workflow type:', typeof request.workflow)
+    console.error('[handleInvokeAsync] Args workflow value:', request.workflow)
+
+    // Check if workflow is a string and parse it (same as sync version)
+    let workflow = request.workflow
+    if (typeof workflow === 'string') {
+      console.error('[handleInvokeAsync] Workflow is a string, parsing...')
+      try {
+        workflow = JSON.parse(workflow)
+      } catch (e) {
+        console.error('[handleInvokeAsync] Failed to parse workflow string:', e)
+        throw new Error('Invalid workflow format - could not parse JSON string')
+      }
+    }
+
+    const { projectId, threadId, startNewConversation } = request
+    const requestBody = { workflow, projectId, threadId, startNewConversation }
+    console.error('[handleInvokeAsync] API_URL:', API_URL)
+    console.error('[handleInvokeAsync] Request body:', JSON.stringify(requestBody, null, 2))
+
+    // Robust API call with retry logic
+    const response = await retryWithBackoff(
+      async () => {
+        return await ky
+          .post(`${API_URL}/invoke/async`, {
+            json: requestBody,
+            timeout: 30000, // 30 seconds for async start
+            retry: {
+              limit: 2,
+              methods: ['post'],
+              statusCodes: [408, 413, 429, 500, 502, 503, 504],
+            },
+          })
+          .json<{ threadId: string; status: string }>()
+      },
+      3,
+      1000
+    )
 
     return {
       type: 'text',
       text: JSON.stringify(response, null, 2),
     }
   } catch (error) {
-    console.error('MCP invoke_async error:', error)
-    throw new Error(
-      `Failed to start async workflow: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
+    console.error('MCP invoke_async error after retries:', error)
+    if (error instanceof HTTPError) {
+      // It's a ky HTTPError, we can get more details
+      try {
+        const errorBody = await error.response.json()
+        console.error('[handleInvokeAsync] Error response body:', errorBody)
+        throw new Error(
+          `Failed to start async workflow: ${error.message} - ${JSON.stringify(errorBody)}`
+        )
+      } catch {
+        // If we can't parse the error body, just use the message
+        throw new Error(`Failed to start async workflow: ${error.message}`)
+      }
+    } else if (error instanceof Error) {
+      throw new Error(`Failed to start async workflow: ${error.message}`)
+    }
+    throw error
   }
 }
 
@@ -419,18 +495,30 @@ export async function handleInvokeStatus(args: unknown): Promise<{ type: 'text';
   try {
     const { threadId } = args as { threadId: string }
 
-    const response = await ky
-      .get(`${API_URL}/invoke/status/${threadId}`, {
-        timeout: 10000,
-      })
-      .json()
+    // Robust API call with retry logic
+    const response = await retryWithBackoff(
+      async () => {
+        return await ky
+          .get(`${API_URL}/invoke-status/status/${threadId}`, {
+            timeout: 10000,
+            retry: {
+              limit: 2,
+              methods: ['get'],
+              statusCodes: [408, 413, 429, 500, 502, 503, 504],
+            },
+          })
+          .json()
+      },
+      3,
+      1000
+    )
 
     return {
       type: 'text',
       text: JSON.stringify(response, null, 2),
     }
   } catch (error) {
-    console.error('MCP invoke_status error:', error)
+    console.error('MCP invoke_status error after retries:', error)
     throw new Error(
       `Failed to get workflow status: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
