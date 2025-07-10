@@ -5,6 +5,7 @@ import { Separator } from '../ui/separator'
 import { UserPlus, Bot, Users, CheckSquare, Square, Trash2 } from 'lucide-react'
 import { useAgentStore, useProjectStore } from '../../stores'
 import { DeleteAgentModal } from '../modals/DeleteAgentModal'
+import { WorkflowList } from '../workflow/WorkflowList'
 import {
   DndContext,
   closestCenter,
@@ -265,6 +266,11 @@ export function Sidebar({
             </SortableContext>
           </DndContext>
         )}
+      </div>
+
+      {/* Workflow Visibility Section */}
+      <div className="border-t">
+        <WorkflowList className="p-4" />
       </div>
 
       <div className="p-4 border-t space-y-2">
