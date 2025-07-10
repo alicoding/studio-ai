@@ -8,6 +8,7 @@
 
 import { Router } from 'express'
 import type { Request, Response } from 'express'
+import { EventEmitter } from 'events'
 import { WorkflowOrchestrator } from '../services/WorkflowOrchestrator'
 import type { WorkflowStep } from '../schemas/invoke'
 
@@ -105,14 +106,26 @@ router.get('/events', (req: Request, res: Response) => {
   // Send initial connection event
   res.write(`event: connected\ndata: {}\n\n`)
 
-  // Get workflow events emitter
-  const workflowEvents = req.app.get('workflowEvents')
+  // Get or create workflow events emitter
+  let workflowEvents = req.app.get('workflowEvents')
 
   if (!workflowEvents) {
-    console.error('[WorkflowEvents] No workflow event emitter found')
-    res.end()
-    return
+    // Create the event emitter if it doesn't exist yet
+    workflowEvents = new EventEmitter()
+    workflowEvents.setMaxListeners(100)
+    req.app.set('workflowEvents', workflowEvents)
+    console.log('[WorkflowEvents] Created workflow event emitter')
   }
+
+  // Send heartbeat every 30 seconds to keep connection alive
+  const heartbeatInterval = setInterval(() => {
+    try {
+      res.write(':heartbeat\n\n')
+    } catch {
+      // Connection closed, stop heartbeat
+      clearInterval(heartbeatInterval)
+    }
+  }, 30000)
 
   // Listen for workflow events
   const handleWorkflowUpdate = (data: WorkflowEvent) => {
@@ -144,6 +157,7 @@ router.get('/events', (req: Request, res: Response) => {
 
   // Clean up on client disconnect
   req.on('close', () => {
+    clearInterval(heartbeatInterval)
     workflowEvents.off('workflow:update', handleWorkflowUpdate)
   })
 })

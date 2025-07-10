@@ -24,7 +24,10 @@ export const useWorkflowEvents = () => {
   useEffect(() => {
     // Create global SSE connection for workflow events
     // Use full URL to ensure it connects to the correct server
-    const eventSource = new EventSource(`${window.location.origin}/api/invoke-status/events`)
+    const sseUrl = `${window.location.origin}/api/invoke-status/events`
+    console.log('[WorkflowEvents] Creating SSE connection to:', sseUrl)
+
+    const eventSource = new EventSource(sseUrl)
     eventSourceRef.current = eventSource
     let reconnectAttempts = 0
     const maxReconnectAttempts = 3
@@ -34,18 +37,24 @@ export const useWorkflowEvents = () => {
       reconnectAttempts = 0 // Reset on successful connection
     }
 
-    eventSource.onerror = (error) => {
-      console.error('[WorkflowEvents] SSE error:', error)
-
-      // Check if this is a connection failure
-      if (eventSource.readyState === EventSource.CLOSED) {
+    eventSource.onerror = () => {
+      // SSE will automatically reconnect, but we need to prevent infinite loops
+      // EventSource fires error event before each reconnection attempt
+      if (eventSource.readyState === EventSource.CONNECTING) {
         reconnectAttempts++
+        console.warn(
+          `[WorkflowEvents] SSE reconnecting... (attempt ${reconnectAttempts}/${maxReconnectAttempts})`
+        )
 
         if (reconnectAttempts >= maxReconnectAttempts) {
-          console.error('[WorkflowEvents] Max reconnection attempts reached. Stopping.')
+          console.error('[WorkflowEvents] Max reconnection attempts reached. Closing connection.')
           eventSource.close()
           eventSourceRef.current = null
+          return
         }
+      } else if (eventSource.readyState === EventSource.CLOSED) {
+        console.error('[WorkflowEvents] SSE connection closed')
+        eventSourceRef.current = null
       }
     }
 
