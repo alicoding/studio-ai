@@ -192,11 +192,48 @@ export class WorkflowOrchestrator {
         configurable: { thread_id: threadId },
       })
 
-      // Update final status
+      // Update final status with completed step information
       const finalStatus = this.determineOverallStatus(finalState.stepResults)
+
+      // Build updated steps array with final statuses
+      const updatedSteps = normalizedSteps.map((step) => {
+        const stepResult = finalState.stepResults[step.id!]
+
+        // Map step result status to allowed step status types
+        let stepStatus: 'pending' | 'running' | 'completed' | 'failed' = 'pending'
+        if (stepResult) {
+          switch (stepResult.status) {
+            case 'success':
+              stepStatus = 'completed'
+              break
+            case 'failed':
+            case 'blocked':
+              stepStatus = 'failed'
+              break
+            default:
+              stepStatus = 'pending'
+          }
+        }
+
+        return {
+          id: step.id!,
+          role: step.role,
+          agentId: step.agentId,
+          task: step.task,
+          status: stepStatus,
+          dependencies: step.deps || [],
+          startTime: stepResult?.duration
+            ? new Date(Date.now() - stepResult.duration).toISOString()
+            : undefined,
+          endTime: stepResult?.duration ? new Date().toISOString() : undefined,
+          error: stepResult?.status !== 'success' ? stepResult?.response : undefined,
+        }
+      })
+
       await updateWorkflowStatus(threadId, {
         status: finalStatus === 'completed' ? 'completed' : 'failed',
         sessionIds: finalState.sessionIds,
+        steps: updatedSteps,
       })
 
       // Emit workflow complete event
