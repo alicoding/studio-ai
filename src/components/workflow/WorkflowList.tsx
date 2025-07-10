@@ -64,16 +64,16 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
   const workflows = useWorkflowStore((state) => state.workflowList)
 
   // Memoize computed values to prevent infinite loops
-  const { activeWorkflows, allWorkflows } = useMemo(() => {
+  const { activeWorkflows, completedWorkflows, allWorkflows } = useMemo(() => {
     const active = workflows.filter((w) => w.status === 'running')
-    const recent = workflows
+    const completed = workflows
       .filter((w) => w.status !== 'running')
       .sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime())
-      .slice(0, 5)
 
     return {
       activeWorkflows: active,
-      allWorkflows: [...active, ...recent],
+      completedWorkflows: completed,
+      allWorkflows: [...active, ...completed],
     }
   }, [workflows])
 
@@ -101,18 +101,40 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
         <div className="p-3 border-b border-border flex items-center gap-2">
           <Activity className="w-4 h-4 text-primary" />
           <h3 className="text-sm font-medium">Workflows</h3>
-          <span className="text-xs text-muted-foreground ml-auto">
-            {activeWorkflows.length} active
-          </span>
+          <span className="text-xs text-muted-foreground ml-auto">{workflows.length} total</span>
         </div>
         <div className="max-h-96 overflow-y-auto">
-          {allWorkflows.map((workflow) => (
-            <WorkflowItem
-              key={workflow.threadId}
-              workflow={workflow}
-              onClick={() => handleWorkflowClick(workflow)}
-            />
-          ))}
+          {/* Active Workflows Section */}
+          {activeWorkflows.length > 0 && (
+            <>
+              <div className="px-3 py-2 text-xs font-medium text-muted-foreground bg-secondary/30">
+                Active ({activeWorkflows.length})
+              </div>
+              {activeWorkflows.map((workflow) => (
+                <WorkflowItem
+                  key={workflow.threadId}
+                  workflow={workflow}
+                  onClick={() => handleWorkflowClick(workflow)}
+                />
+              ))}
+            </>
+          )}
+
+          {/* Completed Workflows Section */}
+          {completedWorkflows.length > 0 && (
+            <>
+              <div className="px-3 py-2 text-xs font-medium text-muted-foreground bg-secondary/30">
+                History ({completedWorkflows.length})
+              </div>
+              {completedWorkflows.map((workflow) => (
+                <WorkflowItem
+                  key={workflow.threadId}
+                  workflow={workflow}
+                  onClick={() => handleWorkflowClick(workflow)}
+                />
+              ))}
+            </>
+          )}
         </div>
       </div>
 

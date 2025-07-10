@@ -84,7 +84,7 @@ describe('WorkflowList', () => {
 
       // Check header
       expect(screen.getByText('Workflows')).toBeInTheDocument()
-      expect(screen.getByText('1 active')).toBeInTheDocument()
+      expect(screen.getByText('3 total')).toBeInTheDocument()
 
       // Check workflow statuses
       expect(screen.getByText('running')).toBeInTheDocument()
@@ -175,11 +175,11 @@ describe('WorkflowList', () => {
       expect(buttons[1]).toHaveTextContent('older...')
     })
 
-    it('limits recent workflows to 5', () => {
+    it('shows all workflows organized by sections', () => {
       const workflows = Array.from({ length: 10 }, (_, i) =>
         createMockWorkflow({
-          threadId: `completed-${i}`,
-          status: 'completed',
+          threadId: `workflow-${i}`,
+          status: i < 3 ? 'running' : 'completed',
           lastUpdate: new Date(Date.now() - i * 1000).toISOString(),
         })
       )
@@ -189,7 +189,11 @@ describe('WorkflowList', () => {
       render(<WorkflowList />)
 
       const buttons = screen.getAllByRole('button')
-      expect(buttons).toHaveLength(5)
+      expect(buttons).toHaveLength(10)
+
+      // Check sections
+      expect(screen.getByText('Active (3)')).toBeInTheDocument()
+      expect(screen.getByText('History (7)')).toBeInTheDocument()
     })
   })
 
@@ -264,10 +268,10 @@ describe('WorkflowList', () => {
       // Should render without issues even with many workflows
       const { container } = render(<WorkflowList />)
 
-      // Check that only the expected number of workflows are displayed
+      // Check that all workflows are displayed
       const workflowButtons = container.querySelectorAll('button')
-      // 5 running + 5 recent = 10 max
-      expect(workflowButtons.length).toBeLessThanOrEqual(10)
+      // Now shows all workflows (no limit)
+      expect(workflowButtons.length).toBe(20)
     })
 
     it('does not cause infinite re-renders', () => {
