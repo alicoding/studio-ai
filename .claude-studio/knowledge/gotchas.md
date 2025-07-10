@@ -1,98 +1,74 @@
 # Claude Studio Gotchas & Known Issues
 
+## Table of Contents
+
+- [Claude Session File Location Issue](#claude-session-file-location-issue)
+- [WebSocket Connection Issues](#websocket-connection-issues)
+- [Cross-Server Communication](#cross-server-communication)
+
 ## Claude Session File Location Issue
 
 ### Problem
 
-StudioSessionService fails to find session messages, showing "Session not found in Claude projects" errors in logs. Messages don't appear in the UI even though Claude is writing them.
+Messages not appearing in workspace UI despite activity being tracked in /projects.
 
 ### Root Cause
 
-The `getClaudeProjectFolder` method was preferring empty `-private` directories over the actual active directories where Claude writes JSONL files:
+`StudioSessionService.getClaudeProjectFolder()` was preferring `-private` prefixed directories even when they were empty or outdated.
 
-```typescript
-// PROBLEMATIC CODE (lines 114-128 in StudioSessionService.ts)
-const candidates = [
-  path.join(baseDir, `${projectName}-private`), // Checked first but often empty!
-  path.join(baseDir, projectName),
-  // ... other candidates
-]
+**Example:**
 
-// It would find the -private directory and return it even if empty
-for (const dir of candidates) {
-  if (await this.fileExists(dir)) {
-    return dir // Returns first match, even if wrong!
-  }
-}
-```
+- Active sessions in: `~/.claude/projects/-Users-ali-claude-swarm-claude-team-claude-studio/`
+- But searching in: `~/.claude/projects/-private-Users-ali-claude-swarm-claude-team-claude-studio/`
 
 ### Solution
 
-Check which directory has the most recent/active JSONL files instead of just existence:
+Updated `getClaudeProjectFolder()` to check which directory has more recent JSONL files.
+
+**Code Location:** `web/server/services/StudioSessionService.ts:79-128`
 
 ```typescript
-// FIXED CODE
-private async getClaudeProjectFolder(projectPath: string): Promise<string | null> {
-  // ... normalize project name ...
-
-  const candidates = [
-    path.join(baseDir, `${projectName}-private`),
-    path.join(baseDir, projectName),
-    // ... other candidates
-  ]
-
-  // Find the directory with the most recent JSONL files
-  let bestCandidate: { dir: string; mtime: number } | null = null
-
-  for (const dir of candidates) {
-    if (await this.fileExists(dir)) {
-      const files = await fs.readdir(dir)
-      const jsonlFiles = files.filter(f => f.endsWith('.jsonl'))
-
-      if (jsonlFiles.length > 0) {
-        // Get the most recent file's modification time
-        const stats = await fs.stat(path.join(dir, jsonlFiles[0]))
-        const mtime = stats.mtime.getTime()
-
-        if (!bestCandidate || mtime > bestCandidate.mtime) {
-          bestCandidate = { dir, mtime }
-        }
-      }
-    }
-  }
-
-  return bestCandidate?.dir || null
-}
+// Now checks:
+// 1. If both directories exist
+// 2. Which has more JSONL files
+// 3. Which has more recent activity
+// 4. Returns the active directory
 ```
 
-### Impact
+### How to Debug
 
-- Messages appear as "not found" even though Claude is actively writing them
-- UI shows no message history for active sessions
-- Logs fill with "Session XXX not found in Claude projects" errors
+1. Check server logs for "Session X not found in Claude projects"
+2. Look for ENOENT errors with file paths
+3. Verify JSONL files exist: `ls ~/.claude/projects/*/session-id.jsonl`
+4. Test API directly: `curl http://localhost:3457/api/studio-projects/{id}/sessions/{sessionId}/messages`
 
-### Debugging Steps
+## WebSocket Connection Issues
 
-1. Check `~/.claude/projects/` for your project directories
-2. Look for both `projectname` and `projectname-private` directories
-3. Use `ls -la` to see which has recent JSONL files
-4. The active directory should have files modified within seconds/minutes
+### Frontend Must Connect to Same Server
 
-### Related Issues
+- UI connects to `window.location.origin`
+- If UI on different port than API server, WebSocket events won't reach UI
+- Solution: Ensure consistent server connection
 
-- Claude may create multiple project directories for the same project
-- Session IDs change frequently as Claude creates new sessions
-- JSONL files are written incrementally, so timing matters
-- Frontend must use the correct session ID from the agent
+### Session ID vs Agent ID
 
-### Prevention
+- **WebSocket routing**: Uses stable agentId (e.g., `knowledge-facilitator_01`)
+- **Claude SDK**: Uses changing session IDs
+- **Never use Claude session ID for WebSocket routing!**
 
-- Always check file timestamps, not just directory existence
-- Log which directory is being used for debugging
-- Consider caching the active directory per project
-- Monitor for directory switches during Claude usage
+## Cross-Server Communication
 
-See also:
+### Redis Required for Multi-Server
 
-- [Services Documentation](./services.md#studiosessionservice)
-- [API Documentation](./apis.md#studio-session-messages-api)
+- Stable server (3456) and Dev server (3457) need Redis
+- Without Redis, events only broadcast locally
+- Check logs for: "EventSystem initialized with Redis adapter"
+
+### Event Flow
+
+1. API call on server A triggers event
+2. EventSystem emits via Redis
+3. All connected servers receive event
+4. Each server broadcasts to its WebSocket clients
+
+See also: [architecture.md](./architecture.md#cross-server-communication-architecture)

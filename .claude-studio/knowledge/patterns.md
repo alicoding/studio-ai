@@ -1,214 +1,139 @@
-# Claude Studio Design Patterns
+# Claude Studio Patterns
+
+## Table of Contents
+
+- [WebSocket Message Routing](#websocket-message-routing)
+- [Session ID Management](#session-id-management)
+- [Tool Permission Handling](#tool-permission-handling)
+- [Error Recovery Patterns](#error-recovery-patterns)
 
 ## WebSocket Message Routing
 
-### Problem
+### Pattern: Stable IDs for Routing
 
-Claude's session IDs change frequently as it creates new sessions, making it difficult to maintain consistent message routing in the UI. Additionally, with multiple servers (stable and dev), messages need to be routed correctly regardless of which server the agent is running on.
+**Problem:** Claude SDK session IDs change with every message, making routing impossible.
 
-### Solution
-
-Use stable agent IDs for routing while maintaining Claude session IDs internally for SDK communication.
-
-### Pattern Implementation
-
-#### 1. Stable Identifiers for Routing
+**Solution:** Use stable agent IDs for all WebSocket routing.
 
 ```typescript
-// Frontend uses agentId for all WebSocket filtering
-socket.on('agent:message', (data) => {
-  if (data.agentId === currentAgentId) {  // Stable ID like "dev_01"
-    handleMessage(data)
-  }
-})
+// BAD: Using Claude's changing session ID
+socket.emit('message:new', { sessionId: claudeSessionId, message })
 
-// Backend emits with agentId, not sessionId
-this.eventSystem.emit('agent:message', {
-  agentId: this.agentId,      // Stable: "dev_01"
-  sessionId: this.sessionId,   // Changes: "sess_abc123..."
-  message: { ... }
-})
+// GOOD: Using stable agent ID
+socket.emit('message:new', { sessionId: agentId, message })
 ```
 
-#### 2. Internal Session ID Mapping
+### Implementation
+
+1. ClaudeService returns `{ sessionId: agentId }` (not Claude's ID)
+2. Frontend filters messages by matching agentId
+3. EventSystem broadcasts with agentId as identifier
+
+## Session ID Management
+
+### Pattern: Internal Mapping Only
+
+**Problem:** External systems can't track Claude's changing session IDs.
+
+**Solution:** Map stable IDs to Claude IDs internally, expose only stable IDs.
 
 ```typescript
-// agent_claude_sessions table maintains the mapping
-interface AgentClaudeSession {
-  agent_id: string // "dev_01"
-  claude_session_id: string // "sess_abc123..."
-  created_at: Date
-  updated_at: Date
-}
+// Internal: agentId → claudeSessionId → JSONL file
+// External: Always use agentId
 
-// ClaudeAgent maintains current session internally
-class ClaudeAgent {
-  private sessionId?: string // Current Claude session
-
-  async ensureSession() {
-    if (!this.sessionId) {
-      // Create new session via SDK
-      this.sessionId = await this.createSession()
-      // Store mapping in database
-      await this.storeSessionMapping(this.agentId, this.sessionId)
-    }
-  }
-}
+// Get current Claude session for agent
+const session = await getAgentSession(agentId)
+const messages = await loadMessages(session.claudeSessionId)
 ```
 
-#### 3. Cross-Server Event Distribution
+### Key Points
+
+- Never expose Claude session IDs in APIs
+- Store mapping in agent instance or cache
+- Update mapping when Claude creates new session
+
+## Tool Permission Handling
+
+### Pattern: Preserve Tool Name Casing
+
+**Problem:** Claude SDK expects exact tool names ("Write" not "write").
+
+**Solution:** Get tool names from ToolDiscoveryService and preserve exactly.
 
 ```typescript
-// EventSystem abstracts the distribution mechanism
-class RedisEventSystem extends EventSystem {
-  emit(event: string, data: any): void {
-    // Publish to Redis for all servers
-    this.publisher.publish(`claude-studio:${event}`, JSON.stringify(data))
-  }
-}
+// BAD: Converting to lowercase
+const toolName = tool.name.toLowerCase()
 
-// All servers receive and filter locally
-this.subscriber.on('pmessage', (pattern, channel, message) => {
-  const event = channel.replace('claude-studio:', '')
-  const data = JSON.parse(message)
-
-  // Broadcast to all connected clients
-  this.io.emit(event, data)
-
-  // Clients filter by agentId
-})
+// GOOD: Preserve exact casing
+const correctToolName = discoveredTools.find((t) => t.toLowerCase() === toolName.toLowerCase())
+restrictions.push(correctToolName) // "Write", not "write"
 ```
 
-### Benefits
+## Error Recovery Patterns
 
-1. **Stability**: Agent IDs don't change during a session
-2. **Scalability**: Works across multiple servers
-3. **Flexibility**: Session IDs can change without breaking UI
-4. **Performance**: Client-side filtering is efficient
-5. **Debugging**: Clear which agent owns which messages
+### Pattern: Directory Fallback
 
-### Anti-Patterns to Avoid
+**Problem:** Claude may use different directories for same project.
 
-❌ **Don't route by session ID**
+**Solution:** Check multiple locations with intelligent fallback.
 
 ```typescript
-// Bad: Session IDs change frequently
-socket.on('message', (data) => {
-  if (data.sessionId === currentSessionId) { ... }
-})
+// Check both directory patterns
+const paths = [
+  `${home}/.claude/projects/-private${normalized}`,
+  `${home}/.claude/projects/${normalized}`,
+]
+
+// Use directory with most recent activity
+const activeDir = paths.filter(exists).sort((a, b) => getLatestMtime(b) - getLatestMtime(a))[0]
 ```
 
-❌ **Don't assume single server**
+### Pattern: Session Search
+
+**Problem:** Session might be in unexpected directory.
+
+**Solution:** Search all Claude directories if primary lookup fails.
 
 ```typescript
-// Bad: Only works on same server
-this.io.to(socketId).emit('message', data)
-```
+// Primary: Check expected directory
+let projectFolder = getClaudeProjectFolder(workspace)
 
-❌ **Don't mix identifiers**
-
-```typescript
-// Bad: Inconsistent ID usage
-emit('message', {
-  id: sessionId, // Which ID?
-  agentId: agentId, // Redundant?
-  agent: configId, // Confusing!
-})
-```
-
-### Related Patterns
-
-See also:
-
-- [Architecture Documentation](./architecture.md#cross-server-communication-architecture)
-- [API Documentation](./apis.md#websocket-events)
-- [Services Documentation](./services.md#eventsystem)
-
-## Component State Management
-
-### Problem
-
-Components need to react to various events (WebSocket messages, URL changes, agent updates) while maintaining clean separation of concerns.
-
-### Solution
-
-Use event-driven architecture with custom events for cross-component communication.
-
-### Pattern Implementation
-
-```typescript
-// Emit custom events for component communication
-window.dispatchEvent(
-  new CustomEvent('agent-updated', {
-    detail: { agentId },
-  })
-)
-
-// Components listen and react
-useEffect(() => {
-  const handleUpdate = (e: CustomEvent) => {
-    if (e.detail.agentId === agentId) {
-      refetch()
-    }
-  }
-
-  window.addEventListener('agent-updated', handleUpdate)
-  return () => window.removeEventListener('agent-updated', handleUpdate)
-}, [agentId])
-```
-
-## Error Handling Patterns
-
-### Graceful Degradation
-
-```typescript
-// Try Redis, fall back to Socket.IO
-let eventSystem: EventSystem
-try {
-  eventSystem = new RedisEventSystem(io)
-} catch (error) {
-  console.warn('Redis unavailable, using Socket.IO only')
-  eventSystem = new SocketIOEventSystem(io)
+// Fallback: Search all directories
+if (!found) {
+  projectFolder = await findProjectFolderBySessionId(sessionId)
 }
 ```
 
-### Session Recovery
+## Common Anti-Patterns to Avoid
+
+### ❌ Don't expose internal IDs
 
 ```typescript
-// Detect stale session and create new one
-async sendMessage(content: string) {
-  try {
-    await this.claude.sendMessage(this.sessionId, content)
-  } catch (error) {
-    if (error.message.includes('session not found')) {
-      // Create new session and retry
-      this.sessionId = await this.createSession()
-      await this.claude.sendMessage(this.sessionId, content)
-    }
-  }
-}
+// BAD
+return { sessionId: claude.sessionId }
 ```
 
-## File System Patterns
-
-### Directory Discovery
+### ❌ Don't assume directory structure
 
 ```typescript
-// Check activity, not just existence
-async findActiveDirectory(candidates: string[]): Promise<string | null> {
-  let mostRecent: { dir: string; time: number } | null = null
-
-  for (const dir of candidates) {
-    const activity = await this.getDirectoryActivity(dir)
-    if (activity && (!mostRecent || activity.time > mostRecent.time)) {
-      mostRecent = { dir, time: activity.time }
-    }
-  }
-
-  return mostRecent?.dir || null
-}
+// BAD
+const path = `~/.claude/projects/-private${project}`
 ```
 
-See also:
+### ❌ Don't modify tool names
 
-- [Gotchas](./gotchas.md#claude-session-file-location-issue)
+```typescript
+// BAD
+tools.map((t) => t.toLowerCase())
+```
+
+### ✅ Do use abstractions
+
+```typescript
+// GOOD
+return { sessionId: stableAgentId }
+const path = findActiveProjectDirectory(project)
+const tools = preserveOriginalToolNames(discovered)
+```
+
+See also: [gotchas.md](./gotchas.md)

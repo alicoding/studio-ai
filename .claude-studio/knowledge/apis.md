@@ -1,258 +1,164 @@
-# Claude Studio API Documentation
+# Claude Studio APIs
+
+## Table of Contents
+
+- [Studio Session Messages API](#studio-session-messages-api)
+- [Studio Projects API](#studio-projects-api)
+- [Agent Management APIs](#agent-management-apis)
+- [WebSocket Events](#websocket-events)
 
 ## Studio Session Messages API
 
 ### GET /api/studio-projects/:id/sessions/:sessionId/messages
 
-Retrieves message history for a specific Claude session. This endpoint reads from Claude's JSONL files and returns paginated results.
+**Purpose:** Retrieve messages from a Claude session
 
-#### Parameters
+**Parameters:**
 
-**Path Parameters:**
+- `id`: Studio project ID
+- `sessionId`: Claude session ID (from agent)
+- `cursor` (query): Pagination cursor
+- `limit` (query): Number of messages (default: 50)
 
-- `id` (string, required): The studio project ID
-- `sessionId` (string, required): The Claude session ID (not the agent ID)
-
-**Query Parameters:**
-
-- `cursor` (string, optional): Pagination cursor for fetching next page
-- `limit` (number, optional): Number of messages to return (default: 50, max: 100)
-
-#### Response
-
-```typescript
-interface SessionMessagesResponse {
-  messages: Message[]
-  hasMore: boolean
-  nextCursor?: string
-}
-
-interface Message {
-  id: string
-  type: 'human' | 'assistant' | 'system'
-  content: string
-  timestamp: string
-  metadata?: Record<string, any>
-}
-```
-
-#### Example Request
-
-```bash
-GET /api/studio-projects/proj_123/sessions/sess_abc/messages?limit=20
-
-# With pagination
-GET /api/studio-projects/proj_123/sessions/sess_abc/messages?cursor=msg_456&limit=20
-```
-
-#### Example Response
+**Response:**
 
 ```json
 {
   "messages": [
     {
-      "id": "msg_123",
-      "type": "human",
-      "content": "Write a hello world function",
-      "timestamp": "2025-01-10T12:00:00Z"
-    },
-    {
-      "id": "msg_124",
+      "id": "session-id-74",
+      "role": "assistant",
+      "content": "...",
+      "timestamp": "2025-01-10T11:36:45.949Z",
       "type": "assistant",
-      "content": "I'll create a hello world function for you...",
-      "timestamp": "2025-01-10T12:00:01Z"
+      "model": "claude-opus-4-20250514",
+      "usage": {
+        "input_tokens": 4,
+        "output_tokens": 34
+      }
     }
   ],
   "hasMore": true,
-  "nextCursor": "msg_125"
+  "nextCursor": "71"
 }
 ```
 
-#### Error Responses
+**Common Issues:**
 
-```json
-// 404 - Session not found
-{
-  "error": "Session not found"
-}
-
-// 500 - Internal error
-{
-  "error": "Failed to read session messages"
-}
-```
-
-#### Implementation Details
-
-1. **Session ID Lookup**: The sessionId must be a valid Claude session ID, not an agent ID
-2. **File Location**: Messages are read from `~/.claude/projects/{project-name}/{sessionId}.jsonl`
-3. **Pagination**: Uses message IDs as cursors for efficient pagination
-4. **Real-time Updates**: For live messages, use WebSocket connection instead
-
-#### Important Notes
-
-- Session IDs change frequently as Claude creates new sessions
-- Use the agent's current session ID from the database
-- Messages are stored in JSONL format (one JSON per line)
-- File may be actively written to by Claude, handle gracefully
-
-See also:
-
-- [Services Documentation](./services.md#studiosessionservice)
-- [WebSocket Events](#websocket-events)
-
-## WebSocket Events
-
-### Overview
-
-Real-time events are transmitted via Socket.IO WebSocket connections. The frontend connects to the same origin as the UI to ensure proper event routing.
-
-### Connection
-
-```typescript
-// Frontend connection (automatic origin detection)
-const socket = io(window.location.origin, {
-  transports: ['websocket', 'polling'],
-  reconnection: true,
-  reconnectionAttempts: 5,
-})
-```
-
-### Event Types
-
-#### agent:message
-
-Emitted when an agent sends or receives a message.
-
-```typescript
-interface AgentMessageEvent {
-  agentId: string // Agent instance ID (e.g., "dev_01")
-  sessionId: string // Claude session ID
-  message: {
-    id: string
-    type: 'human' | 'assistant' | 'system'
-    content: string
-    timestamp: string
-  }
-}
-```
-
-#### agent:status-changed
-
-Emitted when an agent's status changes.
-
-```typescript
-interface AgentStatusEvent {
-  agentId: string
-  status: 'idle' | 'busy' | 'error'
-  sessionId?: string
-}
-```
-
-#### agent:stream-chunk
-
-Emitted for streaming message chunks during generation.
-
-```typescript
-interface StreamChunkEvent {
-  agentId: string
-  sessionId: string
-  chunk: string
-  messageId: string
-}
-```
-
-#### workflow:status-update
-
-Emitted during workflow execution.
-
-```typescript
-interface WorkflowStatusEvent {
-  threadId: string
-  status: 'running' | 'completed' | 'failed' | 'aborted'
-  currentStep?: string
-  progress?: {
-    completed: number
-    total: number
-  }
-}
-```
-
-### Event Filtering
-
-Frontend filters events by agentId to prevent cross-agent message contamination:
-
-```typescript
-socket.on('agent:message', (data: AgentMessageEvent) => {
-  if (data.agentId === currentAgentId) {
-    // Process message for current agent only
-  }
-})
-```
-
-### Cross-Server Communication
-
-Events are broadcast across all servers via Redis:
-
-1. Agent on any server emits event
-2. EventSystem publishes to Redis
-3. All servers receive and broadcast to their clients
-4. Clients filter by relevant IDs
-
-### Reconnection Handling
-
-The frontend automatically handles reconnection:
-
-```typescript
-socket.on('reconnect', () => {
-  // Re-establish event handlers
-  // Emit custom event for components to reload data
-  window.dispatchEvent(new CustomEvent('websocket-reconnected'))
-})
-```
-
-See also:
-
-- [Architecture Documentation](./architecture.md#cross-server-communication-architecture)
-- [Services Documentation](./services.md#eventsystem)
+- Returns empty if session file in wrong directory
+- Check server logs for "Session X not found" errors
+- Verify with: `curl http://localhost:3457/api/studio-projects/{id}/sessions/{sessionId}/messages`
 
 ## Studio Projects API
 
-### GET /api/studio-projects/:id/agents/short-ids
+### GET /api/studio-projects/:id/agents/:agentId/session
 
-Returns agents with their short IDs for display in the UI.
+**Purpose:** Get current Claude session ID for an agent
 
-#### Response
+**Response:**
 
-```typescript
-interface ShortIdAgent {
-  id: string // Short ID (e.g., "dev_01")
-  name: string // Display name
-  role: string // Agent role
-  configId: string // Full agent config ID
-  status: 'idle' | 'busy' | 'error'
-  customTools?: string[]
+```json
+{
+  "sessionId": "a6ef0489-803b-4c40-855f-44bc8315c5f7"
 }
 ```
 
+**Notes:**
+
+- Session IDs change with each new conversation
+- Use this to get current session before loading messages
+
 ### POST /api/studio-projects/:id/agents
 
-Adds an agent to a studio project.
+**Purpose:** Add agent to project
 
-#### Request
+**Body:**
 
-```typescript
-interface AddAgentRequest {
-  role: string
-  agentConfigId: string
-  customTools?: string[]
+```json
+{
+  "role": "developer",
+  "agentConfigId": "68c57432-3e06-4e0c-84d0-36f63bed17b2"
 }
 ```
 
 ### DELETE /api/studio-projects/:id/agents/:role
 
-Removes an agent from a studio project by role.
+**Purpose:** Remove agent from project by role
 
-See also:
+## Agent Management APIs
 
-- [Gotchas](./gotchas.md#studio-projects-api)
+### GET /api/agents
+
+**Purpose:** List all agent configurations
+
+### POST /api/agents
+
+**Purpose:** Create new agent configuration
+
+**Body:**
+
+```json
+{
+  "name": "Knowledge Facilitator",
+  "role": "knowledge-facilitator",
+  "systemPrompt": "...",
+  "tools": [
+    { "name": "read", "enabled": true },
+    { "name": "write", "enabled": true }
+  ],
+  "model": "claude-3-opus",
+  "maxTokens": 200000
+}
+```
+
+## WebSocket Events
+
+### Client → Server
+
+**Connection:**
+
+```javascript
+const socket = io(window.location.origin)
+```
+
+### Server → Client Events
+
+**message:new**
+
+```json
+{
+  "sessionId": "knowledge-facilitator_01",
+  "message": {
+    "role": "assistant",
+    "content": "...",
+    "timestamp": "2025-01-10T11:36:45.949Z"
+  }
+}
+```
+
+**agent:status-changed**
+
+```json
+{
+  "agentId": "knowledge-facilitator_01",
+  "status": "busy" | "online"
+}
+```
+
+**agent:token-usage**
+
+```json
+{
+  "agentId": "knowledge-facilitator_01",
+  "tokens": 38,
+  "maxTokens": 200000
+}
+```
+
+### Important Notes
+
+- WebSocket uses agentId for routing, not sessionId
+- Frontend must connect to same server as API calls
+- Redis enables cross-server event broadcasting
+
+See also: [architecture.md](./architecture.md#cross-server-communication-architecture)

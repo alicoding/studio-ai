@@ -326,3 +326,12 @@
 - Pattern: Use stable IDs for routing, internal IDs for SDK only
 - Prevents message contamination between agents
 - See `.claude-studio/knowledge/patterns.md` for implementation details
+
+### Tool Name Case Sensitivity
+
+- **Problem**: Agents couldn't use Write tool despite having permissions
+- **Root Cause**: Claude SDK expects exact tool names ("Write" not "write")
+- **Solution**: Preserve tool names exactly as discovered by ToolDiscoveryService
+- Never convert tool names to lowercase - SDK is case-sensitive
+- Fixed in `web/server/services/claude-agent.ts` - preserve original casing
+- Pattern: Always use discovered tool names without modification

@@ -1,84 +1,94 @@
 # Claude Studio Knowledge Base
 
-This directory contains technical documentation for the Claude Studio project, capturing architecture decisions, patterns, known issues, and implementation details.
+This is a living documentation maintained by the Knowledge Facilitator agent. It provides instant, accurate answers about the Claude Studio codebase.
 
-## Document Index
+## Quick Links
 
 ### 📐 [Architecture](./architecture.md)
 
-- Cross-Server Communication Architecture
-- EventSystem abstraction layer
-- Redis adapter implementation
-- Socket.IO integration
-- Message flow between servers (3456/3457)
+- Cross-server communication (Redis, EventSystem)
+- Component overview
+- Data flow and session management
 
-### ⚠️ [Gotchas & Known Issues](./gotchas.md)
+### 🔧 [Services](./services.md)
 
-- Claude Session File Location Issue
-- Common debugging steps
-- Prevention strategies
+- StudioSessionService - Session file management
+- ClaudeService - Agent interactions
+- EventSystem - Cross-server events
+- WorkflowOrchestrator - Multi-agent workflows
 
-### 🛠️ [Services](./services.md)
+### 🌐 [APIs](./apis.md)
 
-- StudioSessionService - Claude JSONL file management
-- EventSystem - Cross-server event distribution
-- Key methods and integration points
-
-### 🔌 [APIs](./apis.md)
-
-- Studio Session Messages API
-- WebSocket Events documentation
-- Studio Projects API endpoints
-- Event types and filtering
+- Session messages endpoints
+- Studio projects endpoints
+- WebSocket events
+- Agent management
 
 ### 🎯 [Patterns](./patterns.md)
 
-- WebSocket Message Routing pattern
-- Component State Management
-- Error Handling patterns
-- File System patterns
+- WebSocket message routing
+- Session ID management
+- Tool permission handling
+- Error recovery strategies
 
-## Quick Reference
+### ⚠️ [Gotchas](./gotchas.md)
 
-### Finding Session Messages Not Loading?
+- Claude session file location issues
+- WebSocket connection problems
+- Cross-server communication setup
 
-1. Check [Gotchas](./gotchas.md#claude-session-file-location-issue) for the file location issue
-2. Review [Services](./services.md#studiosessionservice) for how messages are loaded
-3. See [APIs](./apis.md#studio-session-messages-api) for the endpoint details
+## Recent Issues & Solutions
 
-### WebSocket Events Not Arriving?
+### Messages Not Appearing in UI (2025-01-10)
 
-1. Review [Architecture](./architecture.md#cross-server-communication-architecture) for event flow
-2. Check [Patterns](./patterns.md#websocket-message-routing) for routing implementation
-3. See [APIs](./apis.md#websocket-events) for event types
+**Problem:** Activity tracked but no messages visible
+**Root Cause:** StudioSessionService looking in wrong directory
+**Solution:** Updated directory selection logic in `services.md`
+**Details:** See [gotchas.md#claude-session-file-location-issue](./gotchas.md#claude-session-file-location-issue)
 
-### Need to Add Cross-Server Features?
+## How to Use This Knowledge Base
 
-1. Understand [Architecture](./architecture.md#eventsystem-abstraction) for EventSystem
-2. Follow [Patterns](./patterns.md#cross-server-event-distribution) for implementation
-3. Review [Services](./services.md#eventsystem) for integration points
+1. **Looking for specific info?** Check the relevant section above
+2. **Debugging an issue?** Start with [gotchas.md](./gotchas.md)
+3. **Understanding data flow?** See [architecture.md](./architecture.md)
+4. **API reference needed?** Check [apis.md](./apis.md)
 
-## Recent Updates
+## Maintenance
 
-- **2025-01-10**: Initial knowledge base creation
-- **2025-01-10**: Documented Redis cross-server communication fix
-- **2025-01-10**: Captured Claude session file location issue and solution
+This knowledge base is maintained by the Knowledge Facilitator agent. When you discover new information:
 
-## Contributing
+1. Ask KF to update the relevant file
+2. KF will add the information with proper cross-references
+3. KF will update this index if new sections are added
 
-When adding new knowledge:
+## Key Concepts Summary
 
-1. Choose the appropriate document based on the categories above
-2. Add cross-references using relative links
-3. Update this README with any new sections
-4. Include code examples and file paths where relevant
-5. Document both the problem and the solution
+### Session ID Architecture
 
-## Related Documentation
+- **Agent ID**: Stable identifier (e.g., `knowledge-facilitator_01`)
+- **Claude Session ID**: Changes with each message
+- **JSONL Files**: Stored in `~/.claude/projects/`
+- **Routing**: Always use Agent ID, never Claude's session ID
 
-- Main project README: `/README.md`
-- Development guide: `/CLAUDE.md`
-- TypeScript standards: `/docs/standards/typescript.md`
-- API patterns: `/docs/standards/api-patterns.md`
-- Component patterns: `/docs/standards/components.md`
-- Project gotchas: `/docs/gotchas.md`
+### Cross-Server Communication
+
+- **Stable Server**: Port 3456 (MCP tools)
+- **Dev Server**: Port 3457 (hot reload)
+- **Redis**: Enables event broadcasting between servers
+- **EventSystem**: Abstraction layer for events
+
+### Tool Permissions
+
+- **Case Sensitive**: "Write" not "write"
+- **Discovery**: Get from ToolDiscoveryService
+- **Preservation**: Never modify tool names
+
+## Need Something?
+
+If you can't find what you need:
+
+1. Search this knowledge base first
+2. Ask the Knowledge Facilitator to research and document it
+3. The answer will be added for future reference
+
+Last Updated: 2025-01-10
