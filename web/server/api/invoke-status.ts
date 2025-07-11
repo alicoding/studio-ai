@@ -136,10 +136,12 @@ router.get('/events', (req: Request, res: Response) => {
         })}\n\n`
       )
     } else if (data.type === 'workflow_complete' || data.type === 'workflow_failed') {
+      // Map 'complete' to 'completed' to match WorkflowInfo interface
+      const status = data.type === 'workflow_complete' ? 'completed' : 'failed'
       res.write(
         `event: workflow_status\ndata: ${JSON.stringify({
           ...data,
-          status: data.type.replace('workflow_', ''),
+          status,
         })}\n\n`
       )
     } else if (data.type === 'graph_update' && data.graph) {
