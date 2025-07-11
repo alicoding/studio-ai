@@ -1,5 +1,30 @@
 # Claude Studio Gotchas
 
+## Workflow Status Stuck in 'Running' State (2025-01-11)
+
+- **Problem**: Workflows remained stuck in "running" state in the UI even after completion
+- **Root Cause**: String mismatch between backend SSE event and frontend WorkflowInfo interface
+  - Backend: `data.type.replace('workflow_', '')` converted "workflow_complete" to "complete"
+  - Frontend: WorkflowInfo interface expects status values of "completed" not "complete"
+- **Solution**: Updated SSE handler to map 'workflow_complete' event to status: 'completed'
+- **File affected**: `web/server/api/invoke-status.ts` - fixed SSE event transformation
+- **Pattern**: Always verify string literal values match between backend events and frontend types
+
+## Canvas Mode Chat Integration (2025-01-11)
+
+- **Problem**: Canvas mode showed "Canvas-based chat interface coming soon" placeholder
+- **Solution**: Integrated existing ChatPanel and MessageHistoryViewer components into CanvasContent
+- **Components**:
+  - `MessageHistoryViewer` - Displays message history with virtual scrolling
+  - `ChatPanel` - Input area with @mentions and command support
+  - `useMessageOperations` - Hook that handles message routing
+- **Key Points**:
+  - Reused existing chat infrastructure (DRY principle)
+  - State preserved when switching between agent and workflow modes
+  - Message operations connected through hooks
+  - Fixed TypeScript error: ProjectStore doesn't have `getProjectById`, use `projects.find()` instead
+- **Pattern**: When integrating features, look for existing components first before creating new ones
+
 ## React Hooks & Infinite Loops (2025-01-10)
 
 - **Problem**: "Maximum update depth exceeded" error when using Zustand store functions in useEffect dependencies
