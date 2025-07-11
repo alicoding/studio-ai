@@ -8,7 +8,6 @@
  */
 
 import { StateGraph, Annotation, BaseCheckpointSaver, type RetryPolicy } from '@langchain/langgraph'
-import format from 'string-template'
 import { v4 as uuidv4 } from 'uuid'
 import { ClaudeService } from './ClaudeService'
 import { SimpleOperator } from './SimpleOperator'
@@ -27,11 +26,12 @@ import type { Server } from 'socket.io'
 import { EventEmitter } from 'events'
 import { WorkflowMonitor } from './WorkflowMonitor'
 import { FlowLogger } from '../utils/FlowLogger'
-
-// Template context type
-interface TemplateContext {
-  [key: string]: { output: string } | string | undefined
-}
+import {
+  StepExecutorRegistry,
+  MockStepExecutor,
+  ClaudeStepExecutor,
+  type WorkflowContext,
+} from './executors'
 
 // LangGraph state type
 interface WorkflowState {
@@ -91,10 +91,34 @@ export class WorkflowOrchestrator {
   private checkpointer: BaseCheckpointSaver | null = null
   private io?: Server
   private workflowEvents?: EventEmitter
+  private executorRegistry = new StepExecutorRegistry()
 
   constructor(io?: Server, workflowEvents?: EventEmitter) {
     this.io = io
     this.workflowEvents = workflowEvents
+    this.initializeExecutors()
+  }
+
+  /**
+   * Initialize and register all step executors
+   */
+  private initializeExecutors(): void {
+    // Register Claude executor (wraps existing Claude logic)
+    const claudeExecutor = new ClaudeStepExecutor(
+      this.claudeService,
+      this.operator,
+      this.agentConfigService,
+      this.projectService
+    )
+    this.executorRegistry.register(claudeExecutor)
+
+    // Register Mock executor (for testing without AI costs)
+    const mockExecutor = new MockStepExecutor()
+    this.executorRegistry.register(mockExecutor)
+
+    console.log(
+      `[WorkflowOrchestrator] Initialized ${this.executorRegistry.getExecutorCount()} executors: ${this.executorRegistry.getAvailableExecutorTypes().join(', ')}`
+    )
   }
 
   /**
@@ -470,6 +494,7 @@ export class WorkflowOrchestrator {
 
   /**
    * Create a LangGraph node for a workflow step
+   * Refactored to use executor pattern for AI-agnostic workflow orchestration
    */
   private createStepNode(step: WorkflowStep) {
     return async (state: typeof WorkflowStateSchema.State) => {
@@ -521,184 +546,44 @@ export class WorkflowOrchestrator {
           }
         }
 
-        // Resolve template variables in task
-        const resolvedTask = this.resolveTemplateVariables(step.task, state)
-        console.log(`[WorkflowOrchestrator] Step ${step.id} - Original task: ${step.task}`)
-        console.log(`[WorkflowOrchestrator] Step ${step.id} - Resolved task: ${resolvedTask}`)
+        // EXECUTOR PATTERN: Get appropriate executor for this step
+        const executor = this.executorRegistry.getExecutor(step)
         console.log(
-          `[WorkflowOrchestrator] Step ${step.id} - Available outputs:`,
-          Object.keys(state.stepOutputs)
+          `[WorkflowOrchestrator] Step ${step.id} using executor: ${executor.constructor.name}`
         )
 
-        // Try to get project agents first
-        let agentInstanceId: string | null = null
-        let agentShortId: string | null = null
-        let agentRole: string | null = null
-        let globalAgentConfig: { id: string; role?: string; systemPrompt?: string } | null = null
-
-        if (state.projectId) {
-          try {
-            const projectAgents = await this.projectService.getProjectAgentsWithShortIds(
-              state.projectId
-            )
-
-            // If agentId is provided, use it directly (short ID like dev_01)
-            if (step.agentId) {
-              const projectAgent = projectAgents.find((a) => a.shortId === step.agentId)
-
-              if (projectAgent) {
-                agentInstanceId = projectAgent.agentConfigId
-                agentShortId = projectAgent.shortId
-                agentRole = projectAgent.role
-                console.log(
-                  `[WorkflowOrchestrator] Using project agent by ID: ${projectAgent.shortId} (config: ${agentInstanceId})`
-                )
-              } else {
-                throw new Error(`Agent with ID ${step.agentId} not found in project`)
-              }
-            }
-            // Legacy: If role is provided, find by role
-            else if (step.role) {
-              const projectAgent = projectAgents.find(
-                (a) => a.role?.toLowerCase() === step.role!.toLowerCase()
-              )
-
-              if (projectAgent) {
-                agentInstanceId = projectAgent.agentConfigId
-                agentShortId = projectAgent.shortId
-                agentRole = projectAgent.role
-                console.log(
-                  `[WorkflowOrchestrator] Using project agent ${projectAgent.shortId} (config: ${agentInstanceId}) for role ${step.role}`
-                )
-              }
-            }
-          } catch (error) {
-            console.log(`[WorkflowOrchestrator] Could not get project agents: ${error}`)
-          }
+        // Build executor context from workflow state
+        const context: WorkflowContext = {
+          stepOutputs: state.stepOutputs,
+          projectId: state.projectId,
+          threadId: state.threadId,
+          io: this.io,
+          sessionIds: state.sessionIds,
+          startNewConversation: state.startNewConversation,
         }
 
-        // Fall back to global agent config if no project agent found (only for role-based)
-        if (!agentInstanceId && step.role) {
-          const agents = await this.agentConfigService.getAllConfigs()
-          globalAgentConfig =
-            agents.find((a: AgentConfig) => a.role?.toLowerCase() === step.role!.toLowerCase()) ||
-            null
-
-          if (!globalAgentConfig) {
-            throw new Error(`No agent found for role: ${step.role}`)
-          }
-
-          agentInstanceId = globalAgentConfig.id
-          agentRole = globalAgentConfig.role || step.role
-          console.log(
-            `[WorkflowOrchestrator] Using global agent config ${agentInstanceId} for role ${step.role}`
-          )
-        }
-
-        if (!agentInstanceId) {
-          throw new Error(
-            `No agent found for step: ${JSON.stringify({ role: step.role, agentId: step.agentId })}`
-          )
-        }
-
-        // Get project workspace path for Studio projects
-        let projectPath: string | undefined
-        if (state.projectId) {
-          try {
-            const project = await this.projectService.getProjectWithAgents(state.projectId)
-            projectPath = project.workspacePath
-            console.log(`[WorkflowOrchestrator] Using project workspace: ${projectPath}`)
-          } catch (error) {
-            console.log(`[WorkflowOrchestrator] Could not get project workspace: ${error}`)
-          }
-        }
-
-        // Send message via ClaudeService using the appropriate agent ID
-        // For UI compatibility, use shortId for session creation but pass agentConfigId for agent loading
-        const sessionAgentId = agentShortId || agentInstanceId! // Use short ID for sessions, config ID as fallback
-
-        // Get agent config to pass system prompt and other settings
-        let agentConfig: AgentConfig | undefined
-        if (agentInstanceId) {
-          const config = await this.agentConfigService.getConfig(agentInstanceId)
-          agentConfig = config || undefined
-          console.log(
-            `[WorkflowOrchestrator] Loaded agent config for ${agentInstanceId}:`,
-            JSON.stringify(agentConfig, null, 2)
-          )
-        }
-
-        // Emit user message through WebSocket for real-time UI updates
-        if (this.io && sessionAgentId) {
-          console.log(`[WorkflowOrchestrator] Emitting user message for session: ${sessionAgentId}`)
-          this.io.emit('message:new', {
-            sessionId: sessionAgentId,
-            message: {
-              role: 'user',
-              content: resolvedTask,
-              timestamp: new Date().toISOString(),
-            },
-          })
-        }
-
-        FlowLogger.log('step-execution', `-> ClaudeService.sendMessage()`)
-
-        // Simple timeout using Promise.race - Library-First approach
-        const STEP_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
-        const timeoutPromise: Promise<never> = new Promise((_, reject) => {
-          setTimeout(
-            () => reject(new Error(`Step timed out after ${STEP_TIMEOUT_MS / 1000} seconds`)),
-            STEP_TIMEOUT_MS
-          )
-        })
-
-        const messagePromise = this.claudeService.sendMessage(
-          resolvedTask,
-          state.projectId,
-          sessionAgentId, // Use short ID for session creation to match UI expectations
-          projectPath, // Pass workspace path for proper session isolation
-          undefined, // role - let it default
-          undefined, // onStream
-          this.io,
-          step.sessionId ? false : state.startNewConversation, // Don't force new if resuming
-          agentConfig // Pass agent config explicitly since we're using short ID for session
+        // DELEGATE EXECUTION: Let the executor handle the step
+        FlowLogger.log('step-execution', `-> ${executor.constructor.name}.execute()`)
+        const stepResult = await executor.execute(step, context)
+        FlowLogger.log(
+          'step-execution',
+          `<- ${executor.constructor.name} completed with status: ${stepResult.status}`
         )
 
-        const result = await Promise.race([messagePromise, timeoutPromise])
-        FlowLogger.log('step-execution', `<- ClaudeService response received`)
-
-        // Check status with operator - pass context for accurate evaluation
-        FlowLogger.log('step-execution', `-> SimpleOperator.checkStatus()`)
-        const analysis = await this.operator.checkStatus(result.response, {
-          role: agentRole || step.role || 'agent', // Use the agent's role for context
-          task: resolvedTask,
-          roleSystemPrompt: globalAgentConfig?.systemPrompt || undefined,
-        })
-        FlowLogger.log('step-execution', `<- Operator analysis: ${analysis.status}`)
-
-        // Build step result
-        const stepResult: StepResult = {
-          id: step.id!,
-          status: analysis.status,
-          response: result.response,
-          sessionId: result.sessionId || '',
-          duration: Date.now() - startTime,
-        }
-
-        // Emit step complete event with sessionId for recovery
-        if (analysis.status === 'success') {
+        // Emit step events based on result
+        if (stepResult.status === 'success') {
           FlowLogger.log('step-execution', `Step ${step.id} SUCCESS - emitting step_complete`)
           this.emitWorkflowEvent({
             type: 'step_complete',
             threadId: state.threadId,
             stepId: step.id,
-            sessionId: result.sessionId || undefined,
+            sessionId: stepResult.sessionId || undefined,
           })
           // Update monitor on step completion
           monitor.updateHeartbeat(state.threadId, step.id)
           FlowLogger.log('step-execution', `-> WorkflowMonitor.updateHeartbeat(${step.id})`)
         } else {
-          FlowLogger.log('step-execution', `Step ${step.id} FAILED - status: ${analysis.status}`)
+          FlowLogger.log('step-execution', `Step ${step.id} FAILED - status: ${stepResult.status}`)
         }
 
         // Emit graph update after step completion
@@ -706,13 +591,13 @@ export class WorkflowOrchestrator {
           state.threadId,
           state.steps,
           { ...state.stepResults, [step.id!]: stepResult },
-          { ...state.sessionIds, [step.id!]: result.sessionId || '' }
+          { ...state.sessionIds, [step.id!]: stepResult.sessionId || '' }
         )
 
         // Update workflow status with sessionId
-        if (result.sessionId) {
+        if (stepResult.sessionId) {
           const sessionIds: Record<string, string> = {}
-          sessionIds[step.id!] = result.sessionId
+          sessionIds[step.id!] = stepResult.sessionId
           await updateWorkflowStatus(state.threadId, {
             sessionIds,
             currentStep: step.id,
@@ -722,8 +607,8 @@ export class WorkflowOrchestrator {
         // Update state - merge with existing state
         return {
           stepResults: { ...state.stepResults, [step.id!]: stepResult },
-          stepOutputs: { ...state.stepOutputs, [step.id!]: result.response },
-          sessionIds: { ...state.sessionIds, [step.id!]: result.sessionId },
+          stepOutputs: { ...state.stepOutputs, [step.id!]: stepResult.response },
+          sessionIds: { ...state.sessionIds, [step.id!]: stepResult.sessionId },
           currentStepIndex: state.currentStepIndex + 1,
         }
       } catch (error) {
@@ -766,53 +651,6 @@ export class WorkflowOrchestrator {
         }
       }
     }
-  }
-
-  /**
-   * Resolve template variables in task
-   */
-  private resolveTemplateVariables(task: string, state: typeof WorkflowStateSchema.State): string {
-    // Build context for template resolution
-    const context: TemplateContext = {}
-
-    // Add step outputs - string-template doesn't support nested properties
-    // So we need to flatten {step.output} to {step_output}
-    console.log(`[WorkflowOrchestrator] Available step outputs:`, state.stepOutputs)
-    state.steps.forEach((step) => {
-      if (step.id && state.stepOutputs[step.id]) {
-        // Support both {stepId.output} and {stepId} syntax
-        context[`${step.id}.output`] = state.stepOutputs[step.id]
-        context[step.id] = state.stepOutputs[step.id]
-        console.log(
-          `[WorkflowOrchestrator] Added to context: ${step.id}.output = "${state.stepOutputs[step.id].substring(0, 50)}..."`
-        )
-      }
-    })
-
-    // Add special variables
-    if (state.steps.length > 0 && state.currentStepIndex > 0) {
-      const prevStepId = state.steps[state.currentStepIndex - 1].id
-      if (prevStepId && state.stepOutputs[prevStepId]) {
-        context.previousOutput = state.stepOutputs[prevStepId]
-      }
-    }
-
-    // string-template doesn't support nested properties like {step.output}
-    // So we need to manually replace them first
-    let processedTask = task
-
-    // Replace {stepId.output} with the actual value
-    Object.keys(state.stepOutputs).forEach((stepId) => {
-      const regex = new RegExp(`\\{${stepId}\\.output\\}`, 'g')
-      processedTask = processedTask.replace(regex, state.stepOutputs[stepId])
-    })
-
-    // Now use string-template for any remaining simple variables
-    console.log(`[WorkflowOrchestrator] Template context:`, JSON.stringify(context, null, 2))
-    console.log(`[WorkflowOrchestrator] Pre-processed task: "${task}" -> "${processedTask}"`)
-    const resolved = format(processedTask, context)
-    console.log(`[WorkflowOrchestrator] Final resolution: "${resolved}"`)
-    return resolved
   }
 
   /**
