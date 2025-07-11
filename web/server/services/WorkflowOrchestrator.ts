@@ -114,13 +114,22 @@ export class WorkflowOrchestrator {
    * Emit workflow event to both Socket.io and EventEmitter
    */
   private emitWorkflowEvent(event: {
-    type: 'step_start' | 'step_complete' | 'step_failed' | 'workflow_complete' | 'workflow_failed'
+    type:
+      | 'step_start'
+      | 'step_complete'
+      | 'step_failed'
+      | 'workflow_complete'
+      | 'workflow_failed'
+      | 'graph_update'
     threadId: string
     stepId?: string
     sessionId?: string
     retry?: number
     status?: string
     lastStep?: string
+    projectId?: string
+    error?: string
+    graph?: WorkflowGraph
   }): void {
     if (this.io) {
       this.io.emit('workflow:update', event)
@@ -261,6 +270,9 @@ export class WorkflowOrchestrator {
         dependencies: step.deps || [],
       })),
     })
+
+    // Emit initial graph state
+    this.emitGraphUpdate(threadId, normalizedSteps, {}, {})
 
     // Build and execute workflow
     const workflow = await this.buildWorkflow(normalizedSteps)
@@ -474,6 +486,15 @@ export class WorkflowOrchestrator {
       const monitor = WorkflowMonitor.getInstance()
       monitor.updateHeartbeat(state.threadId, step.id)
 
+      // Emit graph update showing current step
+      this.emitGraphUpdate(
+        state.threadId,
+        state.steps,
+        state.stepResults,
+        state.sessionIds,
+        step.id // Current step being executed
+      )
+
       // Log flow for documentation
       FlowLogger.log('step-execution', `Step ${step.id} START`)
       FlowLogger.log('step-execution', `-> WorkflowMonitor.updateHeartbeat(${step.id})`)
@@ -679,6 +700,14 @@ export class WorkflowOrchestrator {
         } else {
           FlowLogger.log('step-execution', `Step ${step.id} FAILED - status: ${analysis.status}`)
         }
+
+        // Emit graph update after step completion
+        this.emitGraphUpdate(
+          state.threadId,
+          state.steps,
+          { ...state.stepResults, [step.id!]: stepResult },
+          { ...state.sessionIds, [step.id!]: result.sessionId || '' }
+        )
 
         // Update workflow status with sessionId
         if (result.sessionId) {
@@ -1150,5 +1179,29 @@ export class WorkflowOrchestrator {
     return Object.values(stepResults).every(
       (result) => result.status === 'success' || result.status === 'failed'
     )
+  }
+
+  /**
+   * Emit graph update event with current workflow state
+   */
+  private emitGraphUpdate(
+    threadId: string,
+    steps: WorkflowStep[],
+    stepResults: Record<string, StepResult>,
+    sessionIds: Record<string, string>,
+    currentStepId?: string
+  ) {
+    const graph = this.generateWorkflowGraph(steps, stepResults, sessionIds)
+
+    // Mark current node if executing
+    if (currentStepId && graph.execution) {
+      graph.execution.currentNode = currentStepId
+    }
+
+    this.emitWorkflowEvent({
+      type: 'graph_update',
+      threadId,
+      graph,
+    })
   }
 }

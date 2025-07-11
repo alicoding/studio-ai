@@ -21,6 +21,7 @@ interface WorkflowEvent {
     | 'step_failed'
     | 'workflow_complete'
     | 'workflow_failed'
+    | 'graph_update'
   threadId: string
   stepId?: string
   sessionId?: string
@@ -112,7 +113,7 @@ router.get('/events', (req: Request, res: Response) => {
   }, 30000)
 
   // Listen for workflow events
-  const handleWorkflowUpdate = (data: WorkflowEvent) => {
+  const handleWorkflowUpdate = (data: WorkflowEvent & { graph?: unknown }) => {
     // Emit different event types based on the data
     if (data.type === 'workflow_created') {
       res.write(`event: workflow_created\ndata: ${JSON.stringify(data)}\n\n`)
@@ -132,6 +133,13 @@ router.get('/events', (req: Request, res: Response) => {
         `event: workflow_status\ndata: ${JSON.stringify({
           ...data,
           status: data.type.replace('workflow_', ''),
+        })}\n\n`
+      )
+    } else if (data.type === 'graph_update' && data.graph) {
+      res.write(
+        `event: graph_update\ndata: ${JSON.stringify({
+          threadId: data.threadId,
+          graph: data.graph,
         })}\n\n`
       )
     }

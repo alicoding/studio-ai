@@ -29,10 +29,10 @@ Implement visual workflow monitoring similar to n8n/ReactFlow to see workflow ex
 
 ### 1.3 Enhance Workflow Events
 
-- [ ] Add graph update events to SSE stream
-- [ ] Include node state changes (pending→running→completed)
-- [ ] Emit routing decisions and loop iterations
-- [ ] Send timing data for animations
+- [x] Add graph update events to SSE stream
+- [x] Include node state changes (pending→running→completed)
+- [x] Emit routing decisions and loop iterations
+- [x] Send timing data for animations
 
 ## Phase 2: Test Infrastructure (Mocked) ⏳
 
