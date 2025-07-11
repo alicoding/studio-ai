@@ -110,16 +110,16 @@ export function WorkflowModal({ workflow, isOpen, onClose }: WorkflowModalProps)
   }
 
   const formatTime = (dateString?: string) => {
-    if (!dateString) return '-'
+    if (!dateString) return null
     try {
       return format(new Date(dateString), 'HH:mm:ss')
     } catch {
-      return '-'
+      return null
     }
   }
 
   const getDuration = (start?: string, end?: string) => {
-    if (!start) return '-'
+    if (!start) return null
     const startTime = new Date(start).getTime()
     const endTime = end ? new Date(end).getTime() : Date.now()
     const duration = Math.floor((endTime - startTime) / 1000)
@@ -128,6 +128,32 @@ export function WorkflowModal({ workflow, isOpen, onClose }: WorkflowModalProps)
     const minutes = Math.floor(duration / 60)
     const seconds = duration % 60
     return `${minutes}m ${seconds}s`
+  }
+
+  const renderTimeInfo = (step: WorkflowStep) => {
+    const startTime = formatTime(step.startTime)
+    const endTime = formatTime(step.endTime)
+    const duration = getDuration(step.startTime, step.endTime)
+
+    // If no timing information available
+    if (!startTime && !endTime && !duration) {
+      return (
+        <div className="text-xs text-muted-foreground">
+          <span>No timing data available</span>
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        {startTime && <span>Start: {startTime}</span>}
+        {endTime && <span>End: {endTime}</span>}
+        {duration && <span>Duration: {duration}</span>}
+        {!endTime && startTime && step.status === 'running' && (
+          <span className="text-blue-500">In progress...</span>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -202,11 +228,7 @@ export function WorkflowModal({ workflow, isOpen, onClose }: WorkflowModalProps)
 
                   <p className="text-sm mb-2 text-foreground/90">{step.task}</p>
 
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span>Start: {formatTime(step.startTime)}</span>
-                    <span>End: {formatTime(step.endTime)}</span>
-                    <span>Duration: {getDuration(step.startTime, step.endTime)}</span>
-                  </div>
+                  {renderTimeInfo(step)}
 
                   {step.dependencies && step.dependencies.length > 0 && (
                     <div className="mt-2 text-xs text-muted-foreground">

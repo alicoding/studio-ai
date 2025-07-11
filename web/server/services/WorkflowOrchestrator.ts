@@ -125,6 +125,76 @@ export class WorkflowOrchestrator {
   }
 
   /**
+   * Validate agent configurations before starting workflow
+   * Prevents stuck workflows by failing fast on invalid agents
+   */
+  private async validateAgentConfigs(steps: WorkflowStep[], projectId?: string): Promise<void> {
+    for (const step of steps) {
+      // Must specify either agentId or role
+      if (!step.agentId && !step.role) {
+        throw new Error('Agent configuration validation failed: Must specify either agentId or role for each step')
+      }
+
+      // Validate agent exists
+      if (step.agentId) {
+        // Check project agents first if projectId provided
+        if (projectId) {
+          try {
+            const projectAgents = await this.projectService.getProjectAgentsWithShortIds(projectId)
+            const projectAgent = projectAgents.find((a) => a.shortId === step.agentId)
+            
+            if (!projectAgent) {
+              throw new Error(`Agent configuration validation failed: Agent with ID "${step.agentId}" not found in project`)
+            }
+            
+            // Verify the agent config exists
+            const agentConfig = await this.agentConfigService.getConfig(projectAgent.agentConfigId)
+            if (!agentConfig) {
+              throw new Error(`Agent configuration validation failed: Agent config "${projectAgent.agentConfigId}" not found for agent "${step.agentId}"`)
+            }
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('Agent configuration validation failed')) {
+              throw error
+            }
+            throw new Error(`Agent configuration validation failed: Could not validate agent "${step.agentId}" in project - ${error}`)
+          }
+        } else {
+          // No project ID - agentId should be a global config ID
+          const agentConfig = await this.agentConfigService.getConfig(step.agentId)
+          if (!agentConfig) {
+            throw new Error(`Agent configuration validation failed: Agent config "${step.agentId}" not found`)
+          }
+        }
+      } else if (step.role) {
+        // Validate role-based agent
+        let found = false
+        
+        // Check project agents first if projectId provided
+        if (projectId) {
+          try {
+            const projectAgents = await this.projectService.getProjectAgentsWithShortIds(projectId)
+            const projectAgent = projectAgents.find((a) => a.role?.toLowerCase() === step.role!.toLowerCase())
+            if (projectAgent) {
+              found = true
+            }
+          } catch (_error) {
+            // Project not found or no agents - continue to check global
+          }
+        }
+        
+        // Check global agents if not found in project
+        if (!found) {
+          const agents = await this.agentConfigService.getAllConfigs()
+          const globalAgent = agents.find((a: AgentConfig) => a.role?.toLowerCase() === step.role!.toLowerCase())
+          if (!globalAgent) {
+            throw new Error(`Agent configuration validation failed: No agent found for role "${step.role}"`)
+          }
+        }
+      }
+    }
+  }
+
+  /**
    * Execute invoke request - handles single agent or workflow
    */
   async execute(request: InvokeRequest): Promise<InvokeResponse> {
@@ -138,6 +208,9 @@ export class WorkflowOrchestrator {
       ...step,
       id: step.id || `step-${index}`,
     }))
+
+    // Validate all agent configurations before starting workflow
+    await this.validateAgentConfigs(normalizedSteps, request.projectId)
 
     // Generate or use threadId as the workflow session identifier
     const threadId = request.threadId || uuidv4()
@@ -523,7 +596,14 @@ export class WorkflowOrchestrator {
         }
 
         FlowLogger.log('step-execution', `-> ClaudeService.sendMessage()`)
-        const result = await this.claudeService.sendMessage(
+        
+        // Simple timeout using Promise.race - Library-First approach
+        const STEP_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
+        const timeoutPromise: Promise<never> = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error(`Step timed out after ${STEP_TIMEOUT_MS / 1000} seconds`)), STEP_TIMEOUT_MS)
+        })
+        
+        const messagePromise = this.claudeService.sendMessage(
           resolvedTask,
           state.projectId,
           sessionAgentId, // Use short ID for session creation to match UI expectations
@@ -534,6 +614,8 @@ export class WorkflowOrchestrator {
           step.sessionId ? false : state.startNewConversation, // Don't force new if resuming
           agentConfig // Pass agent config explicitly since we're using short ID for session
         )
+        
+        const result = await Promise.race([messagePromise, timeoutPromise])
         FlowLogger.log('step-execution', `<- ClaudeService response received`)
 
         // Check status with operator - pass context for accurate evaluation

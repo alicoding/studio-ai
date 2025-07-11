@@ -79,6 +79,10 @@ router.post('/', async (req: Request, res: Response) => {
         error: 'Role not found',
         message: error.message,
       })
+    } else if (error instanceof Error && error.message.includes('Agent configuration validation failed')) {
+      res.status(400).json({
+        error: error.message,
+      })
     } else {
       res.status(500).json({
         error: 'Workflow execution failed',

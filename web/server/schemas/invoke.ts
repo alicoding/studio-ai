@@ -33,7 +33,7 @@ export const InvokeRequestSchema = z.object({
   ]),
   threadId: z.string().optional(), // Group related work
   startNewConversation: z.boolean().default(false).optional(),
-  projectId: z.string().min(1),
+  projectId: z.string().min(1).optional(), // Optional for global-only resolution
   format: z.enum(['json', 'text']).default('json').optional(),
 })
 
