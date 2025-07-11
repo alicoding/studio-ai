@@ -17,6 +17,12 @@ import { StudioProjectService } from './StudioProjectService'
 import { detectAbortError, AbortError } from '../utils/errorUtils'
 import { updateWorkflowStatus } from '../api/invoke-status'
 import type { InvokeRequest, InvokeResponse, WorkflowStep, StepResult } from '../schemas/invoke'
+import type {
+  WorkflowGraph,
+  WorkflowNode,
+  WorkflowEdge,
+  WorkflowLoop,
+} from '../schemas/workflow-graph'
 import type { Server } from 'socket.io'
 import { EventEmitter } from 'events'
 import { WorkflowMonitor } from './WorkflowMonitor'
@@ -132,7 +138,9 @@ export class WorkflowOrchestrator {
     for (const step of steps) {
       // Must specify either agentId or role
       if (!step.agentId && !step.role) {
-        throw new Error('Agent configuration validation failed: Must specify either agentId or role for each step')
+        throw new Error(
+          'Agent configuration validation failed: Must specify either agentId or role for each step'
+        )
       }
 
       // Validate agent exists
@@ -142,38 +150,51 @@ export class WorkflowOrchestrator {
           try {
             const projectAgents = await this.projectService.getProjectAgentsWithShortIds(projectId)
             const projectAgent = projectAgents.find((a) => a.shortId === step.agentId)
-            
+
             if (!projectAgent) {
-              throw new Error(`Agent configuration validation failed: Agent with ID "${step.agentId}" not found in project`)
+              throw new Error(
+                `Agent configuration validation failed: Agent with ID "${step.agentId}" not found in project`
+              )
             }
-            
+
             // Verify the agent config exists
             const agentConfig = await this.agentConfigService.getConfig(projectAgent.agentConfigId)
             if (!agentConfig) {
-              throw new Error(`Agent configuration validation failed: Agent config "${projectAgent.agentConfigId}" not found for agent "${step.agentId}"`)
+              throw new Error(
+                `Agent configuration validation failed: Agent config "${projectAgent.agentConfigId}" not found for agent "${step.agentId}"`
+              )
             }
           } catch (error) {
-            if (error instanceof Error && error.message.includes('Agent configuration validation failed')) {
+            if (
+              error instanceof Error &&
+              error.message.includes('Agent configuration validation failed')
+            ) {
               throw error
             }
-            throw new Error(`Agent configuration validation failed: Could not validate agent "${step.agentId}" in project - ${error}`)
+            throw new Error(
+              `Agent configuration validation failed: Could not validate agent "${step.agentId}" in project - ${error}`
+            )
           }
         } else {
           // No project ID - agentId should be a global config ID
           const agentConfig = await this.agentConfigService.getConfig(step.agentId)
           if (!agentConfig) {
-            throw new Error(`Agent configuration validation failed: Agent config "${step.agentId}" not found`)
+            throw new Error(
+              `Agent configuration validation failed: Agent config "${step.agentId}" not found`
+            )
           }
         }
       } else if (step.role) {
         // Validate role-based agent
         let found = false
-        
+
         // Check project agents first if projectId provided
         if (projectId) {
           try {
             const projectAgents = await this.projectService.getProjectAgentsWithShortIds(projectId)
-            const projectAgent = projectAgents.find((a) => a.role?.toLowerCase() === step.role!.toLowerCase())
+            const projectAgent = projectAgents.find(
+              (a) => a.role?.toLowerCase() === step.role!.toLowerCase()
+            )
             if (projectAgent) {
               found = true
             }
@@ -181,13 +202,17 @@ export class WorkflowOrchestrator {
             // Project not found or no agents - continue to check global
           }
         }
-        
+
         // Check global agents if not found in project
         if (!found) {
           const agents = await this.agentConfigService.getAllConfigs()
-          const globalAgent = agents.find((a: AgentConfig) => a.role?.toLowerCase() === step.role!.toLowerCase())
+          const globalAgent = agents.find(
+            (a: AgentConfig) => a.role?.toLowerCase() === step.role!.toLowerCase()
+          )
           if (!globalAgent) {
-            throw new Error(`Agent configuration validation failed: No agent found for role "${step.role}"`)
+            throw new Error(
+              `Agent configuration validation failed: No agent found for role "${step.role}"`
+            )
           }
         }
       }
@@ -596,13 +621,16 @@ export class WorkflowOrchestrator {
         }
 
         FlowLogger.log('step-execution', `-> ClaudeService.sendMessage()`)
-        
+
         // Simple timeout using Promise.race - Library-First approach
         const STEP_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
         const timeoutPromise: Promise<never> = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error(`Step timed out after ${STEP_TIMEOUT_MS / 1000} seconds`)), STEP_TIMEOUT_MS)
+          setTimeout(
+            () => reject(new Error(`Step timed out after ${STEP_TIMEOUT_MS / 1000} seconds`)),
+            STEP_TIMEOUT_MS
+          )
         })
-        
+
         const messagePromise = this.claudeService.sendMessage(
           resolvedTask,
           state.projectId,
@@ -614,7 +642,7 @@ export class WorkflowOrchestrator {
           step.sessionId ? false : state.startNewConversation, // Don't force new if resuming
           agentConfig // Pass agent config explicitly since we're using short ID for session
         )
-        
+
         const result = await Promise.race([messagePromise, timeoutPromise])
         FlowLogger.log('step-execution', `<- ClaudeService response received`)
 
@@ -913,5 +941,214 @@ export class WorkflowOrchestrator {
       ...response,
       results: { text: textResults },
     }
+  }
+
+  /**
+   * Generate workflow graph structure for visualization
+   * KISS: Simple node/edge generation based on workflow steps
+   * DRY: Reuses step information already available
+   */
+  generateWorkflowGraph(
+    steps: WorkflowStep[],
+    stepResults: Record<string, StepResult>,
+    sessionIds: Record<string, string>
+  ): WorkflowGraph {
+    // Generate nodes with auto-layout positions
+    const nodes: WorkflowNode[] = steps.map((step, index) => {
+      const result = stepResults[step.id!]
+      const x = this.calculateNodeX(step, steps)
+      const y = this.calculateNodeY(step, steps, index)
+
+      return {
+        id: step.id!,
+        type: 'step',
+        data: {
+          agentId: step.agentId,
+          role: step.role,
+          task: step.task,
+          status: this.mapResultStatusToNodeStatus(result?.status),
+          startTime: result ? Date.now() - result.duration : undefined,
+          endTime: result ? Date.now() : undefined,
+          output: result?.response,
+          error: result?.status === 'failed' ? result?.response : undefined,
+          sessionId: sessionIds[step.id!],
+        },
+        position: { x, y },
+      }
+    })
+
+    // Generate edges based on dependencies
+    const edges: WorkflowEdge[] = []
+    steps.forEach((step) => {
+      if (step.deps && step.deps.length > 0) {
+        step.deps.forEach((depId) => {
+          edges.push({
+            id: `${depId}-${step.id}`,
+            source: depId,
+            target: step.id!,
+            type: 'dependency',
+            animated: false, // StepResult doesn't have 'running' status
+          })
+        })
+      }
+    })
+
+    // Detect loops in execution
+    const loops = this.detectLoops(steps, stepResults)
+
+    // Build execution path
+    const executionPath = this.buildExecutionPath(steps, stepResults)
+
+    return {
+      nodes,
+      edges,
+      execution: {
+        path: executionPath,
+        loops,
+        currentNode: this.findCurrentNode(stepResults),
+        resumePoints: this.findResumePoints(stepResults),
+        startTime: Math.min(...Object.values(stepResults).map((r) => Date.now() - r.duration)),
+        endTime: this.isWorkflowComplete(stepResults) ? Date.now() : undefined,
+      },
+    }
+  }
+
+  /**
+   * Calculate X position for node based on dependencies
+   */
+  private calculateNodeX(step: WorkflowStep, allSteps: WorkflowStep[]): number {
+    const baseX = 100
+    const spacing = 300
+
+    // Calculate depth (distance from start)
+    const depth = this.calculateDepth(step.id!, allSteps)
+    return baseX + depth * spacing
+  }
+
+  /**
+   * Calculate Y position for node to avoid overlaps
+   */
+  private calculateNodeY(step: WorkflowStep, allSteps: WorkflowStep[], _index: number): number {
+    const baseY = 100
+    const spacing = 150
+
+    // Group by depth level
+    const depth = this.calculateDepth(step.id!, allSteps)
+    const sameDepthSteps = allSteps.filter((s) => this.calculateDepth(s.id!, allSteps) === depth)
+
+    const positionInLevel = sameDepthSteps.findIndex((s) => s.id === step.id)
+    return baseY + positionInLevel * spacing
+  }
+
+  /**
+   * Calculate depth of a step in the dependency graph
+   */
+  private calculateDepth(stepId: string, allSteps: WorkflowStep[]): number {
+    const step = allSteps.find((s) => s.id === stepId)
+    if (!step || !step.deps || step.deps.length === 0) {
+      return 0
+    }
+
+    const depDepths = step.deps.map((depId) => this.calculateDepth(depId, allSteps))
+    return Math.max(...depDepths) + 1
+  }
+
+  /**
+   * Map step result status to node visualization status
+   */
+  private mapResultStatusToNodeStatus(
+    status?: 'success' | 'failed' | 'blocked' | 'running'
+  ): 'pending' | 'running' | 'completed' | 'failed' | 'blocked' {
+    if (!status) return 'pending'
+
+    switch (status) {
+      case 'success':
+        return 'completed'
+      case 'failed':
+        return 'failed'
+      case 'blocked':
+        return 'blocked'
+      case 'running':
+        return 'running'
+      default:
+        return 'pending'
+    }
+  }
+
+  /**
+   * Detect loops in workflow execution
+   */
+  private detectLoops(
+    steps: WorkflowStep[],
+    _stepResults: Record<string, StepResult>
+  ): WorkflowLoop[] {
+    const loops: WorkflowLoop[] = []
+
+    // Simple loop detection: check if outputs reference previous steps multiple times
+    steps.forEach((step) => {
+      if (step.task.includes('.output}')) {
+        // Extract referenced step IDs
+        const references = step.task.match(/\{(\w+)\.output\}/g) || []
+        const referencedIds = references
+          .map((ref) => ref.match(/\{(\w+)\.output\}/)?.[1])
+          .filter(Boolean)
+
+        // Check if this forms a cycle
+        referencedIds.forEach((refId) => {
+          const referencedStep = steps.find((s) => s.id === refId)
+          if (referencedStep?.deps?.includes(step.id!)) {
+            // Found a loop!
+            loops.push({
+              nodes: [refId!, step.id!],
+              iterations: 1, // TODO: Track actual iterations
+              active: false, // StepResult doesn't have 'running' status
+            })
+          }
+        })
+      }
+    })
+
+    return loops
+  }
+
+  /**
+   * Build execution path from step results
+   */
+  private buildExecutionPath(
+    _steps: WorkflowStep[],
+    stepResults: Record<string, StepResult>
+  ): string[] {
+    // Since we don't have startTime, we'll use the order in stepResults
+    // Steps that completed will have results
+    return Object.entries(stepResults)
+      .filter(([_, result]) => result.status === 'success' || result.status === 'failed')
+      .map(([stepId]) => stepId)
+  }
+
+  /**
+   * Find currently executing node
+   */
+  private findCurrentNode(_stepResults: Record<string, StepResult>): string | undefined {
+    // StepResult doesn't have 'running' status, so we can't detect currently running nodes
+    // This would need to be tracked separately during execution
+    return undefined
+  }
+
+  /**
+   * Find resume points in workflow
+   */
+  private findResumePoints(stepResults: Record<string, StepResult>): string[] {
+    return Object.entries(stepResults)
+      .filter(([_, result]) => result.status === 'blocked' || result.status === 'failed')
+      .map(([stepId]) => stepId)
+  }
+
+  /**
+   * Check if workflow is complete
+   */
+  private isWorkflowComplete(stepResults: Record<string, StepResult>): boolean {
+    return Object.values(stepResults).every(
+      (result) => result.status === 'success' || result.status === 'failed'
+    )
   }
 }
