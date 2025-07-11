@@ -102,16 +102,10 @@ export function WorkflowListDebug({ className = '', enableDebug = false }: Workf
       setDebugInfo(debug)
       console.log('[WorkflowListDebug] Debug info:', debug)
 
-      // Test API call
-      fetchWorkflows()
-        .then(() => {
-          console.log('[WorkflowListDebug] Fetch completed')
-        })
-        .catch((error) => {
-          console.error('[WorkflowListDebug] Fetch failed:', error)
-        })
+      // Don't call fetchWorkflows() here - useWorkflowEvents handles initial loading
+      // This prevents duplicate API calls and race conditions
     }
-  }, [workflows, workflowsObject, enableDebug, fetchWorkflows])
+  }, [workflows, workflowsObject, enableDebug]) // Removed fetchWorkflows from deps
 
   // Memoize computed values to prevent infinite loops
   const { activeWorkflows, completedWorkflows, allWorkflows } = useMemo(() => {

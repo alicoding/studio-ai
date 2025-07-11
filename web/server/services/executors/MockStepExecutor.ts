@@ -74,18 +74,15 @@ export class MockStepExecutor implements StepExecutor {
       return this.resolveTemplates(customResponse, context)
     }
 
-    // Resolve template variables first, then check patterns on the resolved task
+    // Resolve template variables for context, but use original task for pattern matching
     const resolvedTask = this.resolveTemplates(task, context)
-    const taskLower = resolvedTask.toLowerCase()
+    // Use original task for pattern matching to avoid template pollution
+    const taskLower = task.toLowerCase()
     console.log(
       `[MockStepExecutor] Analyzing task: "${task}" -> resolved: "${resolvedTask}" (available outputs: ${Object.keys(context.stepOutputs).join(', ')})`
     )
 
     // Match common patterns with priority order (most specific first)
-    if (taskLower.includes('design') || taskLower.includes('architect')) {
-      console.log(`[MockStepExecutor] Matched pattern: design/architect`)
-      return this.mockResponses.get('design')!
-    }
     if (
       taskLower.includes('test') ||
       taskLower.includes('spec') ||
@@ -109,6 +106,13 @@ export class MockStepExecutor implements StepExecutor {
     if (taskLower.includes('analyze')) {
       console.log(`[MockStepExecutor] Matched pattern: analyze`)
       return this.mockResponses.get('review')!
+    }
+    if (
+      taskLower.includes('design') ||
+      (taskLower.includes('architect') && !taskLower.includes('architecture'))
+    ) {
+      console.log(`[MockStepExecutor] Matched pattern: design/architect`)
+      return this.mockResponses.get('design')!
     }
     if (
       taskLower.includes('implement') ||

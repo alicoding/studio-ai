@@ -6,9 +6,23 @@
  * KISS: Simple modal interface
  */
 
-import { X, Activity, CheckCircle, XCircle, Loader2, Clock } from 'lucide-react'
+import { useState } from 'react'
+import {
+  X,
+  Activity,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  Clock,
+  GitBranch,
+  List,
+  Trash2,
+} from 'lucide-react'
 import { format } from 'date-fns'
 import type { WorkflowInfo, WorkflowStep } from '../../stores/workflows'
+import { WorkflowGraph } from './WorkflowGraph'
+import { useWorkflowGraph } from '../../hooks/useWorkflowGraph'
+import { useWorkflowStore } from '../../stores/workflows'
 
 interface WorkflowModalProps {
   workflow: WorkflowInfo | null
@@ -32,6 +46,40 @@ const statusColors = {
 }
 
 export function WorkflowModal({ workflow, isOpen, onClose }: WorkflowModalProps) {
+  const [activeTab, setActiveTab] = useState<'steps' | 'graph'>('steps')
+  const [isDeleting, setIsDeleting] = useState(false)
+  const {
+    graphData,
+    loading: graphLoading,
+    error: graphError,
+  } = useWorkflowGraph(workflow?.threadId || null)
+  const { deleteWorkflow } = useWorkflowStore()
+
+  const handleDelete = async () => {
+    if (!workflow || isDeleting) return
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete workflow "${workflow.invocation}"?\n\nThis action cannot be undone.`
+    )
+
+    if (!confirmed) return
+
+    setIsDeleting(true)
+    try {
+      const success = await deleteWorkflow(workflow.threadId)
+      if (success) {
+        onClose() // Close modal after successful deletion
+      } else {
+        alert('Failed to delete workflow. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error deleting workflow:', error)
+      alert('An error occurred while deleting the workflow.')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   if (!isOpen) return null
 
   // Handle empty state when no workflow is selected
@@ -174,15 +222,28 @@ export function WorkflowModal({ workflow, isOpen, onClose }: WorkflowModalProps)
               <p className="text-sm text-muted-foreground">Thread ID: {workflow.threadId}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-secondary rounded-md transition-colors">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="p-2 hover:bg-red-100 hover:text-red-600 rounded-md transition-colors disabled:opacity-50"
+              title="Delete workflow"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-secondary rounded-md transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-hidden flex flex-col">
           {/* Workflow Info */}
-          <div className="bg-secondary/30 rounded-lg p-4 mb-4">
+          <div className="bg-secondary/30 rounded-lg p-4 m-4 mb-0">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Status:</span>
@@ -205,45 +266,123 @@ export function WorkflowModal({ workflow, isOpen, onClose }: WorkflowModalProps)
             </div>
           </div>
 
-          {/* Steps */}
-          <div>
-            <h3 className="text-md font-semibold mb-3">Workflow Steps</h3>
-            <div className="space-y-3">
-              {workflow.steps.map((step, index) => (
-                <div
-                  key={step.id}
-                  className="bg-card border border-border rounded-lg p-4 hover:bg-secondary/20 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-muted-foreground">
-                        Step {index + 1}
-                      </span>
-                      <span className="text-sm font-semibold">
-                        {step.agentId || step.role || 'Unknown'}
-                      </span>
-                    </div>
-                    {getStepStatus(step)}
-                  </div>
-
-                  <p className="text-sm mb-2 text-foreground/90">{step.task}</p>
-
-                  {renderTimeInfo(step)}
-
-                  {step.dependencies && step.dependencies.length > 0 && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Dependencies: {step.dependencies.join(', ')}
-                    </div>
-                  )}
-
-                  {step.error && (
-                    <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-500">
-                      Error: {step.error}
-                    </div>
-                  )}
-                </div>
-              ))}
+          {/* Tabs */}
+          <div className="px-4 pt-4">
+            <div className="flex space-x-1 bg-secondary/30 p-1 rounded-lg">
+              <button
+                onClick={() => setActiveTab('steps')}
+                className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  activeTab === 'steps'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <List className="w-4 h-4" />
+                Steps List
+              </button>
+              <button
+                onClick={() => setActiveTab('graph')}
+                className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  activeTab === 'graph'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <GitBranch className="w-4 h-4" />
+                Graph View
+              </button>
             </div>
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {activeTab === 'steps' && (
+              <div>
+                <h3 className="text-md font-semibold mb-3">Workflow Steps</h3>
+                <div className="space-y-3">
+                  {workflow.steps.map((step, index) => (
+                    <div
+                      key={step.id}
+                      className="bg-card border border-border rounded-lg p-4 hover:bg-secondary/20 transition-colors"
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-muted-foreground">
+                            Step {index + 1}
+                          </span>
+                          <span className="text-sm font-semibold">
+                            {step.agentId || step.role || 'Unknown'}
+                          </span>
+                        </div>
+                        {getStepStatus(step)}
+                      </div>
+
+                      <p className="text-sm mb-2 text-foreground/90">{step.task}</p>
+
+                      {renderTimeInfo(step)}
+
+                      {step.dependencies && step.dependencies.length > 0 && (
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          Dependencies: {step.dependencies.join(', ')}
+                        </div>
+                      )}
+
+                      {step.error && (
+                        <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-xs text-red-500">
+                          Error: {step.error}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'graph' && (
+              <div className="h-full min-h-[500px] flex flex-col">
+                {graphLoading && (
+                  <div className="flex items-center justify-center h-64">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <span className="ml-2 text-muted-foreground">Loading workflow graph...</span>
+                  </div>
+                )}
+
+                {graphError && !graphLoading && (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                      <XCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                      <p className="text-red-500 mb-2">Failed to load workflow graph</p>
+                      <p className="text-sm text-muted-foreground">{graphError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {graphData && !graphLoading && !graphError && (
+                  <div
+                    className="flex-1 h-full border border-border rounded-lg overflow-hidden"
+                    style={{ minHeight: '500px' }}
+                  >
+                    <WorkflowGraph
+                      data={graphData.graph}
+                      threadId={workflow.threadId}
+                      className="w-full h-full"
+                    />
+                  </div>
+                )}
+
+                {!graphData && !graphLoading && !graphError && (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                      <GitBranch className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-muted-foreground">No graph data available</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Graph visualization requires workflow execution data
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

@@ -21,6 +21,10 @@ import {
   handleGetRoles,
   handleInvokeAsync,
   handleInvokeStatus,
+  handleListWorkflows,
+  handleDeleteWorkflow,
+  handleBulkDeleteWorkflows,
+  handleCleanupOldWorkflows,
 } from './invokeTools.js'
 import {
   handleListProjects,
@@ -326,6 +330,27 @@ export class ToolHandlerRegistry {
         throw new Error('Invalid arguments')
       }
       return await handleInvokeStatus(args)
+    })
+
+    // Workflow Management Handlers
+    this.register('list_workflows', async () => await handleListWorkflows({}))
+    this.register('delete_workflow', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      return await handleDeleteWorkflow(args)
+    })
+    this.register('bulk_delete_workflows', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      return await handleBulkDeleteWorkflows(args)
+    })
+    this.register('cleanup_old_workflows', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      return await handleCleanupOldWorkflows(args)
     })
 
     // MCP Configuration Handlers

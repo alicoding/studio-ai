@@ -270,7 +270,17 @@ export class WorkflowRegistry {
     await this.initialize()
 
     try {
-      await this.pool.query('DELETE FROM workflow_registry WHERE thread_id = $1', [threadId])
+      console.log('[WorkflowRegistry] Attempting to delete workflow:', threadId)
+      const result = await this.pool.query('DELETE FROM workflow_registry WHERE thread_id = $1', [
+        threadId,
+      ])
+      console.log('[WorkflowRegistry] Delete result - rowCount:', result.rowCount)
+
+      if (result.rowCount === 0) {
+        console.warn('[WorkflowRegistry] No rows deleted - workflow may not exist:', threadId)
+      } else {
+        console.log('[WorkflowRegistry] Successfully deleted workflow:', threadId)
+      }
     } catch (error) {
       console.error('[WorkflowRegistry] Failed to delete workflow:', error)
       throw error

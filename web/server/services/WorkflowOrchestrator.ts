@@ -884,8 +884,8 @@ export class WorkflowOrchestrator {
    * Calculate X position for node based on dependencies
    */
   private calculateNodeX(step: WorkflowStep, allSteps: WorkflowStep[]): number {
-    const baseX = 100
-    const spacing = 300
+    const baseX = 50
+    const spacing = 350 // Increased spacing between columns
 
     // Calculate depth (distance from start)
     const depth = this.calculateDepth(step.id!, allSteps)
@@ -896,15 +896,25 @@ export class WorkflowOrchestrator {
    * Calculate Y position for node to avoid overlaps
    */
   private calculateNodeY(step: WorkflowStep, allSteps: WorkflowStep[], _index: number): number {
-    const baseY = 100
-    const spacing = 150
+    const baseY = 50
+    const spacing = 200 // Increased vertical spacing
 
     // Group by depth level
     const depth = this.calculateDepth(step.id!, allSteps)
     const sameDepthSteps = allSteps.filter((s) => this.calculateDepth(s.id!, allSteps) === depth)
 
     const positionInLevel = sameDepthSteps.findIndex((s) => s.id === step.id)
-    return baseY + positionInLevel * spacing
+
+    // Center nodes vertically if there are fewer nodes than max
+    const maxNodesAtDepth = Math.max(
+      ...Array.from(
+        { length: 10 },
+        (_, i) => allSteps.filter((s) => this.calculateDepth(s.id!, allSteps) === i).length
+      )
+    )
+
+    const offsetY = ((maxNodesAtDepth - sameDepthSteps.length) * spacing) / 4
+    return baseY + offsetY + positionInLevel * spacing
   }
 
   /**

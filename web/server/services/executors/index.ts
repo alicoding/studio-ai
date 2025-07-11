@@ -12,3 +12,6 @@ export type { StepExecutor, WorkflowContext, ExecutorWorkflowStep } from './Step
 export { StepExecutorRegistry } from './StepExecutorRegistry'
 export { MockStepExecutor } from './MockStepExecutor'
 export { ClaudeStepExecutor } from './ClaudeStepExecutor'
+export { OperatorStepExecutor } from './OperatorStepExecutor'
+export { JavaScriptStepExecutor } from './JavaScriptStepExecutor'
+export { WebhookStepExecutor } from './WebhookStepExecutor'

@@ -524,3 +524,280 @@ export async function handleInvokeStatus(args: unknown): Promise<{ type: 'text';
     )
   }
 }
+
+/**
+ * Tool: list_workflows
+ * List all workflows with optional filtering
+ */
+export const listWorkflowsTool: Tool = {
+  name: 'list_workflows',
+  description: `List all workflows in the system.
+
+WHAT IT DOES:
+• Shows all workflows with their status, creation time, and basic details
+• Helps you see what workflows exist before cleaning up
+
+RETURNS:
+• Array of workflows with threadId, status, invocation, lastUpdate
+
+EXAMPLE:
+list_workflows()`,
+  inputSchema: {
+    type: 'object',
+    properties: {},
+    additionalProperties: false,
+  },
+}
+
+export async function handleListWorkflows(_args: unknown): Promise<{ type: 'text'; text: string }> {
+  try {
+    const response = await retryWithBackoff(
+      async () => {
+        return await ky
+          .get(`${API_URL}/invoke-status/workflows`, {
+            timeout: 10000,
+            retry: {
+              limit: 2,
+              methods: ['get'],
+              statusCodes: [408, 413, 429, 500, 502, 503, 504],
+            },
+          })
+          .json<{
+            workflows: Array<{
+              threadId: string
+              status: string
+              invocation: string
+              lastUpdate: string
+            }>
+          }>()
+      },
+      3,
+      1000
+    )
+
+    const workflows = response.workflows || []
+    if (workflows.length === 0) {
+      return {
+        type: 'text',
+        text: 'No workflows found.',
+      }
+    }
+
+    // Format as readable list
+    const workflowList = workflows
+      .map(
+        (w, i) =>
+          `${i + 1}. ${w.threadId.substring(0, 8)}... | ${w.status} | ${w.invocation} | ${w.lastUpdate}`
+      )
+      .join('\n')
+
+    return {
+      type: 'text',
+      text: `Found ${workflows.length} workflows:\n${workflowList}`,
+    }
+  } catch (error) {
+    console.error('MCP list_workflows error:', error)
+    throw new Error(
+      `Failed to list workflows: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+}
+
+/**
+ * Tool: delete_workflow
+ * Delete a specific workflow by threadId
+ */
+export const deleteWorkflowTool: Tool = {
+  name: 'delete_workflow',
+  description: `Delete a specific workflow by its thread ID.
+
+WHEN TO USE:
+• Remove individual workflows you no longer need
+• Clean up specific failed or completed workflows
+
+WARNING: This action cannot be undone!
+
+EXAMPLE:
+delete_workflow({ threadId: "abc-123-def-456" })`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      threadId: {
+        type: 'string',
+        description: 'The thread ID of the workflow to delete',
+      },
+    },
+    required: ['threadId'],
+    additionalProperties: false,
+  },
+}
+
+export async function handleDeleteWorkflow(args: unknown): Promise<{ type: 'text'; text: string }> {
+  try {
+    const { threadId } = args as { threadId: string }
+
+    const response = await retryWithBackoff(
+      async () => {
+        return await ky
+          .delete(`${API_URL}/invoke-status/workflows/${threadId}`, {
+            timeout: 10000,
+            retry: {
+              limit: 2,
+              methods: ['delete'],
+              statusCodes: [408, 413, 429, 500, 502, 503, 504],
+            },
+          })
+          .json<{ success: boolean; threadId: string }>()
+      },
+      3,
+      1000
+    )
+
+    return {
+      type: 'text',
+      text: `Successfully deleted workflow: ${response.threadId}`,
+    }
+  } catch (error) {
+    console.error('MCP delete_workflow error:', error)
+    if (error instanceof HTTPError && error.response.status === 404) {
+      throw new Error(`Workflow not found: ${(args as { threadId: string }).threadId}`)
+    }
+    throw new Error(
+      `Failed to delete workflow: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+}
+
+/**
+ * Tool: bulk_delete_workflows
+ * Delete multiple workflows at once
+ */
+export const bulkDeleteWorkflowsTool: Tool = {
+  name: 'bulk_delete_workflows',
+  description: `Delete multiple workflows at once by providing an array of thread IDs.
+
+WHEN TO USE:
+• Clean up multiple specific workflows
+• Remove several failed or completed workflows
+
+WARNING: This action cannot be undone!
+
+EXAMPLE:
+bulk_delete_workflows({ threadIds: ["abc-123", "def-456", "ghi-789"] })`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      threadIds: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Array of thread IDs to delete',
+        minItems: 1,
+      },
+    },
+    required: ['threadIds'],
+    additionalProperties: false,
+  },
+}
+
+export async function handleBulkDeleteWorkflows(
+  args: unknown
+): Promise<{ type: 'text'; text: string }> {
+  try {
+    const { threadIds } = args as { threadIds: string[] }
+
+    const response = await retryWithBackoff(
+      async () => {
+        return await ky
+          .delete(`${API_URL}/invoke-status/workflows`, {
+            json: { threadIds },
+            timeout: 30000,
+            retry: {
+              limit: 2,
+              methods: ['delete'],
+              statusCodes: [408, 413, 429, 500, 502, 503, 504],
+            },
+          })
+          .json<{ success: boolean; deletedCount: number; message: string }>()
+      },
+      3,
+      1000
+    )
+
+    return {
+      type: 'text',
+      text: `${response.message} (${response.deletedCount}/${threadIds.length} workflows deleted)`,
+    }
+  } catch (error) {
+    console.error('MCP bulk_delete_workflows error:', error)
+    throw new Error(
+      `Failed to bulk delete workflows: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+}
+
+/**
+ * Tool: cleanup_old_workflows
+ * Delete workflows older than specified number of days
+ */
+export const cleanupOldWorkflowsTool: Tool = {
+  name: 'cleanup_old_workflows',
+  description: `Delete all workflows older than the specified number of days.
+
+WHEN TO USE:
+• Regular maintenance to free up storage
+• Clean up old completed/failed workflows
+• Automatic cleanup in scripts
+
+WARNING: This action cannot be undone!
+
+EXAMPLE:
+cleanup_old_workflows({ daysOld: 30 })  // Delete workflows older than 30 days`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      daysOld: {
+        type: 'number',
+        description: 'Delete workflows older than this many days',
+        minimum: 1,
+      },
+    },
+    required: ['daysOld'],
+    additionalProperties: false,
+  },
+}
+
+export async function handleCleanupOldWorkflows(
+  args: unknown
+): Promise<{ type: 'text'; text: string }> {
+  try {
+    const { daysOld } = args as { daysOld: number }
+
+    const response = await retryWithBackoff(
+      async () => {
+        return await ky
+          .delete(`${API_URL}/invoke-status/workflows`, {
+            json: { daysOld },
+            timeout: 30000,
+            retry: {
+              limit: 2,
+              methods: ['delete'],
+              statusCodes: [408, 413, 429, 500, 502, 503, 504],
+            },
+          })
+          .json<{ success: boolean; deletedCount: number; message: string }>()
+      },
+      3,
+      1000
+    )
+
+    return {
+      type: 'text',
+      text: response.message,
+    }
+  } catch (error) {
+    console.error('MCP cleanup_old_workflows error:', error)
+    throw new Error(
+      `Failed to cleanup old workflows: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+}

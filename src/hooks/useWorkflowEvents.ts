@@ -64,8 +64,9 @@ export const useWorkflowEvents = () => {
         const data = JSON.parse(event.data)
         console.log('[WorkflowEvents] New workflow created:', data)
 
-        // Fetch workflows again to get the new one
-        fetchWorkflows()
+        // Don't call fetchWorkflows() to avoid overriding local deletions
+        // The workflow will appear on next manual refresh or page reload
+        console.log('[WorkflowEvents] Skipping fetchWorkflows() to preserve local state changes')
       } catch (error) {
         console.error('[WorkflowEvents] Failed to parse workflow_created event:', error)
       }

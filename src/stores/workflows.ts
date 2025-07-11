@@ -30,6 +30,8 @@ export interface WorkflowInfo {
 interface WorkflowStore {
   workflows: Record<string, WorkflowInfo>
   workflowList: WorkflowInfo[] // Stable array reference
+  selectedWorkflows: Set<string> // For bulk operations
+  totalCount: number // Total workflows in database
   addWorkflow: (workflow: WorkflowInfo) => void
   updateWorkflow: (threadId: string, updates: Partial<WorkflowInfo>) => void
   updateStep: (threadId: string, stepId: string, updates: Partial<WorkflowStep>) => void
@@ -37,12 +39,22 @@ interface WorkflowStore {
   getWorkflow: (threadId: string) => WorkflowInfo | undefined
   getActiveWorkflows: () => WorkflowInfo[]
   clearCompletedWorkflows: () => void
+  deleteWorkflow: (threadId: string) => Promise<boolean>
+  bulkDeleteWorkflows: (threadIds: string[]) => Promise<number>
+  cleanupOldWorkflows: (daysOld: number) => Promise<number>
   fetchWorkflows: () => Promise<void>
+  // Selection methods
+  toggleWorkflowSelection: (threadId: string) => void
+  selectAllWorkflows: () => void
+  clearSelection: () => void
+  deleteSelected: () => Promise<number>
 }
 
 export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   workflows: {},
   workflowList: [],
+  selectedWorkflows: new Set<string>(),
+  totalCount: 0,
 
   addWorkflow: (workflow) =>
     set((state) => {
@@ -135,13 +147,23 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   fetchWorkflows: async () => {
     try {
       // Use window.location.origin (dev server has Redis cross-server communication)
-      const response = await fetch(`${window.location.origin}/api/invoke-status/workflows`)
+      const url = `${window.location.origin}/api/invoke-status/workflows`
+      console.log('[WorkflowStore] Fetching workflows from:', url)
+      const response = await fetch(url)
       if (!response.ok) {
         throw new Error(`Failed to fetch workflows: ${response.statusText}`)
       }
 
       const data = await response.json()
       const workflows = data.workflows || []
+      const totalCount = data.totalCount || workflows.length
+      console.log(
+        '[WorkflowStore] Fetched',
+        workflows.length,
+        'workflows from server (total in DB:',
+        totalCount,
+        ')'
+      )
 
       // Transform backend format to frontend format
       const workflowMap: Record<string, WorkflowInfo> = {}
@@ -187,9 +209,133 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
         }
       )
 
-      set({ workflows: workflowMap, workflowList: Object.values(workflowMap) })
+      set({
+        workflows: workflowMap,
+        workflowList: Object.values(workflowMap),
+        totalCount: totalCount,
+      })
     } catch (error) {
       console.error('Failed to fetch workflows:', error)
+    }
+  },
+
+  deleteWorkflow: async (threadId: string) => {
+    try {
+      console.log('[WorkflowStore] Deleting workflow:', threadId)
+      const response = await fetch(
+        `${window.location.origin}/api/invoke-status/workflows/${threadId}`,
+        {
+          method: 'DELETE',
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete workflow: ${response.statusText}`)
+      }
+
+      console.log('[WorkflowStore] Successfully deleted workflow, updating local state')
+
+      // Remove from local state immediately - don't refetch to avoid overriding the deletion
+      get().removeWorkflow(threadId)
+
+      return true
+    } catch (error) {
+      console.error('Failed to delete workflow:', error)
+      return false
+    }
+  },
+
+  bulkDeleteWorkflows: async (threadIds: string[]) => {
+    try {
+      const response = await fetch(`${window.location.origin}/api/invoke-status/workflows`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ threadIds }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to bulk delete workflows: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      // Remove successfully deleted workflows from local state
+      threadIds.forEach((threadId) => {
+        get().removeWorkflow(threadId)
+      })
+
+      return data.deletedCount || 0
+    } catch (error) {
+      console.error('Failed to bulk delete workflows:', error)
+      return 0
+    }
+  },
+
+  cleanupOldWorkflows: async (daysOld: number) => {
+    try {
+      const response = await fetch(`${window.location.origin}/api/invoke-status/workflows`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ daysOld }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to cleanup old workflows: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      // Refresh workflows from server to get updated state
+      await get().fetchWorkflows()
+
+      return data.deletedCount || 0
+    } catch (error) {
+      console.error('Failed to cleanup old workflows:', error)
+      return 0
+    }
+  },
+
+  // Selection methods
+  toggleWorkflowSelection: (threadId: string) =>
+    set((state) => {
+      const newSelected = new Set(state.selectedWorkflows)
+      if (newSelected.has(threadId)) {
+        newSelected.delete(threadId)
+      } else {
+        newSelected.add(threadId)
+      }
+      return { selectedWorkflows: newSelected }
+    }),
+
+  selectAllWorkflows: () =>
+    set((state) => ({
+      selectedWorkflows: new Set(state.workflowList.map((w) => w.threadId)),
+    })),
+
+  clearSelection: () =>
+    set(() => ({
+      selectedWorkflows: new Set<string>(),
+    })),
+
+  deleteSelected: async () => {
+    const { selectedWorkflows, bulkDeleteWorkflows, clearSelection } = get()
+    const threadIds = Array.from(selectedWorkflows)
+
+    if (threadIds.length === 0) {
+      return 0
+    }
+
+    try {
+      const deletedCount = await bulkDeleteWorkflows(threadIds)
+      clearSelection()
+      return deletedCount
+    } catch (error) {
+      console.error('Failed to delete selected workflows:', error)
+      return 0
     }
   },
 }))

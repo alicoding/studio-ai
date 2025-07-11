@@ -5,7 +5,6 @@ import { DeleteAgentModal } from '../components/modals/DeleteAgentModal'
 import { Sidebar } from '../components/layout/Sidebar'
 import { ProjectTabs } from '../components/projects/ProjectTabs'
 import { ViewControls } from '../components/projects/ViewControls'
-import { ChatPanel } from '../components/projects/ChatPanel'
 import { AgentSelectionModal } from '../components/projects/AgentSelectionModal'
 import { CreateAgentModal } from '../components/agents/CreateAgentModal'
 import { AssignRoleModal } from '../components/agents/AssignRoleModal'
@@ -30,9 +29,7 @@ import { useWebSocketOperations } from '../hooks/useWebSocketOperations'
 import { useWorkspaceShortcuts } from '../hooks/useShortcuts'
 import { useWorkflowEvents } from '../hooks/useWorkflowEvents'
 
-import { SingleView } from '../components/projects/views/SingleView'
-import { SplitView } from '../components/projects/views/SplitView'
-import { GridView } from '../components/projects/views/GridView'
+import { CanvasContent } from '../components/workspace/CanvasContent'
 import { CreateProjectModal } from '../components/projects/CreateProjectModal'
 import { ErrorMonitor } from '../services/ErrorMonitor'
 import { useDiagnosticsStore } from '../stores/diagnostics'
@@ -123,7 +120,7 @@ function ProjectsPage() {
   const loadingAgents = workspaceLoading
 
   // Agent roles hook
-  const { loadAssignments, getAgentRole } = useAgentRoles()
+  const { loadAssignments } = useAgentRoles()
 
   // SOLID: Modular operation hooks
   const agentOps = useAgentOperations()
@@ -232,18 +229,6 @@ function ProjectsPage() {
     }
   }, [agentIdsString, loadedAgentIds, agentIds, loadAssignments, activeProjectId])
 
-  // Merge store agents with their role assignments
-  const agentsWithRoles = storeAgents.map((agent) => {
-    const roleConfig = getAgentRole(agent.id)
-    return {
-      ...agent,
-      role: roleConfig?.role || agent.role,
-    }
-  })
-
-  // Get active project details
-  const activeProject = projects.find((p) => p.id === activeProjectId)
-
   // Sync agent configs from workspace data into Zustand store
   useEffect(() => {
     if (agentConfigs.length > 0) {
@@ -270,28 +255,6 @@ function ProjectsPage() {
       )
     }
   }, [agentConfigs, setAgentConfigs])
-
-  // Message handling
-  const handleSendMessage = async (message: string) => {
-    // Convert workspace Project to store Project format
-    const storeProject = activeProject
-      ? {
-          ...activeProject,
-          path: activeProject.workspacePath || '',
-          createdAt: new Date().toISOString(),
-          sessionCount: 0,
-          status: 'active' as const,
-          lastModified: new Date().toISOString(),
-          tags: [],
-          favorite: false,
-        }
-      : undefined
-
-    const result = await messageOps.sendMessage(message, agentsWithRoles, storeProject)
-    if (!result.success && result.error) {
-      toast.error(result.error)
-    }
-  }
 
   const handleAgentClear = async (agentId: string) => {
     // Clear session without prompting - will use system default
@@ -493,17 +456,9 @@ function ProjectsPage() {
                 onSidebarToggle={layout.toggleSidebar}
               />
 
-              <div className="flex-1 overflow-hidden flex flex-col">
-                <div className="flex-1 flex overflow-hidden">
-                  {layout.isSingleView && <SingleView selectedAgentId={selectedAgentId} />}
-                  {layout.isSplitView && <SplitView />}
-                  {layout.isGridView && <GridView />}
-                </div>
-
-                {/* Chat input panel */}
-                {layout.showChatPanel && (
-                  <ChatPanel onSendMessage={handleSendMessage} onInterrupt={handleInterrupt} />
-                )}
+              <div className="flex-1 overflow-hidden">
+                {/* Canvas Content - State-preserving agent/workflow view */}
+                <CanvasContent />
               </div>
             </main>
           </div>

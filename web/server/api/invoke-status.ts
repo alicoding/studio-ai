@@ -64,9 +64,16 @@ router.post('/status/:threadId', async (req: Request, res: Response) => {
 router.get('/workflows', async (req: Request, res: Response) => {
   try {
     const registry = WorkflowRegistry.getInstance()
-    const workflows = await registry.listWorkflows({ limit: 100 }) // Limit to 100 recent workflows
 
-    res.json({ workflows })
+    // First get total count
+    const allWorkflows = await registry.listWorkflows() // No limit to get true count
+    console.log('[Workflows API] Total workflows in database:', allWorkflows.length)
+
+    // Then get limited results for response (to prevent huge responses)
+    const workflows = await registry.listWorkflows({ limit: 100 }) // Limit to 100 recent workflows
+    console.log('[Workflows API] Returning', workflows.length, 'workflows (limited)')
+
+    res.json({ workflows, totalCount: allWorkflows.length })
   } catch (error) {
     console.error('[Workflows API] Error listing workflows:', error)
     res.status(500).json({
@@ -173,6 +180,85 @@ router.get('/status/:threadId', async (req: Request, res: Response) => {
     console.error('[Status API] Error getting workflow:', error)
     res.status(500).json({
       error: 'Failed to get workflow status',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    })
+  }
+})
+
+/**
+ * Delete specific workflow by threadId
+ */
+router.delete('/workflows/:threadId', async (req: Request, res: Response) => {
+  const { threadId } = req.params
+
+  try {
+    const registry = WorkflowRegistry.getInstance()
+
+    // Check if workflow exists first
+    const existing = await registry.getWorkflow(threadId)
+    if (!existing) {
+      return res.status(404).json({ error: 'Workflow not found' })
+    }
+
+    // Delete the workflow
+    await registry.deleteWorkflow(threadId)
+    res.json({ success: true, threadId })
+  } catch (error) {
+    console.error('[Delete API] Error deleting workflow:', error)
+    res.status(500).json({
+      error: 'Failed to delete workflow',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    })
+  }
+})
+
+/**
+ * Bulk delete workflows or cleanup old workflows
+ */
+router.delete('/workflows', async (req: Request, res: Response) => {
+  const { threadIds, daysOld } = req.body as {
+    threadIds?: string[]
+    daysOld?: number
+  }
+
+  try {
+    const registry = WorkflowRegistry.getInstance()
+    let deletedCount = 0
+
+    if (threadIds && Array.isArray(threadIds)) {
+      // Bulk delete specific workflows
+      for (const threadId of threadIds) {
+        try {
+          // Check if workflow exists before deleting
+          const existing = await registry.getWorkflow(threadId)
+          if (existing) {
+            await registry.deleteWorkflow(threadId)
+            deletedCount++
+          }
+        } catch (error) {
+          console.error(`[Bulk Delete] Failed to delete workflow ${threadId}:`, error)
+          // Continue with other deletions
+        }
+      }
+      res.json({ success: true, deletedCount, message: `Deleted ${deletedCount} workflows` })
+    } else if (typeof daysOld === 'number' && daysOld > 0) {
+      // Cleanup old workflows
+      deletedCount = await registry.cleanupOldWorkflows(daysOld)
+      res.json({
+        success: true,
+        deletedCount,
+        message: `Cleaned up ${deletedCount} workflows older than ${daysOld} days`,
+      })
+    } else {
+      res.status(400).json({
+        error: 'Invalid request body',
+        message: 'Provide either threadIds array or daysOld number',
+      })
+    }
+  } catch (error) {
+    console.error('[Bulk Delete API] Error deleting workflows:', error)
+    res.status(500).json({
+      error: 'Failed to delete workflows',
       details: error instanceof Error ? error.message : 'Unknown error',
     })
   }

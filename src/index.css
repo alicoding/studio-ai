@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
+@import 'reactflow/dist/style.css';
 
 /* Tailwind v4 theme configuration using @theme directive */
 @theme {

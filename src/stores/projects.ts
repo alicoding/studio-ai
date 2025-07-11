@@ -55,6 +55,11 @@ interface ProjectState {
   isLoading: boolean
   error: string | null
 
+  // Canvas mode and selection state preservation
+  canvasMode: 'agent' | 'workflow'
+  selectedAgentId: string | null // Preserved when in workflow mode
+  selectedWorkflowId: string | null // Preserved when in agent mode
+
   // Actions
   setProjects: (projects: Project[]) => void
   fetchProjects: () => Promise<void>
@@ -94,6 +99,11 @@ interface ProjectState {
   setChatCollapsed: (collapsed: boolean) => void
   toggleChat: () => void
 
+  // Canvas mode and selection state preservation
+  setCanvasMode: (mode: 'agent' | 'workflow') => void
+  setSelectedAgent: (agentId: string | null) => void
+  setSelectedWorkflow: (workflowId: string | null) => void
+
   // Utility actions
   clearAll: () => void
 }
@@ -115,6 +125,11 @@ export const useProjectStore = createPersistentStore<ProjectState>(
     chatCollapsed: false,
     isLoading: false,
     error: null,
+
+    // Canvas mode and selection state preservation
+    canvasMode: 'agent', // Default to agent mode
+    selectedAgentId: null, // No agent selected initially
+    selectedWorkflowId: null, // No workflow selected initially
 
     // Project actions
     setProjects: (projects) => set({ projects }),
@@ -287,6 +302,11 @@ export const useProjectStore = createPersistentStore<ProjectState>(
 
     setChatCollapsed: (collapsed) => set({ chatCollapsed: collapsed }),
     toggleChat: () => set((state) => ({ chatCollapsed: !state.chatCollapsed })),
+
+    // Canvas mode and selection state preservation actions
+    setCanvasMode: (mode) => set({ canvasMode: mode }),
+    setSelectedAgent: (agentId) => set({ selectedAgentId: agentId }),
+    setSelectedWorkflow: (workflowId) => set({ selectedWorkflowId: workflowId }),
 
     clearAll: () =>
       set({

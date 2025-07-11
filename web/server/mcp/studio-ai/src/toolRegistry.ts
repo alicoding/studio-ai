@@ -448,6 +448,106 @@ export class ToolRegistry {
         additionalProperties: false,
       },
     })
+
+    // Workflow Management Tools
+    this.register({
+      name: 'list_workflows',
+      description: `List all workflows in the system.
+
+WHAT IT DOES:
+• Shows all workflows with their status, creation time, and basic details
+• Helps you see what workflows exist before cleaning up
+
+RETURNS:
+• Array of workflows with threadId, status, invocation, lastUpdate
+
+EXAMPLE:
+list_workflows()`,
+      inputSchema: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'delete_workflow',
+      description: `Delete a specific workflow by its thread ID.
+
+WHEN TO USE:
+• Remove individual workflows you no longer need
+• Clean up specific failed or completed workflows
+
+WARNING: This action cannot be undone!
+
+EXAMPLE:
+delete_workflow({ threadId: "abc-123-def-456" })`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          threadId: {
+            type: 'string',
+            description: 'The thread ID of the workflow to delete',
+          },
+        },
+        required: ['threadId'],
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'bulk_delete_workflows',
+      description: `Delete multiple workflows at once by providing an array of thread IDs.
+
+WHEN TO USE:
+• Clean up multiple specific workflows
+• Remove several failed or completed workflows
+
+WARNING: This action cannot be undone!
+
+EXAMPLE:
+bulk_delete_workflows({ threadIds: ["abc-123", "def-456", "ghi-789"] })`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          threadIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of thread IDs to delete',
+            minItems: 1,
+          },
+        },
+        required: ['threadIds'],
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'cleanup_old_workflows',
+      description: `Delete all workflows older than the specified number of days.
+
+WHEN TO USE:
+• Regular maintenance to free up storage
+• Clean up old completed/failed workflows
+• Automatic cleanup in scripts
+
+WARNING: This action cannot be undone!
+
+EXAMPLE:
+cleanup_old_workflows({ daysOld: 30 })  // Delete workflows older than 30 days`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          daysOld: {
+            type: 'number',
+            description: 'Delete workflows older than this many days',
+            minimum: 1,
+          },
+        },
+        required: ['daysOld'],
+        additionalProperties: false,
+      },
+    })
   }
 
   /**
