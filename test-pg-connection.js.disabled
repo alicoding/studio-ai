@@ -1,0 +1,33 @@
+import pg from 'pg';
+const { Pool } = pg;
+
+const connectionString = 'postgresql://claude:development_password@127.0.0.1:5432/claude_studio';
+
+async function testConnection() {
+  console.log('Testing connection with:', connectionString);
+  
+  const pool = new Pool({
+    user: 'claude',
+    host: 'localhost',
+    database: 'claude_studio',
+    password: 'development_password',
+    port: 5432,
+  });
+
+  try {
+    const client = await pool.connect();
+    console.log('✅ Connected successfully!');
+    
+    const result = await client.query('SELECT current_user, current_database()');
+    console.log('Query result:', result.rows[0]);
+    
+    client.release();
+    await pool.end();
+  } catch (error) {
+    console.error('❌ Connection failed:', error.message);
+    console.error('Error code:', error.code);
+    console.error('Error details:', error);
+  }
+}
+
+testConnection();

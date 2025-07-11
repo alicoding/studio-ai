@@ -1,0 +1,72 @@
+#!/usr/bin/env node
+
+/**
+ * Send a direct message to an agent in the latest project
+ */
+
+import ky from 'ky'
+
+const API_BASE = 'http://localhost:3457/api'
+
+async function main() {
+  console.log('Testing direct message to agent...\n')
+  
+  try {
+    // Get list of projects
+    const { projects } = await ky.get(`${API_BASE}/studio-projects`).json()
+    
+    if (projects.length === 0) {
+      throw new Error('No projects found')
+    }
+    
+    // Get the latest project
+    const latestProject = projects[0]
+    console.log(`📍 Using project: ${latestProject.name} (${latestProject.id})`)
+    
+    // Get project agents with short IDs
+    const { agents } = await ky.get(`${API_BASE}/studio-projects/${latestProject.id}/agents/short-ids`).json()
+    console.log(`👥 Available agents: ${agents.map(a => `${a.shortId} (${a.role})`).join(', ')}`)
+    
+    if (agents.length === 0) {
+      throw new Error('No agents in project')
+    }
+    
+    // Use the first agent
+    const agent = agents[0]
+    console.log(`\n💬 Sending message to ${agent.shortId} (${agent.role})...`)
+    
+    // Send direct message via invoke API
+    const response = await ky.post(`${API_BASE}/invoke`, {
+      json: {
+        workflow: {
+          agentId: agent.shortId,
+          task: 'Hello! Can you tell me what 2 + 2 equals? Just give me the number.'
+        },
+        projectId: latestProject.id,
+        format: 'json'
+      },
+      timeout: 30000
+    }).json()
+    
+    console.log('\n📥 Response:', JSON.stringify(response, null, 2))
+    
+    if (response.status === 'completed') {
+      console.log('\n✅ Message sent successfully!')
+      console.log(`💬 Agent response: ${response.results['step-0']}`)
+      console.log(`🔑 Session ID: ${response.sessionIds['step-0']}`)
+    } else {
+      console.log('\n❌ Message failed:', response.status)
+    }
+    
+    console.log(`\n👁️ Check the UI - Project: "${latestProject.name}"`)
+    
+  } catch (error) {
+    console.error('❌ Error:', error.message)
+    if (error.response) {
+      const body = await error.response.text()
+      console.error('Response body:', body)
+    }
+  }
+}
+
+main()

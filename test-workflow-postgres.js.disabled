@@ -1,0 +1,109 @@
+import ky from 'ky';
+
+const API_BASE = 'http://localhost:3457/api';
+
+async function testWorkflowWithPostgres() {
+  console.log('🧪 Testing workflow execution with PostgresSaver...\n');
+
+  // First, get a valid project ID
+  console.log('🔍 Getting project list...');
+  const response = await ky.get(`${API_BASE}/studio-projects`).json();
+  const projects = response.projects || response;
+  if (!projects || projects.length === 0) {
+    throw new Error('No projects found. Please create a project first.');
+  }
+  const projectId = projects[0].id;
+  console.log(`📁 Using project: ${projects[0].name} (${projectId})\n`);
+
+  // 1. Create a simple test workflow
+  const workflow = {
+    workflow: [
+      {
+        id: 'step1',
+        role: 'developer',
+        task: 'Echo "Hello from step 1"'
+      },
+      {
+        id: 'step2',
+        role: 'developer',
+        task: 'Echo "Step 1 said: {step1.output}"',
+        deps: ['step1']
+      }
+    ],
+    threadId: `test-postgres-${Date.now()}`,
+    projectId: projectId
+  };
+
+  try {
+    // 2. Start the workflow
+    console.log('📤 Starting workflow...');
+    const response = await ky.post(`${API_BASE}/invoke`, {
+      json: workflow,
+      timeout: 60000
+    }).json();
+
+    console.log('✅ Workflow started:', response);
+    console.log('\n📊 Workflow Details:');
+    console.log(`  Thread ID: ${response.threadId || workflow.threadId}`);
+    console.log(`  Status: ${response.status || 'completed'}`);
+    
+    if (response.results) {
+      console.log('\n📋 Results:');
+      // Handle results as object instead of array
+      const results = Array.isArray(response.results) ? response.results : Object.values(response.results);
+      if (results.length > 0) {
+        results.forEach((result, index) => {
+          console.log(`\n  Step ${index + 1}:`);
+          if (typeof result === 'object' && result !== null) {
+            console.log(`    Status: ${result.status || 'unknown'}`);
+            console.log(`    Output: ${result.output || 'N/A'}`);
+            if (result.error) {
+              console.log(`    Error: ${result.error}`);
+            }
+          } else {
+            console.log(`    Result: ${JSON.stringify(result)}`);
+          }
+        });
+      } else {
+        console.log('  No step results available');
+      }
+    }
+
+    // 3. Check workflow status
+    console.log('\n🔍 Checking workflow status...');
+    const statusResponse = await ky.get(`${API_BASE}/invoke-status/status/${workflow.threadId}`).json();
+    console.log('📊 Status:', statusResponse);
+
+    // 4. Verify PostgreSQL persistence
+    console.log('\n🗄️  Verifying PostgreSQL persistence...');
+    console.log('Check PostgreSQL logs for checkpoint operations');
+    console.log('You can also query the database directly:');
+    console.log(`  docker exec claude_studio_postgres psql -U claude -d claude_studio -c "SELECT * FROM workflow_checkpoints.checkpoints WHERE thread_id = '${workflow.threadId}' LIMIT 1;"`);
+
+    return response;
+  } catch (error) {
+    console.error('❌ Workflow execution failed:', error.message);
+    if (error.response) {
+      const body = await error.response.text();
+      console.error('Response body:', body);
+    }
+    throw error;
+  }
+}
+
+// Run the test
+console.log('🚀 Starting PostgresSaver workflow test...\n');
+console.log('📌 Prerequisites:');
+console.log('  - USE_POSTGRES_SAVER=true in .env');
+console.log('  - PostgreSQL container running');
+console.log('  - Dev server running on port 3457\n');
+
+testWorkflowWithPostgres()
+  .then(() => {
+    console.log('\n✅ Test completed successfully!');
+    process.exit(0);
+  })
+  .catch(() => {
+    console.log('\n❌ Test failed!');
+    process.exit(1);
+  });

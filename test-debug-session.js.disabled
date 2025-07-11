@@ -1,0 +1,69 @@
+#!/usr/bin/env node
+
+/**
+ * Debug session creation
+ */
+
+import ky from 'ky'
+
+const API_BASE = 'http://localhost:3457/api'
+
+async function main() {
+  console.log('Testing session creation...\n')
+  
+  try {
+    // Create a simple test project
+    const project = await ky.post(`${API_BASE}/studio-projects`, {
+      json: {
+        name: `Debug Test ${Date.now()}`,
+        description: 'Debug session creation',
+        workspacePath: `/tmp/debug-${Date.now()}`,
+        agents: [{
+          role: 'dev',
+          agentConfigId: 'dev-1751310141224'
+        }]
+      }
+    }).json()
+    
+    console.log(`✅ Created project: ${project.id}`)
+    console.log(`📍 Workspace: ${project.workspacePath}`)
+    
+    // Get agent short ID
+    const { agents } = await ky.get(`${API_BASE}/studio-projects/${project.id}/agents/short-ids`).json()
+    const agent = agents[0]
+    console.log(`👤 Agent: ${agent.shortId}`)
+    
+    // Send simple message
+    console.log('\nSending test message...')
+    const result = await ky.post(`${API_BASE}/invoke`, {
+      json: {
+        workflow: {
+          agentId: agent.shortId,
+          task: 'Say "Hello World"'
+        },
+        projectId: project.id,
+        format: 'json'
+      },
+      timeout: 30000
+    }).json()
+    
+    console.log('\nResponse:', JSON.stringify(result, null, 2))
+    
+    // Check expected session folder
+    const expectedFolder = project.workspacePath.replace(/\//g, '-')
+    console.log(`\n📂 Expected session folder: ~/.claude/projects${expectedFolder}/`)
+    
+    // Don't clean up so we can inspect
+    console.log(`\n📍 Project ID: ${project.id}`)
+    console.log('⚠️  Not cleaning up - check the folders')
+    
+  } catch (error) {
+    console.error('❌ Error:', error.message)
+    if (error.response) {
+      const body = await error.response.text()
+      console.error('Response:', body)
+    }
+  }
+}
+
+main()

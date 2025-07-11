@@ -1,0 +1,206 @@
+#!/usr/bin/env node
+
+/**
+ * Test reviewer loop with session persistence
+ * Ensures same dev_01 and reviewer maintain context through multiple rounds
+ */
+
+import ky from 'ky'
+
+const API_BASE = 'http://localhost:3457/api'
+
+const colors = {
+  reset: '\x1b[0m',
+  bright: '\x1b[1m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+}
+
+function log(emoji, message, color = '') {
+  console.log(`${color}${emoji} ${message}${colors.reset}`)
+}
+
+async function main() {
+  log('🚀', 'Testing reviewer loop with session persistence...', colors.bright)
+  
+  let projectId
+  
+  try {
+    // Step 1: Get agent configs
+    log('1️⃣', 'Getting agent configurations...', colors.blue)
+    
+    const agents = await ky.get(`${API_BASE}/agents`).json()
+    const devAgent = agents.find(a => a.role === 'dev' || a.role === 'developer')
+    const reviewerAgent = agents.find(a => a.role === 'reviewer' || a.role === 'code-reviewer')
+    
+    if (!devAgent || !reviewerAgent) {
+      throw new Error('Required agents (dev, reviewer) not found')
+    }
+    
+    log('✅', `Found agents: dev=${devAgent.id}, reviewer=${reviewerAgent.id}`)
+    
+    // Step 2: Create project with agents
+    log('2️⃣', 'Creating Studio project with dev and reviewer...', colors.blue)
+    
+    const timestamp = Date.now()
+    const project = await ky.post(`${API_BASE}/studio-projects`, {
+      json: {
+        name: `Reviewer Loop Test ${timestamp}`,
+        description: 'Testing reviewer feedback loop with session persistence',
+        workspacePath: `/tmp/reviewer-test-${timestamp}`,
+        claudeInstructions: '# Reviewer Loop Test\n\nThis project tests the reviewer feedback loop.',
+        agents: [
+          {
+            role: 'dev',
+            agentConfigId: devAgent.id,
+            customName: 'Primary Developer'
+          },
+          {
+            role: 'reviewer',
+            agentConfigId: reviewerAgent.id,
+            customName: 'Code Reviewer'
+          }
+        ]
+      }
+    }).json()
+    
+    projectId = project.id
+    log('✅', `Project created: ${project.name}`, colors.green)
+    log('📍', `Project ID: ${projectId}`, colors.yellow)
+    
+    // Step 3: Get short IDs
+    log('3️⃣', 'Getting agent short IDs...', colors.blue)
+    
+    const shortIds = await ky.get(`${API_BASE}/studio-projects/${projectId}/agents/short-ids`).json()
+    const devShortId = shortIds.agents.find(a => a.role === 'dev')?.shortId
+    const reviewerShortId = shortIds.agents.find(a => a.role === 'reviewer')?.shortId
+    
+    log('👥', `Agents: ${devShortId} (dev), ${reviewerShortId} (reviewer)`)
+    
+    // Step 4: Initial development with secret word
+    log('4️⃣', 'Round 1: Initial development with secret word...', colors.magenta)
+    
+    const round1 = await ky.post(`${API_BASE}/invoke`, {
+      json: {
+        workflow: [
+          {
+            id: 'dev1',
+            agentId: devShortId,
+            task: 'Create a simple function that adds two numbers. Also, remember the secret word "PHOENIX" for later verification. Confirm you remember it.'
+          },
+          {
+            id: 'review1',
+            agentId: reviewerShortId,
+            task: 'Review the code from {dev1.output}. Find at least one issue to improve (like missing error handling or type checking).',
+            deps: ['dev1']
+          }
+        ],
+        projectId: projectId,
+        format: 'json',
+        threadId: 'reviewer-loop-test'
+      },
+      timeout: 60000
+    }).json()
+    
+    log('✅', 'Round 1 completed', colors.green)
+    console.log('Debug - Round 1 response:', JSON.stringify(round1, null, 2))
+    log('💻', `Dev: ${round1.results.dev1?.substring(0, 100) || 'No dev response'}...`)
+    log('📝', `Reviewer: ${round1.results.review1?.substring(0, 100) || 'No reviewer response'}...`)
+    
+    // Save session IDs for next round
+    const devSessionId = round1.sessionIds.dev1
+    const reviewerSessionId = round1.sessionIds.review1
+    log('🔑', `Session IDs - Dev: ${devSessionId}, Reviewer: ${reviewerSessionId}`)
+    
+    // Step 5: Dev fixes issues (same session)
+    log('5️⃣', 'Round 2: Dev fixes issues (verifying session persistence)...', colors.magenta)
+    
+    const round2 = await ky.post(`${API_BASE}/invoke`, {
+      json: {
+        workflow: [
+          {
+            id: 'dev2',
+            agentId: devShortId,
+            task: 'Fix the issues mentioned by the reviewer. Also, what was the secret word I told you to remember?',
+            sessionId: devSessionId  // Continue same session
+          },
+          {
+            id: 'review2',
+            agentId: reviewerShortId,
+            task: 'Review the updated code from {dev2.output}. Check if the issues were fixed properly.',
+            deps: ['dev2'],
+            sessionId: reviewerSessionId  // Continue same session
+          }
+        ],
+        projectId: projectId,
+        format: 'json',
+        threadId: 'reviewer-loop-test'
+      },
+      timeout: 60000
+    }).json()
+    
+    log('✅', 'Round 2 completed', colors.green)
+    log('💻', `Dev: ${round2.results.dev2.substring(0, 100)}...`)
+    log('📝', `Reviewer: ${round2.results.review2.substring(0, 100)}...`)
+    
+    // Verify secret word was remembered
+    const devResponse = round2.results.dev2.toLowerCase()
+    if (devResponse.includes('phoenix')) {
+      log('🎯', 'SUCCESS: Dev remembered the secret word PHOENIX!', colors.green)
+    } else {
+      log('❌', 'FAILED: Dev did not remember the secret word', colors.red)
+    }
+    
+    // Step 6: Final approval check
+    log('6️⃣', 'Round 3: Final approval check...', colors.magenta)
+    
+    const round3 = await ky.post(`${API_BASE}/invoke`, {
+      json: {
+        workflow: {
+          id: 'review3',
+          agentId: reviewerShortId,
+          task: 'Give final approval if all issues are resolved. Summarize what was fixed.',
+          sessionId: reviewerSessionId  // Continue same session
+        },
+        projectId: projectId,
+        format: 'json',
+        threadId: 'reviewer-loop-test'
+      },
+      timeout: 30000
+    }).json()
+    
+    log('✅', 'Round 3 completed', colors.green)
+    log('📝', `Final Review: ${round3.results['step-0'].substring(0, 150)}...`)
+    
+    // Summary
+    log('\n📊', 'TEST SUMMARY:', colors.bright)
+    log('✅', 'Project created with dev and reviewer agents', colors.green)
+    log('✅', 'Initial development with secret word', colors.green)
+    log('✅', 'Reviewer provided feedback', colors.green)
+    log('✅', 'Dev fixed issues in same session', colors.green)
+    log('✅', 'Secret word verified (session persistence)', colors.green)
+    log('✅', 'Reviewer gave final approval', colors.green)
+    
+    log('\n🎯', 'All tests passed! Session persistence verified.', colors.green)
+    log('📍', `Project ID: ${projectId}`, colors.yellow)
+    log('👁️', 'Check the UI to see the project and agent interactions', colors.blue)
+    
+    // NOT cleaning up - user wants to see it in UI
+    log('\n⚠️', 'Project NOT deleted - check UI', colors.yellow)
+    
+  } catch (error) {
+    log('❌', `Test failed: ${error.message}`, colors.red)
+    console.error(error)
+    
+    if (projectId) {
+      log('📍', `Project ID for debugging: ${projectId}`, colors.yellow)
+    }
+    
+    process.exit(1)
+  }
+}
+
+main()

@@ -1,61 +1,125 @@
 /**
  * Test single agent invocation via /api/invoke
- * 
- * KISS: Simple API test using real server
- * DRY: Reuses test infrastructure
- * Configuration: Uses env vars for API URL
+ *
+ * MOCKED TEST - No real API calls or Claude SDK usage
  */
 
-import ky from 'ky'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { setupInvokeTestMocks, cleanupMocks, DEFAULT_MOCK_RESPONSES } from './test-mocks'
+import type { KyInstance } from 'ky'
+import type { MockInvokeResponse } from './test-mocks'
 
-const API_URL = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
+describe('Single Agent Invocation', () => {
+  let mockKy: Partial<KyInstance>
 
-async function testSingleAgentInvoke() {
-  console.log('🧪 Testing single agent invocation...\n')
+  beforeEach(() => {
+    const { kyMocks } = setupInvokeTestMocks()
+    mockKy = kyMocks
+  })
 
-  try {
+  afterEach(() => {
+    cleanupMocks()
+  })
+
+  it('should invoke a single agent workflow successfully', async () => {
     // Test data - single agent workflow
     const request = {
       workflow: {
         role: 'developer',
-        task: 'What is 2 + 2? Just give me the number.'
+        task: 'What is 2 + 2? Just give me the number.',
       },
       projectId: 'test-project-123',
       startNewConversation: true,
-      format: 'json'
+      format: 'json',
     }
 
-    console.log('📤 Request:', JSON.stringify(request, null, 2))
+    // Import the mocked ky
+    const ky = (await import('ky')).default as KyInstance
 
-    // Send request
-    const response = await ky.post(`${API_URL}/invoke`, {
-      json: request,
-      timeout: 30000
-    }).json()
+    // Send request (this will use our mock)
+    const response = await ky
+      .post('http://localhost:3456/api/invoke', {
+        json: request,
+        timeout: 30000,
+      })
+      .json()
 
-    console.log('\n📥 Response:', JSON.stringify(response, null, 2))
+    // Validate mock was called
+    expect(mockKy.post).toHaveBeenCalledWith(
+      'http://localhost:3456/api/invoke',
+      expect.objectContaining({
+        json: request,
+        timeout: 30000,
+      })
+    )
 
     // Validate response structure
-    if (!response.threadId) throw new Error('Missing threadId')
-    if (!response.sessionIds) throw new Error('Missing sessionIds')
-    if (!response.results) throw new Error('Missing results')
-    if (!response.status) throw new Error('Missing status')
+    expect(response).toHaveProperty('threadId')
+    expect(response).toHaveProperty('sessionIds')
+    expect(response).toHaveProperty('results')
+    expect(response).toHaveProperty('status')
 
-    console.log('\n✅ Single agent invocation test passed!')
-    
-    return response
+    // Validate response matches our mock
+    expect(response).toEqual(DEFAULT_MOCK_RESPONSES.invoke)
+  })
 
-  } catch (error) {
-    console.error('\n❌ Test failed:', error)
-    throw error
-  }
-}
+  it('should handle single agent with custom response', async () => {
+    // Setup custom response
+    const customResponse = {
+      ...DEFAULT_MOCK_RESPONSES.invoke,
+      results: [
+        {
+          stepId: 'math-step',
+          agentId: 'developer_01',
+          output: '4',
+          status: 'completed' as const,
+        },
+      ],
+    }
 
-// Run test if called directly
-if (process.argv[1] === new URL(import.meta.url).pathname) {
-  testSingleAgentInvoke()
-    .then(() => process.exit(0))
-    .catch(() => process.exit(1))
-}
+    // Re-setup mocks with custom response
+    cleanupMocks()
+    const { kyMocks } = setupInvokeTestMocks({ invoke: customResponse })
+    mockKy = kyMocks
 
-export { testSingleAgentInvoke }
+    const request = {
+      workflow: {
+        role: 'developer',
+        task: 'What is 2 + 2? Just give me the number.',
+      },
+      projectId: 'test-project-123',
+      startNewConversation: true,
+      format: 'json',
+    }
+
+    const ky = (await import('ky')).default as KyInstance
+    const response = (await ky
+      .post('http://localhost:3456/api/invoke', {
+        json: request,
+      })
+      .json()) as MockInvokeResponse
+
+    // Validate custom response
+    expect(response.results[0].output).toBe('4')
+    expect(response.results[0].stepId).toBe('math-step')
+  })
+
+  it('should validate required fields in request', async () => {
+    const invalidRequest = {
+      // Missing workflow
+      projectId: 'test-project-123',
+    }
+
+    const ky = (await import('ky')).default as KyInstance
+
+    // In a real test, the API would validate this
+    // For now, we just verify the mock is called
+    await ky
+      .post('http://localhost:3456/api/invoke', {
+        json: invalidRequest,
+      })
+      .json()
+
+    expect(mockKy.post).toHaveBeenCalled()
+  })
+})

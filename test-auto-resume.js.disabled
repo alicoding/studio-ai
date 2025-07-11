@@ -1,0 +1,240 @@
+import ky from 'ky';
+import { spawn } from 'child_process';
+
+const API_BASE = 'http://localhost:3457/api';
+
+async function createTestWorkflow() {
+  console.log('🧪 Auto-Resume Test: Simulating workflow interruption\n');
+  
+  // Get project
+  const response = await ky.get(`${API_BASE}/studio-projects`).json();
+  const projects = response.projects || response;
+  const projectId = projects[0].id;
+  console.log(`📁 Using project: ${projects[0].name}\n`);
+
+  const threadId = `auto-resume-${Date.now()}`;
+  
+  // Create a workflow where step 1 takes time and we'll kill it
+  const workflow = {
+    workflow: [
+      {
+        id: 'architect',
+        role: 'developer',
+        task: 'Design a simple counter app architecture. Output: "Architecture: Counter with increment/decrement buttons"'
+      },
+      {
+        id: 'frontend',
+        role: 'developer', 
+        task: 'Build frontend based on: {architect.output}. Simulate 3 second work then output: "Frontend complete"',
+        deps: ['architect']
+      },
+      {
+        id: 'backend',
+        role: 'developer',
+        task: 'Build backend API. Simulate 3 second work then output: "Backend API ready"',
+        deps: ['frontend']
+      },
+      {
+        id: 'deploy',
+        role: 'developer',
+        task: 'Deploy the app. Output: "Deployed successfully"',
+        deps: ['backend']
+      }
+    ],
+    threadId: threadId,
+    projectId: projectId
+  };
+
+  console.log(`📝 ThreadId: ${threadId}\n`);
+  console.log('🚀 Starting workflow...\n');
+
+  try {
+    // Start workflow
+    const result = await ky.post(`${API_BASE}/invoke`, {
+      json: workflow,
+      timeout: false // No timeout - we'll interrupt it
+    });
+    
+    console.log('✅ Workflow completed normally (unexpected!)');
+    console.log(JSON.stringify(result, null, 2));
+  } catch (error) {
+    console.log('❌ Workflow interrupted (expected!)');
+    console.log(`Error: ${error.message}\n`);
+  }
+
+  return { threadId, projectId };
+}
+
+async function checkWorkflowStatus(threadId) {
+  try {
+    const status = await ky.get(`${API_BASE}/invoke-status/status/${threadId}`).json();
+    console.log('\n📊 Workflow Status:');
+    console.log(`- Status: ${status.status}`);
+    console.log(`- Current Step: ${status.currentStep || 'N/A'}`);
+    console.log(`- Session IDs:`, status.sessionIds || {});
+    console.log(`- Completed Steps:`, Object.keys(status.sessionIds || {}));
+    return status;
+  } catch (error) {
+    console.log('❌ Failed to get status:', error.message);
+    return null;
+  }
+}
+
+async function simulateInterruption() {
+  console.log('\n=== PHASE 1: Start Workflow ===\n');
+  
+  // Start workflow in background
+  const child = spawn('node', ['test-auto-resume-worker.js'], {
+    stdio: 'inherit',
+    detached: false
+  });
+
+  // Wait a bit to let it start
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  console.log('\n💥 KILLING PROCESS to simulate crash...\n');
+  child.kill('SIGKILL');
+
+  // Wait for process to die
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  console.log('Process killed. Workflow should be incomplete.\n');
+  
+  // Now we need to get the threadId from somewhere
+  // In real scenario, this would be stored in DB or logged
+  console.log('⚠️  In production, threadId would be retrieved from database/logs');
+  console.log('For this test, check the worker output for the threadId');
+}
+
+async function waitForAutoResume(threadId) {
+  console.log('\n=== PHASE 2: Wait for Auto-Resume ===\n');
+  console.log('⏳ WorkflowMonitor should detect stale workflow in ~2 minutes...\n');
+  
+  // Check status periodically
+  let attempts = 0;
+  const maxAttempts = 25; // 2.5 minutes (6 sec intervals)
+  
+  while (attempts < maxAttempts) {
+    attempts++;
+    const status = await checkWorkflowStatus(threadId);
+    
+    if (status && status.status === 'completed') {
+      console.log('\n✅ Workflow auto-resumed and completed!');
+      return true;
+    }
+    
+    if (status && status.status === 'running' && attempts > 10) {
+      console.log('\n🔄 Workflow appears to be running (auto-resume triggered?)');
+    }
+    
+    console.log(`⏱️  Waiting... (${attempts * 6}s / ~120s)`);
+    await new Promise(resolve => setTimeout(resolve, 6000));
+  }
+  
+  console.log('\n❌ Auto-resume did not complete within timeout');
+  return false;
+}
+
+async function manualResume(threadId, projectId) {
+  console.log('\n=== PHASE 3: Manual Resume Test ===\n');
+  console.log('🔄 Manually resuming workflow with same threadId...\n');
+  
+  const resumeRequest = {
+    workflow: [
+      {
+        id: 'architect',
+        role: 'developer',
+        task: 'Design a simple counter app architecture. Output: "Architecture: Counter with increment/decrement buttons"'
+      },
+      {
+        id: 'frontend',
+        role: 'developer', 
+        task: 'Build frontend based on: {architect.output}. Simulate 3 second work then output: "Frontend complete"',
+        deps: ['architect']
+      },
+      {
+        id: 'backend',
+        role: 'developer',
+        task: 'Build backend API. Simulate 3 second work then output: "Backend API ready"',
+        deps: ['frontend']
+      },
+      {
+        id: 'deploy',
+        role: 'developer',
+        task: 'Deploy the app. Output: "Deployed successfully"',
+        deps: ['backend']
+      }
+    ],
+    threadId: threadId, // SAME threadId - this triggers resume
+    projectId: projectId
+  };
+  
+  try {
+    const result = await ky.post(`${API_BASE}/invoke`, {
+      json: resumeRequest,
+      timeout: 60000
+    }).json();
+    
+    console.log('\n✅ Manual resume completed!');
+    console.log('Results:', result.results);
+    console.log('Summary:', result.summary);
+    
+    // Check which steps were skipped
+    const sessionIds = Object.keys(result.sessionIds);
+    console.log(`\n📋 Steps executed: ${sessionIds.join(', ')}`);
+    
+    return true;
+  } catch (error) {
+    console.log('❌ Manual resume failed:', error.message);
+    return false;
+  }
+}
+
+// Main test
+async function runTest() {
+  console.log('🧪 Claude Studio Auto-Resume Test\n');
+  console.log('This test will:');
+  console.log('1. Start a 4-step workflow');
+  console.log('2. Kill the process during execution');
+  console.log('3. Wait for WorkflowMonitor auto-resume (2 min)');
+  console.log('4. If no auto-resume, test manual resume\n');
+  
+  // For the test, we'll need to manually provide the threadId
+  // In production, this would be tracked in database
+  const args = process.argv.slice(2);
+  
+  if (args[0] === 'simulate') {
+    await simulateInterruption();
+    console.log('\n📝 Note the threadId from worker output');
+    console.log('Run: node test-auto-resume.js check <threadId>');
+  } else if (args[0] === 'check' && args[1]) {
+    const threadId = args[1];
+    const status = await checkWorkflowStatus(threadId);
+    
+    if (status && status.status !== 'completed') {
+      console.log('\n⏳ Waiting for auto-resume...');
+      const autoResumed = await waitForAutoResume(threadId);
+      
+      if (!autoResumed) {
+        // Get projectId from first project
+        const response = await ky.get(`${API_BASE}/studio-projects`).json();
+        const projects = response.projects || response;
+        const projectId = projects[0].id;
+        
+        await manualResume(threadId, projectId);
+      }
+    }
+  } else if (args[0] === 'full') {
+    // Full test with known threadId
+    const { threadId, projectId } = await createTestWorkflow();
+    console.log(`\n📝 Started workflow with threadId: ${threadId}`);
+    console.log('Now manually interrupt the server or wait for completion');
+  } else {
+    console.log('Usage:');
+    console.log('  node test-auto-resume.js simulate    - Start and kill workflow');
+    console.log('  node test-auto-resume.js check <id>  - Check/wait for auto-resume');
+    console.log('  node test-auto-resume.js full        - Run full workflow (no kill)');
+  }
+}
+
+runTest().catch(console.error);

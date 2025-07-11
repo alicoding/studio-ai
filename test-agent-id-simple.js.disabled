@@ -1,0 +1,101 @@
+#!/usr/bin/env node
+
+/**
+ * Simple test for agentId invocation
+ * Tests the new agentId field in invoke API
+ */
+
+import ky from 'ky'
+
+const API_BASE = 'http://localhost:3457/api'
+
+async function test() {
+  try {
+    // 1. Create project
+    console.log('1️⃣ Creating project...')
+    const project = await ky.post(`${API_BASE}/studio-projects`, {
+      json: {
+        name: 'AgentId Test',
+        description: 'Testing agentId invocation',
+        workspacePath: `/tmp/test-agentid-${Date.now()}`,
+        activeAgents: []
+      }
+    }).json()
+    console.log(`✅ Project created: ${project.id}`)
+
+    // 2. Get available agent configs
+    console.log('\n2️⃣ Getting agent configs...')
+    const agents = await ky.get(`${API_BASE}/agents`).json()
+    const devAgent = agents.find(a => a.role === 'dev')
+    const uxAgent = agents.find(a => a.role === 'ux')
+    console.log(`✅ Found agents: dev=${devAgent?.id}, ux=${uxAgent?.id}`)
+
+    // 3. Add agents to project
+    console.log('\n3️⃣ Adding agents to project...')
+    await ky.post(`${API_BASE}/studio-projects/${project.id}/agents`, {
+      json: { agentConfigId: devAgent.id, role: 'dev' }
+    }).json()
+    
+    await ky.post(`${API_BASE}/studio-projects/${project.id}/agents`, {
+      json: { agentConfigId: uxAgent.id, role: 'ux' }
+    }).json()
+
+    // 4. Get agents with short IDs
+    console.log('\n4️⃣ Getting agents with short IDs...')
+    const shortIds = await ky.get(`${API_BASE}/studio-projects/${project.id}/agents/short-ids`).json()
+    console.log('✅ Agents:', shortIds.agents.map(a => `${a.shortId} (${a.role})`).join(', '))
+
+    const devShortId = shortIds.agents.find(a => a.role === 'dev')?.shortId
+    const uxShortId = shortIds.agents.find(a => a.role === 'ux')?.shortId
+
+    // 5. Test role-based invocation
+    console.log('\n5️⃣ Testing role-based invocation...')
+    const roleResult = await ky.post(`${API_BASE}/invoke`, {
+      json: {
+        workflow: { role: 'ux', task: 'What is 2+2? Just say the number.' },
+        projectId: project.id
+      }
+    }).json()
+    console.log(`✅ Role result: ${roleResult.results['step-0']}`)
+
+    // 6. Test agentId invocation
+    console.log('\n6️⃣ Testing agentId invocation...')
+    const agentIdResult = await ky.post(`${API_BASE}/invoke`, {
+      json: {
+        workflow: { agentId: devShortId, task: 'What is 3+3? Just say the number.' },
+        projectId: project.id
+      }
+    }).json()
+    console.log(`✅ AgentId result: ${JSON.stringify(agentIdResult)}`)
+
+    // 7. Test workflow with multiple agents
+    console.log('\n7️⃣ Testing multi-agent workflow...')
+    const workflowResult = await ky.post(`${API_BASE}/invoke`, {
+      json: {
+        workflow: [
+          { id: 'calc', agentId: devShortId, task: 'Calculate 5+5. Say: "Result is 10"' },
+          { id: 'design', agentId: uxShortId, task: 'Make a nice message about {calc.output}', deps: ['calc'] }
+        ],
+        projectId: project.id
+      },
+      timeout: 60000
+    }).json()
+    console.log(`✅ Workflow status: ${workflowResult.status}`)
+    console.log('Results:', workflowResult.results)
+
+    console.log('\n✨ All tests completed!')
+    console.log(`\nProject ID: ${project.id}`)
+    console.log('To clean up, run:')
+    console.log(`curl -X DELETE ${API_BASE}/studio-projects/${project.id}`)
+
+  } catch (error) {
+    console.error('❌ Test failed:', error.message)
+    if (error.response) {
+      const body = await error.response.text()
+      console.error('Response:', body)
+    }
+    process.exit(1)
+  }
+}
+
+test()

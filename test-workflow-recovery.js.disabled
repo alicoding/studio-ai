@@ -1,0 +1,131 @@
+import ky from 'ky';
+
+const API_BASE = 'http://localhost:3457/api';
+
+async function testWorkflowRecovery() {
+  console.log('🧪 Testing workflow recovery after server restart...\n');
+
+  // First, get a valid project ID
+  console.log('🔍 Getting project list...');
+  const response = await ky.get(`${API_BASE}/studio-projects`).json();
+  const projects = response.projects || response;
+  if (!projects || projects.length === 0) {
+    throw new Error('No projects found. Please create a project first.');
+  }
+  const projectId = projects[0].id;
+  console.log(`📁 Using project: ${projects[0].name} (${projectId})\n`);
+
+  // Create a workflow that will take time to complete
+  const threadId = `recovery-test-${Date.now()}`;
+  const workflow = {
+    workflow: [
+      {
+        id: 'step1',
+        role: 'developer',
+        task: 'Echo "Step 1 starting..." and then count to 3 slowly'
+      },
+      {
+        id: 'step2',
+        role: 'developer',
+        task: 'Echo "Step 2: Previous step said {step1.output}"',
+        deps: ['step1']
+      },
+      {
+        id: 'step3',
+        role: 'developer',
+        task: 'Echo "Step 3: Final message"',
+        deps: ['step2']
+      }
+    ],
+    threadId: threadId,
+    projectId: projectId
+  };
+
+  try {
+    console.log('📤 Starting workflow asynchronously...');
+    console.log(`   Thread ID: ${threadId}`);
+    
+    // Start workflow asynchronously
+    const asyncResponse = await ky.post(`${API_BASE}/invoke/async`, {
+      json: workflow,
+      timeout: 5000
+    }).json();
+
+    console.log('✅ Workflow started:', asyncResponse);
+    
+    // Wait a moment to let it start
+    console.log('\n⏳ Waiting 2 seconds for workflow to begin...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Check initial status
+    console.log('\n🔍 Checking workflow status...');
+    const status1 = await ky.get(`${API_BASE}/invoke-status/status/${threadId}`).json();
+    console.log('📊 Initial status:', JSON.stringify(status1, null, 2));
+    
+    console.log('\n⚠️  IMPORTANT: Server restart would happen here in a real test');
+    console.log('   In production, the workflow would resume from PostgreSQL checkpoints');
+    
+    // Check if we can query the checkpoints
+    console.log('\n🗄️  Verifying PostgreSQL checkpoints exist...');
+    console.log(`Run this command to see checkpoints:`);
+    console.log(`docker exec claude_studio_postgres psql -U claude -d claude_studio -c "SELECT checkpoint_id, type FROM workflow_checkpoints.checkpoints WHERE thread_id = '${threadId}';"`);
+    
+    // Wait for workflow to complete
+    console.log('\n⏳ Waiting for workflow to complete...');
+    let completed = false;
+    let attempts = 0;
+    const maxAttempts = 30;
+    
+    while (!completed && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      try {
+        const status = await ky.get(`${API_BASE}/invoke-status/status/${threadId}`).json();
+        if (status.status === 'completed' || status.status === 'failed') {
+          completed = true;
+          console.log('\n✅ Final status:', JSON.stringify(status, null, 2));
+        } else {
+          process.stdout.write('.');
+        }
+      } catch (error) {
+        // Status endpoint might fail during restart
+        process.stdout.write('?');
+      }
+      attempts++;
+    }
+    
+    if (!completed) {
+      console.log('\n⏱️  Workflow did not complete in time');
+    }
+    
+    return threadId;
+  } catch (error) {
+    console.error('❌ Test failed:', error.message);
+    if (error.response) {
+      const body = await error.response.text();
+      console.error('Response body:', body);
+    }
+    throw error;
+  }
+}
+
+// Run the test
+console.log('🚀 Starting PostgreSQL recovery test...\n');
+console.log('📌 Prerequisites:');
+console.log('  - USE_POSTGRES_SAVER=true in .env');
+console.log('  - PostgreSQL container running');
+console.log('  - Dev server running on port 3457\n');
+
+testWorkflowRecovery()
+  .then((threadId) => {
+    console.log(`\n✅ Test completed! Thread ID: ${threadId}`);
+    console.log('\n📝 To test real recovery:');
+    console.log('  1. Start a long-running workflow');
+    console.log('  2. Stop the server mid-execution (Ctrl+C)');
+    console.log('  3. Restart the server');
+    console.log('  4. Check if workflow resumes from checkpoint');
+    process.exit(0);
+  })
+  .catch(() => {
+    console.log('\n❌ Test failed!');
+    process.exit(1);
+  });

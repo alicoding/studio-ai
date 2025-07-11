@@ -1,0 +1,193 @@
+import ky from 'ky';
+import { EventSource } from 'eventsource';
+
+const API_BASE = 'http://localhost:3457/api';
+
+async function testWorkflowAutoResume() {
+  console.log('🧪 Testing workflow auto-resume capability...\n');
+
+  // First, get a valid project ID
+  console.log('🔍 Getting project list...');
+  const response = await ky.get(`${API_BASE}/studio-projects`).json();
+  const projects = response.projects || response;
+  if (!projects || projects.length === 0) {
+    throw new Error('No projects found. Please create a project first.');
+  }
+  const projectId = projects[0].id;
+  console.log(`📁 Using project: ${projects[0].name} (${projectId})\n`);
+
+  // Create a workflow that simulates a long-running task
+  const threadId = `auto-resume-test-${Date.now()}`;
+  const workflow = {
+    workflow: [
+      {
+        id: 'step1',
+        role: 'developer',
+        task: 'Echo "Step 1: Starting long task..." then simulate work for 5 seconds'
+      },
+      {
+        id: 'step2',
+        role: 'developer',
+        task: 'Echo "Step 2: Processing {step1.output}" then simulate more work',
+        deps: ['step1']
+      },
+      {
+        id: 'step3',
+        role: 'developer',
+        task: 'Echo "Step 3: Finalizing everything"',
+        deps: ['step2']
+      }
+    ],
+    threadId: threadId,
+    projectId: projectId
+  };
+
+  // Set up SSE connection to monitor progress
+  console.log('📡 Setting up SSE connection...');
+  const eventSource = new EventSource(`${API_BASE}/invoke/stream/${threadId}`);
+  
+  const sseEvents = [];
+  let workflowCompleted = false;
+  
+  eventSource.onmessage = (event) => {
+    console.log('📨 SSE Event:', event.data);
+    sseEvents.push(event.data);
+  };
+  
+  eventSource.addEventListener('step_start', (event) => {
+    console.log('🚀 Step Started:', event.data);
+    sseEvents.push({ type: 'step_start', data: event.data });
+  });
+  
+  eventSource.addEventListener('step_complete', (event) => {
+    console.log('✅ Step Completed:', event.data);
+    sseEvents.push({ type: 'step_complete', data: event.data });
+  });
+  
+  eventSource.addEventListener('workflow_complete', (event) => {
+    console.log('🎉 Workflow Completed:', event.data);
+    workflowCompleted = true;
+    sseEvents.push({ type: 'workflow_complete', data: event.data });
+  });
+  
+  eventSource.addEventListener('workflow_failed', (event) => {
+    console.log('❌ Workflow Failed:', event.data);
+    sseEvents.push({ type: 'workflow_failed', data: event.data });
+  });
+  
+  eventSource.onerror = (error) => {
+    console.log('⚠️  SSE Error:', error);
+  };
+
+  try {
+    console.log('\n📤 Starting workflow asynchronously...');
+    console.log(`   Thread ID: ${threadId}`);
+    
+    // Start workflow asynchronously
+    const asyncResponse = await ky.post(`${API_BASE}/invoke/async`, {
+      json: workflow,
+      timeout: 5000
+    }).json();
+
+    console.log('✅ Workflow started:', asyncResponse);
+    
+    // Wait for first step to complete
+    console.log('\n⏳ Waiting 3 seconds for first step to complete...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Check initial status
+    console.log('\n🔍 Checking workflow status before interruption...');
+    const status1 = await ky.get(`${API_BASE}/invoke-status/status/${threadId}`).json();
+    console.log('📊 Status:', JSON.stringify(status1, null, 2));
+    
+    console.log('\n💥 SIMULATING CRASH/INTERRUPTION');
+    console.log('   In a real scenario, the server would crash here');
+    console.log('   The workflow should auto-resume from PostgreSQL checkpoints');
+    
+    // Simulate waiting for auto-resume
+    console.log('\n⏳ Waiting 10 seconds for auto-resume to kick in...');
+    let resumeDetected = false;
+    let checkCount = 0;
+    
+    while (!workflowCompleted && checkCount < 20) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      try {
+        const status = await ky.get(`${API_BASE}/invoke-status/status/${threadId}`).json();
+        
+        if (status.currentStep && status.currentStep !== status1.currentStep) {
+          if (!resumeDetected) {
+            console.log('\n🔄 RESUME DETECTED! Workflow progressed from', status1.currentStep, 'to', status.currentStep);
+            resumeDetected = true;
+          }
+        }
+        
+        if (status.status === 'completed') {
+          workflowCompleted = true;
+          console.log('\n✅ Workflow completed after resume!');
+          console.log('Final status:', JSON.stringify(status, null, 2));
+        } else if (status.status === 'failed') {
+          console.log('\n❌ Workflow failed');
+          console.log('Final status:', JSON.stringify(status, null, 2));
+          break;
+        }
+      } catch (error) {
+        console.log('⚠️  Status check failed:', error.message);
+      }
+      checkCount++;
+    }
+    
+    // Clean up
+    eventSource.close();
+    
+    console.log('\n📊 SSE Events Captured:', sseEvents.length);
+    console.log('Events:', JSON.stringify(sseEvents, null, 2));
+    
+    // Verify checkpoints in PostgreSQL
+    console.log('\n🗄️  Verify PostgreSQL checkpoints:');
+    console.log(`docker exec claude_studio_postgres psql -U claude -d claude_studio -c "SELECT checkpoint_id, type FROM workflow_checkpoints.checkpoints WHERE thread_id = '${threadId}' ORDER BY checkpoint_id;"`);
+    
+    return {
+      threadId,
+      resumeDetected,
+      workflowCompleted,
+      sseEventCount: sseEvents.length
+    };
+  } catch (error) {
+    eventSource.close();
+    console.error('❌ Test failed:', error.message);
+    if (error.response) {
+      const body = await error.response.text();
+      console.error('Response body:', body);
+    }
+    throw error;
+  }
+}
+
+// Run the test
+console.log('🚀 Starting workflow auto-resume test...\n');
+console.log('📌 Prerequisites:');
+console.log('  - USE_POSTGRES_SAVER=true in .env');
+console.log('  - PostgreSQL container running');
+console.log('  - Dev server running on port 3457');
+console.log('  - SSE endpoints implemented\n');
+
+testWorkflowAutoResume()
+  .then((result) => {
+    console.log('\n📝 Test Summary:');
+    console.log(`  Thread ID: ${result.threadId}`);
+    console.log(`  Resume Detected: ${result.resumeDetected ? '✅ Yes' : '❌ No'}`);
+    console.log(`  Workflow Completed: ${result.workflowCompleted ? '✅ Yes' : '❌ No'}`);
+    console.log(`  SSE Events: ${result.sseEventCount}`);
+    
+    if (!result.resumeDetected) {
+      console.log('\n⚠️  Auto-resume not detected. This feature may not be implemented yet.');
+      console.log('   The workflow would need WorkflowMonitor service to detect interruptions');
+      console.log('   and automatically restart from the last checkpoint.');
+    }
+    
+    process.exit(0);
+  })
+  .catch(() => {
+    console.log('\n❌ Test failed!');
+    process.exit(1);
+  });

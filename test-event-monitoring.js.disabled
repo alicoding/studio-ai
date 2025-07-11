@@ -1,0 +1,83 @@
+import ky from 'ky';
+
+const API_BASE = 'http://localhost:3457/api';
+
+async function testEventMonitoring() {
+  console.log('🔍 Testing Event-Based Monitoring\n');
+  
+  // Get project
+  const response = await ky.get(`${API_BASE}/studio-projects`).json();
+  const projects = response.projects || response;
+  const projectId = projects[0].id;
+  console.log(`📁 Using project: ${projects[0].name}\n`);
+
+  const threadId = `event-test-${Date.now()}`;
+  
+  // Simple workflow with varying step durations
+  const workflow = {
+    workflow: [
+      {
+        id: 'quick',
+        role: 'developer',
+        task: 'Echo "Quick step done" immediately'
+      },
+      {
+        id: 'medium',
+        role: 'developer',
+        task: 'Wait 3 seconds then echo "Medium step done"',
+        deps: ['quick']
+      },
+      {
+        id: 'long',
+        role: 'developer',
+        task: 'This is a long task: Count to 10 slowly (one number per second) then say "Long step done"',
+        deps: ['medium']
+      }
+    ],
+    threadId: threadId,
+    projectId: projectId
+  };
+
+  console.log('📊 Test Scenario:');
+  console.log('- Step 1: Quick (instant)');
+  console.log('- Step 2: Medium (3 seconds)');  
+  console.log('- Step 3: Long (10+ seconds)');
+  console.log('\n🤔 Question: When do we update timestamps?\n');
+
+  try {
+    // Start workflow synchronously to see timing
+    console.log(`⏱️  Starting at ${new Date().toLocaleTimeString()}`);
+    
+    const result = await ky.post(`${API_BASE}/invoke`, {
+      json: workflow,
+      timeout: 60000
+    }).json();
+    
+    console.log(`\n✅ Completed at ${new Date().toLocaleTimeString()}`);
+    console.log('\n📋 Results:');
+    Object.entries(result.results).forEach(([stepId, output]) => {
+      console.log(`   ${stepId}: ${output}`);
+    });
+    
+    console.log('\n💡 What Actually Happens:');
+    console.log('1. updateHeartbeat called at step START');
+    console.log('2. updateHeartbeat called at step COMPLETE');
+    console.log('3. NO updates during step execution');
+    console.log('\n⚠️  Problem: If a step takes > 2 minutes, WorkflowMonitor');
+    console.log('   will think it\'s dead and try to recover!');
+    
+  } catch (error) {
+    console.error('❌ Error:', error.message);
+  }
+}
+
+// Run test
+testEventMonitoring()
+  .then(() => {
+    console.log('\n📝 Summary: We\'re doing event-based monitoring, not true heartbeats');
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('\n❌ Test failed:', error);
+    process.exit(1);
+  });

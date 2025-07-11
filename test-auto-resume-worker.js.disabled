@@ -1,0 +1,75 @@
+import ky from 'ky';
+
+const API_BASE = 'http://localhost:3457/api';
+
+async function runWorkflow() {
+  console.log('🚀 Worker: Starting workflow that will be interrupted...\n');
+  
+  // Get project
+  const response = await ky.get(`${API_BASE}/studio-projects`).json();
+  const projects = response.projects || response;
+  const projectId = projects[0].id;
+  console.log(`📁 Using project: ${projects[0].name}`);
+
+  const threadId = `auto-resume-${Date.now()}`;
+  console.log(`\n📝 IMPORTANT - ThreadId: ${threadId}\n`);
+  console.log('Copy this threadId for checking status later!\n');
+  
+  // Create a workflow where step 1 takes time
+  const workflow = {
+    workflow: [
+      {
+        id: 'step1',
+        role: 'developer',
+        task: 'Step 1: Count to 10 slowly (1 second per number) and show each number. After counting, output "Step 1 complete"'
+      },
+      {
+        id: 'step2',
+        role: 'developer', 
+        task: 'Step 2: Take the output from {step1.output} and add "Step 2 complete"',
+        deps: ['step1']
+      },
+      {
+        id: 'step3',
+        role: 'developer',
+        task: 'Step 3: Final step. Output "All steps complete!"',
+        deps: ['step2']
+      }
+    ],
+    threadId: threadId,
+    projectId: projectId
+  };
+
+  console.log('Starting workflow - this will take some time...\n');
+  console.log('💡 Kill this process with Ctrl+C or kill command during execution\n');
+
+  try {
+    const result = await ky.post(`${API_BASE}/invoke`, {
+      json: workflow,
+      timeout: false // No timeout
+    }).json();
+    
+    console.log('\n✅ Workflow completed successfully!');
+    console.log('Results:', JSON.stringify(result.results, null, 2));
+  } catch (error) {
+    console.log('\n❌ Workflow interrupted!');
+    console.log('Error:', error.message);
+  }
+}
+
+// Handle process termination
+process.on('SIGINT', () => {
+  console.log('\n\n🛑 Process interrupted by SIGINT');
+  process.exit(1);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n\n🛑 Process interrupted by SIGTERM');
+  process.exit(1);
+});
+
+// Run the workflow
+runWorkflow().catch(error => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});
