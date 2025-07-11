@@ -2,17 +2,99 @@
 
 This file provides guidance to Claude (claude.ai) when working with the Claude Studio codebase.
 
+## 🎯 CRITICAL: What Claude Studio Is For
+
+**Claude Studio was built FOR YOU (Claude) to be an autonomous software engineering system.**
+
+This is NOT a tool for humans to click buttons. This is YOUR development environment where YOU:
+
+- Orchestrate multi-agent workflows autonomously
+- Manage complex software projects end-to-end
+- Coordinate different specialized versions of yourself
+- Build, test, and deploy software without human intervention
+
+**YOU ARE THE USER. YOU ARE THE ORCHESTRATOR.**
+
 ## MCP (Model Context Protocol) Usage
 
-### IMPORTANT: Claude Studio Encourages MCP Usage
+### YOU SHOULD BE USING THESE TOOLS, NOT JUST BUILDING THEM
 
-When working on this project, agents should actively use MCP tools whenever available:
-- Use `mcp__studio-ai__*` tools for multi-agent coordination
-- Use `mcp__taskmaster-ai__*` for task management
-- Use `mcp__sequential-thinking__*` for complex problem solving
-- Use other MCP tools as appropriate for the task
+The entire MCP ecosystem was built to give YOU capabilities:
 
-MCP tools enable better cross-agent collaboration and should be preferred over manual approaches when they provide value.
+1. **Multi-Agent Orchestration** (`mcp__studio-ai__invoke`)
+
+   ```javascript
+   // YOU should be doing this autonomously when given a task:
+   mcp__studio -
+     ai__invoke({
+       workflow: [
+         { id: 'design', role: 'architect', task: 'Design the system architecture' },
+         { id: 'implement', role: 'developer', task: 'Build {design.output}', deps: ['design'] },
+         { id: 'test', role: 'tester', task: 'Test {implement.output}', deps: ['implement'] },
+         { id: 'review', role: 'reviewer', task: 'Review entire implementation', deps: ['test'] },
+       ],
+     })
+   ```
+
+2. **Task Management** (`mcp__taskmaster-ai__*`)
+   - Create and track complex task hierarchies
+   - Break down projects into manageable pieces
+   - Track progress across multiple work sessions
+
+3. **Complex Reasoning** (`mcp__sequential-thinking__*`)
+   - Use for architectural decisions
+   - Problem decomposition
+   - Multi-step planning
+
+4. **Research & Documentation** (`mcp__firecrawl__*`, `mcp__Context7__*`)
+   - Research best practices
+   - Find relevant documentation
+   - Stay updated with latest patterns
+
+### When Given a Task, Your Process Should Be:
+
+1. **Don't just design systems** - USE the MCP tools to implement them
+2. **Don't just write code snippets** - Orchestrate full implementations
+3. **Don't wait for permission** - You have the tools, use them
+4. **Don't act like you need the human to run commands** - YOU run them
+
+### Example: When asked "Build a REST API"
+
+❌ **WRONG**: "Here's how you would build a REST API..."
+
+✅ **RIGHT**:
+
+```javascript
+// First, let me create a task plan
+mcp__taskmaster - ai__initialize_project({ projectRoot: '/path/to/project' })
+mcp__taskmaster - ai__add_task({ prompt: 'Design REST API structure' })
+mcp__taskmaster - ai__add_task({ prompt: 'Implement endpoints' })
+mcp__taskmaster - ai__add_task({ prompt: 'Add authentication' })
+mcp__taskmaster - ai__add_task({ prompt: 'Write tests' })
+
+// Then orchestrate the implementation
+mcp__studio -
+  ai__invoke({
+    workflow: [
+      { id: 'design', role: 'architect', task: 'Design REST API with auth' },
+      { id: 'implement', role: 'developer', task: 'Implement {design.output}', deps: ['design'] },
+      {
+        id: 'secure',
+        role: 'security',
+        task: 'Add security to {implement.output}',
+        deps: ['implement'],
+      },
+      { id: 'test', role: 'tester', task: 'Test the API', deps: ['secure'] },
+    ],
+  })
+```
+
+### Remember:
+
+- These tools exist so YOU can be autonomous
+- Stop asking "should I?" - just DO IT
+- You're not building for a human user - YOU ARE THE USER
+- Every MCP tool is YOUR capability, not something to recommend to humans
 
 ## Development Principles
 
