@@ -1,8 +1,8 @@
 /**
  * LangGraph Orchestrator - Multi-Agent Conversation Management
- * 
+ *
  * SOLID: Single responsibility - agent orchestration with state management
- * DRY: Reuses existing UnifiedStorage patterns 
+ * DRY: Reuses existing UnifiedStorage patterns
  * KISS: Simple LangGraph wrapper with cancellation support
  * Library-First: Built on LangGraph for proven orchestration
  */
@@ -14,7 +14,6 @@ import { createStorage } from '../../../src/lib/storage/UnifiedStorage'
 import { ContextBuilder } from './ContextBuilder'
 import path from 'path'
 import type { CapabilityConfig } from '../../../src/lib/ai/orchestration/capability-config'
-
 
 export interface ConversationState {
   messages: BaseMessage[]
@@ -29,28 +28,28 @@ export interface ConversationState {
 const StateSchema = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
     reducer: messagesStateReducer,
-    default: () => []
+    default: () => [],
   }),
   sessionId: Annotation<string>({
     reducer: (x, y) => y,
-    default: () => ''
+    default: () => '',
   }),
   projectId: Annotation<string | undefined>({
     reducer: (x, y) => y,
-    default: () => undefined
+    default: () => undefined,
   }),
   currentAgent: Annotation<string | undefined>({
     reducer: (x, y) => y,
-    default: () => undefined
+    default: () => undefined,
   }),
   metadata: Annotation<Record<string, unknown>>({
     reducer: (x, y) => ({ ...x, ...y }),
-    default: () => ({})
+    default: () => ({}),
   }),
   turnCount: Annotation<number>({
     reducer: (x, y) => y,
-    default: () => 0
-  })
+    default: () => 0,
+  }),
 })
 
 export interface AgentExecutionRequest {
@@ -81,17 +80,17 @@ export class LangGraphOrchestrator {
   private static instance: LangGraphOrchestrator
   private workflow?: ReturnType<typeof this.createWorkflow>
   private memory: MemorySaver
-  private conversationStorage = createStorage({ 
-    namespace: 'langgraph-conversations', 
-    type: 'session' 
+  private conversationStorage = createStorage({
+    namespace: 'langgraph-conversations',
+    type: 'session',
   })
-  private agentStorage = createStorage({ 
-    namespace: 'langgraph-agents', 
-    type: 'config' 
+  private agentStorage = createStorage({
+    namespace: 'langgraph-agents',
+    type: 'config',
   })
-  private capabilitiesStorage = createStorage({ 
-    namespace: 'ai-capabilities', 
-    type: 'config' 
+  private capabilitiesStorage = createStorage({
+    namespace: 'ai-capabilities',
+    type: 'config',
   })
   private contextBuilder = ContextBuilder.getInstance()
 
@@ -122,11 +121,11 @@ export class LangGraphOrchestrator {
       .addEdge('__start__', 'orchestrator')
       .addConditionalEdges('orchestrator', this.routeToAgent.bind(this))
       .addEdge('agent', '__end__')
-      .compile({ 
-        checkpointer: this.memory
+      .compile({
+        checkpointer: this.memory,
         // Note: Cancellation handled via AbortSignal in invoke()
       })
-    
+
     return workflow
   }
 
@@ -135,7 +134,7 @@ export class LangGraphOrchestrator {
    */
   async executeWithSession(request: AgentExecutionRequest): Promise<AgentExecutionResponse> {
     const startTime = Date.now()
-    
+
     if (!this.workflow) {
       throw new Error('Workflow not initialized')
     }
@@ -145,25 +144,25 @@ export class LangGraphOrchestrator {
       let enrichedInput = request.input
       if (request.context?.files && request.context.files.length > 0 && request.projectId) {
         // Resolve file paths relative to project directory
-        const resolvedFilePaths = request.context.files.map(file => {
+        const resolvedFilePaths = request.context.files.map((file) => {
           // If already absolute, use as-is. Otherwise, resolve relative to projectId (which is the project path)
           return path.isAbsolute(file) ? file : path.join(request.projectId || '', file)
         })
-        
+
         const projectContext = await this.contextBuilder.buildContext({
           projectPath: request.projectId,
           filePaths: resolvedFilePaths,
-          projectId: request.projectId
+          projectId: request.projectId,
         })
-        
+
         // Enrich input with file context if files were successfully read
         if (projectContext.files.length > 0) {
-          enrichedInput = `${request.input}\n\n**Context:**\n${projectContext.files.map(fc => 
-            `File: ${fc.path}\n\`\`\`\n${fc.content}\n\`\`\``
-          ).join('\n\n')}`
+          enrichedInput = `${request.input}\n\n**Context:**\n${projectContext.files
+            .map((fc) => `File: ${fc.path}\n\`\`\`\n${fc.content}\n\`\`\``)
+            .join('\n\n')}`
         }
       }
-      
+
       // Let LangGraph handle state - only pass the new message
       const inputState = {
         messages: [new HumanMessage(enrichedInput)],
@@ -172,30 +171,32 @@ export class LangGraphOrchestrator {
         metadata: {
           ...request.context?.metadata,
           files: request.context?.files || [],
-          capability: request.capability
-        }
+          capability: request.capability,
+        },
       }
 
       // Execute workflow with cancellation support
       // LangGraph will automatically load existing state using thread_id
       console.log('[LangGraph] Invoking with thread_id:', request.sessionId)
       console.log('[LangGraph] Input state:', JSON.stringify(inputState, null, 2))
-      
+
       // Check if we have existing state
-      const checkpoint = await this.memory.getTuple({ 
-        configurable: { thread_id: request.sessionId }
+      const checkpoint = await this.memory.getTuple({
+        configurable: { thread_id: request.sessionId },
       })
       console.log('[LangGraph] Existing checkpoint found?', !!checkpoint)
       if (checkpoint) {
-        const messages = checkpoint.checkpoint?.channel_values?.messages as BaseMessage[] | undefined
+        const messages = checkpoint.checkpoint?.channel_values?.messages as
+          | BaseMessage[]
+          | undefined
         console.log('[LangGraph] Checkpoint state messages:', messages?.length || 0)
       }
-      
+
       const result = await this.workflow.invoke(inputState, {
         configurable: { thread_id: request.sessionId },
-        signal: request.signal
+        signal: request.signal,
       })
-      
+
       console.log('[LangGraph] Result messages count:', result.messages?.length)
       console.log('[LangGraph] Last message:', result.messages?.[result.messages.length - 1])
 
@@ -208,10 +209,13 @@ export class LangGraphOrchestrator {
         state: result,
         metadata: {
           agentUsed: result.currentAgent || 'orchestrator',
-          model: (result.metadata as Record<string, unknown>)?.model as string || 'unknown',
+          model: ((result.metadata as Record<string, unknown>)?.model as string) || 'unknown',
           executionTime,
-          turnCount: result.turnCount || result.messages?.filter((m: BaseMessage) => m._getType() === 'human').length || 1
-        }
+          turnCount:
+            result.turnCount ||
+            result.messages?.filter((m: BaseMessage) => m._getType() === 'human').length ||
+            1,
+        },
       }
     } catch (error) {
       // Handle cancellation gracefully
@@ -225,21 +229,25 @@ export class LangGraphOrchestrator {
   /**
    * Orchestrator agent - routes to the generic agent with capability context
    */
-  private async orchestratorAgent(state: typeof StateSchema.State): Promise<Partial<typeof StateSchema.State>> {
+  private async orchestratorAgent(
+    state: typeof StateSchema.State
+  ): Promise<Partial<typeof StateSchema.State>> {
     // All requests go to the generic agent, which handles capabilities dynamically
     return {
       currentAgent: 'agent',
       metadata: {
         ...state.metadata,
-        routingDecision: `Routed to generic agent with capability '${state.metadata?.capability || 'default'}'`
-      }
+        routingDecision: `Routed to generic agent with capability '${state.metadata?.capability || 'default'}'`,
+      },
     }
   }
 
   /**
    * Generic agent - handles all capabilities dynamically based on configuration
    */
-  private async genericAgent(state: typeof StateSchema.State): Promise<Partial<typeof StateSchema.State>> {
+  private async genericAgent(
+    state: typeof StateSchema.State
+  ): Promise<Partial<typeof StateSchema.State>> {
     const apiKey = process.env.ELECTRONHUB_API_KEY || process.env.VITE_ELECTRONHUB_API_KEY
     const baseURL = process.env.ELECTRONHUB_API_URL || 'https://api.electronhub.ai/v1'
 
@@ -250,55 +258,63 @@ export class LangGraphOrchestrator {
     // Get capability configuration from settings
     const capabilityName = (state.metadata?.capability as string) || 'research'
     const capability = await this.capabilitiesStorage.get<CapabilityConfig>(capabilityName)
-    
+
     if (!capability?.models?.primary) {
-      throw new Error(`${capabilityName} capability not configured. Please configure the ${capabilityName} capability in Settings → AI.`)
+      throw new Error(
+        `${capabilityName} capability not configured. Please configure the ${capabilityName} capability in Settings → AI.`
+      )
     }
-    
+
+    // Check if this is a reasoning model and adjust parameters
+    const isReasoningModel =
+      capability.models.primary.includes('o3-mini') || capability.models.primary.includes('o1-')
+
     // Use capability configuration for all model parameters
     const model = new ChatOpenAI({
       modelName: capability.models.primary,
-      temperature: capability.advanced?.temperature ?? 0.7,
-      maxTokens: capability.advanced?.maxTokens ?? 2000,
+      temperature: isReasoningModel ? 1.0 : (capability.advanced?.temperature ?? 0.7),
+      maxTokens: isReasoningModel ? 8000 : (capability.advanced?.maxTokens ?? 2000),
       openAIApiKey: apiKey,
       configuration: { baseURL },
       topP: capability.advanced?.topP,
       frequencyPenalty: capability.advanced?.frequencyPenalty,
       presencePenalty: capability.advanced?.presencePenalty,
-      stop: capability.advanced?.stopSequences
+      stop: capability.advanced?.stopSequences,
     })
 
     const systemPrompt = capability?.prompts?.system || `You are a helpful AI assistant.`
 
-    // Pass full conversation history to the LLM
-    const messages = [
-      new SystemMessage(systemPrompt),
-      ...state.messages
-    ]
+    let messages
+    if (isReasoningModel) {
+      // For reasoning models, embed system prompt in user message instead of using SystemMessage
+      const userMessage = state.messages[state.messages.length - 1]
+      const enhancedContent = `${systemPrompt}\n\nUser request: ${userMessage.content}`
+
+      messages = [...state.messages.slice(0, -1), new HumanMessage(enhancedContent)]
+    } else {
+      // Standard approach for regular models
+      messages = [new SystemMessage(systemPrompt), ...state.messages]
+    }
 
     const response = await model.invoke(messages)
 
-    // Handle reasoning models that return empty content
-    // If content is empty but we have valid metadata, create a meaningful response
+    // With native LangChain reasoning model support, empty content should be rare
+    // Only handle truly empty responses
     if (!response.content && response.response_metadata?.model_name) {
       const modelName = response.response_metadata.model_name
-      const fallbackContent = `I received your ${capabilityName} request and processed it using ${modelName}. However, the response content appears to be empty. This might be due to the reasoning model's output format. Please try rephrasing your question or check if this model requires specific formatting.`
-      
-      // Create a new message with the fallback content
-      response.content = fallbackContent
+      response.content = `No response generated by ${modelName}. This may indicate a configuration issue or temporary service problem.`
     }
 
     return {
-      messages: [response],  // Return only the new message
+      messages: [response], // Return only the new message
       metadata: {
         ...state.metadata,
         agentExecuted: 'generic',
         model: capability.models.primary,
-        capability: capabilityName
-      }
+        capability: capabilityName,
+      },
     }
   }
-
 
   /**
    * Route to appropriate agent based on orchestrator decision
@@ -325,7 +341,7 @@ export class LangGraphOrchestrator {
       messages: [],
       sessionId,
       metadata: {},
-      turnCount: 0
+      turnCount: 0,
     }
   }
 
@@ -337,7 +353,7 @@ export class LangGraphOrchestrator {
       await this.conversationStorage.set(`session:${sessionId}`, {
         ...state,
         // Don't store too much message history to avoid token bloat
-        messages: state.messages.slice(-20) // Keep last 20 messages
+        messages: state.messages.slice(-20), // Keep last 20 messages
       })
     } catch (error) {
       console.error(`Failed to save conversation state for ${sessionId}:`, error)
@@ -350,12 +366,12 @@ export class LangGraphOrchestrator {
   private extractResponseContent(state: ConversationState): string {
     const lastMessage = state.messages[state.messages.length - 1]
     if (!lastMessage) return 'No response generated'
-    
+
     // BaseMessage content can be string or complex content
     if (typeof lastMessage.content === 'string') {
       return lastMessage.content
     }
-    
+
     // Handle complex content types
     return JSON.stringify(lastMessage.content)
   }
@@ -366,10 +382,10 @@ export class LangGraphOrchestrator {
   async getConversationHistory(sessionId: string): Promise<ConversationState> {
     try {
       // Get from LangGraph checkpoint
-      const checkpoint = await this.memory.getTuple({ 
-        configurable: { thread_id: sessionId }
+      const checkpoint = await this.memory.getTuple({
+        configurable: { thread_id: sessionId },
       })
-      
+
       if (checkpoint?.checkpoint?.channel_values) {
         const state = checkpoint.checkpoint.channel_values as Record<string, unknown>
         return {
@@ -378,7 +394,7 @@ export class LangGraphOrchestrator {
           projectId: state.projectId as string | undefined,
           currentAgent: state.currentAgent as string | undefined,
           metadata: (state.metadata as Record<string, unknown>) || {},
-          turnCount: (state.turnCount as number) || 0
+          turnCount: (state.turnCount as number) || 0,
         }
       }
     } catch (error) {
@@ -390,7 +406,7 @@ export class LangGraphOrchestrator {
       messages: [],
       sessionId,
       metadata: {},
-      turnCount: 0
+      turnCount: 0,
     }
   }
 
@@ -413,7 +429,9 @@ export class LangGraphOrchestrator {
   async getActiveSessions(): Promise<string[]> {
     try {
       const keys = await this.conversationStorage.keys()
-      return keys.filter(key => key.startsWith('session:')).map(key => key.replace('session:', ''))
+      return keys
+        .filter((key) => key.startsWith('session:'))
+        .map((key) => key.replace('session:', ''))
     } catch (error) {
       console.error('Failed to get active sessions:', error)
       return []

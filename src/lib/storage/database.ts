@@ -312,6 +312,35 @@ function runMigrations() {
         console.error('Failed to run tool permissions migration:', error)
       })
   }
+
+  // Check if we need to run saved workflows migration
+  const hasSavedWorkflowsMigration = sqliteInstance
+    .prepare(
+      `
+    SELECT COUNT(*) as count 
+    FROM migrations 
+    WHERE name = '006_add_saved_workflows'
+  `
+    )
+    .get() as { count: number }
+
+  if (hasSavedWorkflowsMigration.count === 0) {
+    // Import and run the saved workflows migration
+    import('./migrations/006_add_saved_workflows')
+      .then((module) => {
+        module.up(sqliteInstance!)
+
+        // Mark migration as complete
+        sqliteInstance!
+          .prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)')
+          .run('006_add_saved_workflows')
+
+        console.log('✅ Added saved_workflows table for workflow storage')
+      })
+      .catch((error) => {
+        console.error('Failed to run saved workflows migration:', error)
+      })
+  }
 }
 
 /**

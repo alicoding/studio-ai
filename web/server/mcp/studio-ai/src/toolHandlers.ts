@@ -81,30 +81,6 @@ import {
 type ToolHandler = (args: unknown) => Promise<TextContent>
 
 /**
- * Type definitions for workflow tool arguments
- */
-interface AddWorkflowStepArgs {
-  workflow: WorkflowDefinition
-  step: Partial<WorkflowStepDefinition>
-}
-
-interface SetWorkflowDependenciesArgs {
-  workflow: WorkflowDefinition
-  stepId: string
-  dependencies: string[]
-}
-
-interface ValidateWorkflowArgs {
-  workflow: WorkflowDefinition
-}
-
-interface ExecuteWorkflowArgs {
-  workflow: WorkflowDefinition
-  threadId?: string
-  startNewConversation?: boolean
-}
-
-/**
  * Parse and validate arguments for agent creation
  */
 function parseCreateAgentArgs(args: unknown): CreateAgentInput {

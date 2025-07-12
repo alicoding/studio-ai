@@ -178,6 +178,26 @@ export const projectClaudePaths = sqliteTable('project_claude_paths', {
     .default(sql`CURRENT_TIMESTAMP`),
 })
 
+// Saved Workflows table (for workflow definition storage)
+export const savedWorkflows = sqliteTable('saved_workflows', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  definition: text('definition').notNull(), // JSON string of WorkflowDefinition
+  createdBy: text('created_by').default('system'),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch('now'))`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch('now'))`),
+  version: integer('version').default(1),
+  tags: text('tags').default('[]'), // JSON array
+  isTemplate: integer('is_template', { mode: 'boolean' }).default(false),
+  source: text('source', { enum: ['ui', 'mcp', 'api'] }).default('ui'),
+})
+
 // Migrations tracking
 export const migrations = sqliteTable('migrations', {
   id: integer('id').primaryKey({ autoIncrement: true }),
