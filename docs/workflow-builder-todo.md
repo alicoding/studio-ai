@@ -4,22 +4,31 @@ This document tracks the implementation of the Workflow Builder feature for Clau
 
 ## 📍 DECISION: What to Do Next (Jan 2025)
 
-**✅ APIs are READY** - All backend work is complete and tested. The flexible scope system supports future growth.
+**✅ FOUNDATION COMPLETE** - Save/Load functionality is working! MCP tools tested and operational.
 
-**🎯 NEXT ACTION: Wire up Save/Load buttons** (Step 1 below)
+**🎯 NEXT ACTION: Create Dedicated Workflows Page** (/workflows route)
 
-- This is the smallest valuable increment
-- Makes the existing UI actually functional
-- No new UI components needed
-- Ali can test immediately
+This is the logical next step because:
 
-**❌ NOT YET:**
+- Users need a central place to manage their workflows
+- The library modal is great for loading, but not for management
+- Enables CRUD operations (edit, clone, delete) on saved workflows
+- Sets up foundation for execution history tracking
 
-- Don't build workflow library page yet
-- Don't add import UI yet
-- Don't add cross-project features yet
+**Current Capabilities:**
 
-Just make save/load work first!
+- ✅ Save workflows from builder (UI + MCP)
+- ✅ Load workflows into builder (UI + MCP)
+- ✅ List and filter workflows (API + MCP)
+- ✅ Update and delete workflows (API + MCP)
+- ✅ Execute workflows from builder
+
+**Missing UI Features:**
+
+- ❌ Dedicated workflows management page
+- ❌ Import executed workflows UI
+- ❌ Execution history tracking
+- ❌ Workflow templates system
 
 ## 🎯 Current Status (Jan 2025)
 
@@ -69,9 +78,10 @@ Just make save/load work first!
 - ✅ Visual workflow builder opens and works
 - ✅ Can create workflows visually
 - ✅ Can execute workflows from builder
-- ⏳ Can save workflows (needs testing)
-- ⏳ Can load existing workflows (needs testing)
-- ❌ Cannot see workflow library
+- ✅ Can save workflows (MCP tools tested and working)
+- ✅ Can load existing workflows (MCP tools tested and working)
+- ✅ Workflow library modal works for loading
+- ❌ No dedicated workflows management page yet
 
 ### API Testing Status ✅
 
@@ -130,23 +140,42 @@ Save/Load functionality has been fully implemented:
 - ✅ UI: TypeScript/ESLint checks passing
 - ✅ Implementation: Save/load functionality fully integrated
 
-### **Step 2: Dedicated Workflows Page** 📄
+### **Step 2: Dedicated Workflows Page** 📄 🚧 NEXT UP
 
 Create `/workflows` route for workflow management:
 
 ```
 /workflows
-├── List all saved workflows (table/cards)
-├── Actions: Edit, Clone, Delete, Execute
-├── "New Workflow" → Opens builder
-└── Search/filter functionality
+├── List all saved workflows (table/cards view)
+├── Actions per workflow:
+│   ├── Edit → Load into builder
+│   ├── Clone → Create copy with new name
+│   ├── Delete → Remove (with confirmation)
+│   ├── Execute → Run workflow
+│   └── View History → See execution runs
+├── "New Workflow" button → Opens builder
+├── Search/filter functionality
+│   ├── By name/description
+│   ├── By scope (project/global)
+│   ├── By tags
+│   └── By last modified
+└── Bulk actions (select multiple)
 ```
 
-**Testing**:
+**Implementation Plan**:
 
-- Can navigate to /workflows ⏳
-- Can see saved workflows ⏳
-- Can perform CRUD operations ⏳
+1. **Route Setup** - Add `/workflows` to TanStack Router
+2. **List Component** - Table/grid view with sorting
+3. **Actions** - Dropdown menu per workflow
+4. **Search/Filter** - Reuse WorkflowLibrary search logic
+5. **Integration** - Connect to existing APIs
+
+**Why This Next**:
+
+- Natural progression from save/load
+- Provides workflow management hub
+- Foundation for execution history
+- Enables workflow sharing/templates later
 
 ### **Step 3: Basic Execution History** 📊
 
@@ -271,16 +300,81 @@ Once the basics work perfectly, we can evolve:
 
 ## 🚨 Current Blockers
 
-**None!** We have everything needed at API level. Just need to:
-
-1. Wire up the UI buttons
-2. Create the /workflows page
-3. Test with Ali
+**None!** Foundation is complete. Ready for next incremental step.
 
 ---
 
 **Last Updated**: Jan 2025
-**Next Review**: After Step 1 (Save/Load) is complete
+**Next Review**: After workflows page is implemented
+
+## 🌟 Vision & Incremental Path Forward
+
+### **Where We Are Now**
+
+- ✅ **Foundation**: Save/load workflows with visual builder
+- ✅ **APIs**: Flexible system supporting project/global/cross-project
+- ✅ **MCP Integration**: Programmatic workflow management
+- ✅ **Execution**: Can run workflows from builder
+
+### **Next 3 Incremental Steps**
+
+#### **1. Workflows Management Page** (Current Focus)
+
+- Central hub for all workflows
+- CRUD operations with UI
+- Search and filter capabilities
+- Foundation for organization
+
+#### **2. Execution History & Monitoring**
+
+- Track all workflow runs
+- Show status, duration, outputs
+- Link to thread details
+- Enable debugging failed runs
+
+#### **3. Import Executed Workflows**
+
+- UI for importing past executions
+- Convert to editable templates
+- Learn from successful patterns
+- Build workflow library
+
+### **Future Vision (After Basics)**
+
+#### **Phase 1: Enhanced Builder**
+
+- Conditional branching UI
+- Loop configuration
+- Variable passing visualization
+- Real-time validation
+
+#### **Phase 2: Templates & Sharing**
+
+- Public workflow templates
+- Team workflow sharing
+- Fork and customize
+- Version control
+
+#### **Phase 3: Advanced Execution**
+
+- Scheduled workflows
+- Event triggers
+- Webhook integration
+- API endpoints per workflow
+
+#### **Phase 4: n8n-like Features**
+
+- 100+ node types
+- External service integration
+- Custom node creation
+- Workflow marketplace
+
+### **Key Principles**
+
+1. **Incremental**: Each step adds immediate value
+2. **User-Centric**: Focus on real needs, not features
+3. **API-First**: Backend flexibility enables UI evolution
+4. **Production-Ready**: Each increment is polished, not prototype
 
 ## 🎓 Key Insight: API-First Approach Working!
 
