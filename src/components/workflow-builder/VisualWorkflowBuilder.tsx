@@ -7,7 +7,7 @@
  * Library-First: Uses React Flow (industry standard)
  */
 
-import { useCallback, useMemo, useEffect } from 'react'
+import { useCallback, useMemo, useEffect, useState } from 'react'
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -25,10 +25,14 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 
 import { Button } from '@/components/ui/button'
+import { ModalLayout } from '@/components/ui/modal-layout'
 import { X, Save, Download, Upload, Settings, Folder, AlertTriangle } from 'lucide-react'
 import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
 import { useProjectStore, useAgentStore } from '@/stores'
-import type { WorkflowStepDefinition } from '../../../web/server/schemas/workflow-builder'
+import type {
+  WorkflowStepDefinition,
+  WorkflowDefinition,
+} from '../../../web/server/schemas/workflow-builder'
 
 // Custom node types
 import WorkflowStepNode from './nodes/WorkflowStepNode'
@@ -50,7 +54,12 @@ interface VisualWorkflowBuilderProps {
 function stepsToNodes(steps: WorkflowStepDefinition[]): Node[] {
   return steps.map((step, index) => ({
     id: step.id,
-    type: step.type === 'conditional' ? 'conditional' : step.type === 'parallel' ? 'loop' : 'workflowStep',
+    type:
+      step.type === 'conditional'
+        ? 'conditional'
+        : step.type === 'parallel'
+          ? 'loop'
+          : 'workflowStep',
     position: { x: 200 + (index % 3) * 250, y: 100 + Math.floor(index / 3) * 200 },
     data: {
       label: step.role || step.type || 'Task',
@@ -66,7 +75,7 @@ function stepsToNodes(steps: WorkflowStepDefinition[]): Node[] {
 // Convert workflow steps dependencies to React Flow edges
 function stepsToEdges(steps: WorkflowStepDefinition[]): Edge[] {
   const edges: Edge[] = []
-  
+
   steps.forEach((step) => {
     step.deps.forEach((depId) => {
       edges.push({
@@ -77,7 +86,7 @@ function stepsToEdges(steps: WorkflowStepDefinition[]): Edge[] {
       })
     })
   })
-  
+
   return edges
 }
 
@@ -88,6 +97,7 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
     isDirty,
     isValidating,
     isExecuting,
+    isSaving,
     validationResult,
     lastError,
     initWorkflow,
@@ -96,26 +106,36 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
     setDependencies,
     validateWorkflow,
     executeWorkflow,
+    saveWorkflow,
+    fetchSavedWorkflows,
+    loadWorkflow,
   } = useWorkflowBuilderStore()
-  
+
   const projects = useProjectStore((state) => state.projects)
   const agents = useAgentStore((state) => state.agents)
 
+  // Load modal state
+  const [isLoadModalOpen, setIsLoadModalOpen] = useState(false)
+  const [availableWorkflows, setAvailableWorkflows] = useState<
+    Array<{
+      id: string
+      name: string
+      description?: string
+      definition: WorkflowDefinition
+      updatedAt: string
+    }>
+  >([])
+  const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(false)
+
   // Convert store workflow to React Flow format
-  const nodes = useMemo(() => 
-    workflow ? stepsToNodes(workflow.steps) : [], 
-    [workflow]
-  )
-  
-  const edges = useMemo(() => 
-    workflow ? stepsToEdges(workflow.steps) : [], 
-    [workflow]
-  )
-  
+  const nodes = useMemo(() => (workflow ? stepsToNodes(workflow.steps) : []), [workflow])
+
+  const edges = useMemo(() => (workflow ? stepsToEdges(workflow.steps) : []), [workflow])
+
   // Use React Flow hooks for UI interactions only
   const [displayNodes, setDisplayNodes, onNodesChange] = useNodesState(nodes)
   const [displayEdges, setDisplayEdges, onEdgesChange] = useEdgesState(edges)
-  
+
   // Sync store changes to display
   useEffect(() => {
     setDisplayNodes(nodes)
@@ -125,26 +145,25 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
   // Initialize workflow if none exists
   useEffect(() => {
     if (!workflow) {
-      const currentProject = agents[0]?.projectId 
-        ? projects.find(p => p.id === agents[0].projectId)
+      const currentProject = agents[0]?.projectId
+        ? projects.find((p) => p.id === agents[0].projectId)
         : null
-      
-      initWorkflow(
-        'Untitled Workflow',
-        'Workflow created in visual builder',
-        currentProject?.id
-      )
+
+      initWorkflow('Untitled Workflow', 'Workflow created in visual builder', currentProject?.id)
     }
   }, [workflow, initWorkflow, agents, projects])
 
-  const handleWorkflowNameChange = useCallback((name: string) => {
-    updateWorkflowMeta({ name })
-  }, [updateWorkflowMeta])
+  const handleWorkflowNameChange = useCallback(
+    (name: string) => {
+      updateWorkflowMeta({ name })
+    },
+    [updateWorkflowMeta]
+  )
 
   // Get current project context
   const currentProject = useMemo(() => {
-    return workflow?.metadata.projectId 
-      ? projects.find(p => p.id === workflow.metadata.projectId)
+    return workflow?.metadata.projectId
+      ? projects.find((p) => p.id === workflow.metadata.projectId)
       : null
   }, [workflow?.metadata.projectId, projects])
 
@@ -152,7 +171,7 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
     (params: Connection | Edge) => {
       if (params.source && params.target) {
         // Update dependencies in store instead of just UI
-        const targetStep = workflow?.steps.find(s => s.id === params.target)
+        const targetStep = workflow?.steps.find((s) => s.id === params.target)
         if (targetStep) {
           const newDeps = [...targetStep.deps, params.source]
           setDependencies(params.target, newDeps)
@@ -178,7 +197,7 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
 
       // Handle different node types - add to store instead of local state
       const isControlFlow = ['Conditional', 'Loop', 'Parallel', 'Human'].includes(nodeType)
-      
+
       if (nodeType === 'Conditional') {
         addStep({
           type: 'conditional',
@@ -223,13 +242,38 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
     }
   }
 
-  const handleSave = () => {
-    // Mark as saved (workflow is automatically persisted via store)
-    console.log('Workflow saved:', workflow?.name)
+  const handleSave = async () => {
+    try {
+      await saveWorkflow()
+      console.log('Workflow saved successfully:', workflow?.name)
+    } catch (error) {
+      console.error('Failed to save workflow:', error)
+      // TODO: Show user-friendly error notification
+    }
   }
 
   const handleValidate = async () => {
     await validateWorkflow()
+  }
+
+  const handleLoadClick = async () => {
+    setIsLoadingWorkflows(true)
+    try {
+      const workflows = await fetchSavedWorkflows()
+      setAvailableWorkflows(workflows)
+      setIsLoadModalOpen(true)
+    } catch (error) {
+      console.error('Failed to load workflows:', error)
+      // TODO: Show user-friendly error notification
+    } finally {
+      setIsLoadingWorkflows(false)
+    }
+  }
+
+  const handleWorkflowSelect = (selectedWorkflow: { definition: WorkflowDefinition }) => {
+    loadWorkflow(selectedWorkflow.definition)
+    setIsLoadModalOpen(false)
+    console.log('Workflow loaded:', selectedWorkflow.definition.name)
   }
 
   return (
@@ -284,29 +328,29 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
         </div>
 
         <div className="flex items-center gap-2">
-          <Button 
-            size="sm" 
-            variant="outline" 
-            onClick={handleValidate}
-            disabled={isValidating}
-          >
+          <Button size="sm" variant="outline" onClick={handleValidate} disabled={isValidating}>
             {isValidating ? 'Validating...' : 'Validate'}
           </Button>
-          <Button size="sm" variant="outline" onClick={handleSave} disabled={!isDirty}>
+          <Button size="sm" variant="outline" onClick={handleSave} disabled={!isDirty || isSaving}>
             <Save className="w-4 h-4 mr-2" />
-            {isDirty ? 'Save' : 'Saved'}
+            {isSaving ? 'Saving...' : isDirty ? 'Save' : 'Saved'}
           </Button>
           <Button size="sm" variant="outline">
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Button size="sm" variant="outline">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleLoadClick}
+            disabled={isLoadingWorkflows}
+          >
             <Upload className="w-4 h-4 mr-2" />
-            Import
+            {isLoadingWorkflows ? 'Loading...' : 'Load'}
           </Button>
           <div className="h-6 w-px bg-border" />
-          <Button 
-            size="sm" 
+          <Button
+            size="sm"
             onClick={handleExecute}
             disabled={isExecuting || !workflow?.steps.length}
           >
@@ -362,7 +406,7 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
           <DraggableNodePalette />
 
           {/* Empty State Help */}
-          {(!workflow?.steps.length) && (
+          {!workflow?.steps.length && (
             <Panel position="top-center">
               <div className="bg-card border border-border rounded-lg p-8 shadow-lg text-center max-w-md">
                 <h3 className="text-lg font-semibold mb-2">Start Building Your Workflow</h3>
@@ -385,7 +429,8 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
                 <div className="space-y-1">
                   {validationResult.errors.slice(0, 3).map((error, index) => (
                     <div key={index} className="text-xs text-red-600">
-                      {error.stepId && `[${error.stepId}] `}{error.message}
+                      {error.stepId && `[${error.stepId}] `}
+                      {error.message}
                     </div>
                   ))}
                   {validationResult.errors.length > 3 && (
@@ -399,6 +444,50 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
           )}
         </ReactFlow>
       </div>
+
+      {/* Load Workflow Modal */}
+      <ModalLayout
+        isOpen={isLoadModalOpen}
+        onClose={() => setIsLoadModalOpen(false)}
+        title="Load Workflow"
+        size="lg"
+      >
+        <div className="space-y-4">
+          {availableWorkflows.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Upload className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>No saved workflows found</p>
+              <p className="text-sm mt-2">Create and save workflows to see them here</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground mb-4">
+                Select a workflow to load into the builder:
+              </p>
+              {availableWorkflows.map((workflow) => (
+                <div
+                  key={workflow.id}
+                  className="border border-border rounded-lg p-4 hover:bg-muted cursor-pointer transition-colors"
+                  onClick={() => handleWorkflowSelect(workflow)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <h3 className="font-medium">{workflow.name}</h3>
+                      {workflow.description && (
+                        <p className="text-sm text-muted-foreground mt-1">{workflow.description}</p>
+                      )}
+                      <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                        <span>{workflow.definition?.steps?.length || 0} steps</span>
+                        <span>Updated {new Date(workflow.updatedAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </ModalLayout>
     </div>
   )
 }

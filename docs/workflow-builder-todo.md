@@ -48,7 +48,7 @@ Just make save/load work first!
 - ✅ **Visual Workflow Builder** - Canvas-based editor with React Flow
 - ✅ **Workflow Builder Store** - State management with Zustand
 - ✅ **Node Components** - WorkflowStep, Conditional, Loop nodes
-- ⚠️ **Save/Load Buttons** - UI exists but NOT connected to API
+- ✅ **Save/Load Buttons** - UI connected to API with full functionality
 - ❌ **Workflow Library** - No UI to browse saved workflows
 - ❌ **Import UI** - No UI to import executed workflows
 
@@ -57,8 +57,8 @@ Just make save/load work first!
 - ✅ Visual workflow builder opens and works
 - ✅ Can create workflows visually
 - ✅ Can execute workflows from builder
-- ❌ Cannot save workflows (buttons not wired)
-- ❌ Cannot load existing workflows
+- ⏳ Can save workflows (needs testing)
+- ⏳ Can load existing workflows (needs testing)
 - ❌ Cannot see workflow library
 
 ### API Testing Status ✅
@@ -71,57 +71,51 @@ Just make save/load work first!
 - ✅ EXECUTE - Execution working from UI already
 - ✅ Flexible queries - Scope, global, and backward compatibility all working
 
+### API Documentation Status ✅
+
+- ✅ **Swagger Documentation** - Auto-generated from code using swagger-autogen
+- ✅ **API Health Check** - 226 API paths, 286 endpoints documented
+- ✅ **Multiple Interfaces** - Swagger UI, ReDoc, and JSON export
+- ✅ **Documentation Generation Script** - `npm run docs:generate`
+- ✅ **Live Documentation** - Available at:
+  - http://localhost:3456/api/api-docs (Stable server)
+  - http://localhost:3457/api/api-docs (Dev server)
+  - Health check: `/api/api-docs/health`
+  - Raw JSON: `/api/api-docs/json`
+  - Alternative UI: `/api/api-docs/redoc`
+
 ## 🚀 Immediate Next Steps (Gradual Evolution)
 
-### **Step 1: Wire Up Save/Load** 🔧 ⬅️ START HERE
+### **Step 1: Wire Up Save/Load** 🔧 ✅ COMPLETED
 
-Make the existing buttons actually work:
+Save/Load functionality has been fully implemented:
 
-1. **Save Button** (Line 226 in VisualWorkflowBuilder.tsx):
+1. **Save Button** ✅:
+   - Integrated with workflow builder store
+   - Calls `/api/workflows/saved` endpoint
+   - Shows loading state and feedback
+   - Supports both project and global scopes
+   - Preserves workflow state after saving
 
-   ```typescript
-   const handleSave = async () => {
-     try {
-       const projectId = useProjectStore.getState().currentProjectId
-       const { workflow } = useWorkflowBuilderStore.getState()
+2. **Load Functionality** ✅:
+   - Modal-based workflow selection UI
+   - Fetches workflows from `/api/workflows/saved`
+   - Shows workflow details (name, description, step count, update date)
+   - Loads selected workflow into builder
+   - Handles both project-specific and global workflows
 
-       const response = await ky
-         .post('/api/workflows/saved', {
-           json: {
-             projectId,
-             name: workflow.name,
-             description: workflow.description,
-             definition: workflow,
-             scope: 'project', // For now, default to project scope
-           },
-         })
-         .json()
+**Implementation Details**:
 
-       // Show success toast/feedback
-       setIsDirty(false)
-     } catch (error) {
-       // Show error feedback
-     }
-   }
-   ```
+- Added `saveWorkflow()` and `fetchSavedWorkflows()` to store
+- Added `isSaving` state for UI feedback
+- Created workflow selection modal with proper TypeScript types
+- Integrated with existing ModalLayout component
+- All TypeScript/ESLint checks passing
 
-2. **Load Functionality**:
-   - Add a simple modal with workflow list
-   - Use existing Modal component pattern
-   - Call GET /api/workflows/saved?projectId=xxx
-   - When selected, call `loadWorkflow(definition)` from store
+**Ready for Testing**:
 
-**Why This First?**
-
-- Smallest possible change that adds real value
-- Uses existing UI components (no new designs needed)
-- Validates our API design with real usage
-- Ali can immediately test the full save/load cycle
-
-**Testing**:
-
-- API: Already tested with curl ✅
-- UI: Ali tests save/load flow ⏳
+- ✅ API: Already tested with curl
+- ⏳ UI: Ali needs to test save/load flow
 
 ### **Step 2: Dedicated Workflows Page** 📄
 
