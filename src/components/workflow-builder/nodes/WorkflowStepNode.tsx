@@ -54,8 +54,8 @@ function WorkflowStepNode({ data, selected }: NodeProps<WorkflowStepData>) {
   return (
     <div
       className={`
-        min-w-[200px] max-w-[300px] bg-white rounded-lg shadow-lg border-2 
-        ${selected ? 'ring-2 ring-blue-500' : ''} 
+        min-w-[200px] max-w-[300px] bg-card rounded-lg shadow-lg border-2 
+        ${selected ? 'ring-2 ring-primary' : ''} 
         ${getNodeColor()}
         transition-all duration-200 hover:shadow-xl
       `}
@@ -64,10 +64,10 @@ function WorkflowStepNode({ data, selected }: NodeProps<WorkflowStepData>) {
       <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-gray-400" />
 
       {/* Node Header */}
-      <div className="flex items-center justify-between p-3 border-b border-gray-200">
+      <div className="flex items-center justify-between p-3 border-b border-border">
         <div className="flex items-center gap-2">
           {getIcon()}
-          <span className="text-sm font-medium text-gray-700">{data.role || 'Task'}</span>
+          <span className="text-sm font-medium text-foreground">{data.role || 'Task'}</span>
         </div>
         <div className="flex gap-1">
           <Button
@@ -92,7 +92,7 @@ function WorkflowStepNode({ data, selected }: NodeProps<WorkflowStepData>) {
               value={localTask}
               onChange={(e) => setLocalTask(e.target.value)}
               placeholder="Describe the task..."
-              className="w-full text-sm p-2 border border-gray-300 rounded resize-none"
+              className="w-full text-sm p-2 border border-border rounded resize-none bg-background text-foreground"
               rows={3}
             />
             <div className="flex justify-end gap-1">
@@ -106,7 +106,7 @@ function WorkflowStepNode({ data, selected }: NodeProps<WorkflowStepData>) {
           </div>
         ) : (
           <div
-            className="text-sm text-gray-600 cursor-pointer hover:text-gray-800"
+            className="text-sm text-muted-foreground cursor-pointer hover:text-foreground"
             onClick={() => setIsEditing(true)}
           >
             {data.task || 'Click to add task description...'}
@@ -117,7 +117,7 @@ function WorkflowStepNode({ data, selected }: NodeProps<WorkflowStepData>) {
       {/* Agent/Role Info */}
       {(data.agentId || data.role) && (
         <div className="px-3 pb-3">
-          <div className="text-xs text-gray-500 bg-gray-100 rounded px-2 py-1 inline-block">
+          <div className="text-xs text-muted-foreground bg-muted rounded px-2 py-1 inline-block">
             {data.agentId || data.role}
           </div>
         </div>
