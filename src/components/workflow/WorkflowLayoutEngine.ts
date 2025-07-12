@@ -47,7 +47,7 @@ export class WorkflowLayoutEngine {
 
     return nodes.map((node) => ({
       id: node.id,
-      type: 'step',
+      type: node.type, // Preserve the original node type (step or operator)
       position: positions[node.id] || { x: 0, y: 0 },
       data: {
         ...node.data,

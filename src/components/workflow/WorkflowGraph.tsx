@@ -16,15 +16,13 @@ import {
   MiniMap,
   useNodesState,
   useEdgesState,
-  type Node,
-  type Edge,
-  type NodeTypes,
-  type EdgeTypes,
   MarkerType,
   BackgroundVariant,
 } from 'reactflow'
+import type { Node, Edge, NodeTypes, EdgeTypes } from 'reactflow'
 
 import { WorkflowStepNode } from './WorkflowStepNode'
+import { WorkflowOperatorNode } from './WorkflowOperatorNode'
 import { WorkflowEdge } from './WorkflowEdge'
 import { WorkflowGraphSettings, type GraphLayoutConfig } from './WorkflowGraphSettings'
 import { WorkflowLayoutEngine } from './WorkflowLayoutEngine'
@@ -38,9 +36,13 @@ interface WorkflowGraphProps {
 
 export function WorkflowGraph({ data, threadId, className = '' }: WorkflowGraphProps) {
   // Layout configuration state
+  // Use manual layout for consolidated view to preserve our custom positions
+  const isConsolidatedView = data.nodes.some(
+    (n) => n.data.iterationCount && n.data.iterationCount > 1
+  )
   const [layoutConfig, setLayoutConfig] = useState<GraphLayoutConfig>({
     direction: 'LR',
-    layoutAlgorithm: 'hierarchical',
+    layoutAlgorithm: isConsolidatedView ? 'manual' : 'hierarchical',
     nodeSpacing: 200,
     levelSpacing: 350,
     nodeWidth: 280,
@@ -53,6 +55,7 @@ export function WorkflowGraph({ data, threadId, className = '' }: WorkflowGraphP
   const nodeTypes: NodeTypes = useMemo(
     () => ({
       step: WorkflowStepNode,
+      operator: WorkflowOperatorNode,
     }),
     []
   )
@@ -84,6 +87,12 @@ export function WorkflowGraph({ data, threadId, className = '' }: WorkflowGraphP
     // Add additional data for ReactFlow
     return layoutedNodes.map((node) => {
       const workflowNode = data.nodes.find((n) => n.id === node.id)!
+
+      // Check if this node is part of any loops
+      const nodeLoops = data.execution.loops.filter((loop) => loop.nodes.includes(node.id))
+      const isInLoop = nodeLoops.length > 0
+      const loopIterations = nodeLoops.reduce((max, loop) => Math.max(max, loop.iterations), 0)
+
       return {
         ...node,
         data: {
@@ -93,6 +102,8 @@ export function WorkflowGraph({ data, threadId, className = '' }: WorkflowGraphP
           isCurrentNode: data.execution.currentNode === node.id,
           isResumePoint: data.execution.resumePoints.includes(node.id),
           isInExecutionPath: data.execution.path.includes(node.id),
+          isInLoop,
+          loopIterations: isInLoop ? loopIterations : undefined,
         },
       }
     })
@@ -106,10 +117,14 @@ export function WorkflowGraph({ data, threadId, className = '' }: WorkflowGraphP
         target: edge.target,
         type: edge.type,
         animated: edge.animated || false,
-        data: edge.data,
+        data: {
+          ...edge.data,
+          edgeType: edge.type, // Pass edge type through data for custom edge component
+        },
         style: {
           stroke: getEdgeColor(edge.type),
-          strokeWidth: 2,
+          strokeWidth: edge.type === 'loop' ? 3 : 2,
+          strokeDasharray: edge.type === 'loop' ? '5 5' : undefined,
         },
         markerEnd: {
           type: MarkerType.ArrowClosed,

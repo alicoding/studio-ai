@@ -15,12 +15,21 @@ export interface WorkflowNode {
     agentId?: string
     role?: string
     task: string
-    status: 'pending' | 'running' | 'completed' | 'failed' | 'blocked'
+    status:
+      | 'pending'
+      | 'running'
+      | 'completed'
+      | 'failed'
+      | 'blocked'
+      | 'not_executed'
+      | 'skipped'
+      | 'aborted'
     startTime?: number
     endTime?: number
     output?: string
     error?: string
     sessionId?: string
+    iterationCount?: number // Added for consolidated view
   }
   position: {
     x: number
