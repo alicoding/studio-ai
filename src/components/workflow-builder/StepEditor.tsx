@@ -7,7 +7,7 @@
  * Library-First: Uses existing Select and Input components
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Trash2, Info } from 'lucide-react'
 import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
 import { useAgentStore } from '@/stores'
@@ -23,11 +23,15 @@ export default function StepEditor({ stepId }: StepEditorProps) {
     useWorkflowBuilderStore()
 
   const agents = useAgentStore((state) => state.agents)
-  const currentProject = useAgentStore((state) =>
-    state.agents[0]?.projectId ? { id: state.agents[0].projectId } : null
-  )
+  const currentProject = useMemo(() => {
+    const firstAgent = agents[0]
+    return firstAgent?.projectId ? { id: firstAgent.projectId } : null
+  }, [agents])
 
-  const step = workflow?.steps.find((s) => s.id === stepId)
+  const step = useMemo(() => {
+    return workflow?.steps.find((s) => s.id === stepId)
+  }, [workflow?.steps, stepId])
+
   const [localStep, setLocalStep] = useState<WorkflowStepDefinition | null>(null)
 
   useEffect(() => {
