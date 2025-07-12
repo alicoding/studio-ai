@@ -34,7 +34,7 @@ import { CreateProjectModal } from '../components/projects/CreateProjectModal'
 import { ConnectionStatusBanner } from '../components/ui/ConnectionStatusBanner'
 import { ErrorMonitor } from '../services/ErrorMonitor'
 import { useDiagnosticsStore } from '../stores/diagnostics'
-import WorkflowBuilder from '../components/workflow-builder/WorkflowBuilder'
+import VisualWorkflowBuilder from '../components/workflow-builder/VisualWorkflowBuilder'
 
 export const Route = createFileRoute('/')({
   component: ProjectsPage,
@@ -517,11 +517,9 @@ function ProjectsPage() {
         onSelectTeam={handleLoadTeam}
       />
 
-      <WorkflowBuilder
-        isOpen={modalOps.isWorkflowBuilderOpen}
-        onClose={() => modalOps.closeModal('workflowBuilder')}
-        projectId={activeProjectId || undefined}
-      />
+      {modalOps.isWorkflowBuilderOpen && (
+        <VisualWorkflowBuilder onClose={() => modalOps.closeModal('workflowBuilder')} />
+      )}
 
       {/* Single Agent Delete Modal */}
       {deleteModalState.agent && (
