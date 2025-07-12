@@ -35,6 +35,7 @@ import toolPermissionsRouter from './api/tool-permissions.js'
 import healthRouter from './api/health'
 import toolsRouter from './api/tools'
 import workflowsRouter from './api/workflows'
+import apiDocsRouter from './api/api-docs'
 // import configRouter from './api/config.js' // Temporarily disabled due to client-side dependency
 
 // Import WebSocket handler
@@ -85,15 +86,17 @@ const io = new Server(httpServer, {
 })
 
 // Middleware
-app.use(cors({
-  origin: [
-    process.env.CLIENT_URL || 'http://localhost:5173',
-    'http://localhost:3456', // Stable server
-    'http://localhost:3457', // Dev server
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true,
-}))
+app.use(
+  cors({
+    origin: [
+      process.env.CLIENT_URL || 'http://localhost:5173',
+      'http://localhost:3456', // Stable server
+      'http://localhost:3457', // Dev server
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
+  })
+)
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
@@ -177,6 +180,7 @@ app.use('/api/tool-permissions', toolPermissionsRouter)
 app.use('/api/tools', toolsRouter)
 app.use('/api/workflows', workflowsRouter)
 app.use('/api/health', healthRouter)
+app.use('/api/api-docs', apiDocsRouter)
 // app.use('/api/config', configRouter) // Temporarily disabled due to client-side dependency
 
 // Health check endpoint is now handled by healthRouter
@@ -226,10 +230,10 @@ const PORT = process.env.PORT || 3456
 async function startServer() {
   // Start workflow monitoring for auto-resume
   const monitor = WorkflowMonitor.getInstance()
-  
+
   // Check for orphaned workflows from previous server sessions
   await monitor.checkOrphanedWorkflows()
-  
+
   monitor.start()
   console.log('🔍 Workflow monitoring started for auto-resume')
 

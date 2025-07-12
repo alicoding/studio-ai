@@ -14,7 +14,7 @@ import ky from 'ky'
 const API_URL = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
 
 // Type definitions (copying to avoid complex import paths in MCP build)
-interface WorkflowDefinition {
+export interface WorkflowDefinition {
   id: string
   name: string
   description?: string
@@ -31,7 +31,7 @@ interface WorkflowDefinition {
   }
 }
 
-interface WorkflowStepDefinition {
+export interface WorkflowStepDefinition {
   id: string
   type: 'task' | 'parallel' | 'conditional'
   agentId?: string
@@ -328,9 +328,9 @@ export async function handleValidateWorkflow(args: {
     if (response.valid) {
       return {
         type: 'text',
-        text: `✅ Workflow '${args.workflow.name}' is valid!\n\nWarnings (${response.warnings.length}):\n${response.warnings
-          .map((w) => `• ${w.message}`)
-          .join('\n') || 'None'}\n\nReady for execution.`,
+        text: `✅ Workflow '${args.workflow.name}' is valid!\n\nWarnings (${response.warnings.length}):\n${
+          response.warnings.map((w) => `• ${w.message}`).join('\n') || 'None'
+        }\n\nReady for execution.`,
       }
     } else {
       const errorsList = response.errors
@@ -408,8 +408,7 @@ export async function handleAddWorkflowStep(args: {
 }): Promise<TextContent> {
   try {
     // Generate step ID if not provided
-    const stepId =
-      args.step.id || `step${args.workflow.steps.length + 1}`
+    const stepId = args.step.id || `step${args.workflow.steps.length + 1}`
 
     // Create full step definition
     const newStep: WorkflowStepDefinition = {

@@ -20,6 +20,13 @@ const workflowStorage = WorkflowStorageService.getInstance()
 
 // GET /api/workflows/saved/templates - List workflow templates (MUST be before /:id)
 router.get('/templates', async (req, res) => {
+  /*  #swagger.tags = ['Workflow Management']
+      #swagger.summary = 'List workflow templates'
+      #swagger.description = 'Get all available workflow templates that can be used as starting points for new workflows.'
+      #swagger.responses[200] = {
+        description: 'List of workflow templates',
+        schema: { $ref: '#/components/schemas/SavedWorkflow' }
+      } */
   try {
     const templates = await workflowStorage.listTemplates()
     res.json({ templates })
@@ -72,6 +79,16 @@ router.get('/health', async (req, res) => {
 
 // GET /api/workflows/saved?projectId=xxx&scope=xxx&global=true - List workflows with flexible filters
 router.get('/', async (req, res) => {
+  /*  #swagger.tags = ['Workflow Management']
+      #swagger.summary = 'List saved workflows'
+      #swagger.description = 'Get workflows with flexible filtering by project, scope, or global visibility.'
+      #swagger.parameters['projectId'] = { in: 'query', description: 'Filter by project ID' }
+      #swagger.parameters['scope'] = { in: 'query', description: 'Filter by scope (project|global|cross-project)' }
+      #swagger.parameters['global'] = { in: 'query', description: 'Show only global workflows (true/false)' }
+      #swagger.responses[200] = {
+        description: 'List of workflows',
+        schema: { type: 'array', items: { $ref: '#/components/schemas/SavedWorkflow' } }
+      } */
   try {
     const { projectId, scope, global } = req.query
     let workflows: SavedWorkflow[] = []

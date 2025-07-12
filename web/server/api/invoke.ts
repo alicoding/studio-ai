@@ -31,6 +31,41 @@ const router = Router()
 
 // POST /api/invoke - Execute single agent or multi-agent workflow
 router.post('/', async (req: Request, res: Response) => {
+  /*  #swagger.tags = ['Workflow Execution']
+      #swagger.summary = 'Execute workflow with multi-agent orchestration'
+      #swagger.description = 'Execute single-agent or multi-agent workflows with dependencies, parallel execution, and real-time monitoring.'
+      #swagger.requestBody = {
+        required: true,
+        content: {
+          "application/json": {
+            schema: {
+              type: "object",
+              properties: {
+                workflow: { 
+                  oneOf: [
+                    { $ref: "#/components/schemas/WorkflowStep" },
+                    { type: "array", items: { $ref: "#/components/schemas/WorkflowStep" } }
+                  ]
+                },
+                threadId: { type: "string", description: "Resume existing workflow" },
+                projectId: { type: "string", description: "Project context" }
+              },
+              required: ["workflow"]
+            }
+          }
+        }
+      }
+      #swagger.responses[200] = {
+        description: 'Workflow execution result',
+        schema: { 
+          type: 'object',
+          properties: {
+            threadId: { type: 'string' },
+            status: { type: 'string' },
+            results: { type: 'array' }
+          }
+        }
+      } */
   try {
     console.log('Invoke API received request:', JSON.stringify(req.body, null, 2))
 
@@ -79,7 +114,10 @@ router.post('/', async (req: Request, res: Response) => {
         error: 'Role not found',
         message: error.message,
       })
-    } else if (error instanceof Error && error.message.includes('Agent configuration validation failed')) {
+    } else if (
+      error instanceof Error &&
+      error.message.includes('Agent configuration validation failed')
+    ) {
       res.status(400).json({
         error: error.message,
       })

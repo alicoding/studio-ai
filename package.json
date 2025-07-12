@@ -36,7 +36,8 @@
     "mcp:stable:stop": "./scripts/run-stable-mcp.sh stop",
     "mcp:stable:status": "./scripts/run-stable-mcp.sh status",
     "mcp:stable:clean": "./scripts/run-stable-mcp.sh clean",
-    "mcp:dev": "cd web/server/mcp/studio-ai && npm run dev"
+    "mcp:dev": "cd web/server/mcp/studio-ai && npm run dev",
+    "docs:generate": "cd web/server && node scripts/generate-swagger.js"
   },
   "keywords": [],
   "author": "",
@@ -188,6 +189,8 @@
     "socket.io": "^4.8.1",
     "sonner": "^2.0.5",
     "string-template": "^1.0.0",
+    "swagger-autogen": "^2.23.7",
+    "swagger-ui-express": "^5.0.1",
     "tailwind-merge": "^3.3.1",
     "trash": "^9.0.0",
     "typescript": "^5.8.3",
