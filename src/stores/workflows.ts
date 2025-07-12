@@ -10,6 +10,7 @@ export interface WorkflowStep {
   endTime?: string
   error?: string
   dependencies?: string[]
+  output?: string // Store actual step output for audit and UI display
 }
 
 export interface WorkflowInfo {
@@ -25,6 +26,7 @@ export interface WorkflowInfo {
   steps: WorkflowStep[]
   lastUpdate: string
   sessionIds: Record<string, string>
+  results?: Record<string, string> // Add results field to store step outputs
 }
 
 interface WorkflowStore {

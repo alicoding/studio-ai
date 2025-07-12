@@ -42,10 +42,11 @@ export type InvokeRequest = z.infer<typeof InvokeRequestSchema>
 // Step result after execution
 export const StepResultSchema = z.object({
   id: z.string(),
-  status: z.enum(['success', 'blocked', 'failed']),
+  status: z.enum(['success', 'blocked', 'failed', 'not_executed', 'skipped', 'aborted']),
   response: z.string(),
   sessionId: z.string(),
   duration: z.number(),
+  abortedAt: z.string().optional(),
 })
 
 export type StepResult = z.infer<typeof StepResultSchema>

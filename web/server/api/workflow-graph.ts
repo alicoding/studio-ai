@@ -23,6 +23,8 @@ const router = Router()
 router.get('/:threadId', async (req: Request, res: Response) => {
   try {
     const { threadId } = req.params
+    const { consolidateLoops } = req.query
+    console.log(`[WorkflowGraph API] GET ${threadId}, consolidateLoops=${consolidateLoops}`)
 
     // Get workflow from registry
     const registry = WorkflowRegistry.getInstance()
@@ -51,15 +53,20 @@ router.get('/:threadId', async (req: Request, res: Response) => {
     const stepResults: Record<string, StepResult> = {}
     workflow.steps.forEach((step) => {
       if (step.status !== 'pending' && step.status !== 'running') {
+        // Determine if step actually executed or was blocked due to dependencies
+        const isBlockedByDependency = step.error?.includes('Blocked: dependency') || step.error?.includes('did not complete successfully')
+        
         stepResults[step.id] = {
           id: step.id,
           status:
             step.status === 'completed'
               ? 'success'
-              : step.status === 'failed'
-                ? 'failed'
-                : 'blocked',
-          response: '', // We don't store responses in the registry
+              : step.status === 'failed' && isBlockedByDependency
+                ? 'not_executed' // Step was blocked by failed dependency - never actually executed
+                : step.status === 'failed'
+                  ? 'failed'
+                  : 'blocked',
+          response: step.status === 'completed' ? (step.output || '') : (step.error || ''), // Use output for success, error for failures
           sessionId: sessionIds[step.id] || '',
           duration: 0, // We don't track duration in the registry
         }
@@ -68,7 +75,8 @@ router.get('/:threadId', async (req: Request, res: Response) => {
 
     // Generate graph using WorkflowOrchestrator
     const orchestrator = new WorkflowOrchestrator()
-    const graph: WorkflowGraph = orchestrator.generateWorkflowGraph(steps, stepResults, sessionIds)
+    const shouldConsolidateLoops = consolidateLoops === 'true'
+    const graph: WorkflowGraph = orchestrator.generateWorkflowGraph(steps, stepResults, sessionIds, shouldConsolidateLoops)
 
     // Add additional metadata
     const response = {

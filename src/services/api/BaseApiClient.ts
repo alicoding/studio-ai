@@ -66,8 +66,14 @@ export class BaseApiClient implements ApiProvider {
               } : undefined
             }
             
-            // Log errors
-            console.error(`[API Error] ${apiError.status}: ${apiError.message}`)
+            // Log errors (reduce noise during server restarts)
+            if (apiError.status === 0 || apiError.status >= 500) {
+              // Network errors or server errors - these are expected during restarts
+              console.log(`[API] Connection issue: ${apiError.message}`)
+            } else {
+              // Client errors (4xx) - these are unexpected and worth logging as errors
+              console.error(`[API Error] ${apiError.status}: ${apiError.message}`)
+            }
             
             // Enhance error message based on status
             if (apiError.status === 401) {

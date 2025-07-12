@@ -1,5 +1,52 @@
 # Claude Studio Gotchas
 
+## Native LangGraph Loops vs Visualization Hacks (2025-07-11)
+
+- **Problem**: Trying to implement loops by adding complex conditional edges and routing logic to WorkflowOrchestrator
+- **User Feedback**: "I thought langgraph has this as native why so much code? also this file is so long again!"
+- **Root Cause**: Overcomplicating the solution instead of using LangGraph's built-in loop patterns
+- **Solution**: Reverted to simple static edges and let visualization layer handle loop detection and display
+- **Key Insight**: LangGraph does have native loops, but they're for actual execution flow, not just visualization
+- **Pattern**: Use Library-First approach - leverage existing visualization patterns in WorkflowGraphGenerator
+- **Files Modified**: web/server/services/WorkflowOrchestrator.ts (removed 150+ lines of unnecessary loop logic)
+- **Result**: File back to manageable size (~650 lines), following KISS principle
+
+## Workflow Consolidated Node Positioning Fix (2025-07-11)
+
+- **Problem**: Node positioning in consolidated view didn't represent correct workflow execution order
+- **User Feedback**: "this doesn't seem like the right order?" - nodes should show Developer → Operator → Reviewer flow
+- **Root Cause**: Missing `calculateConsolidatedNodeX` and `calculateConsolidatedNodeY` methods in WorkflowGraphGenerator
+- **Solution**: Implemented proper positioning methods with role-based ordering
+- **Files Modified**: web/server/services/WorkflowGraphGenerator.ts (lines 769-803)
+- **Key Features**:
+  - Role-based positioning: Developer (x=100), Operator (x=400), Reviewer (x=700)
+  - Horizontal layout at same vertical level (y=150) for clean workflow representation
+  - Fallback to array index if role not found in predefined order
+- **Result**: Consolidated view now shows proper execution order: Developer → Operator → Reviewer
+
+## Workflow Operator Node Type Lost in UI (2025-07-11)
+
+- **Problem**: Operator nodes displayed as regular step nodes in UI despite API returning correct types
+- **Root Cause**: WorkflowLayoutEngine.applyLayout() was hardcoding `type: 'step'` for all nodes
+- **Solution**: Preserve original node type when applying layout
+- **Files Modified**: src/components/workflow/WorkflowLayoutEngine.ts (line 50)
+- **Key Change**: Changed `type: 'step'` to `type: node.type` to preserve operator type
+- **Related Fix**: Previously fixed WorkflowGraphGenerator to maintain execution order
+
+## Workflow Operator Node Display & Debug Info (2025-01-11)
+
+- **Problem**: Operator nodes not displaying in workflow UI despite being generated in backend
+- **Root Cause**: WorkflowDetails.tsx was manually constructing graph data instead of using the API endpoint
+- **Solution**: Added useWorkflowGraph hook to fetch data from /api/workflow-graph endpoint
+- **API correctly returns**: step1 → operator-step1 → step2 → operator-step2
+- **Key Files**:
+  - `src/components/workflow/WorkflowDetails.tsx` - UI component
+  - `web/server/services/WorkflowOrchestrator.ts` - Main orchestrator (refactored from 1263 to 643 lines)
+  - `web/server/services/WorkflowGraphGenerator.ts` - Graph generation logic (extracted)
+  - `web/server/api/workflow-graph.ts` - API endpoint
+- **Debug Info**: Added copy button that includes threadId, node order, and key file paths for quick troubleshooting
+- **SOLID Refactoring**: Split massive WorkflowOrchestrator into 4 services following Single Responsibility Principle
+
 ## Workflow Status Stuck in 'Running' State (2025-01-11)
 
 - **Problem**: Workflows remained stuck in "running" state in the UI even after completion
@@ -268,13 +315,57 @@
 - WebSocket messages are matched using agentId (agent instance ID) not sessionId
 - Frontend emits 'reload-messages-after-reconnect' event to trigger message reload
 
-## Workflow Auto-Resume Limitations (2025-01-09)
+## Reasoning Models (o3-mini-online) Empty Content Bug (2025-01-11)
 
-- WorkflowMonitor only detects workflows started AFTER server restart
-- Workflows are registered in memory only - lost on server restart
-- This is the key gap preventing full auto-resume capability
-- Manual resume (re-invoke with threadId) works correctly
-- Need to persist workflow registrations to detect stale workflows after restart
+- **Problem**: o3-mini-online and similar reasoning models return empty `content` in LangChain ChatOpenAI
+- **Root Cause**: Reasoning models often output responses in `tool_calls` or structured format instead of plain `content`
+- **Evidence**: API calls show `promptTokens: 250, totalTokens: 250` (0 completion tokens generated)
+- **Direct API test**: Works fine outside LangChain, generates proper responses
+- **LangChain Issue**: Standard ChatOpenAI expects simple content strings, not structured outputs
+- **Fix Applied**: Added fallback content handling in LangGraphOrchestrator debugger/researcher agents
+- **Files Modified**: `web/server/services/LangGraphOrchestrator.ts` - added empty content detection
+- **Result**: Users now get meaningful error message instead of empty responses
+- **Future Enhancement**: Consider using `.with_structured_output()` for proper reasoning model support
+- **Pattern**: Other reasoning models (o1-mini, o1-preview) likely have same issue
+
+## Workflow Auto-Resume and Orphan Detection (2025-01-11)
+
+- **Fixed**: Added startup check for orphaned workflows from previous server sessions
+- WorkflowMonitor.checkOrphanedWorkflows() runs on server startup
+- Automatically marks workflows that were "running" during shutdown as "aborted"
+- Updates both database (WorkflowRegistry) and in-memory status
+- Prevents workflows from being stuck in "running" state forever
+- WorkflowMonitor still only monitors new workflows started after server restart
+- Manual resume (re-invoke with threadId) works for aborted workflows
+
+## Resume Button DRY Principle Fix (2025-01-12)
+
+- **Problem**: Resume functionality only showed in standalone workflow page, not in main workspace activity
+- **Root Cause**: Resume button depended on `graphData?.graph.execution.resumePoints` from API response
+- **DRY Violation**: Same WorkflowDetails component behaved differently in workspace vs standalone views
+- **Solution**: Calculate resume points directly from workflow step data using `getResumePoints()` function
+- **Files Modified**: `src/components/workflow/WorkflowDetails.tsx` - lines 97-108
+- **Result**: Resume button now appears consistently in both workspace and standalone workflow views
+- **Resume Logic**: Only failed workflows (`step.status === 'failed'`) can be resumed
+- **Visual Indicators**: Added amber ring and "Resume Point" badges to fallback step list
+- **API Integration**: Uses `WorkflowGraphService.resumeWorkflow()` for actual resume functionality
+- **Pattern**: Don't depend on external API responses for core UI functionality - calculate from available data
+
+## WebSocket Connection & Resume UX Fixes (2025-01-12)
+
+- **Problem**: WebSocket errors `GET http://localhost:3457/socket.io/ net::ERR_EMPTY_RESPONSE`
+- **Root Cause**: Frontend connecting to dev server (3457) instead of stable server (3456)
+- **Solution**: Fixed `useWebSocket.ts` to connect to `http://localhost:3456` for proper MCP integration
+- **Problem**: CORS errors `The 'Access-Control-Allow-Origin' header has a value 'http://localhost:5173' that is not equal to the supplied origin.`
+- **Root Cause**: Server CORS was only configured for port 5173, not the dev server (3457)
+- **Solution**: Updated `web/server/app.ts` to allow multiple origins: [5173, 3456, 3457]
+- **Problem**: Resume workflow caused full page refresh (`window.location.reload()`)
+- **Solution**: Replaced with `await fetchWorkflows()` to update state without page refresh
+- **Files Modified**: 
+  - `src/hooks/useWebSocket.ts` - fixed WebSocket URL to stable server
+  - `web/server/app.ts` - fixed CORS configuration for multiple origins
+  - `src/components/workflow/WorkflowDetails.tsx` - improved resume UX
+- **Result**: Clean WebSocket connections and smooth resume experience without page flicker
 
 ## Agent Status Updates and Abort Timing (2025-01-09)
 

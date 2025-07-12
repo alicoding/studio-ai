@@ -28,7 +28,7 @@ export class ClaudeStepExecutor implements StepExecutor {
   ) {}
 
   canHandle(step: ExecutorWorkflowStep): boolean {
-    return step.type === 'claude' || (!step.type && (step.role || step.agentId))
+    return step.type === 'claude' || (!step.type && Boolean(step.role || step.agentId))
   }
 
   async execute(step: ExecutorWorkflowStep, context: WorkflowContext): Promise<StepResult> {
@@ -99,7 +99,7 @@ export class ClaudeStepExecutor implements StepExecutor {
 
       // Fall back to global agent config if no project agent found
       if (!agentInstanceId) {
-        const configs = await this.agentConfigService.getConfigs()
+        const configs = await this.agentConfigService.getAllConfigs()
 
         if (step.agentId) {
           // Try to find by exact ID match
@@ -190,7 +190,7 @@ export class ClaudeStepExecutor implements StepExecutor {
 
       const messagePromise = this.claudeService.sendMessage(
         resolvedTask,
-        context.projectId,
+        context.projectId || '',
         sessionAgentId, // Use short ID for session creation to match UI expectations
         projectPath, // Pass workspace path for proper session isolation
         undefined, // role - let it default

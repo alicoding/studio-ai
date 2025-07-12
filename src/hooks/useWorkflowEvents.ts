@@ -47,13 +47,13 @@ export const useWorkflowEvents = () => {
         )
 
         if (reconnectAttempts >= maxReconnectAttempts) {
-          console.error('[WorkflowEvents] Max reconnection attempts reached. Closing connection.')
+          console.log('[WorkflowEvents] Max reconnection attempts reached. Closing connection.')
           eventSource.close()
           eventSourceRef.current = null
           return
         }
       } else if (eventSource.readyState === EventSource.CLOSED) {
-        console.error('[WorkflowEvents] SSE connection closed')
+        console.log('[WorkflowEvents] SSE connection closed')
         eventSourceRef.current = null
       }
     }

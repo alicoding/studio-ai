@@ -13,7 +13,8 @@ import { HumanMessage, SystemMessage, BaseMessage } from '@langchain/core/messag
 import { createStorage } from '../../../src/lib/storage/UnifiedStorage'
 import { ContextBuilder } from './ContextBuilder'
 import path from 'path'
-import type { CapabilityConfig } from '../../../src/lib/ai/types'
+import type { CapabilityConfig } from '../../../src/lib/ai/orchestration/capability-config'
+
 
 export interface ConversationState {
   messages: BaseMessage[]
@@ -72,6 +73,7 @@ export interface AgentExecutionResponse {
     model: string
     tokensUsed?: number
     executionTime: number
+    turnCount?: number
   }
 }
 
@@ -88,10 +90,10 @@ export class LangGraphOrchestrator {
     type: 'config' 
   })
   private capabilitiesStorage = createStorage({ 
-    namespace: 'AICapabilities', 
+    namespace: 'ai-capabilities', 
     type: 'config' 
   })
-  private contextBuilder = new ContextBuilder()
+  private contextBuilder = ContextBuilder.getInstance()
 
   private constructor() {
     this.memory = new MemorySaver()
@@ -116,12 +118,10 @@ export class LangGraphOrchestrator {
     // Create the workflow graph using the StateSchema
     const workflow = new StateGraph(StateSchema)
       .addNode('orchestrator', this.orchestratorAgent.bind(this))
-      .addNode('researcher', this.researcherAgent.bind(this))
-      .addNode('debugger', this.debuggerAgent.bind(this))
+      .addNode('agent', this.genericAgent.bind(this))
       .addEdge('__start__', 'orchestrator')
       .addConditionalEdges('orchestrator', this.routeToAgent.bind(this))
-      .addEdge('researcher', '__end__')
-      .addEdge('debugger', '__end__')
+      .addEdge('agent', '__end__')
       .compile({ 
         checkpointer: this.memory
         // Note: Cancellation handled via AbortSignal in invoke()
@@ -147,7 +147,7 @@ export class LangGraphOrchestrator {
         // Resolve file paths relative to project directory
         const resolvedFilePaths = request.context.files.map(file => {
           // If already absolute, use as-is. Otherwise, resolve relative to projectId (which is the project path)
-          return path.isAbsolute(file) ? file : path.join(request.projectId, file)
+          return path.isAbsolute(file) ? file : path.join(request.projectId || '', file)
         })
         
         const projectContext = await this.contextBuilder.buildContext({
@@ -187,7 +187,8 @@ export class LangGraphOrchestrator {
       })
       console.log('[LangGraph] Existing checkpoint found?', !!checkpoint)
       if (checkpoint) {
-        console.log('[LangGraph] Checkpoint state messages:', checkpoint.checkpoint?.channel_values?.messages?.length)
+        const messages = checkpoint.checkpoint?.channel_values?.messages as BaseMessage[] | undefined
+        console.log('[LangGraph] Checkpoint state messages:', messages?.length || 0)
       }
       
       const result = await this.workflow.invoke(inputState, {
@@ -207,9 +208,9 @@ export class LangGraphOrchestrator {
         state: result,
         metadata: {
           agentUsed: result.currentAgent || 'orchestrator',
-          model: result.metadata?.model || 'gpt-4',
+          model: (result.metadata as Record<string, unknown>)?.model as string || 'unknown',
           executionTime,
-          turnCount: result.turnCount || result.messages?.filter(m => m.role === 'user').length || 1
+          turnCount: result.turnCount || result.messages?.filter((m: BaseMessage) => m._getType() === 'human').length || 1
         }
       }
     } catch (error) {
@@ -222,57 +223,52 @@ export class LangGraphOrchestrator {
   }
 
   /**
-   * Orchestrator agent - routes to appropriate specialist agent
+   * Orchestrator agent - routes to the generic agent with capability context
    */
   private async orchestratorAgent(state: typeof StateSchema.State): Promise<Partial<typeof StateSchema.State>> {
-    const lastMessage = state.messages[state.messages.length - 1]
-    const input = typeof lastMessage?.content === 'string' ? lastMessage.content : ''
-
-    // Route based on capability or input keywords
-    let targetAgent = 'researcher' // default
-    
-    // Check capability first
-    const capability = state.metadata?.capability as string
-    if (capability === 'debugging') {
-      targetAgent = 'debugger'
-    } else if (input.toLowerCase().includes('debug') || 
-               input.toLowerCase().includes('error') || 
-               input.toLowerCase().includes('fix')) {
-      targetAgent = 'debugger'
-    }
-
+    // All requests go to the generic agent, which handles capabilities dynamically
     return {
-      currentAgent: targetAgent,
+      currentAgent: 'agent',
       metadata: {
         ...state.metadata,
-        routingDecision: `Routed to ${targetAgent} based on input analysis`
+        routingDecision: `Routed to generic agent with capability '${state.metadata?.capability || 'default'}'`
       }
     }
   }
 
   /**
-   * Researcher agent - handles research and information gathering
+   * Generic agent - handles all capabilities dynamically based on configuration
    */
-  private async researcherAgent(state: typeof StateSchema.State): Promise<Partial<typeof StateSchema.State>> {
+  private async genericAgent(state: typeof StateSchema.State): Promise<Partial<typeof StateSchema.State>> {
     const apiKey = process.env.ELECTRONHUB_API_KEY || process.env.VITE_ELECTRONHUB_API_KEY
     const baseURL = process.env.ELECTRONHUB_API_URL || 'https://api.electronhub.ai/v1'
 
     if (!apiKey) {
-      throw new Error('ElectronHub API key not configured for researcher agent')
+      throw new Error('ElectronHub API key not configured')
     }
 
     // Get capability configuration from settings
-    const capability = await this.capabilitiesStorage.get<CapabilityConfig>('research')
+    const capabilityName = (state.metadata?.capability as string) || 'research'
+    const capability = await this.capabilitiesStorage.get<CapabilityConfig>(capabilityName)
     
+    if (!capability?.models?.primary) {
+      throw new Error(`${capabilityName} capability not configured. Please configure the ${capabilityName} capability in Settings → AI.`)
+    }
+    
+    // Use capability configuration for all model parameters
     const model = new ChatOpenAI({
-      modelName: capability?.models?.primary || 'sonar-pro',
-      temperature: 0.3,
-      maxTokens: 2000,
+      modelName: capability.models.primary,
+      temperature: capability.advanced?.temperature ?? 0.7,
+      maxTokens: capability.advanced?.maxTokens ?? 2000,
       openAIApiKey: apiKey,
-      configuration: { baseURL }
+      configuration: { baseURL },
+      topP: capability.advanced?.topP,
+      frequencyPenalty: capability.advanced?.frequencyPenalty,
+      presencePenalty: capability.advanced?.presencePenalty,
+      stop: capability.advanced?.stopSequences
     })
 
-    const systemPrompt = capability?.prompts?.system || `You are a research assistant with web access. Provide comprehensive, accurate information with sources.`
+    const systemPrompt = capability?.prompts?.system || `You are a helpful AI assistant.`
 
     // Pass full conversation history to the LLM
     const messages = [
@@ -282,63 +278,33 @@ export class LangGraphOrchestrator {
 
     const response = await model.invoke(messages)
 
-    return {
-      messages: [response],  // Return only the new message
-      metadata: {
-        ...state.metadata,
-        agentExecuted: 'researcher',
-        model: capability?.models?.primary || 'sonar-pro'
-      }
+    // Handle reasoning models that return empty content
+    // If content is empty but we have valid metadata, create a meaningful response
+    if (!response.content && response.response_metadata?.model_name) {
+      const modelName = response.response_metadata.model_name
+      const fallbackContent = `I received your ${capabilityName} request and processed it using ${modelName}. However, the response content appears to be empty. This might be due to the reasoning model's output format. Please try rephrasing your question or check if this model requires specific formatting.`
+      
+      // Create a new message with the fallback content
+      response.content = fallbackContent
     }
-  }
-
-  /**
-   * Debugger agent - handles debugging and code analysis
-   */
-  private async debuggerAgent(state: typeof StateSchema.State): Promise<Partial<typeof StateSchema.State>> {
-    const apiKey = process.env.ELECTRONHUB_API_KEY || process.env.VITE_ELECTRONHUB_API_KEY
-    const baseURL = process.env.ELECTRONHUB_API_URL || 'https://api.electronhub.ai/v1'
-
-    if (!apiKey) {
-      throw new Error('ElectronHub API key not configured for debugger agent')
-    }
-
-    // Get capability configuration from settings
-    const capability = await this.capabilitiesStorage.get<CapabilityConfig>('debugging')
-    
-    const model = new ChatOpenAI({
-      modelName: capability?.models?.primary || 'gpt-4',
-      temperature: 0.2,
-      maxTokens: 2000,
-      openAIApiKey: apiKey,
-      configuration: { baseURL }
-    })
-
-    const systemPrompt = capability?.prompts?.system || `You are a debugging expert. Analyze code issues, identify problems, and provide clear solutions.`
-
-    // Pass full conversation history to the LLM
-    const messages = [
-      new SystemMessage(systemPrompt),
-      ...state.messages
-    ]
-
-    const response = await model.invoke(messages)
 
     return {
       messages: [response],  // Return only the new message
       metadata: {
         ...state.metadata,
-        agentExecuted: 'debugger',
-        model: capability?.models?.primary || 'gpt-4'
+        agentExecuted: 'generic',
+        model: capability.models.primary,
+        capability: capabilityName
       }
     }
   }
+
 
   /**
    * Route to appropriate agent based on orchestrator decision
    */
   private routeToAgent(state: typeof StateSchema.State): string {
-    return state.currentAgent || 'researcher'
+    return state.currentAgent || 'agent'
   }
 
   /**
@@ -405,14 +371,14 @@ export class LangGraphOrchestrator {
       })
       
       if (checkpoint?.checkpoint?.channel_values) {
-        const state = checkpoint.checkpoint.channel_values
+        const state = checkpoint.checkpoint.channel_values as Record<string, unknown>
         return {
-          messages: state.messages || [],
-          sessionId: state.sessionId || sessionId,
-          projectId: state.projectId,
-          currentAgent: state.currentAgent,
-          metadata: state.metadata || {},
-          turnCount: state.turnCount || 0
+          messages: (state.messages as BaseMessage[]) || [],
+          sessionId: (state.sessionId as string) || sessionId,
+          projectId: state.projectId as string | undefined,
+          currentAgent: state.currentAgent as string | undefined,
+          metadata: (state.metadata as Record<string, unknown>) || {},
+          turnCount: (state.turnCount as number) || 0
         }
       }
     } catch (error) {

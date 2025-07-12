@@ -168,6 +168,60 @@ export class WorkflowMonitor {
   }
 
   /**
+   * Check for orphaned workflows from previous server sessions
+   * KISS: Mark workflows as 'aborted' if they were running when server stopped
+   */
+  async checkOrphanedWorkflows(): Promise<void> {
+    console.log('[WorkflowMonitor] Checking for orphaned workflows from previous server sessions...')
+    
+    try {
+      const { WorkflowRegistry } = await import('./WorkflowRegistry')
+      const registry = WorkflowRegistry.getInstance()
+      
+      // Get all workflows that are still marked as 'running'
+      const runningWorkflows = await registry.listWorkflows({ status: 'running' })
+      
+      if (runningWorkflows.length === 0) {
+        console.log('[WorkflowMonitor] No orphaned workflows found')
+        return
+      }
+      
+      console.log(`[WorkflowMonitor] Found ${runningWorkflows.length} orphaned workflows`)
+      
+      // Mark each orphaned workflow as aborted
+      for (const workflow of runningWorkflows) {
+        try {
+          console.log(`[WorkflowMonitor] Marking workflow ${workflow.threadId} as aborted (server restart)`)
+          
+          // Update workflow status to 'aborted'
+          await registry.updateWorkflow(workflow.threadId, {
+            status: 'aborted',
+            steps: workflow.steps.map(step => ({
+              ...step,
+              status: step.status === 'running' ? 'failed' : step.status,
+              error: step.status === 'running' ? 'Aborted due to server restart' : step.error
+            }))
+          })
+          
+          // Also update in the in-memory status if available
+          const { updateWorkflowStatus } = await import('../api/invoke-status')
+          await updateWorkflowStatus(workflow.threadId, { 
+            status: 'aborted' 
+          })
+          
+        } catch (error) {
+          console.error(`[WorkflowMonitor] Failed to mark workflow ${workflow.threadId} as aborted:`, error)
+        }
+      }
+      
+      console.log('[WorkflowMonitor] Finished processing orphaned workflows')
+      
+    } catch (error) {
+      console.error('[WorkflowMonitor] Error checking orphaned workflows:', error)
+    }
+  }
+
+  /**
    * Get monitoring status
    */
   getStatus(): {

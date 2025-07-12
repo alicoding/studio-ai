@@ -15,6 +15,7 @@ interface WorkflowEdgeData {
   condition?: string
   iterations?: number
   label?: string
+  edgeType?: 'dependency' | 'loop' | 'conditional'
 }
 
 export const WorkflowEdge = memo(
@@ -30,6 +31,9 @@ export const WorkflowEdge = memo(
     markerEnd,
     style,
   }: EdgeProps<WorkflowEdgeData>) => {
+    // Get edge type from data or default to dependency
+    const edgeType = data?.edgeType || 'dependency'
+    
     const [edgePath, labelX, labelY] = getBezierPath({
       sourceX,
       sourceY,
@@ -37,11 +41,13 @@ export const WorkflowEdge = memo(
       targetX,
       targetY,
       targetPosition,
+      curvature: edgeType === 'loop' ? 0.7 : 0.25, // More curve for loop edges
     })
 
     const getEdgeStyle = () => {
       const baseStyle = {
-        strokeWidth: 2,
+        strokeWidth: edgeType === 'loop' ? 3 : 2,
+        strokeDasharray: edgeType === 'loop' ? '5 5' : undefined,
         ...style,
       }
 
@@ -53,6 +59,13 @@ export const WorkflowEdge = memo(
       if (data?.condition) return data.condition
       if (data?.iterations && data.iterations > 1) return `×${data.iterations}`
       return null
+    }
+
+    const getEdgeLabelStyle = () => {
+      if (edgeType === 'loop') {
+        return 'px-2 py-1 bg-amber-50 border border-amber-300 rounded text-xs font-medium shadow-sm text-amber-700'
+      }
+      return 'px-2 py-1 bg-white border border-gray-300 rounded text-xs font-medium shadow-sm'
     }
 
     const edgeLabel = getEdgeLabel()
@@ -68,7 +81,7 @@ export const WorkflowEdge = memo(
                 transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
                 pointerEvents: 'all',
               }}
-              className="px-2 py-1 bg-white border border-gray-300 rounded text-xs font-medium shadow-sm"
+              className={getEdgeLabelStyle()}
             >
               {edgeLabel}
             </div>

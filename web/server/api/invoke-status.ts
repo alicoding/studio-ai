@@ -286,7 +286,7 @@ export async function updateWorkflowStatus(
       role?: string
       agentId?: string
       task: string
-      status: 'pending' | 'running' | 'completed' | 'failed'
+      status: 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'not_executed' | 'skipped' | 'aborted'
       startTime?: string
       endTime?: string
       error?: string

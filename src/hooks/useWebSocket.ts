@@ -8,9 +8,9 @@ interface UseWebSocketOptions {
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
-  // Connect to the same server that serves the frontend for consistency
-  // This ensures events emitted from API calls reach the WebSocket
-  const defaultUrl = window.location.origin
+  // Connect to stable server (3456) for proper MCP integration
+  // Dev server (3457) doesn't handle WebSocket events properly
+  const defaultUrl = 'http://localhost:3456'
 
   const { url = defaultUrl, reconnectAttempts = 5, reconnectDelay = 1000 } = options
 

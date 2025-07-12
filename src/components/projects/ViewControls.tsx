@@ -2,10 +2,12 @@ import { Menu, Square, Grid3X3, SplitSquareHorizontal } from 'lucide-react'
 import { useAgentStore } from '../../stores'
 
 type ViewMode = 'single' | 'split' | 'grid'
+type CanvasMode = 'agent' | 'workflow'
 
 interface ViewControlsProps {
   currentView: ViewMode
   selectedAgentId: string | null
+  canvasMode: CanvasMode
   onViewChange: (view: ViewMode) => void
   onSidebarToggle: () => void
 }
@@ -19,6 +21,7 @@ const viewIcons = {
 export function ViewControls({
   currentView,
   selectedAgentId,
+  canvasMode,
   onViewChange,
   onSidebarToggle,
 }: ViewControlsProps) {
@@ -26,6 +29,8 @@ export function ViewControls({
   const selectedAgent = useAgentStore((state) =>
     selectedAgentId ? state.agents.find((a) => a.id === selectedAgentId) : null
   )
+
+  const isWorkflowMode = canvasMode === 'workflow'
 
   return (
     <div className="flex items-center gap-2 p-2 bg-card border-b">
@@ -37,26 +42,32 @@ export function ViewControls({
         <Menu className="w-4 h-4" />
       </button>
 
-      <div className="flex items-center gap-1 ml-2">
-        {Object.entries(viewIcons).map(([mode, Icon]) => (
-          <button
-            key={mode}
-            className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded transition-colors ${
-              currentView === mode
-                ? 'bg-blue-600 text-white'
-                : 'text-muted-foreground hover:text-white hover:bg-secondary'
-            }`}
-            onClick={() => onViewChange(mode as ViewMode)}
-          >
-            <Icon className="w-3 h-3" />
-            {mode.charAt(0).toUpperCase() + mode.slice(1)}
-          </button>
-        ))}
-      </div>
+      {/* Hide view controls when in workflow mode */}
+      {!isWorkflowMode && (
+        <div className="flex items-center gap-1 ml-2">
+          {Object.entries(viewIcons).map(([mode, Icon]) => (
+            <button
+              key={mode}
+              className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded transition-colors ${
+                currentView === mode
+                  ? 'bg-blue-600 text-white'
+                  : 'text-muted-foreground hover:text-white hover:bg-secondary'
+              }`}
+              onClick={() => onViewChange(mode as ViewMode)}
+            >
+              <Icon className="w-3 h-3" />
+              {mode.charAt(0).toUpperCase() + mode.slice(1)}
+            </button>
+          ))}
+        </div>
+      )}
 
-      <span className="text-muted-foreground text-sm ml-auto">
-        {selectedAgent ? `→ ${selectedAgent.name} (${selectedAgent.id})` : '→ No agent selected'}
-      </span>
+      {/* Hide agent selection message when in workflow mode */}
+      {!isWorkflowMode && (
+        <span className="text-muted-foreground text-sm ml-auto">
+          {selectedAgent ? `→ ${selectedAgent.name} (${selectedAgent.id})` : '→ No agent selected'}
+        </span>
+      )}
     </div>
   )
 }

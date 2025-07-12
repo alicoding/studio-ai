@@ -31,12 +31,12 @@ export class StepExecutorRegistry {
 
     // Default to 'claude' for backward compatibility
     if (!execStep.type) {
-      if (step.role || step.agentId) {
-        // This is an AI step, set type to 'claude'
-        execStep.type = 'claude'
-      } else if (process.env.USE_MOCK_AI === 'true') {
+      if (process.env.USE_MOCK_AI === 'true') {
         // Use mock when environment variable is set
         execStep.type = 'mock'
+      } else if (step.role || step.agentId) {
+        // This is an AI step, set type to 'claude'
+        execStep.type = 'claude'
       } else {
         // Default to claude for any untyped step
         execStep.type = 'claude'

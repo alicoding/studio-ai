@@ -20,13 +20,14 @@ import {
   Bot,
   Play,
   Pause,
+  RotateCw,
 } from 'lucide-react'
 
 interface WorkflowStepNodeData {
   agentId?: string
   role?: string
   task: string
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'blocked'
+  status: 'pending' | 'not_executed' | 'running' | 'completed' | 'failed' | 'blocked'
   startTime?: number
   endTime?: number
   output?: string
@@ -36,10 +37,13 @@ interface WorkflowStepNodeData {
   isCurrentNode?: boolean
   isResumePoint?: boolean
   isInExecutionPath?: boolean
+  isInLoop?: boolean
+  loopIterations?: number
 }
 
 const statusIcons = {
   pending: Clock,
+  not_executed: Clock, // Backend sends "not_executed" for pending
   running: Loader2,
   completed: CheckCircle,
   failed: XCircle,
@@ -48,6 +52,7 @@ const statusIcons = {
 
 const statusColors = {
   pending: 'border-gray-300 bg-gray-50 text-gray-600',
+  not_executed: 'border-gray-300 bg-gray-50 text-gray-600', // Same as pending
   running: 'border-blue-400 bg-blue-50 text-blue-700 shadow-blue-100',
   completed: 'border-green-400 bg-green-50 text-green-700',
   failed: 'border-red-400 bg-red-50 text-red-700',
@@ -55,8 +60,8 @@ const statusColors = {
 }
 
 export const WorkflowStepNode = memo(({ data }: NodeProps<WorkflowStepNodeData>) => {
-  const StatusIcon = statusIcons[data.status]
-  const statusClass = statusColors[data.status]
+  const StatusIcon = statusIcons[data.status] || Clock // Fallback to Clock if status not found
+  const statusClass = statusColors[data.status] || statusColors.pending // Fallback to pending style
 
   // Truncate long task descriptions
   const truncatedTask = data.task.length > 60 ? `${data.task.substring(0, 57)}...` : data.task
@@ -70,6 +75,7 @@ export const WorkflowStepNode = memo(({ data }: NodeProps<WorkflowStepNodeData>)
         ${statusClass}
         ${data.isCurrentNode ? 'ring-2 ring-blue-400 ring-offset-2' : ''}
         ${data.isInExecutionPath ? 'shadow-md' : ''}
+        ${data.isResumePoint ? 'ring-2 ring-amber-500 ring-offset-2 shadow-amber-200' : ''}
         transition-all duration-200
       `}
     >
@@ -91,7 +97,23 @@ export const WorkflowStepNode = memo(({ data }: NodeProps<WorkflowStepNodeData>)
 
         <div className="flex items-center gap-1">
           {data.isCurrentNode && <Play className="w-3 h-3 text-blue-600" />}
-          {data.isResumePoint && <Pause className="w-3 h-3 text-amber-600" />}
+          {data.isResumePoint && (
+            <div 
+              className="flex items-center gap-1 bg-amber-100 px-1.5 py-0.5 rounded-md"
+              title={`Resume point - workflow can be resumed from here (status: ${data.status})`}
+            >
+              <Pause className="w-3 h-3 text-amber-600" />
+              <span className="text-xs font-medium text-amber-700">Resume</span>
+            </div>
+          )}
+          {data.isInLoop && (
+            <div className="flex items-center gap-0.5" title={`Part of loop (${data.loopIterations || 1} iterations)`}>
+              <RotateCw className="w-3 h-3 text-amber-600" />
+              {data.loopIterations && data.loopIterations > 1 && (
+                <span className="text-xs text-amber-600 font-medium">×{data.loopIterations}</span>
+              )}
+            </div>
+          )}
           <StatusIcon className={`w-4 h-4 ${data.status === 'running' ? 'animate-spin' : ''}`} />
         </div>
       </div>
@@ -111,12 +133,34 @@ export const WorkflowStepNode = memo(({ data }: NodeProps<WorkflowStepNodeData>)
         )}
       </div>
 
+      {/* Output if completed */}
+      {data.status === 'completed' && data.output && (
+        <div className="mt-2 text-xs text-green-700 bg-green-100 px-2 py-1 rounded border border-green-200">
+          <span title={data.output} className="line-clamp-2">
+            {data.output.length > 80 ? `${data.output.substring(0, 77)}...` : data.output}
+          </span>
+        </div>
+      )}
+
       {/* Error message if failed */}
       {data.status === 'failed' && data.error && (
-        <div className="mt-2 text-xs text-red-600 bg-red-100 px-2 py-1 rounded border">
+        <div className="mt-2 text-xs text-red-600 bg-red-100 px-2 py-1 rounded border border-red-200">
           <span title={data.error}>
             {data.error.length > 50 ? `${data.error.substring(0, 47)}...` : data.error}
           </span>
+        </div>
+      )}
+
+      {/* Resume point indicator */}
+      {data.isResumePoint && (
+        <div className="mt-2 text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1">
+          <div className="flex items-center gap-1 text-amber-700">
+            <Pause className="w-3 h-3" />
+            <span className="font-medium">Checkpoint saved</span>
+          </div>
+          <div className="text-amber-600 mt-0.5">
+            Can resume workflow from this point
+          </div>
         </div>
       )}
 

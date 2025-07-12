@@ -15,6 +15,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  Pause,
 } from 'lucide-react'
 import type { WorkflowNode } from '../../../web/server/schemas/workflow-graph'
 
@@ -46,7 +47,11 @@ const getStatusStyles = (status: string): string => {
   return statusMap[status] || 'bg-gray-500/20 text-gray-700'
 }
 
-export function WorkflowStepList({ nodes, className = '' }: WorkflowStepListProps) {
+interface ExtendedWorkflowStepListProps extends WorkflowStepListProps {
+  resumePoints?: string[]
+}
+
+export function WorkflowStepList({ nodes, className = '', resumePoints = [] }: ExtendedWorkflowStepListProps) {
   const [expandedLoops, setExpandedLoops] = useState<Set<string>>(new Set())
 
   // Detect loop iterations
@@ -201,6 +206,7 @@ export function WorkflowStepList({ nodes, className = '' }: WorkflowStepListProp
                     node={node}
                     index={iteration.startIndex + nodeIndex}
                     isInLoop={true}
+                    isResumePoint={resumePoints.includes(node.id)}
                   />
                 ))}
               </div>
@@ -217,10 +223,12 @@ function NodeCard({
   node,
   index,
   isInLoop = false,
+  isResumePoint = false,
 }: {
   node: WorkflowNode
   index: number
   isInLoop?: boolean
+  isResumePoint?: boolean
 }) {
   return (
     <div
@@ -233,8 +241,14 @@ function NodeCard({
           <span className="text-sm font-mono text-muted-foreground">{index + 1}.</span>
           <span className="font-medium">{node.id}</span>
           {node.type === 'operator' && (
-            <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-500 rounded">
-              Operator
+            <span className="text-xs px-2 py-0.5 bg-purple-500/20 text-purple-600 rounded font-medium">
+              🔄 Decision Point
+            </span>
+          )}
+          {isResumePoint && (
+            <span className="flex items-center gap-1 text-xs px-2 py-0.5 bg-amber-500/20 text-amber-600 rounded">
+              <Pause className="w-3 h-3" />
+              Resume point
             </span>
           )}
         </div>
@@ -247,15 +261,34 @@ function NodeCard({
 
       <div className="mb-3">
         <div className="text-xs font-medium text-muted-foreground mb-1">
-          {node.type === 'operator' ? 'Operation:' : 'Task:'}
+          {node.type === 'operator' ? 'Decision Logic:' : 'Task:'}
         </div>
         <p className="text-sm bg-secondary/50 p-2 rounded">{node.data.task}</p>
+        
+        {/* Show decision outcome for operators */}
+        {node.type === 'operator' && node.data.output && (
+          <div className="mt-2">
+            <div className="text-xs font-medium text-muted-foreground mb-1">Decision Outcome:</div>
+            <div className={`text-sm px-2 py-1 rounded border ${
+              node.data.output.includes('SUCCESS') 
+                ? 'bg-green-50 text-green-700 border-green-200'
+                : node.data.output.includes('FAILED')
+                ? 'bg-red-50 text-red-700 border-red-200'
+                : node.data.output.includes('BLOCKED')
+                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                : 'bg-purple-50 text-purple-700 border-purple-200'
+            }`}>
+              {node.data.output}
+            </div>
+          </div>
+        )}
       </div>
 
-      {node.data.output && (
+      {/* Show actual output content for non-operator steps */}
+      {node.type !== 'operator' && node.data.output && (
         <div className="mb-3">
           <div className="text-xs font-medium text-muted-foreground mb-1">Output:</div>
-          <div className="text-sm bg-primary/5 p-2 rounded whitespace-pre-wrap font-mono text-xs">
+          <div className="text-sm bg-primary/5 p-3 rounded whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
             {node.data.output}
           </div>
         </div>

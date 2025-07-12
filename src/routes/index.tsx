@@ -31,6 +31,7 @@ import { useWorkflowEvents } from '../hooks/useWorkflowEvents'
 
 import { CanvasContent } from '../components/workspace/CanvasContent'
 import { CreateProjectModal } from '../components/projects/CreateProjectModal'
+import { ConnectionStatusBanner } from '../components/ui/ConnectionStatusBanner'
 import { ErrorMonitor } from '../services/ErrorMonitor'
 import { useDiagnosticsStore } from '../stores/diagnostics'
 
@@ -132,7 +133,6 @@ function ProjectsPage() {
 
   // Zustand stores
   const {
-    selectedAgentId,
     configs, // Updated from availableConfigs
     addAgentConfig,
     setAgentConfigs,
@@ -167,8 +167,8 @@ function ProjectsPage() {
       'interrupt-agents': handleInterrupt,
       'broadcast-message': handleBroadcast,
       'clear-context': () => {
-        if (selectedAgentId) {
-          handleAgentClear(selectedAgentId)
+        if (layout.selectedAgentId) {
+          handleAgentClear(layout.selectedAgentId)
         }
       },
       'new-project': () => modalOps.openModal('createProject'),
@@ -401,6 +401,7 @@ function ProjectsPage() {
 
   return (
     <>
+      <ConnectionStatusBanner />
       <ProjectTabs
         projects={openProjects}
         activeProjectId={activeProjectId}
@@ -451,7 +452,8 @@ function ProjectsPage() {
             <main className="flex-1 flex flex-col overflow-hidden">
               <ViewControls
                 currentView={layout.viewMode}
-                selectedAgentId={selectedAgentId}
+                selectedAgentId={layout.selectedAgentId}
+                canvasMode={layout.canvasMode}
                 onViewChange={layout.setViewMode}
                 onSidebarToggle={layout.toggleSidebar}
               />

@@ -6,6 +6,7 @@ import { useAgentStore, useProjectStore } from '../../stores'
 import { DeleteAgentModal } from '../modals/DeleteAgentModal'
 import { WorkflowList } from '../workflow/WorkflowList'
 import { WorkflowDebugger } from '../workflow/WorkflowDebugger'
+import { useWorkspaceLayout } from '../../hooks/useWorkspaceLayout'
 import {
   DndContext,
   closestCenter,
@@ -49,17 +50,18 @@ export function Sidebar({
 }: SidebarProps) {
   // Get data directly from Zustand stores
   const {
-    selectedAgentId,
     configs,
-    setSelectedAgent,
     getProjectAgents,
     moveAgentToPosition,
     clearingAgentId,
   } = useAgentStore()
   const { activeProjectId } = useProjectStore()
+  
+  // Use workspace layout for proper agent selection that switches canvas mode
+  const { selectedAgentId, setSelectedAgent, canvasMode, setCanvasMode } = useWorkspaceLayout()
 
-  // Sidebar state
-  const [activeTab, setActiveTab] = useState<SidebarTab>('agents')
+  // Sidebar state - derive from canvas mode
+  const activeTab: SidebarTab = canvasMode === 'workflow' ? 'workflows' : 'agents'
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -322,7 +324,7 @@ export function Sidebar({
       {/* Tab Navigation */}
       <div className="w-16 bg-muted/30 border-r flex flex-col py-2">
         <button
-          onClick={() => setActiveTab('agents')}
+          onClick={() => setCanvasMode('agent')}
           className={`flex flex-col items-center gap-2 py-4 px-2 mx-2 rounded-lg hover:bg-accent/50 transition-colors ${
             activeTab === 'agents' ? 'bg-accent text-primary shadow-sm' : 'text-muted-foreground'
           }`}
@@ -338,7 +340,7 @@ export function Sidebar({
         </button>
 
         <button
-          onClick={() => setActiveTab('workflows')}
+          onClick={() => setCanvasMode('workflow')}
           className={`flex flex-col items-center gap-2 py-4 px-2 mx-2 rounded-lg hover:bg-accent/50 transition-colors ${
             activeTab === 'workflows' ? 'bg-accent text-primary shadow-sm' : 'text-muted-foreground'
           }`}

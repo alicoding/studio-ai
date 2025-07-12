@@ -74,13 +74,25 @@ httpServer.requestTimeout = 3600000 // 1 hour
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: [
+      process.env.CLIENT_URL || 'http://localhost:5173',
+      'http://localhost:3456', // Stable server
+      'http://localhost:3457', // Dev server
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
   },
 })
 
 // Middleware
-app.use(cors())
+app.use(cors({
+  origin: [
+    process.env.CLIENT_URL || 'http://localhost:5173',
+    'http://localhost:3456', // Stable server
+    'http://localhost:3457', // Dev server
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
+}))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
@@ -110,9 +122,30 @@ eventSystem
     })
   })
 
-// Static file serving (for production)
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../../dist')))
+// Static file serving - conditional based on server type
+const SERVER_PORT = process.env.PORT || 3456
+const isDevServer = SERVER_PORT === '3457'
+
+if (isDevServer) {
+  // Dev server (3457): Configure Vite Express for HMR
+  const { configureViteExpress } = await import('./middleware/vite-dev.js')
+  configureViteExpress()
+} else {
+  // Stable server (3456): Serve built UI static files
+  const distPath = path.join(__dirname, '../../dist')
+  app.use(express.static(distPath))
+
+  // Serve index.html for all non-API routes (SPA routing)
+  // Note: This must be placed AFTER all API routes to avoid conflicts
+  app.get('/', (req, res) => {
+    const indexPath = path.join(distPath, 'index.html')
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        console.error('Failed to serve index.html:', err)
+        res.status(404).json({ error: 'UI not built. Run: npm run build' })
+      }
+    })
+  })
 }
 
 // API Routes
@@ -165,10 +198,13 @@ app.use(
   }
 )
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Not found' })
-})
+// 404 handler - only for stable server
+// ViteExpress handles 404s for dev server
+if (!isDevServer) {
+  app.use((req, res) => {
+    res.status(404).json({ error: 'Not found' })
+  })
+}
 
 // Initialize Studio Intelligence System
 async function initializeStudioIntelligence() {
@@ -182,14 +218,16 @@ async function initializeStudioIntelligence() {
   }
 }
 
-// Start server
+// Start server - conditional based on server type
 const PORT = process.env.PORT || 3456
-httpServer.listen(PORT, async () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`)
-  console.log(`📡 WebSocket listening on ws://localhost:${PORT}`)
 
+async function startServer() {
   // Start workflow monitoring for auto-resume
   const monitor = WorkflowMonitor.getInstance()
+  
+  // Check for orphaned workflows from previous server sessions
+  await monitor.checkOrphanedWorkflows()
+  
   monitor.start()
   console.log('🔍 Workflow monitoring started for auto-resume')
 
@@ -200,7 +238,21 @@ httpServer.listen(PORT, async () => {
   const { ToolDiscoveryService } = await import('./services/ToolDiscoveryService.js')
   const toolDiscovery = ToolDiscoveryService.getInstance()
   await toolDiscovery.discoverTools()
-})
+}
+
+if (isDevServer) {
+  // Dev server (3457): Use ViteExpress for HMR
+  const { startViteExpressServer } = await import('./middleware/vite-dev.js')
+  startViteExpressServer(app, httpServer, Number(PORT))
+  await startServer()
+} else {
+  // Stable server (3456): Use regular Express
+  httpServer.listen(PORT, async () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`)
+    console.log(`📡 WebSocket listening on ws://localhost:${PORT}`)
+    await startServer()
+  })
+}
 
 // Setup graceful shutdown using the library
 createGracefulShutdown(httpServer, {

@@ -27,11 +27,12 @@ export interface WorkflowMetadata {
     role?: string
     agentId?: string
     task: string
-    status: 'pending' | 'running' | 'completed' | 'failed'
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'not_executed' | 'skipped' | 'aborted'
     startTime?: string
     endTime?: string
     error?: string
     dependencies?: string[]
+    output?: string // Store the actual step output for auditing and UI display
   }>
   createdAt: string
 }

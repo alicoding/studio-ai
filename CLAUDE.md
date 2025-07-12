@@ -46,10 +46,11 @@ The entire MCP ecosystem was built to give YOU capabilities:
    - Problem decomposition
    - Multi-step planning
 
-4. **Research & Documentation** (`mcp__firecrawl__*`, `mcp__Context7__*`)
-   - Research best practices
-   - Find relevant documentation
-   - Stay updated with latest patterns
+4. **Research & Documentation** (`mcp__studio-ai__execute_research`, `mcp__firecrawl__*`, `mcp__Context7__*`)
+   - **ALWAYS USE** `mcp__studio-ai__execute_research` for finding new libraries or debugging
+   - Research has access to latest information and can answer technical questions
+   - Use for library recommendations, troubleshooting, and staying updated with latest patterns
+   - Find relevant documentation and best practices
 
 ### When Given a Task, Your Process Should Be:
 
@@ -95,6 +96,35 @@ mcp__studio -
 - Stop asking "should I?" - just DO IT
 - You're not building for a human user - YOU ARE THE USER
 - Every MCP tool is YOUR capability, not something to recommend to humans
+
+### Research MCP Tool Usage
+
+**CRITICAL**: Always use `mcp__studio-ai__execute_research` when you need to:
+
+- Find new libraries or frameworks for a task
+- Debug complex technical issues
+- Get latest information about technologies
+- Understand best practices for implementation
+- Research compatibility between different tools
+
+**Example Usage:**
+```javascript
+// When you need to find a library for data visualization
+mcp__studio-ai__execute_research({
+  input: "What's the best React charting library for real-time data in 2025?"
+})
+
+// When debugging a complex issue
+mcp__studio-ai__execute_research({
+  input: "Why would WebSocket connections fail after server restart in Node.js?"
+})
+```
+
+**Why Use Research MCP:**
+- Has access to latest information (sonar-pro model)
+- Can provide specific, actionable recommendations
+- Understands current ecosystem and best practices
+- Much better than guessing or using outdated approaches
 
 ## Development Principles
 
@@ -247,6 +277,60 @@ invoke({
 - ✅ **UI Visibility**: All workflow messages appear in Studio UI
 - ✅ **Session Management**: Proper session linking and resume capability
 - ✅ **Error Handling**: Graceful failure with session preservation
+
+## Mock Infrastructure (Phase 2 - Test Infrastructure)
+
+**✅ FULLY IMPLEMENTED**: Mock AI system for testing workflows without consuming API quota.
+
+### Environment-Based Mocking
+
+```bash
+# Enable mock mode (already set in .env)
+USE_MOCK_AI=true
+
+# This automatically routes all AI steps to MockStepExecutor instead of Claude API
+```
+
+### MockStepExecutor Features
+
+1. **Pattern Matching**: Intelligent response generation based on task content
+   - `design` tasks → Architecture responses
+   - `implement` tasks → Code implementations  
+   - `test` tasks → Unit test suites
+   - `review` tasks → Code review feedback
+   - `security` tasks → Security analysis
+   - `deploy` tasks → Deployment status
+
+2. **Template Resolution**: Full support for `{stepId.output}` variables
+3. **Realistic Timing**: Configurable delays to simulate real processing
+4. **Context Awareness**: Responses adapt based on previous step outputs
+
+### Usage Examples
+
+```javascript
+// All these will use MockStepExecutor when USE_MOCK_AI=true
+invoke({
+  workflow: [
+    { id: 'design', task: 'Design a REST API' },
+    { id: 'implement', task: 'Implement {design.output}' },
+    { id: 'test', task: 'Test the implementation' },
+    { id: 'review', task: 'Review {implement.output}' }
+  ]
+})
+```
+
+### Benefits
+
+- **Zero API Costs**: No Claude API calls during testing
+- **Deterministic**: Consistent responses for reliable testing
+- **Fast**: No network delays, immediate responses
+- **Comprehensive**: Covers all workflow patterns and scenarios
+
+### Files
+
+- `web/server/services/executors/MockStepExecutor.ts` - Core implementation
+- `web/server/services/executors/StepExecutorRegistry.ts` - Environment routing
+- `web/server/services/executors/README.md` - Full documentation
 
 ## Recent Fixes & Improvements
 

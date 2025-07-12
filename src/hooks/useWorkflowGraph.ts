@@ -18,7 +18,7 @@ interface UseWorkflowGraphResult {
   refetch: () => Promise<void>
 }
 
-export function useWorkflowGraph(threadId: string | null): UseWorkflowGraphResult {
+export function useWorkflowGraph(threadId: string | null, consolidateLoops = false): UseWorkflowGraphResult {
   const [graphData, setGraphData] = useState<WorkflowGraphResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -34,7 +34,9 @@ export function useWorkflowGraph(threadId: string | null): UseWorkflowGraphResul
     setError(null)
 
     try {
-      const data = await WorkflowGraphService.getWorkflowGraph(threadId)
+      console.log(`[useWorkflowGraph] Fetching graph data for ${threadId}, consolidateLoops=${consolidateLoops}`)
+      const data = await WorkflowGraphService.getWorkflowGraph(threadId, consolidateLoops)
+      console.log(`[useWorkflowGraph] Received data with ${data.graph.nodes.length} nodes`)
       setGraphData(data)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load workflow graph'
@@ -43,7 +45,7 @@ export function useWorkflowGraph(threadId: string | null): UseWorkflowGraphResul
     } finally {
       setLoading(false)
     }
-  }, [threadId])
+  }, [threadId, consolidateLoops])
 
   useEffect(() => {
     fetchGraphData()
