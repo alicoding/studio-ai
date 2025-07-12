@@ -860,6 +860,162 @@ execute_workflow({
         additionalProperties: false,
       },
     })
+
+    // Workflow Storage Tools
+    this.register({
+      name: 'save_workflow',
+      description: `Save a workflow definition to persistent storage.
+
+WHAT IT DOES:
+• Saves workflow to the database for later use
+• Supports different scopes (project, global, cross-project)
+• Can save as template for reuse
+• Preserves all workflow metadata and steps
+
+WHEN TO USE:
+• After creating or modifying a workflow
+• To save templates for common patterns
+• To share workflows across projects
+
+RETURNS:
+• Saved workflow ID and details
+
+EXAMPLE:
+save_workflow({
+  workflow: workflowDefinition,
+  scope: "project",
+  projectId: "my-project",
+  isTemplate: false
+})`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          workflow: {
+            type: 'object',
+            description: 'The workflow definition to save',
+          },
+          scope: {
+            type: 'string',
+            enum: ['project', 'global', 'cross-project'],
+            description: 'Scope of the workflow (default: project)',
+          },
+          projectId: {
+            type: 'string',
+            description: 'Project ID (required for project scope)',
+          },
+          isTemplate: {
+            type: 'boolean',
+            description: 'Save as template (default: false)',
+          },
+        },
+        required: ['workflow'],
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'load_workflow',
+      description: `Load a saved workflow by ID.
+
+WHAT IT DOES:
+• Retrieves workflow definition from storage
+• Includes all metadata and steps
+• Ready for editing or execution
+
+WHEN TO USE:
+• To resume work on a saved workflow
+• To execute a previously saved workflow
+• To use a template as starting point
+
+RETURNS:
+• Complete workflow definition
+
+EXAMPLE:
+load_workflow({ workflowId: "wf-123-abc" })`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          workflowId: {
+            type: 'string',
+            description: 'ID of the workflow to load',
+          },
+        },
+        required: ['workflowId'],
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'list_saved_workflows',
+      description: `List all saved workflows with filters.
+
+WHAT IT DOES:
+• Lists workflows from storage
+• Supports filtering by scope and project
+• Shows metadata like name, description, steps count
+
+WHEN TO USE:
+• To browse available workflows
+• To find templates
+• To see project-specific workflows
+
+RETURNS:
+• Array of workflow summaries
+
+EXAMPLE:
+list_saved_workflows({
+  projectId: "my-project",
+  scope: "project"
+})`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectId: {
+            type: 'string',
+            description: 'Filter by project ID',
+          },
+          scope: {
+            type: 'string',
+            enum: ['project', 'global', 'cross-project'],
+            description: 'Filter by scope',
+          },
+          global: {
+            type: 'boolean',
+            description: 'Include global workflows',
+          },
+        },
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'delete_saved_workflow',
+      description: `Delete a saved workflow by ID.
+
+WHAT IT DOES:
+• Permanently removes workflow from storage
+• Cannot be undone
+
+WHEN TO USE:
+• To clean up old workflows
+• To remove test workflows
+
+WARNING: This action cannot be undone!
+
+EXAMPLE:
+delete_saved_workflow({ workflowId: "wf-123-abc" })`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          workflowId: {
+            type: 'string',
+            description: 'ID of the workflow to delete',
+          },
+        },
+        required: ['workflowId'],
+        additionalProperties: false,
+      },
+    })
   }
 
   /**

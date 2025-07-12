@@ -74,6 +74,10 @@ import {
   handleSetWorkflowDependencies,
   handleValidateWorkflow,
   handleExecuteWorkflow,
+  handleSaveWorkflow,
+  handleLoadWorkflow,
+  handleListSavedWorkflows,
+  handleDeleteWorkflow as handleDeleteSavedWorkflow,
   WorkflowDefinition,
   WorkflowStepDefinition,
 } from './workflowBuilderTools.js'
@@ -435,6 +439,43 @@ export class ToolHandlerRegistry {
         threadId: typedArgs.threadId ? String(typedArgs.threadId) : undefined,
         startNewConversation: typedArgs.startNewConversation === true,
       })
+    })
+    this.register('save_workflow', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      const typedArgs = args as Record<string, unknown>
+      return await handleSaveWorkflow({
+        workflow: typedArgs.workflow as WorkflowDefinition,
+        scope: typedArgs.scope as 'project' | 'global' | 'cross-project' | undefined,
+        projectId: typedArgs.projectId ? String(typedArgs.projectId) : undefined,
+        isTemplate: typedArgs.isTemplate === true,
+      })
+    })
+    this.register('load_workflow', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      const typedArgs = args as Record<string, unknown>
+      return await handleLoadWorkflow({ workflowId: String(typedArgs.workflowId) })
+    })
+    this.register('list_saved_workflows', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      const typedArgs = args as Record<string, unknown>
+      return await handleListSavedWorkflows({
+        projectId: typedArgs.projectId ? String(typedArgs.projectId) : undefined,
+        scope: typedArgs.scope as 'project' | 'global' | 'cross-project' | undefined,
+        global: typedArgs.global === true,
+      })
+    })
+    this.register('delete_saved_workflow', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      const typedArgs = args as Record<string, unknown>
+      return await handleDeleteSavedWorkflow({ workflowId: String(typedArgs.workflowId) })
     })
 
     // MCP Configuration Handlers

@@ -492,3 +492,179 @@ export async function handleSetWorkflowDependencies(args: {
     }
   }
 }
+
+/**
+ * Tool: save_workflow
+ * Save a workflow definition to persistent storage
+ */
+export async function handleSaveWorkflow(args: {
+  workflow: WorkflowDefinition
+  scope?: 'project' | 'global' | 'cross-project'
+  projectId?: string
+  isTemplate?: boolean
+}): Promise<TextContent> {
+  try {
+    // Prepare save request
+    const saveRequest = {
+      name: args.workflow.name,
+      description: args.workflow.description,
+      definition: args.workflow,
+      scope: args.scope || 'project',
+      projectId: args.projectId || args.workflow.metadata.projectId,
+      source: 'mcp' as const,
+      isTemplate: args.isTemplate || false,
+    }
+
+    // Validate required fields for project scope
+    if (saveRequest.scope === 'project' && !saveRequest.projectId) {
+      return {
+        type: 'text',
+        text: '❌ projectId is required for project-scoped workflows. Either provide projectId or use scope: "global"',
+      }
+    }
+
+    // Call save API
+    interface SaveResponse {
+      workflow: {
+        id: string
+        name: string
+        createdAt: string
+      }
+    }
+    const response = await ky
+      .post(`${API_URL}/workflows/saved`, { json: saveRequest })
+      .json<SaveResponse>()
+
+    return {
+      type: 'text',
+      text: `✅ Workflow '${args.workflow.name}' saved successfully!\n\n**ID**: ${response.workflow.id}\n**Scope**: ${saveRequest.scope}\n**Project**: ${saveRequest.projectId || 'N/A'}\n**Template**: ${saveRequest.isTemplate ? 'Yes' : 'No'}\n**Created**: ${new Date(response.workflow.createdAt).toLocaleString()}\n\nWorkflow can now be loaded and executed from the UI or via load_workflow.`,
+    }
+  } catch (error) {
+    console.error('MCP save_workflow error:', error)
+    return {
+      type: 'text',
+      text: `Failed to save workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    }
+  }
+}
+
+/**
+ * Tool: load_workflow
+ * Load a saved workflow by ID
+ */
+export async function handleLoadWorkflow(args: { workflowId: string }): Promise<TextContent> {
+  try {
+    interface LoadResponse {
+      workflow: {
+        id: string
+        name: string
+        description?: string
+        definition: WorkflowDefinition
+        updatedAt: string
+        scope: string
+        projectId?: string
+        isTemplate?: boolean
+      }
+    }
+    const response = await ky
+      .get(`${API_URL}/workflows/saved/${args.workflowId}`)
+      .json<LoadResponse>()
+
+    const workflow = response.workflow
+
+    return {
+      type: 'text',
+      text: `✅ Workflow loaded successfully!\n\n**Name**: ${workflow.name}\n**Description**: ${workflow.description || 'N/A'}\n**Scope**: ${workflow.scope}\n**Steps**: ${workflow.definition.steps.length}\n**Updated**: ${new Date(workflow.updatedAt).toLocaleString()}\n\n**Workflow Definition**:\n\`\`\`json\n${JSON.stringify(workflow.definition, null, 2)}\n\`\`\`\n\nYou can now execute this workflow or modify it.`,
+    }
+  } catch (error) {
+    console.error('MCP load_workflow error:', error)
+    return {
+      type: 'text',
+      text: `Failed to load workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    }
+  }
+}
+
+/**
+ * Tool: list_saved_workflows
+ * List all saved workflows with filters
+ */
+export async function handleListSavedWorkflows(args: {
+  projectId?: string
+  scope?: 'project' | 'global' | 'cross-project'
+  global?: boolean
+}): Promise<TextContent> {
+  try {
+    // Build query params
+    const params = new URLSearchParams()
+    if (args.projectId) params.append('projectId', args.projectId)
+    if (args.scope) params.append('scope', args.scope)
+    if (args.global) params.append('global', 'true')
+
+    const url = params.toString()
+      ? `${API_URL}/workflows/saved?${params}`
+      : `${API_URL}/workflows/saved`
+
+    interface ListResponse {
+      workflows: Array<{
+        id: string
+        name: string
+        description?: string
+        definition: WorkflowDefinition
+        updatedAt: string
+        scope: string
+        projectId?: string
+        isTemplate?: boolean
+      }>
+    }
+    const response = await ky.get(url).json<ListResponse>()
+
+    if (response.workflows.length === 0) {
+      return {
+        type: 'text',
+        text: 'No saved workflows found with the specified filters.\n\nTry:\n- Creating a workflow with create_workflow\n- Adding steps with add_workflow_step\n- Saving with save_workflow',
+      }
+    }
+
+    const workflowList = response.workflows
+      .map(
+        (wf) =>
+          `• **${wf.name}** (${wf.id})\n  ${wf.description || 'No description'}\n  Scope: ${wf.scope} | Steps: ${wf.definition.steps.length} | Updated: ${new Date(
+            wf.updatedAt
+          ).toLocaleDateString()}`
+      )
+      .join('\n\n')
+
+    return {
+      type: 'text',
+      text: `Found ${response.workflows.length} saved workflow(s):\n\n${workflowList}\n\nUse load_workflow with the ID to load a specific workflow.`,
+    }
+  } catch (error) {
+    console.error('MCP list_saved_workflows error:', error)
+    return {
+      type: 'text',
+      text: `Failed to list workflows: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    }
+  }
+}
+
+/**
+ * Tool: delete_workflow
+ * Delete a saved workflow by ID
+ */
+export async function handleDeleteWorkflow(args: { workflowId: string }): Promise<TextContent> {
+  try {
+    await ky.delete(`${API_URL}/workflows/saved/${args.workflowId}`)
+
+    return {
+      type: 'text',
+      text: `✅ Workflow '${args.workflowId}' deleted successfully!`,
+    }
+  } catch (error) {
+    console.error('MCP delete_workflow error:', error)
+    return {
+      type: 'text',
+      text: `Failed to delete workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    }
+  }
+}
