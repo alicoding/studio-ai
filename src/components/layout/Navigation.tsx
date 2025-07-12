@@ -1,5 +1,5 @@
 import { Link, useLocation } from '@tanstack/react-router'
-import { Settings, Database, Search } from 'lucide-react'
+import { Settings, Database, Search, Workflow } from 'lucide-react'
 
 export function Navigation() {
   const location = useLocation()
@@ -51,6 +51,17 @@ export function Navigation() {
           }`}
         >
           Teams
+        </Link>
+        <Link
+          to="/workflows"
+          className={`px-4 py-2 rounded-md transition-colors font-medium flex items-center gap-2 ${
+            isActive('/workflows')
+              ? 'text-primary bg-primary/10 border border-primary/20'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+          }`}
+        >
+          <Workflow className="w-4 h-4" />
+          Workflows
         </Link>
         <Link
           to="/storage"
