@@ -26,7 +26,7 @@ import 'reactflow/dist/style.css'
 
 import { Button } from '@/components/ui/button'
 import { ModalLayout } from '@/components/ui/modal-layout'
-import { X, Save, Download, Upload, Settings, Folder, AlertTriangle } from 'lucide-react'
+import { X, Save, Download, Upload, Settings, Folder, AlertTriangle, Library } from 'lucide-react'
 import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
 import { useProjectStore, useAgentStore } from '@/stores'
 import type {
@@ -39,6 +39,7 @@ import WorkflowStepNode from './nodes/WorkflowStepNode'
 import ConditionalNode from './nodes/ConditionalNode'
 import LoopNode from './nodes/LoopNode'
 import DraggableNodePalette from './DraggableNodePalette'
+import WorkflowLibraryModal from './WorkflowLibraryModal'
 
 const nodeTypes: NodeTypes = {
   workflowStep: WorkflowStepNode,
@@ -126,6 +127,9 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
     }>
   >([])
   const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(false)
+
+  // Library modal state
+  const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false)
 
   // Convert store workflow to React Flow format
   const nodes = useMemo(() => (workflow ? stepsToNodes(workflow.steps) : []), [workflow])
@@ -348,6 +352,10 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
             <Upload className="w-4 h-4 mr-2" />
             {isLoadingWorkflows ? 'Loading...' : 'Load'}
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setIsLibraryModalOpen(true)}>
+            <Library className="w-4 h-4 mr-2" />
+            Library
+          </Button>
           <div className="h-6 w-px bg-border" />
           <Button
             size="sm"
@@ -488,6 +496,18 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
           )}
         </div>
       </ModalLayout>
+
+      {/* Workflow Library Modal */}
+      <WorkflowLibraryModal
+        isOpen={isLibraryModalOpen}
+        onClose={() => setIsLibraryModalOpen(false)}
+        onSelectWorkflow={(workflow) => {
+          loadWorkflow(workflow)
+          console.log('Workflow loaded from library:', workflow.name)
+        }}
+        title="Workflow Library"
+        subtitle="Browse, load, and manage your saved workflows"
+      />
     </div>
   )
 }
