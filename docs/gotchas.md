@@ -1,5 +1,21 @@
 # Claude Studio Gotchas
 
+## Critical Workflow Storage Gap (2025-01-12)
+
+- **Problem**: User asked "if you build a workflow where would it be saved to and how will I access it?"
+- **Discovery**: We have NO persistent storage for workflow definitions!
+- **Impact**: All workflows are ephemeral:
+  - UI workflows exist only in temporary workflowBuilder store
+  - MCP-created workflows exist only in memory
+  - Direct invoke workflows are never saved
+  - No way to browse, list, load, or edit saved workflows
+- **Root Cause**: Built execution tracking (workflows.ts) but not definition storage
+- **Key Insight**: workflows.ts tracks workflow executions, not definitions
+- **Pattern**: Always consider persistence early in feature design
+- **Solution Needed**: SavedWorkflow schema, CRUD API endpoints, workflow library UI
+- **Files Affected**: Will need new API endpoints, database schema, UI components
+- **Lesson**: Distinguish between execution state (runtime) and definition storage (design-time)
+
 ## Native LangGraph Loops vs Visualization Hacks (2025-07-11)
 
 - **Problem**: Trying to implement loops by adding complex conditional edges and routing logic to WorkflowOrchestrator
@@ -361,7 +377,7 @@
 - **Solution**: Updated `web/server/app.ts` to allow multiple origins: [5173, 3456, 3457]
 - **Problem**: Resume workflow caused full page refresh (`window.location.reload()`)
 - **Solution**: Replaced with `await fetchWorkflows()` to update state without page refresh
-- **Files Modified**: 
+- **Files Modified**:
   - `src/hooks/useWebSocket.ts` - fixed WebSocket URL to stable server
   - `web/server/app.ts` - fixed CORS configuration for multiple origins
   - `src/components/workflow/WorkflowDetails.tsx` - improved resume UX
