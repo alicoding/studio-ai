@@ -1,5 +1,6 @@
-import { Menu, Square, Grid3X3, SplitSquareHorizontal } from 'lucide-react'
+import { Menu, Square, Grid3X3, SplitSquareHorizontal, Plus } from 'lucide-react'
 import { useAgentStore } from '../../stores'
+import { Button } from '../ui/button'
 
 type ViewMode = 'single' | 'split' | 'grid'
 type CanvasMode = 'agent' | 'workflow'
@@ -10,6 +11,7 @@ interface ViewControlsProps {
   canvasMode: CanvasMode
   onViewChange: (view: ViewMode) => void
   onSidebarToggle: () => void
+  onNewWorkflow?: () => void
 }
 
 const viewIcons = {
@@ -24,6 +26,7 @@ export function ViewControls({
   canvasMode,
   onViewChange,
   onSidebarToggle,
+  onNewWorkflow,
 }: ViewControlsProps) {
   // Get the selected agent to show its name
   const selectedAgent = useAgentStore((state) =>
@@ -67,6 +70,22 @@ export function ViewControls({
         <span className="text-muted-foreground text-sm ml-auto">
           {selectedAgent ? `→ ${selectedAgent.name} (${selectedAgent.id})` : '→ No agent selected'}
         </span>
+      )}
+
+      {/* New Workflow Button */}
+      {onNewWorkflow && (
+        <div className="ml-auto">
+          <Button
+            size="sm"
+            variant="default"
+            onClick={onNewWorkflow}
+            className="flex items-center gap-1"
+            title="New Workflow (Cmd+Shift+W)"
+          >
+            <Plus className="w-4 h-4" />
+            New Workflow
+          </Button>
+        </div>
       )}
     </div>
   )

@@ -34,6 +34,7 @@ import { CreateProjectModal } from '../components/projects/CreateProjectModal'
 import { ConnectionStatusBanner } from '../components/ui/ConnectionStatusBanner'
 import { ErrorMonitor } from '../services/ErrorMonitor'
 import { useDiagnosticsStore } from '../stores/diagnostics'
+import WorkflowBuilder from '../components/workflow-builder/WorkflowBuilder'
 
 export const Route = createFileRoute('/')({
   component: ProjectsPage,
@@ -172,6 +173,7 @@ function ProjectsPage() {
         }
       },
       'new-project': () => modalOps.openModal('createProject'),
+      'new-workflow': () => modalOps.openModal('workflowBuilder'),
     },
     openProjects.length > 0
   ) // Only enable when workspace is active
@@ -456,6 +458,7 @@ function ProjectsPage() {
                 canvasMode={layout.canvasMode}
                 onViewChange={layout.setViewMode}
                 onSidebarToggle={layout.toggleSidebar}
+                onNewWorkflow={() => modalOps.openModal('workflowBuilder')}
               />
 
               <div className="flex-1 overflow-hidden">
@@ -512,6 +515,12 @@ function ProjectsPage() {
         isOpen={modalOps.isTeamSelectionOpen}
         onClose={() => modalOps.closeModal('teamSelection')}
         onSelectTeam={handleLoadTeam}
+      />
+
+      <WorkflowBuilder
+        isOpen={modalOps.isWorkflowBuilderOpen}
+        onClose={() => modalOps.closeModal('workflowBuilder')}
+        projectId={activeProjectId || undefined}
       />
 
       {/* Single Agent Delete Modal */}
