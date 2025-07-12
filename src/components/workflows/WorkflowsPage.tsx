@@ -185,7 +185,10 @@ const WorkflowsPage: React.FC = () => {
     try {
       const response = await ky
         .post(`${API_BASE}/workflows/execute`, {
-          json: { workflow: workflow.definition },
+          json: {
+            workflow: workflow.definition,
+            projectId: workflow.projectId || currentProjectId || 'default',
+          },
         })
         .json<{ threadId: string; status: string }>()
 
