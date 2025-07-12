@@ -36,7 +36,16 @@ Just make save/load work first!
   - `GET /api/workflows/import/executed/available` - List importable workflows
 - ✅ **Database Migration** - saved_workflows table created with scope field
 - ✅ **Import System** - Convert executed workflows to editable definitions
-- ✅ **MCP Tools** - Workflow creation/validation/execution via MCP
+- ✅ **MCP Tools** - Complete workflow management via MCP:
+  - `create_workflow` - Create new workflow definitions
+  - `add_workflow_step` - Add steps to workflows
+  - `set_workflow_dependencies` - Configure step dependencies
+  - `validate_workflow` - Validate workflow structure
+  - `execute_workflow` - Execute workflows
+  - `save_workflow` - Save workflows to persistent storage
+  - `load_workflow` - Load saved workflows by ID
+  - `list_saved_workflows` - List workflows with filtering
+  - `delete_saved_workflow` - Delete saved workflows
 - ✅ **Flexible APIs** - Support for global, project, and cross-project workflows
   - Optional projectId for global workflows
   - Scope field: 'project' | 'global' | 'cross-project'
@@ -49,7 +58,10 @@ Just make save/load work first!
 - ✅ **Workflow Builder Store** - State management with Zustand
 - ✅ **Node Components** - WorkflowStep, Conditional, Loop nodes
 - ✅ **Save/Load Buttons** - UI connected to API with full functionality
-- ❌ **Workflow Library** - No UI to browse saved workflows
+- ✅ **Workflow Library** - UI component created for browsing saved workflows
+  - Search, filter, and sort capabilities
+  - Grid layout with workflow cards
+  - Modal integration for loading workflows
 - ❌ **Import UI** - No UI to import executed workflows
 
 ### What Ali Has TESTED ✅
@@ -217,17 +229,18 @@ Once the basics work perfectly, we can evolve:
 - [x] Visual workflow builder UI
 - [x] Workflow builder store
 - [x] Node components
+- [x] Save button wired to API
+- [x] Load functionality with modal
+- [x] Workflow library UI component
+- [x] MCP tools for workflow management
 
 ### **In Progress** 🔧
 
-- [ ] Wire save button to API
-- [ ] Wire load functionality
 - [ ] Create /workflows page
 
 ### **Blocked/Waiting** ⏳
 
-- [ ] Workflow library UI (needs save/load first)
-- [ ] Import UI (needs library first)
+- [ ] Import UI (needs dedicated workflows page first)
 - [ ] Execution history UI (needs basic tracking)
 
 ## 🎯 Success Criteria
