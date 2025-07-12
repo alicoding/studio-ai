@@ -7,10 +7,11 @@
  * Library-First: Uses React Flow Handle components
  */
 
-import { memo, useState } from 'react'
+import { memo, useState, useEffect } from 'react'
 import { Handle, Position, NodeProps } from 'reactflow'
 import { Settings, Trash2, User, Code } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
 
 interface WorkflowStepData {
   label: string
@@ -18,15 +19,41 @@ interface WorkflowStepData {
   role?: string
   agentId?: string
   type?: 'task' | 'parallel' | 'conditional'
+  stepId?: string // Reference to the step in the store
 }
 
-function WorkflowStepNode({ data, selected }: NodeProps<WorkflowStepData>) {
+function WorkflowStepNode({ id, data, selected }: NodeProps<WorkflowStepData>) {
   const [isEditing, setIsEditing] = useState(false)
   const [localTask, setLocalTask] = useState(data.task || '')
+  const [localRole, setLocalRole] = useState(data.role || '')
+  
+  const { updateStep, removeStep, getStep } = useWorkflowBuilderStore()
+
+  // Get the current step data from store
+  const stepData = getStep(data.stepId || id)
+
+  // Sync local state with store when step data changes
+  useEffect(() => {
+    if (stepData) {
+      setLocalTask(stepData.task)
+      setLocalRole(stepData.role || '')
+    }
+  }, [stepData])
 
   const handleTaskSave = () => {
-    // TODO: Update store with new task
+    if (data.stepId || id) {
+      updateStep(data.stepId || id, {
+        task: localTask,
+        role: localRole,
+      })
+    }
     setIsEditing(false)
+  }
+
+  const handleDelete = () => {
+    if (data.stepId || id) {
+      removeStep(data.stepId || id)
+    }
   }
 
   const getIcon = () => {
@@ -78,7 +105,12 @@ function WorkflowStepNode({ data, selected }: NodeProps<WorkflowStepData>) {
           >
             <Settings className="w-3 h-3" />
           </Button>
-          <Button size="sm" variant="ghost" className="p-1 h-6 w-6 text-red-600 hover:text-red-700">
+          <Button 
+            size="sm" 
+            variant="ghost" 
+            className="p-1 h-6 w-6 text-red-600 hover:text-red-700"
+            onClick={handleDelete}
+          >
             <Trash2 className="w-3 h-3" />
           </Button>
         </div>
@@ -88,15 +120,33 @@ function WorkflowStepNode({ data, selected }: NodeProps<WorkflowStepData>) {
       <div className="p-3">
         {isEditing ? (
           <div className="space-y-2">
-            <textarea
-              value={localTask}
-              onChange={(e) => setLocalTask(e.target.value)}
-              placeholder="Describe the task..."
-              className="w-full text-sm p-2 border border-border rounded resize-none bg-background text-foreground"
-              rows={3}
-            />
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Role</label>
+              <input
+                type="text"
+                value={localRole}
+                onChange={(e) => setLocalRole(e.target.value)}
+                placeholder="e.g., developer, architect..."
+                className="w-full text-xs p-1 border border-border rounded bg-background text-foreground"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Task</label>
+              <textarea
+                value={localTask}
+                onChange={(e) => setLocalTask(e.target.value)}
+                placeholder="Describe the task..."
+                className="w-full text-sm p-2 border border-border rounded resize-none bg-background text-foreground"
+                rows={3}
+              />
+            </div>
             <div className="flex justify-end gap-1">
-              <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>
+              <Button size="sm" variant="outline" onClick={() => {
+                setIsEditing(false)
+                // Reset local state to original values
+                setLocalTask(stepData?.task || data.task || '')
+                setLocalRole(stepData?.role || data.role || '')
+              }}>
                 Cancel
               </Button>
               <Button size="sm" onClick={handleTaskSave}>
@@ -106,19 +156,19 @@ function WorkflowStepNode({ data, selected }: NodeProps<WorkflowStepData>) {
           </div>
         ) : (
           <div
-            className="text-sm text-muted-foreground cursor-pointer hover:text-foreground"
+            className="text-sm text-muted-foreground cursor-pointer hover:text-foreground min-h-[60px]"
             onClick={() => setIsEditing(true)}
           >
-            {data.task || 'Click to add task description...'}
+            {stepData?.task || data.task || 'Click to add task description...'}
           </div>
         )}
       </div>
 
       {/* Agent/Role Info */}
-      {(data.agentId || data.role) && (
+      {(stepData?.agentId || stepData?.role || data.agentId || data.role) && (
         <div className="px-3 pb-3">
           <div className="text-xs text-muted-foreground bg-muted rounded px-2 py-1 inline-block">
-            {data.agentId || data.role}
+            {stepData?.agentId || stepData?.role || data.agentId || data.role}
           </div>
         </div>
       )}

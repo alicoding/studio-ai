@@ -65,8 +65,44 @@ import {
   handleValidateToolUsage,
   ToolPermission,
 } from './toolPermissionTools.js'
+import {
+  handleListWorkflowNodeTypes,
+  handleListAvailableAgents,
+  handleGetNodeSchema,
+  handleCreateWorkflow,
+  handleAddWorkflowStep,
+  handleSetWorkflowDependencies,
+  handleValidateWorkflow,
+  handleExecuteWorkflow,
+  WorkflowDefinition,
+  WorkflowStepDefinition,
+} from './workflowBuilderTools.js'
 
 type ToolHandler = (args: unknown) => Promise<TextContent>
+
+/**
+ * Type definitions for workflow tool arguments
+ */
+interface AddWorkflowStepArgs {
+  workflow: WorkflowDefinition
+  step: Partial<WorkflowStepDefinition>
+}
+
+interface SetWorkflowDependenciesArgs {
+  workflow: WorkflowDefinition
+  stepId: string
+  dependencies: string[]
+}
+
+interface ValidateWorkflowArgs {
+  workflow: WorkflowDefinition
+}
+
+interface ExecuteWorkflowArgs {
+  workflow: WorkflowDefinition
+  threadId?: string
+  startNewConversation?: boolean
+}
 
 /**
  * Parse and validate arguments for agent creation
@@ -351,6 +387,78 @@ export class ToolHandlerRegistry {
         throw new Error('Invalid arguments')
       }
       return await handleCleanupOldWorkflows(args)
+    })
+
+    // Workflow Builder Handlers
+    this.register('list_workflow_node_types', async () => await handleListWorkflowNodeTypes())
+    this.register('list_available_agents', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      const typedArgs = args as Record<string, unknown>
+      return await handleListAvailableAgents({
+        projectId: typedArgs.projectId ? String(typedArgs.projectId) : undefined,
+      })
+    })
+    this.register('get_node_schema', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      const typedArgs = args as Record<string, unknown>
+      return await handleGetNodeSchema({ nodeType: String(typedArgs.nodeType) })
+    })
+    this.register('create_workflow', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      const typedArgs = args as Record<string, unknown>
+      return await handleCreateWorkflow({
+        name: String(typedArgs.name),
+        description: typedArgs.description ? String(typedArgs.description) : undefined,
+        projectId: String(typedArgs.projectId),
+        tags: Array.isArray(typedArgs.tags) ? typedArgs.tags.map(String) : undefined,
+      })
+    })
+    this.register('add_workflow_step', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      const typedArgs = args as Record<string, unknown>
+      return await handleAddWorkflowStep({
+        workflow: typedArgs.workflow as WorkflowDefinition,
+        step: typedArgs.step as Partial<WorkflowStepDefinition>,
+      })
+    })
+    this.register('set_workflow_dependencies', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      const typedArgs = args as Record<string, unknown>
+      return await handleSetWorkflowDependencies({
+        workflow: typedArgs.workflow as WorkflowDefinition,
+        stepId: String(typedArgs.stepId),
+        dependencies: Array.isArray(typedArgs.dependencies)
+          ? typedArgs.dependencies.map(String)
+          : [],
+      })
+    })
+    this.register('validate_workflow', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      const typedArgs = args as Record<string, unknown>
+      return await handleValidateWorkflow({ workflow: typedArgs.workflow as WorkflowDefinition })
+    })
+    this.register('execute_workflow', async (args) => {
+      if (!args || typeof args !== 'object') {
+        throw new Error('Invalid arguments')
+      }
+      const typedArgs = args as Record<string, unknown>
+      return await handleExecuteWorkflow({
+        workflow: typedArgs.workflow as WorkflowDefinition,
+        threadId: typedArgs.threadId ? String(typedArgs.threadId) : undefined,
+        startNewConversation: typedArgs.startNewConversation === true,
+      })
     })
 
     // MCP Configuration Handlers

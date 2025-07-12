@@ -7,9 +7,21 @@
  * Library-First: Uses Vitest
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useWorkflowBuilderStore } from '../workflowBuilder'
 // import type { WorkflowStepDefinition } from '../../../web/server/schemas/workflow-builder'
+
+// Mock the storage client to prevent HTTP requests during tests
+vi.mock('../../lib/storage/client', () => ({
+  createClientStorage: vi.fn(() => ({
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
+    has: vi.fn().mockResolvedValue(false),
+    keys: vi.fn().mockResolvedValue([]),
+    clear: vi.fn().mockResolvedValue(undefined),
+  }))
+}))
 
 describe('WorkflowBuilderStore', () => {
   // Reset store before each test
@@ -35,15 +47,15 @@ describe('WorkflowBuilderStore', () => {
       const store = useWorkflowBuilderStore.getState()
 
       store.initWorkflow('Test Workflow')
-      store.updateWorkflowMetadata({
+      store.updateWorkflowMeta({
         name: 'Updated Workflow',
         description: 'Updated description',
       })
 
-      const { workflow, isDirty } = store
-      expect(workflow?.name).toBe('Updated Workflow')
-      expect(workflow?.description).toBe('Updated description')
-      expect(isDirty).toBe(true)
+      const state = useWorkflowBuilderStore.getState()
+      expect(state.workflow?.name).toBe('Updated Workflow')
+      expect(state.workflow?.description).toBe('Updated description')
+      expect(state.isDirty).toBe(true)
     })
   })
 
@@ -57,13 +69,13 @@ describe('WorkflowBuilderStore', () => {
         role: 'developer',
       })
 
-      const { workflow, selectedStepId, isDirty } = store
-      expect(workflow?.steps).toHaveLength(1)
-      expect(workflow?.steps[0].id).toBe(stepId)
-      expect(workflow?.steps[0].task).toBe('Test task')
-      expect(workflow?.steps[0].role).toBe('developer')
-      expect(selectedStepId).toBe(stepId)
-      expect(isDirty).toBe(true)
+      const state = useWorkflowBuilderStore.getState()
+      expect(state.workflow?.steps).toHaveLength(1)
+      expect(state.workflow?.steps[0].id).toBe(stepId)
+      expect(state.workflow?.steps[0].task).toBe('Test task')
+      expect(state.workflow?.steps[0].role).toBe('developer')
+      expect(state.selectedStepId).toBe(stepId)
+      expect(state.isDirty).toBe(true)
     })
 
     it('should update a step', () => {
@@ -73,9 +85,9 @@ describe('WorkflowBuilderStore', () => {
       const stepId = store.addStep({ task: 'Original task' })
       store.updateStep(stepId, { task: 'Updated task', role: 'reviewer' })
 
-      const { workflow } = store
-      expect(workflow?.steps[0].task).toBe('Updated task')
-      expect(workflow?.steps[0].role).toBe('reviewer')
+      const state = useWorkflowBuilderStore.getState()
+      expect(state.workflow?.steps[0].task).toBe('Updated task')
+      expect(state.workflow?.steps[0].role).toBe('reviewer')
     })
 
     it('should remove a step and clean up dependencies', () => {
@@ -89,11 +101,11 @@ describe('WorkflowBuilderStore', () => {
       // Remove step1
       store.removeStep(step1)
 
-      const { workflow } = store
-      expect(workflow?.steps).toHaveLength(2)
+      const state = useWorkflowBuilderStore.getState()
+      expect(state.workflow?.steps).toHaveLength(2)
       // Check that dependencies were cleaned up
-      const remainingStep2 = workflow?.steps.find((s) => s.id === step2)
-      const remainingStep3 = workflow?.steps.find((s) => s.id === step3)
+      const remainingStep2 = state.workflow?.steps.find((s) => s.id === step2)
+      const remainingStep3 = state.workflow?.steps.find((s) => s.id === step3)
       expect(remainingStep2?.deps).toEqual([])
       expect(remainingStep3?.deps).toEqual([step2]) // step1 removed
     })
@@ -109,10 +121,10 @@ describe('WorkflowBuilderStore', () => {
       // Move step3 to beginning
       store.reorderSteps(2, 0)
 
-      const { workflow } = store
-      expect(workflow?.steps[0].id).toBe(step3)
-      expect(workflow?.steps[1].id).toBe(step1)
-      expect(workflow?.steps[2].id).toBe(step2)
+      const state = useWorkflowBuilderStore.getState()
+      expect(state.workflow?.steps[0].id).toBe(step3)
+      expect(state.workflow?.steps[1].id).toBe(step1)
+      expect(state.workflow?.steps[2].id).toBe(step2)
     })
 
     it('should set dependencies', () => {
@@ -125,8 +137,8 @@ describe('WorkflowBuilderStore', () => {
 
       store.setDependencies(step3, [step1, step2])
 
-      const { workflow } = store
-      const step = workflow?.steps.find((s) => s.id === step3)
+      const state = useWorkflowBuilderStore.getState()
+      const step = state.workflow?.steps.find((s) => s.id === step3)
       expect(step?.deps).toEqual([step1, step2])
     })
   })
@@ -136,13 +148,13 @@ describe('WorkflowBuilderStore', () => {
       const store = useWorkflowBuilderStore.getState()
 
       store.initWorkflow('Test Workflow')
-      expect(store.isDirty).toBe(false)
+      expect(useWorkflowBuilderStore.getState().isDirty).toBe(false)
 
       store.addStep({ task: 'Test' })
-      expect(store.isDirty).toBe(true)
+      expect(useWorkflowBuilderStore.getState().isDirty).toBe(true)
 
       store.setDirty(false)
-      expect(store.isDirty).toBe(false)
+      expect(useWorkflowBuilderStore.getState().isDirty).toBe(false)
     })
 
     it('should reset store', () => {
@@ -150,15 +162,17 @@ describe('WorkflowBuilderStore', () => {
 
       store.initWorkflow('Test Workflow')
       store.addStep({ task: 'Test' })
-      store.selectedStepId = 'some-id'
-      store.validationErrors = { general: 'error' }
+      store.setSelectedStep('some-id')
+      store.setError('some error')
 
       store.reset()
 
-      expect(store.workflow).toBeNull()
-      expect(store.isDirty).toBe(false)
-      expect(store.selectedStepId).toBeNull()
-      expect(store.validationErrors).toEqual({})
+      const state = useWorkflowBuilderStore.getState()
+      expect(state.workflow).toBeNull()
+      expect(state.isDirty).toBe(false)
+      expect(state.selectedStepId).toBeNull()
+      expect(state.lastError).toBeNull()
+      expect(state.validationResult).toBeNull()
     })
   })
 })

@@ -548,6 +548,318 @@ cleanup_old_workflows({ daysOld: 30 })  // Delete workflows older than 30 days`,
         additionalProperties: false,
       },
     })
+
+    // Workflow Builder Tools
+    this.register({
+      name: 'list_workflow_node_types',
+      description: `List all available node types for workflow building.
+
+WHAT IT DOES:
+• Shows all supported workflow node types (task, parallel, conditional)
+• Provides description and requirements for each type
+• Essential for discovering workflow building capabilities
+
+WHEN TO USE:
+• Before creating workflows to understand available node types
+• When designing complex workflows with different execution patterns
+
+RETURNS:
+• List of node types with descriptions and required/optional fields
+
+EXAMPLE:
+list_workflow_node_types()`,
+      inputSchema: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'list_available_agents',
+      description: `List agents available for workflow steps.
+
+WHAT IT DOES:
+• Lists all agent configurations if no projectId provided
+• Lists project-specific agents with short IDs if projectId provided
+• Shows agent roles, names, and IDs for workflow assignment
+
+WHEN TO USE:
+• Before building workflows to see available agents
+• To get correct agent IDs for workflow steps
+
+RETURNS:
+• Agent configurations or project agents with short IDs
+
+EXAMPLE:
+list_available_agents({ projectId: "my-project" })`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          projectId: {
+            type: 'string',
+            description: 'Optional project ID to list project-specific agents',
+          },
+        },
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'get_node_schema',
+      description: `Get detailed schema for a specific workflow node type.
+
+WHAT IT DOES:
+• Returns complete JSON schema for a node type
+• Shows all properties, types, and usage examples
+• Provides validation requirements
+
+WHEN TO USE:
+• When creating nodes of specific types
+• To understand node configuration options
+• For validation and development guidance
+
+RETURNS:
+• Complete schema definition with examples
+
+EXAMPLE:
+get_node_schema({ nodeType: "task" })`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          nodeType: {
+            type: 'string',
+            description: 'Node type to get schema for (e.g., "task", "parallel", "conditional")',
+          },
+        },
+        required: ['nodeType'],
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'create_workflow',
+      description: `Create a new workflow programmatically.
+
+WHAT IT DOES:
+• Creates empty workflow with metadata
+• Generates unique workflow ID
+• Sets up basic structure for adding steps
+
+WHEN TO USE:
+• Starting new workflow creation
+• Programmatic workflow generation
+• Template-based workflow initialization
+
+RETURNS:
+• Created workflow definition ready for steps
+
+EXAMPLE:
+create_workflow({ 
+  name: "My Workflow", 
+  description: "Automated development workflow",
+  projectId: "my-project",
+  tags: ["development", "automation"]
+})`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: 'Name of the workflow',
+          },
+          description: {
+            type: 'string',
+            description: 'Optional description of the workflow',
+          },
+          projectId: {
+            type: 'string',
+            description: 'Project ID where workflow belongs',
+          },
+          tags: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Optional tags for categorization',
+          },
+        },
+        required: ['name', 'projectId'],
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'add_workflow_step',
+      description: `Add a step to a workflow.
+
+WHAT IT DOES:
+• Adds new step to workflow definition
+• Auto-generates step ID if not provided
+• Supports all node types (task, parallel, conditional)
+
+WHEN TO USE:
+• Building workflow step by step
+• Adding steps to existing workflows
+• Programmatic workflow construction
+
+RETURNS:
+• Updated workflow with new step added
+
+EXAMPLE:
+add_workflow_step({
+  workflow: workflowDefinition,
+  step: {
+    task: "Review code changes",
+    agentId: "reviewer_01",
+    deps: ["implementation"]
+  }
+})`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          workflow: {
+            type: 'object',
+            description: 'Workflow definition to add step to',
+          },
+          step: {
+            type: 'object',
+            description: 'Step definition to add',
+            properties: {
+              id: { type: 'string' },
+              type: { type: 'string' },
+              task: { type: 'string' },
+              agentId: { type: 'string' },
+              role: { type: 'string' },
+              deps: { type: 'array', items: { type: 'string' } },
+              config: { type: 'object' },
+            },
+            required: ['task'],
+          },
+        },
+        required: ['workflow', 'step'],
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'set_workflow_dependencies',
+      description: `Set dependencies for a workflow step.
+
+WHAT IT DOES:
+• Sets which steps must complete before this step runs
+• Validates dependency step IDs exist
+• Checks for circular dependencies
+
+WHEN TO USE:
+• Setting up sequential workflow execution
+• Creating complex dependency graphs
+• Ensuring proper execution order
+
+RETURNS:
+• Confirmation of dependencies set
+
+EXAMPLE:
+set_workflow_dependencies({
+  workflow: workflowDefinition,
+  stepId: "testing",
+  dependencies: ["implementation", "code_review"]
+})`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          workflow: {
+            type: 'object',
+            description: 'Workflow definition containing the step',
+          },
+          stepId: {
+            type: 'string',
+            description: 'ID of step to set dependencies for',
+          },
+          dependencies: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Array of step IDs this step depends on',
+          },
+        },
+        required: ['workflow', 'stepId', 'dependencies'],
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'validate_workflow',
+      description: `Validate workflow structure using the API endpoint.
+
+WHAT IT DOES:
+• Validates workflow definition structure
+• Checks for circular dependencies
+• Verifies agents and roles exist
+• Returns detailed errors and warnings
+
+WHEN TO USE:
+• Before executing workflows
+• During workflow development
+• Debugging workflow issues
+
+RETURNS:
+• Validation result with errors/warnings
+
+EXAMPLE:
+validate_workflow({ workflow: workflowDefinition })`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          workflow: {
+            type: 'object',
+            description: 'Workflow definition to validate',
+          },
+        },
+        required: ['workflow'],
+        additionalProperties: false,
+      },
+    })
+
+    this.register({
+      name: 'execute_workflow',
+      description: `Execute a workflow using the API endpoint.
+
+WHAT IT DOES:
+• Starts workflow execution
+• Returns thread ID for monitoring
+• Converts to invoke format internally
+
+WHEN TO USE:
+• Running validated workflows
+• Starting programmatically created workflows
+• Resuming workflows with existing thread ID
+
+RETURNS:
+• Execution status and thread ID for monitoring
+
+EXAMPLE:
+execute_workflow({
+  workflow: workflowDefinition,
+  threadId: "optional-resume-id"
+})`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          workflow: {
+            type: 'object',
+            description: 'Workflow definition to execute',
+          },
+          threadId: {
+            type: 'string',
+            description: 'Optional thread ID for resuming workflows',
+          },
+          startNewConversation: {
+            type: 'boolean',
+            description: 'Force new conversation (default: false)',
+          },
+        },
+        required: ['workflow'],
+        additionalProperties: false,
+      },
+    })
   }
 
   /**
