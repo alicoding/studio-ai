@@ -34,6 +34,7 @@ import studioProjectsRouter from './api/studio-projects.js'
 import toolPermissionsRouter from './api/tool-permissions.js'
 import healthRouter from './api/health'
 import toolsRouter from './api/tools'
+import workflowsRouter from './api/workflows'
 // import configRouter from './api/config.js' // Temporarily disabled due to client-side dependency
 
 // Import WebSocket handler
@@ -174,6 +175,7 @@ app.use('/api/claude-launch', claudeLaunchRouter)
 app.use('/api/studio-projects', studioProjectsRouter)
 app.use('/api/tool-permissions', toolPermissionsRouter)
 app.use('/api/tools', toolsRouter)
+app.use('/api/workflows', workflowsRouter)
 app.use('/api/health', healthRouter)
 // app.use('/api/config', configRouter) // Temporarily disabled due to client-side dependency
 
