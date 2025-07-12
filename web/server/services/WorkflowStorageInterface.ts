@@ -10,7 +10,7 @@ import type { WorkflowDefinition } from '../schemas/workflow-builder'
 
 export interface SavedWorkflow {
   id: string
-  projectId: string
+  projectId?: string // Optional for global workflows
   name: string
   description?: string
   definition: WorkflowDefinition
@@ -21,10 +21,11 @@ export interface SavedWorkflow {
   tags: string[]
   isTemplate: boolean
   source: 'ui' | 'mcp' | 'api'
+  scope: 'project' | 'global' | 'cross-project'
 }
 
 export interface CreateWorkflowRequest {
-  projectId: string
+  projectId?: string // Optional for global workflows
   name: string
   description?: string
   definition: WorkflowDefinition
@@ -32,6 +33,7 @@ export interface CreateWorkflowRequest {
   tags?: string[]
   isTemplate?: boolean
   source?: 'ui' | 'mcp' | 'api'
+  scope?: 'project' | 'global' | 'cross-project' // Defaults to 'project' if projectId provided
 }
 
 export interface UpdateWorkflowRequest {
@@ -59,6 +61,11 @@ export interface IWorkflowStorage {
   createVersion?(id: string): Promise<SavedWorkflow>
   searchByTags?(tags: string[]): Promise<SavedWorkflow[]>
   listTemplates?(): Promise<SavedWorkflow[]>
+
+  // Scope-based queries (for global/cross-project workflows)
+  listByScope?(scope: 'project' | 'global' | 'cross-project'): Promise<SavedWorkflow[]>
+  listGlobal?(): Promise<SavedWorkflow[]>
+  listCrossProject?(projectIds: string[]): Promise<SavedWorkflow[]>
 
   // Bulk operations (for migration/import)
   bulkCreate?(requests: CreateWorkflowRequest[]): Promise<SavedWorkflow[]>

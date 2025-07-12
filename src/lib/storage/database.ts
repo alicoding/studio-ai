@@ -341,6 +341,48 @@ function runMigrations() {
         console.error('Failed to run saved workflows migration:', error)
       })
   }
+
+  // Check if we need to run workflow scope migration
+  const hasWorkflowScopeMigration = sqliteInstance
+    .prepare(
+      `
+    SELECT COUNT(*) as count 
+    FROM migrations 
+    WHERE name = '007_add_workflow_scope'
+  `
+    )
+    .get() as { count: number }
+
+  if (hasWorkflowScopeMigration.count === 0) {
+    // Check if saved_workflows table exists first
+    const hasSavedWorkflowsTable = sqliteInstance
+      .prepare(
+        `
+      SELECT COUNT(*) as count 
+      FROM sqlite_master 
+      WHERE type='table' AND name='saved_workflows'
+    `
+      )
+      .get() as { count: number }
+
+    if (hasSavedWorkflowsTable.count > 0) {
+      // Import and run the workflow scope migration
+      import('./migrations/007_add_workflow_scope')
+        .then((module) => {
+          sqliteInstance!.exec(module.addWorkflowScope)
+
+          // Mark migration as complete
+          sqliteInstance!
+            .prepare('INSERT OR IGNORE INTO migrations (name) VALUES (?)')
+            .run('007_add_workflow_scope')
+
+          console.log('✅ Added scope field to saved_workflows for flexible workflow support')
+        })
+        .catch((error) => {
+          console.error('Failed to run workflow scope migration:', error)
+        })
+    }
+  }
 }
 
 /**

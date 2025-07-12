@@ -27,9 +27,12 @@ export class SQLiteWorkflowStorage implements IWorkflowStorage {
     const db = getDb()
     const id = uuidv4()
 
+    // Determine scope: if projectId is provided, default to 'project', otherwise use provided scope or 'global'
+    const scope = request.scope || (request.projectId ? 'project' : 'global')
+
     const workflow = {
       id,
-      projectId: request.projectId,
+      projectId: request.projectId, // Now optional
       name: request.name,
       description: request.description,
       definition: JSON.stringify(request.definition),
@@ -37,6 +40,7 @@ export class SQLiteWorkflowStorage implements IWorkflowStorage {
       tags: JSON.stringify(request.tags || []),
       isTemplate: request.isTemplate || false,
       source: request.source || 'ui',
+      scope,
     }
 
     await db.insert(savedWorkflows).values(workflow)
@@ -155,6 +159,40 @@ export class SQLiteWorkflowStorage implements IWorkflowStorage {
     }
   }
 
+  // Scope-based query methods
+
+  async listByScope(scope: 'project' | 'global' | 'cross-project'): Promise<SavedWorkflow[]> {
+    const db = getDb()
+    const results = await db
+      .select()
+      .from(savedWorkflows)
+      .where(eq(savedWorkflows.scope, scope))
+      .orderBy(desc(savedWorkflows.updatedAt))
+
+    return results.map((row) => this.mapToSavedWorkflow(row))
+  }
+
+  async listGlobal(): Promise<SavedWorkflow[]> {
+    return this.listByScope('global')
+  }
+
+  async listCrossProject(projectIds: string[]): Promise<SavedWorkflow[]> {
+    if (projectIds.length === 0) return []
+
+    const db = getDb()
+
+    // Get cross-project workflows that belong to any of the specified projects
+    const crossProjectResults = await db
+      .select()
+      .from(savedWorkflows)
+      .where(eq(savedWorkflows.scope, 'cross-project'))
+      .orderBy(desc(savedWorkflows.updatedAt))
+
+    // Filter by projectIds that have access (could be stored in metadata in future)
+    // For now, cross-project workflows are accessible by all projects
+    return crossProjectResults.map((row) => this.mapToSavedWorkflow(row))
+  }
+
   /**
    * Map database row to SavedWorkflow interface
    * Handles JSON parsing and type conversion
@@ -170,7 +208,7 @@ export class SQLiteWorkflowStorage implements IWorkflowStorage {
 
     return {
       id: row.id,
-      projectId: row.projectId || row.project_id, // Handle both camelCase and snake_case
+      projectId: row.projectId || row.project_id, // Handle both camelCase and snake_case, now optional
       name: row.name,
       description: row.description,
       definition: JSON.parse(row.definition),
@@ -185,6 +223,7 @@ export class SQLiteWorkflowStorage implements IWorkflowStorage {
       tags: JSON.parse(row.tags || '[]'),
       isTemplate: Boolean(row.isTemplate || row.is_template),
       source: row.source || 'ui',
+      scope: row.scope || 'project', // Default to 'project' for backward compatibility
     }
   }
 }

@@ -12,6 +12,7 @@ import { WorkflowStorageService } from '../../services/WorkflowStorageService'
 import type {
   CreateWorkflowRequest,
   UpdateWorkflowRequest,
+  SavedWorkflow,
 } from '../../services/WorkflowStorageInterface'
 
 const router = Router()
@@ -69,18 +70,35 @@ router.get('/health', async (req, res) => {
   }
 })
 
-// GET /api/workflows/saved?projectId=xxx - List workflows for project
+// GET /api/workflows/saved?projectId=xxx&scope=xxx&global=true - List workflows with flexible filters
 router.get('/', async (req, res) => {
   try {
-    const { projectId } = req.query
+    const { projectId, scope, global } = req.query
+    let workflows: SavedWorkflow[] = []
 
-    if (!projectId || typeof projectId !== 'string') {
-      return res.status(400).json({
-        error: 'Missing or invalid projectId parameter',
-      })
+    // Handle different query patterns
+    if (global === 'true') {
+      // Get global workflows
+      workflows = await workflowStorage.listGlobal()
+    } else if (scope && typeof scope === 'string') {
+      // Get workflows by specific scope
+      workflows = await workflowStorage.listByScope(scope as 'project' | 'global' | 'cross-project')
+    } else if (projectId && typeof projectId === 'string') {
+      // Get project-specific workflows (backward compatibility)
+      workflows = await workflowStorage.listByProject(projectId)
+
+      // Also include global workflows for this project
+      const globalWorkflows = await workflowStorage.listGlobal()
+      workflows = [...workflows, ...globalWorkflows]
+
+      // And cross-project workflows accessible by this project
+      const crossProjectWorkflows = await workflowStorage.listCrossProject([projectId])
+      workflows = [...workflows, ...crossProjectWorkflows]
+    } else {
+      // If no filters, return all global workflows by default
+      workflows = await workflowStorage.listGlobal()
     }
 
-    const workflows = await workflowStorage.listByProject(projectId)
     res.json({ workflows })
   } catch (error) {
     console.error('Error fetching saved workflows:', error)
@@ -116,10 +134,17 @@ router.post('/', async (req, res) => {
   try {
     const createRequest: CreateWorkflowRequest = req.body
 
-    // Basic validation
-    if (!createRequest.projectId || !createRequest.name || !createRequest.definition) {
+    // Basic validation - projectId is now optional for global workflows
+    if (!createRequest.name || !createRequest.definition) {
       return res.status(400).json({
-        error: 'Missing required fields: projectId, name, definition',
+        error: 'Missing required fields: name, definition',
+      })
+    }
+
+    // Validate scope logic
+    if (createRequest.scope === 'project' && !createRequest.projectId) {
+      return res.status(400).json({
+        error: 'projectId is required for project-scoped workflows',
       })
     }
 

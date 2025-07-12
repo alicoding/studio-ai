@@ -121,4 +121,54 @@ export class WorkflowStorageService implements IWorkflowStorage {
       return false
     }
   }
+
+  // Scope-based query methods
+
+  async listByScope(scope: 'project' | 'global' | 'cross-project'): Promise<SavedWorkflow[]> {
+    if (this.storage.listByScope) {
+      return this.storage.listByScope(scope)
+    }
+    throw new Error('Scope-based listing not supported by current storage provider')
+  }
+
+  async listGlobal(): Promise<SavedWorkflow[]> {
+    if (this.storage.listGlobal) {
+      return this.storage.listGlobal()
+    }
+    // Fallback to listByScope
+    return this.listByScope('global')
+  }
+
+  async listCrossProject(projectIds: string[]): Promise<SavedWorkflow[]> {
+    if (this.storage.listCrossProject) {
+      return this.storage.listCrossProject(projectIds)
+    }
+    throw new Error('Cross-project listing not supported by current storage provider')
+  }
+
+  async bulkCreate(requests: CreateWorkflowRequest[]): Promise<SavedWorkflow[]> {
+    if (this.storage.bulkCreate) {
+      return this.storage.bulkCreate(requests)
+    }
+    // Fallback: create one by one
+    const workflows: SavedWorkflow[] = []
+    for (const request of requests) {
+      workflows.push(await this.create(request))
+    }
+    return workflows
+  }
+
+  async bulkDelete(ids: string[]): Promise<number> {
+    if (this.storage.bulkDelete) {
+      return this.storage.bulkDelete(ids)
+    }
+    // Fallback: delete one by one
+    let deleted = 0
+    for (const id of ids) {
+      if (await this.delete(id)) {
+        deleted++
+      }
+    }
+    return deleted
+  }
 }

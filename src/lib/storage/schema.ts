@@ -181,7 +181,7 @@ export const projectClaudePaths = sqliteTable('project_claude_paths', {
 // Saved Workflows table (for workflow definition storage)
 export const savedWorkflows = sqliteTable('saved_workflows', {
   id: text('id').primaryKey(),
-  projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  projectId: text('project_id'), // Optional for global workflows
   name: text('name').notNull(),
   description: text('description'),
   definition: text('definition').notNull(), // JSON string of WorkflowDefinition
@@ -196,6 +196,7 @@ export const savedWorkflows = sqliteTable('saved_workflows', {
   tags: text('tags').default('[]'), // JSON array
   isTemplate: integer('is_template', { mode: 'boolean' }).default(false),
   source: text('source', { enum: ['ui', 'mcp', 'api'] }).default('ui'),
+  scope: text('scope', { enum: ['project', 'global', 'cross-project'] }).default('project'),
 })
 
 // Migrations tracking
