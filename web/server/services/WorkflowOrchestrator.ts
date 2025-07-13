@@ -16,9 +16,7 @@ import { StudioProjectService } from './StudioProjectService'
 import { detectAbortError, AbortError } from '../utils/errorUtils'
 import { updateWorkflowStatus } from '../api/invoke-status'
 import type { InvokeRequest, InvokeResponse, WorkflowStep, StepResult } from '../schemas/invoke'
-import type {
-  WorkflowGraph,
-} from '../schemas/workflow-graph'
+import type { WorkflowGraph } from '../schemas/workflow-graph'
 import type { Server } from 'socket.io'
 import { EventEmitter } from 'events'
 import { WorkflowMonitor } from './WorkflowMonitor'
@@ -216,6 +214,7 @@ export class WorkflowOrchestrator {
       invocation: this.stateManager.generateInvocationSummary(normalizedSteps),
       projectId: request.projectId,
       projectName,
+      savedWorkflowId: request.savedWorkflowId,
       steps: normalizedSteps.map((step) => ({
         id: step.id!,
         role: step.role,
@@ -261,7 +260,10 @@ export class WorkflowOrchestrator {
       const finalStatus = this.stateManager.determineOverallStatus(finalState.stepResults)
 
       // Build updated steps array with final statuses
-      const updatedSteps = this.stateManager.buildUpdatedSteps(normalizedSteps, finalState.stepResults)
+      const updatedSteps = this.stateManager.buildUpdatedSteps(
+        normalizedSteps,
+        finalState.stepResults
+      )
 
       await updateWorkflowStatus(threadId, {
         status: finalStatus === 'completed' ? 'completed' : 'failed',
@@ -627,7 +629,12 @@ export class WorkflowOrchestrator {
     sessionIds: Record<string, string>,
     consolidateLoops = false
   ): WorkflowGraph {
-    return this.graphGenerator.generateWorkflowGraph(steps, stepResults, sessionIds, consolidateLoops)
+    return this.graphGenerator.generateWorkflowGraph(
+      steps,
+      stepResults,
+      sessionIds,
+      consolidateLoops
+    )
   }
 
   /**
@@ -653,5 +660,4 @@ export class WorkflowOrchestrator {
       graph,
     })
   }
-
 }

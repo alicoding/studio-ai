@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { Plus, Search, MoreVertical, Edit, Copy, Trash2, Play, Upload } from 'lucide-react'
+import { Plus, Search, MoreVertical, Edit, Copy, Trash2, Play, Upload, Clock } from 'lucide-react'
 import ky from 'ky'
 import { format } from 'date-fns'
 import { Button } from '../ui/button'
@@ -9,8 +9,9 @@ import { Select } from '../ui/select'
 import { useProjectStore } from '../../stores/projects'
 import { useToast } from '../../hooks/useToast'
 import { ImportExecutedWorkflowsModal } from './ImportExecutedWorkflowsModal'
+import { ExecutionHistoryModal } from './ExecutionHistoryModal'
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3456/api'
+const API_BASE = import.meta.env.VITE_API_BASE || `${window.location.origin}/api`
 
 interface SavedWorkflow {
   id: string
@@ -54,6 +55,9 @@ const WorkflowsPage: React.FC = () => {
   const [showDropdown, setShowDropdown] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [showHistoryModal, setShowHistoryModal] = useState<{ id: string; name: string } | null>(
+    null
+  )
 
   const currentProjectId = useProjectStore((state) => state.activeProjectId)
 
@@ -432,6 +436,16 @@ const WorkflowsPage: React.FC = () => {
                           Clone
                         </button>
                         <button
+                          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 w-full text-left text-sm"
+                          onClick={() => {
+                            setShowHistoryModal({ id: workflow.id, name: workflow.name })
+                            setShowDropdown(null)
+                          }}
+                        >
+                          <Clock className="w-4 h-4" />
+                          History
+                        </button>
+                        <button
                           className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 w-full text-left text-sm text-red-600"
                           onClick={() => {
                             handleDelete(workflow.id)
@@ -503,6 +517,15 @@ const WorkflowsPage: React.FC = () => {
                         <Button size="sm" variant="ghost" onClick={() => handleExecute(workflow)}>
                           <Play className="w-4 h-4" />
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setShowHistoryModal({ id: workflow.id, name: workflow.name })
+                          }
+                        >
+                          <Clock className="w-4 h-4" />
+                        </Button>
                         <Button size="sm" variant="ghost" onClick={() => handleClone(workflow)}>
                           <Copy className="w-4 h-4" />
                         </Button>
@@ -537,6 +560,20 @@ const WorkflowsPage: React.FC = () => {
           fetchWorkflows()
         }}
       />
+
+      {/* Execution History Modal */}
+      {showHistoryModal && (
+        <ExecutionHistoryModal
+          isOpen={true}
+          onClose={() => setShowHistoryModal(null)}
+          savedWorkflowId={showHistoryModal.id}
+          workflowName={showHistoryModal.name}
+          onExecutionClick={(threadId) => {
+            // Navigate to workflow execution details
+            console.log('Navigate to execution:', threadId)
+          }}
+        />
+      )}
     </div>
   )
 }

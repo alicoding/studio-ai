@@ -1,6 +1,6 @@
 /**
  * Operator Configuration Hook
- * 
+ *
  * SOLID: Single responsibility - operator config management
  * DRY: Reuses API client patterns
  * KISS: Simple interface for operator settings
@@ -24,7 +24,7 @@ interface OperatorAnalysis {
   reason?: string
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3456/api'
+const API_BASE = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
 
 export function useOperatorConfig() {
   const [config, setConfig] = useState<OperatorConfig | null>(null)
@@ -53,9 +53,11 @@ export function useOperatorConfig() {
   // Update configuration
   const updateConfig = useCallback(async (updates: Partial<OperatorConfig>) => {
     try {
-      const response = await ky.put(`${API_BASE}/operator/config`, {
-        json: updates
-      }).json<OperatorConfig>()
+      const response = await ky
+        .put(`${API_BASE}/operator/config`, {
+          json: updates,
+        })
+        .json<OperatorConfig>()
       setConfig(response)
       return response
     } catch (err) {
@@ -77,9 +79,11 @@ export function useOperatorConfig() {
   // Test operator
   const testOperator = useCallback(async (text: string) => {
     try {
-      const response = await ky.post(`${API_BASE}/operator/test`, {
-        json: { text }
-      }).json<OperatorAnalysis>()
+      const response = await ky
+        .post(`${API_BASE}/operator/test`, {
+          json: { text },
+        })
+        .json<OperatorAnalysis>()
       return response
     } catch (err) {
       throw err instanceof Error ? err : new Error('Failed to test operator')
@@ -92,6 +96,6 @@ export function useOperatorConfig() {
     error,
     updateConfig,
     resetConfig,
-    testOperator
+    testOperator,
   }
 }

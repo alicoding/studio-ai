@@ -298,6 +298,7 @@ export async function updateWorkflowStatus(
     projectName: string
     webhook: string
     webhookType: string
+    savedWorkflowId: string
     steps: Array<{
       id: string
       role?: string
@@ -329,6 +330,7 @@ export async function updateWorkflowStatus(
       // Create new workflow entry
       await registry.registerWorkflow({
         threadId,
+        savedWorkflowId: update.savedWorkflowId,
         status: update.status || 'running',
         projectId: update.projectId,
         projectName: update.projectName,

@@ -16,7 +16,7 @@ import { Clock, CheckCircle, XCircle, Loader2, Upload, AlertCircle } from 'lucid
 import ky from 'ky'
 import { format } from 'date-fns'
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3456/api'
+const API_BASE = import.meta.env.VITE_API_BASE || `${window.location.origin}/api`
 
 interface ExecutedWorkflow {
   threadId: string

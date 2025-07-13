@@ -35,6 +35,7 @@ export const InvokeRequestSchema = z.object({
   startNewConversation: z.boolean().default(false).optional(),
   projectId: z.string().min(1).optional(), // Optional for global-only resolution
   format: z.enum(['json', 'text']).default('json').optional(),
+  savedWorkflowId: z.string().optional(), // Link to saved workflow definition
 })
 
 export type InvokeRequest = z.infer<typeof InvokeRequestSchema>

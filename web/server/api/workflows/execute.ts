@@ -45,10 +45,12 @@ router.post('/', async (req: Request, res: Response) => {
     }))
 
     // Generate thread ID if not provided
-    const threadId = request.threadId || `wf-${request.workflow.name
-      .toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/[^a-z0-9-]/g, '')}-${uuidv4().substring(0, 8)}`
+    const threadId =
+      request.threadId ||
+      `wf-${request.workflow.name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')}-${uuidv4().substring(0, 8)}`
 
     // Get project ID from workflow or request
     const projectId = request.projectId || request.workflow.metadata.projectId
@@ -62,32 +64,37 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Initialize orchestrator and execute
     const orchestrator = new WorkflowOrchestrator()
-    
+
     // Execute the workflow
     console.log('[WorkflowExecute] Starting workflow execution:', {
       threadId,
       projectId,
       steps: workflowSteps.length,
       name: request.workflow.name,
+      savedWorkflowId: request.savedWorkflowId,
     })
 
     // Start execution in background (don't await)
-    orchestrator.execute({
-      workflow: workflowSteps,
-      projectId,
-      threadId,
-      startNewConversation: request.startNewConversation,
-    }).then((result) => {
-      console.log('[WorkflowExecute] Workflow completed:', {
+    orchestrator
+      .execute({
+        workflow: workflowSteps,
+        projectId,
         threadId,
-        finalStatus: result.finalStatus,
+        startNewConversation: request.startNewConversation,
+        savedWorkflowId: request.savedWorkflowId,
       })
-    }).catch((error) => {
-      console.error('[WorkflowExecute] Workflow failed:', {
-        threadId,
-        error: error.message,
+      .then((result) => {
+        console.log('[WorkflowExecute] Workflow completed:', {
+          threadId,
+          finalStatus: result.finalStatus,
+        })
       })
-    })
+      .catch((error) => {
+        console.error('[WorkflowExecute] Workflow failed:', {
+          threadId,
+          error: error.message,
+        })
+      })
 
     // Return immediate response
     const response: WorkflowExecutionResponse = {

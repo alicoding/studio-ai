@@ -12,6 +12,7 @@ import type { Pool } from 'pg'
 
 export interface WorkflowMetadata {
   threadId: string
+  savedWorkflowId?: string // Link to saved workflow definition
   status: 'running' | 'completed' | 'failed' | 'aborted'
   projectId?: string
   projectName?: string
@@ -27,7 +28,15 @@ export interface WorkflowMetadata {
     role?: string
     agentId?: string
     task: string
-    status: 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'not_executed' | 'skipped' | 'aborted'
+    status:
+      | 'pending'
+      | 'running'
+      | 'completed'
+      | 'failed'
+      | 'blocked'
+      | 'not_executed'
+      | 'skipped'
+      | 'aborted'
     startTime?: string
     endTime?: string
     error?: string
@@ -61,6 +70,7 @@ export class WorkflowRegistry {
       await this.pool.query(`
         CREATE TABLE IF NOT EXISTS workflow_registry (
           thread_id VARCHAR(255) PRIMARY KEY,
+          saved_workflow_id VARCHAR(255),
           status VARCHAR(50) NOT NULL,
           project_id VARCHAR(255),
           project_name VARCHAR(255),
@@ -91,6 +101,25 @@ export class WorkflowRegistry {
         CREATE INDEX IF NOT EXISTS idx_workflow_last_update ON workflow_registry(last_update DESC)
       `)
 
+      // Add saved_workflow_id column if it doesn't exist (migration)
+      try {
+        await this.pool.query(`
+          ALTER TABLE workflow_registry 
+          ADD COLUMN IF NOT EXISTS saved_workflow_id VARCHAR(255)
+        `)
+      } catch (error) {
+        // Column might already exist, ignore the error
+        console.log(
+          '[WorkflowRegistry] saved_workflow_id column already exists or failed to add:',
+          error instanceof Error ? error.message : String(error)
+        )
+      }
+
+      // Create index on saved_workflow_id for execution history queries
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_workflow_saved_workflow ON workflow_registry(saved_workflow_id)
+      `)
+
       this.initialized = true
       console.log('[WorkflowRegistry] Database tables initialized')
     } catch (error) {
@@ -105,11 +134,12 @@ export class WorkflowRegistry {
     try {
       await this.pool.query(
         `INSERT INTO workflow_registry 
-         (thread_id, status, project_id, project_name, started_by, invocation, 
+         (thread_id, saved_workflow_id, status, project_id, project_name, started_by, invocation, 
           webhook, webhook_type, current_step, last_update, session_ids, steps)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          ON CONFLICT (thread_id) 
          DO UPDATE SET 
+           saved_workflow_id = EXCLUDED.saved_workflow_id,
            status = EXCLUDED.status,
            current_step = EXCLUDED.current_step,
            last_update = EXCLUDED.last_update,
@@ -117,6 +147,7 @@ export class WorkflowRegistry {
            steps = EXCLUDED.steps`,
         [
           metadata.threadId,
+          metadata.savedWorkflowId,
           metadata.status,
           metadata.projectId,
           metadata.projectName,
@@ -147,6 +178,10 @@ export class WorkflowRegistry {
     let paramIndex = 1
 
     // Build dynamic UPDATE query
+    if (updates.savedWorkflowId !== undefined) {
+      setClauses.push(`saved_workflow_id = $${paramIndex++}`)
+      values.push(updates.savedWorkflowId)
+    }
     if (updates.status !== undefined) {
       setClauses.push(`status = $${paramIndex++}`)
       values.push(updates.status)
@@ -216,6 +251,7 @@ export class WorkflowRegistry {
 
       return result.rows.map((row) => ({
         threadId: row.thread_id,
+        savedWorkflowId: row.saved_workflow_id,
         status: row.status,
         projectId: row.project_id,
         projectName: row.project_name,
@@ -248,6 +284,7 @@ export class WorkflowRegistry {
       const row = result.rows[0]
       return {
         threadId: row.thread_id,
+        savedWorkflowId: row.saved_workflow_id,
         status: row.status,
         projectId: row.project_id,
         projectName: row.project_name,
@@ -263,6 +300,39 @@ export class WorkflowRegistry {
       }
     } catch (error) {
       console.error('[WorkflowRegistry] Failed to get workflow:', error)
+      throw error
+    }
+  }
+
+  async getExecutionHistory(savedWorkflowId: string): Promise<WorkflowMetadata[]> {
+    await this.initialize()
+
+    try {
+      const result = await this.pool.query(
+        `SELECT * FROM workflow_registry 
+         WHERE saved_workflow_id = $1 
+         ORDER BY last_update DESC`,
+        [savedWorkflowId]
+      )
+
+      return result.rows.map((row) => ({
+        threadId: row.thread_id,
+        savedWorkflowId: row.saved_workflow_id,
+        status: row.status,
+        projectId: row.project_id,
+        projectName: row.project_name,
+        startedBy: row.started_by,
+        invocation: row.invocation,
+        webhook: row.webhook,
+        webhookType: row.webhook_type,
+        currentStep: row.current_step,
+        lastUpdate: row.last_update.toISOString(),
+        sessionIds: row.session_ids || {},
+        steps: row.steps || [],
+        createdAt: row.created_at.toISOString(),
+      }))
+    } catch (error) {
+      console.error('[WorkflowRegistry] Failed to get execution history:', error)
       throw error
     }
   }

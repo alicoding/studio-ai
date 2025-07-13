@@ -12,6 +12,7 @@ import validateRouter from './validate'
 import executeRouter from './execute'
 import savedRouter from './saved'
 import importRouter from './import'
+import executionHistoryRouter from './execution-history'
 
 const router = Router()
 
@@ -20,5 +21,6 @@ router.use('/validate', validateRouter)
 router.use('/execute', executeRouter)
 router.use('/saved', savedRouter)
 router.use('/import', importRouter)
+router.use('/execution-history', executionHistoryRouter)
 
 export default router
