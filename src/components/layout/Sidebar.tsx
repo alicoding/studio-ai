@@ -76,7 +76,7 @@ export function Sidebar({
 
   // Load saved workflows when workflows tab is selected
   useEffect(() => {
-    if (canvasMode === 'workflow' && activeProjectId) {
+    if (canvasMode === 'workflow' && projectId) {
       setIsLoadingWorkflows(true)
       fetchSavedWorkflows()
         .then((workflows) => {
@@ -89,7 +89,7 @@ export function Sidebar({
           setIsLoadingWorkflows(false)
         })
     }
-  }, [canvasMode, activeProjectId, fetchSavedWorkflows])
+  }, [canvasMode, projectId, fetchSavedWorkflows])
 
   // Sidebar state - derive from canvas mode
   const activeTab: SidebarTab = canvasMode === 'workflow' ? 'workflows' : 'agents'
