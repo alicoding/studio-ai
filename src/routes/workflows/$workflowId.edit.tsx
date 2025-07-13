@@ -3,8 +3,7 @@ import { useEffect } from 'react'
 import VisualWorkflowBuilder from '../../components/workflow-builder/VisualWorkflowBuilder'
 import { useWorkflowBuilderStore } from '../../stores/workflowBuilder'
 import { useProjectStore } from '../../stores/projects'
-import ky from 'ky'
-import type { WorkflowDefinition } from '../../../web/server/schemas/workflow-builder'
+import { useWorkflowLoader } from '../../hooks/useWorkflowLoader'
 
 export const Route = createFileRoute('/workflows/$workflowId/edit')({
   component: EditWorkflow,
@@ -13,23 +12,16 @@ export const Route = createFileRoute('/workflows/$workflowId/edit')({
 function EditWorkflow() {
   const navigate = useNavigate()
   const { workflowId } = useParams({ from: '/workflows/$workflowId/edit' })
-  const { loadWorkflow, reset } = useWorkflowBuilderStore()
+  const { loadWorkflow: loadWorkflowDefinition, reset } = useWorkflowBuilderStore()
   const { activeProjectId } = useProjectStore()
+  const { loadWorkflow } = useWorkflowLoader()
 
   useEffect(() => {
     // Load the workflow when component mounts
     const loadWorkflowData = async () => {
       try {
-        const response = await ky
-          .get(`${window.location.origin}/api/workflows/saved/${workflowId}`)
-          .json<{
-            id: string
-            name: string
-            description?: string
-            definition: WorkflowDefinition
-          }>()
-
-        loadWorkflow(response.definition)
+        const workflow = await loadWorkflow(workflowId)
+        loadWorkflowDefinition(workflow.definition)
       } catch (error) {
         console.error('Failed to load workflow:', error)
         // TODO: Show error toast
@@ -43,7 +35,7 @@ function EditWorkflow() {
     return () => {
       reset()
     }
-  }, [workflowId, loadWorkflow, reset, navigate])
+  }, [workflowId, loadWorkflow, loadWorkflowDefinition, reset, navigate])
 
   const handleClose = () => {
     // If we have an active project, return to the project workspace

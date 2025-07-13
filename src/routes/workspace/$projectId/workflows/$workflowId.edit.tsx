@@ -2,8 +2,7 @@ import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import VisualWorkflowBuilder from '../../../../components/workflow-builder/VisualWorkflowBuilder'
 import { useWorkflowBuilderStore } from '../../../../stores/workflowBuilder'
-import ky from 'ky'
-import type { WorkflowDefinition } from '../../../../../web/server/schemas/workflow-builder'
+import { useWorkflowLoader } from '../../../../hooks/useWorkflowLoader'
 
 export const Route = createFileRoute('/workspace/$projectId/workflows/$workflowId/edit')({
   component: EditWorkflowInProject,
@@ -14,7 +13,8 @@ function EditWorkflowInProject() {
   const { workflowId, projectId } = useParams({
     from: '/workspace/$projectId/workflows/$workflowId/edit',
   })
-  const { loadWorkflow, reset } = useWorkflowBuilderStore()
+  const { loadWorkflow: loadWorkflowDefinition, reset } = useWorkflowBuilderStore()
+  const { loadWorkflow } = useWorkflowLoader()
 
   useEffect(() => {
     // Load the workflow when component mounts
@@ -24,17 +24,8 @@ function EditWorkflowInProject() {
           `[EditWorkflowInProject] Loading workflow ${workflowId} for project ${projectId}`
         )
 
-        const response = await ky
-          .get(`${window.location.origin}/api/workflows/saved/${workflowId}`)
-          .json<{
-            id: string
-            name: string
-            description?: string
-            definition: WorkflowDefinition
-          }>()
-
-        console.log(`[EditWorkflowInProject] Loaded workflow: ${response.name}`)
-        loadWorkflow(response.definition)
+        const workflow = await loadWorkflow(workflowId)
+        loadWorkflowDefinition(workflow.definition)
       } catch (error) {
         console.error('[EditWorkflowInProject] Failed to load workflow:', error)
         // Return to workspace instead of global workflows page
@@ -48,7 +39,7 @@ function EditWorkflowInProject() {
     return () => {
       reset()
     }
-  }, [workflowId, projectId, loadWorkflow, reset, navigate])
+  }, [workflowId, projectId, loadWorkflow, loadWorkflowDefinition, reset, navigate])
 
   const handleClose = () => {
     // Return to the workspace with workflow mode active
