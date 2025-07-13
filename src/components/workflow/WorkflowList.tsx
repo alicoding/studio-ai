@@ -22,16 +22,16 @@ const WorkflowItem: React.FC<{
   onDelete: (e: React.MouseEvent) => void
 }> = ({ workflow, isSelected, isHighlighted, onClick, onDelete }) => {
   return (
-    <div className={`w-full border-b border-border last:border-b-0 ${
-      isHighlighted ? 'bg-primary/8' : ''
-    }${
-      isSelected ? ' bg-primary/5' : ''
-    }`}>
-      <div className={`flex items-center gap-2 p-3 transition-colors ${
-        isHighlighted 
-          ? 'border-l-2 border-l-primary' 
-          : 'hover:bg-secondary/50'
-      }`}>
+    <div
+      className={`w-full border-b border-border last:border-b-0 ${
+        isHighlighted ? 'bg-primary/8' : ''
+      }${isSelected ? ' bg-primary/5' : ''}`}
+    >
+      <div
+        className={`flex items-center gap-2 p-3 transition-colors ${
+          isHighlighted ? 'border-l-2 border-l-primary' : 'hover:bg-secondary/50'
+        }`}
+      >
         {/* Workflow Content - Clickable */}
         <button className="flex-1 text-left" onClick={(e) => onClick(e)}>
           <div className="flex items-center justify-between">
@@ -79,6 +79,7 @@ const WorkflowItem: React.FC<{
 
 interface WorkflowListProps {
   className?: string
+  projectId?: string
 }
 
 export function WorkflowList({ className = '' }: WorkflowListProps) {
@@ -118,18 +119,18 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
   }, [workflows])
 
   const handleWorkflowClick = (workflow: WorkflowInfo, e: React.MouseEvent) => {
-    const currentIndex = allWorkflows.findIndex(w => w.threadId === workflow.threadId)
-    
+    const currentIndex = allWorkflows.findIndex((w) => w.threadId === workflow.threadId)
+
     // Handle shift+click for range selection
     if (e.shiftKey && lastSelectedIndexRef.current !== -1) {
       const start = Math.min(lastSelectedIndexRef.current, currentIndex)
       const end = Math.max(lastSelectedIndexRef.current, currentIndex)
-      
+
       // Clear existing selection if not cmd/ctrl key
       if (!e.metaKey && !e.ctrlKey) {
         clearSelection()
       }
-      
+
       // Select range
       for (let i = start; i <= end; i++) {
         const w = allWorkflows[i]
@@ -137,7 +138,7 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
           toggleWorkflowSelection(w.threadId)
         }
       }
-      
+
       // Enable multi-select mode automatically
       if (!isMultiSelectMode) {
         setIsMultiSelectMode(true)
@@ -147,7 +148,7 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
     else if (e.metaKey || e.ctrlKey) {
       toggleWorkflowSelection(workflow.threadId)
       lastSelectedIndexRef.current = currentIndex
-      
+
       // Enable multi-select mode automatically
       if (!isMultiSelectMode) {
         setIsMultiSelectMode(true)
@@ -158,7 +159,7 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
       // Switch to workflow mode and set selected workflow in canvas
       setSelectedWorkflow(workflow.threadId)
       lastSelectedIndexRef.current = currentIndex
-      
+
       // Clear multi-selection if any
       if (selectedWorkflows.size > 0) {
         clearSelection()
@@ -168,10 +169,10 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
 
   const handleDeleteWorkflow = async (workflow: WorkflowInfo, e: React.MouseEvent) => {
     e.stopPropagation()
-    
+
     // If workflow is selected and there are multiple selections, delete all selected
     if (selectedWorkflows.has(workflow.threadId) && selectedWorkflows.size > 1) {
-      const selected = allWorkflows.filter(w => selectedWorkflows.has(w.threadId))
+      const selected = allWorkflows.filter((w) => selectedWorkflows.has(w.threadId))
       setDeleteModalState({
         isOpen: true,
         workflows: selected,
@@ -188,7 +189,7 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
   }
 
   const handleConfirmDelete = async () => {
-    setDeleteModalState(prev => ({ ...prev, isDeleting: true }))
+    setDeleteModalState((prev) => ({ ...prev, isDeleting: true }))
 
     try {
       if (deleteModalState.workflows.length === 1) {
@@ -199,7 +200,7 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
         }
       } else {
         // Bulk delete
-        const threadIds = deleteModalState.workflows.map(w => w.threadId)
+        const threadIds = deleteModalState.workflows.map((w) => w.threadId)
         const deletedCount = await bulkDeleteWorkflows(threadIds)
         if (deletedCount === 0) {
           alert('Failed to delete workflows. Please try again.')
@@ -243,10 +244,7 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
           <Activity className="w-4 h-4 text-primary" />
           <h3 className="text-sm font-medium">Workflows</h3>
           <span className="text-xs text-muted-foreground ml-auto">
-            {selectedWorkflows.size > 0 
-              ? `${selectedWorkflows.size} selected • ` 
-              : ''
-            }
+            {selectedWorkflows.size > 0 ? `${selectedWorkflows.size} selected • ` : ''}
             {workflows.length} total
           </span>
         </div>

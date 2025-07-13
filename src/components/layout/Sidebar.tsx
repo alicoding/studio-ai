@@ -33,6 +33,7 @@ interface SidebarProps {
   onAddAgent: () => void
   onCreateAgent: () => void
   onLoadTeam: () => void
+  projectId?: string
 }
 
 type SidebarTab = 'agents' | 'workflows'
@@ -47,16 +48,12 @@ export function Sidebar({
   onAddAgent,
   onCreateAgent,
   onLoadTeam,
+  projectId,
 }: SidebarProps) {
   // Get data directly from Zustand stores
-  const {
-    configs,
-    getProjectAgents,
-    moveAgentToPosition,
-    clearingAgentId,
-  } = useAgentStore()
+  const { configs, getProjectAgents, moveAgentToPosition, clearingAgentId } = useAgentStore()
   const { activeProjectId } = useProjectStore()
-  
+
   // Use workspace layout for proper agent selection that switches canvas mode
   const { selectedAgentId, setSelectedAgent, canvasMode, setCanvasMode } = useWorkspaceLayout()
 
@@ -300,7 +297,7 @@ export function Sidebar({
       return (
         <div className="flex flex-col h-full">
           <div className="flex-1 overflow-y-auto">
-            <WorkflowList />
+            <WorkflowList projectId={projectId} />
           </div>
           {/* Temporary debugging */}
           {process.env.NODE_ENV === 'development' && (
