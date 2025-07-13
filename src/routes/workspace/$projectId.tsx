@@ -157,6 +157,27 @@ function WorkspacePage(): JSX.Element | null {
   // Get raw openProjectIds from store to check restoration status
   const openProjectIds = useProjectStore((state) => state.openProjects)
 
+  // Ensure current project is always shown in tabs, even if not in openProjects yet
+  const projectsForTabs = useMemo(() => {
+    if (currentProject && !openProjects.find((p) => p.id === currentProject.id)) {
+      // Convert currentProject to Project format for tabs
+      const projectForTab = {
+        id: currentProject.id,
+        name: currentProject.name,
+        description: currentProject.description,
+        path: currentProject.workspacePath || '',
+        createdAt: new Date().toISOString(),
+        sessionCount: 0,
+        status: 'active' as const,
+        lastModified: new Date().toISOString(),
+        tags: [],
+        favorite: false,
+      }
+      return [...openProjects, projectForTab]
+    }
+    return openProjects
+  }, [openProjects, currentProject])
+
   // Message handling functions
   const handleBroadcast = () => {
     messageOps.broadcastMessage()
@@ -426,7 +447,7 @@ function WorkspacePage(): JSX.Element | null {
     <>
       <ConnectionStatusBanner />
       <ProjectTabs
-        projects={openProjects}
+        projects={projectsForTabs}
         activeProjectId={activeProjectId}
         onProjectSelect={(newProjectId) => {
           setActiveProject(newProjectId)
@@ -438,7 +459,7 @@ function WorkspacePage(): JSX.Element | null {
 
       {!currentProject &&
       openProjectIds.length > 0 &&
-      openProjects.length === 0 &&
+      projectsForTabs.length === 0 &&
       projects.length === 0 ? (
         // Show loading state when we have persisted project IDs but projects haven't loaded yet
         <div className="flex items-center justify-center h-[calc(100vh-90px)]">
@@ -447,7 +468,7 @@ function WorkspacePage(): JSX.Element | null {
             <p className="text-muted-foreground">Restoring your open projects</p>
           </div>
         </div>
-      ) : !currentProject && openProjects.length === 0 ? (
+      ) : !currentProject && projectsForTabs.length === 0 ? (
         <div className="flex items-center justify-center h-[calc(100vh-90px)]">
           <div className="text-center">
             <h2 className="text-2xl font-semibold mb-4">No projects open</h2>
