@@ -3,11 +3,14 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { DeleteAgentModal } from '../../components/modals/DeleteAgentModal'
 import { Sidebar } from '../../components/layout/Sidebar'
+import { ProjectTabs } from '../../components/projects/ProjectTabs'
 import { ViewControls } from '../../components/projects/ViewControls'
 import { AgentSelectionModal } from '../../components/projects/AgentSelectionModal'
 import { CreateAgentModal } from '../../components/agents/CreateAgentModal'
 import { AssignRoleModal } from '../../components/agents/AssignRoleModal'
 import { TeamSelectionModal } from '../../components/modals/TeamSelectionModal'
+import { Button } from '../../components/ui/button'
+import { Plus } from 'lucide-react'
 import { TeamTemplate } from '../../types/teams'
 import { convertToolsToPermissions, type ToolPermission } from '../../types/tool-permissions'
 
@@ -18,6 +21,7 @@ import { useWorkspaceData, type ProjectAgent } from '../../hooks/useWorkspaceDat
 // SOLID: Modular operation hooks
 import { useAgentOperations } from '../../hooks/useAgentOperations'
 import { useMessageOperations } from '../../hooks/useMessageOperations'
+import { useProjectOperations } from '../../hooks/useProjectOperations'
 import { useRoleOperations } from '../../hooks/useRoleOperations'
 import { useModalOperations } from '../../hooks/useModalOperations'
 import { useWorkspaceLayout } from '../../hooks/useWorkspaceLayout'
@@ -26,6 +30,7 @@ import { useWorkspaceShortcuts } from '../../hooks/useShortcuts'
 import { useWorkflowEvents } from '../../hooks/useWorkflowEvents'
 
 import { CanvasContent } from '../../components/workspace/CanvasContent'
+import { CreateProjectModal } from '../../components/projects/CreateProjectModal'
 import { ConnectionStatusBanner } from '../../components/ui/ConnectionStatusBanner'
 import { ErrorMonitor } from '../../services/ErrorMonitor'
 import { useDiagnosticsStore } from '../../stores/diagnostics'
@@ -35,19 +40,27 @@ export const Route = createFileRoute('/workspace/$projectId')({
   component: WorkspacePage,
 })
 
+interface ProjectData {
+  name: string
+  description?: string
+  workspacePath?: string
+}
+
 function WorkspacePage() {
   const navigate = useNavigate()
   const { projectId } = useParams({ from: '/workspace/$projectId' })
 
   // Zustand stores - get these first
-  const { setActiveProject } = useProjectStore()
+  const { activeProjectId, setActiveProject, getOpenProjects, openProjectInWorkspace } =
+    useProjectStore()
 
-  // Set the active project based on URL
+  // Set the active project based on URL and ensure it's opened in workspace
   useEffect(() => {
     if (projectId) {
       setActiveProject(projectId)
+      openProjectInWorkspace(projectId) // Ensure project is open in tabs
     }
-  }, [projectId, setActiveProject])
+  }, [projectId, setActiveProject, openProjectInWorkspace])
 
   // DRY: Use optimized workspace data hook for all workspace data
   const { data: workspaceData, loading: workspaceLoading } = useWorkspaceData({
@@ -117,6 +130,7 @@ function WorkspacePage() {
   // SOLID: Modular operation hooks
   const agentOps = useAgentOperations()
   const messageOps = useMessageOperations()
+  const projectOps = useProjectOperations()
   const roleOps = useRoleOperations()
   const modalOps = useModalOperations()
   const layout = useWorkspaceLayout()
@@ -134,7 +148,13 @@ function WorkspacePage() {
   useWebSocketOperations()
 
   // Global workflow events (SSE for workflow updates)
-  useWorkflowEvents(projectId)
+  useWorkflowEvents()
+
+  // Get only the open projects for workspace tabs
+  const openProjects = getOpenProjects()
+
+  // Get raw openProjectIds from store to check restoration status
+  const openProjectIds = useProjectStore((state) => state.openProjects)
 
   // Message handling functions
   const handleBroadcast = () => {
@@ -155,10 +175,11 @@ function WorkspacePage() {
           handleAgentClear(layout.selectedAgentId)
         }
       },
+      'new-project': () => modalOps.openModal('createProject'),
       'new-workflow': () => navigate({ to: `/workspace/${projectId}/workflows/new` }),
     },
-    !!currentProject
-  ) // Only enable when project exists
+    openProjects.length > 0
+  ) // Only enable when workspace is active
 
   // State for single agent deletion modal
   const [deleteModalState, setDeleteModalState] = useState<{
@@ -327,6 +348,18 @@ function WorkspacePage() {
     await roleOps.assignRoleToAgent(roleId, customTools)
   }
 
+  // Project operations
+  const handleCloseProject = async (projectId: string) => {
+    await projectOps.closeProject(projectId)
+  }
+
+  const handleCreateProject = async (projectData: ProjectData) => {
+    const result = await projectOps.createProject(projectData)
+    if (result.success) {
+      modalOps.closeModal('createProject')
+    }
+  }
+
   const handleLoadTeam = async (team: TeamTemplate) => {
     if (!projectId) {
       toast.error('Please select a project first')
@@ -391,62 +424,74 @@ function WorkspacePage() {
   return (
     <>
       <ConnectionStatusBanner />
-      <div className="flex flex-col h-screen">
-        {/* Project header */}
-        <div className="border-b px-4 py-2 flex items-center justify-between bg-card">
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold">{currentProject.name}</h1>
-            {currentProject.description && (
-              <span className="text-sm text-muted-foreground">- {currentProject.description}</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate({ to: `/workspace/${projectId}/workflows` })}
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Workflows
-            </button>
-            <button
-              onClick={() => navigate({ to: '/' })}
-              className="text-sm text-muted-foreground hover:text-foreground"
-            >
-              Dashboard
-            </button>
+      <ProjectTabs
+        projects={openProjects}
+        activeProjectId={activeProjectId}
+        onProjectSelect={(newProjectId) => {
+          setActiveProject(newProjectId)
+          navigate({ to: `/workspace/${newProjectId}` })
+        }}
+        onProjectCreate={() => modalOps.openModal('createProject')}
+        onProjectClose={handleCloseProject}
+      />
+
+      {openProjectIds.length > 0 && openProjects.length === 0 && projects.length === 0 ? (
+        // Show loading state when we have persisted project IDs but projects haven't loaded yet
+        <div className="flex items-center justify-center h-[calc(100vh-90px)]">
+          <div className="text-center">
+            <h2 className="text-2xl font-semibold mb-4">Loading workspace...</h2>
+            <p className="text-muted-foreground">Restoring your open projects</p>
           </div>
         </div>
-
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar
-            isCollapsed={layout.sidebarCollapsed}
-            isLoading={loadingAgents}
-            onAgentClear={handleAgentClear}
-            onAgentRemove={handleAgentRemove}
-            onAgentConvert={handleAgentConvert}
-            onAgentReassignRole={handleReassignRole}
-            onAddAgent={() => modalOps.openModal('agentSelection')}
-            onCreateAgent={() => modalOps.openModal('createAgent')}
-            onLoadTeam={() => modalOps.openModal('teamSelection')}
-            projectId={projectId}
-          />
-
-          <main className="flex-1 flex flex-col overflow-hidden">
-            <ViewControls
-              currentView={layout.viewMode}
-              selectedAgentId={layout.selectedAgentId}
-              canvasMode={layout.canvasMode}
-              onViewChange={layout.setViewMode}
-              onSidebarToggle={layout.toggleSidebar}
-              onNewWorkflow={() => navigate({ to: `/workspace/${projectId}/workflows/new` })}
+      ) : openProjects.length === 0 ? (
+        <div className="flex items-center justify-center h-[calc(100vh-90px)]">
+          <div className="text-center">
+            <h2 className="text-2xl font-semibold mb-4">No projects open</h2>
+            <p className="text-muted-foreground mb-6">
+              Open a project from the Dashboard or create a new one to get started.
+            </p>
+            <div className="flex gap-4 justify-center">
+              <Button onClick={() => navigate({ to: '/' })}>Go to Dashboard</Button>
+              <Button onClick={() => modalOps.openModal('createProject')} variant="outline">
+                <Plus className="w-4 h-4 mr-2" />
+                Create New Project
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col h-[calc(100vh-90px)]">
+          <div className="flex flex-1 overflow-hidden">
+            <Sidebar
+              isCollapsed={layout.sidebarCollapsed}
+              isLoading={loadingAgents}
+              onAgentClear={handleAgentClear}
+              onAgentRemove={handleAgentRemove}
+              onAgentConvert={handleAgentConvert}
+              onAgentReassignRole={handleReassignRole}
+              onAddAgent={() => modalOps.openModal('agentSelection')}
+              onCreateAgent={() => modalOps.openModal('createAgent')}
+              onLoadTeam={() => modalOps.openModal('teamSelection')}
             />
 
-            <div className="flex-1 overflow-hidden">
-              {/* Canvas Content - State-preserving agent/workflow view */}
-              <CanvasContent />
-            </div>
-          </main>
+            <main className="flex-1 flex flex-col overflow-hidden">
+              <ViewControls
+                currentView={layout.viewMode}
+                selectedAgentId={layout.selectedAgentId}
+                canvasMode={layout.canvasMode}
+                onViewChange={layout.setViewMode}
+                onSidebarToggle={layout.toggleSidebar}
+                onNewWorkflow={() => navigate({ to: `/workspace/${projectId}/workflows/new` })}
+              />
+
+              <div className="flex-1 overflow-hidden">
+                {/* Canvas Content - State-preserving agent/workflow view */}
+                <CanvasContent />
+              </div>
+            </main>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Modals */}
       <AgentSelectionModal
@@ -492,6 +537,12 @@ function WorkspacePage() {
       {modalOps.isWorkflowBuilderOpen && (
         <VisualWorkflowBuilder onClose={() => modalOps.closeModal('workflowBuilder')} />
       )}
+
+      <CreateProjectModal
+        isOpen={modalOps.isCreateProjectOpen}
+        onClose={() => modalOps.closeModal('createProject')}
+        onCreate={handleCreateProject}
+      />
 
       {/* Single Agent Delete Modal */}
       {deleteModalState.agent && (

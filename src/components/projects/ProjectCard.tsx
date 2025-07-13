@@ -105,10 +105,10 @@ export function ProjectCard({ project, onOpen, onEdit, onDelete, onClone }: Proj
           <button
             className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded transition-colors"
             onClick={() => onOpen(project.id)}
-            title="Open project"
+            title="Add project to workspace"
           >
             <FolderOpen className="w-3 h-3" />
-            Open
+            Add to workspace
           </button>
           <button
             className="p-2 text-muted-foreground hover:text-white hover:bg-secondary rounded transition-colors"

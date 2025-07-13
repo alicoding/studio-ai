@@ -195,8 +195,8 @@ function ProjectsListingPage() {
   const handleOpenProject = (projectId: string) => {
     // Open project in workspace (will activate existing tab or create new one)
     openProjectInWorkspace(projectId)
-    // Navigate to workspace
-    navigate({ to: '/' })
+    // Navigate to workspace with unique URL
+    navigate({ to: `/workspace/${projectId}` })
   }
 
   return (

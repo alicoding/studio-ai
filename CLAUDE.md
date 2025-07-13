@@ -108,19 +108,23 @@ mcp__studio -
 - Research compatibility between different tools
 
 **Example Usage:**
+
 ```javascript
 // When you need to find a library for data visualization
-mcp__studio-ai__execute_research({
-  input: "What's the best React charting library for real-time data in 2025?"
-})
+mcp__studio -
+  ai__execute_research({
+    input: "What's the best React charting library for real-time data in 2025?",
+  })
 
 // When debugging a complex issue
-mcp__studio-ai__execute_research({
-  input: "Why would WebSocket connections fail after server restart in Node.js?"
-})
+mcp__studio -
+  ai__execute_research({
+    input: 'Why would WebSocket connections fail after server restart in Node.js?',
+  })
 ```
 
 **Why Use Research MCP:**
+
 - Has access to latest information (sonar-pro model)
 - Can provide specific, actionable recommendations
 - Understands current ecosystem and best practices
@@ -160,6 +164,52 @@ Must commit the work before writing the "Summary" at the end of the task.
    - RESTful endpoints in `web/server/api/`
    - TypeScript interfaces for all API contracts
    - Proper error handling and validation
+
+## Modern CLI Tools Available
+
+**CRITICAL**: Use modern, fast CLI tools instead of legacy ones for better performance:
+
+### File Operations
+
+```bash
+# ✅ USE THESE (2-10x faster):
+fd "pattern"              # Instead of find . -name "pattern"
+fd "*.tsx" src/           # Find TypeScript files
+fd "^\._" --type f        # Find Apple resource fork files
+fd discord-notifier /path # Find specific files
+
+rg "pattern" path/        # Instead of grep (already using)
+rg --files | rg "name"    # List files matching pattern
+
+eza -la                   # Instead of ls -la (better colors/formatting)
+bat filename              # Instead of cat (syntax highlighting)
+```
+
+### Available Tools
+
+- **`fd`**: Fast file finder (replaces `find`) - use for ALL file searching
+- **`rg`**: Ripgrep (replaces `grep`) - already in use, excellent
+- **`bat`**: Syntax-highlighted file viewer (replaces `cat`)
+- **`eza`**: Modern ls replacement with better formatting
+- **`delta`**: Better git diff viewer
+- **`fzf`**: Fuzzy finder for interactive selection
+- **`jq`**: JSON processor for API responses
+
+### Examples
+
+```bash
+# File search (use fd instead of find)
+fd "._*" --type f --exec rm {}     # Remove Apple resource fork files
+fd "\.tsx?$" src/ --exec wc -l {}  # Count lines in TypeScript files
+
+# Content search (already using rg)
+rg "hardcoded-path" --type sh      # Find hardcoded paths in shell scripts
+rg "import.*from" --type ts        # Find TypeScript imports
+
+# Better file viewing
+bat src/components/App.tsx         # Syntax highlighted file content
+eza -la --git                      # Better ls with git status
+```
 
 ## Common Commands
 
@@ -295,7 +345,7 @@ USE_MOCK_AI=true
 
 1. **Pattern Matching**: Intelligent response generation based on task content
    - `design` tasks → Architecture responses
-   - `implement` tasks → Code implementations  
+   - `implement` tasks → Code implementations
    - `test` tasks → Unit test suites
    - `review` tasks → Code review feedback
    - `security` tasks → Security analysis
@@ -314,8 +364,8 @@ invoke({
     { id: 'design', task: 'Design a REST API' },
     { id: 'implement', task: 'Implement {design.output}' },
     { id: 'test', task: 'Test the implementation' },
-    { id: 'review', task: 'Review {implement.output}' }
-  ]
+    { id: 'review', task: 'Review {implement.output}' },
+  ],
 })
 ```
 

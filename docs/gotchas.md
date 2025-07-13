@@ -1,5 +1,22 @@
 # Claude Studio Gotchas
 
+## File System Migration Issues (2025-01-13)
+
+- **Problem**: Migration from /Users/ali to /Volumes/AliDev caused multiple issues:
+  - 1500+ files showing as modified due to permission changes (644 to 755)
+  - Apple resource fork files (.\_\*) throughout the codebase causing ESLint errors
+  - Hardcoded paths in configuration files pointing to old location
+  - Database schema missing columns (has_custom_tools, updated_at)
+  - Vitest memory leak with multiple processes consuming excessive memory
+- **Solution**:
+  - Used git reset to restore file permissions
+  - Removed all Apple resource fork files with `find . -name "._*" -type f -delete`
+  - Updated all hardcoded paths from /Users/ali to /Volumes/AliDev
+  - Added missing database columns with ALTER TABLE commands
+  - Configured vitest with pool: 'forks' and maxConcurrency: 1
+- **Key Lesson**: File system migrations require careful attention to permissions, metadata files, and path references
+- **Pattern**: Always use expandPath() for tilde paths, avoid hardcoding absolute paths
+
 ## Critical Workflow Storage Gap (2025-01-12)
 
 - **Problem**: User asked "if you build a workflow where would it be saved to and how will I access it?"
