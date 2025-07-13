@@ -1,5 +1,17 @@
 # Claude Studio Gotchas
 
+## Saved Workflow Loading Issue (2025-01-13)
+
+- **Problem**: Clicking saved workflows in sidebar navigated to /workflows/new but showed blank workflow
+- **Root Cause**: Navigation happened too quickly before workflow was loaded into Zustand store
+- **Solution**: Added async click handler with 150ms delay to ensure store persistence
+- **Key Changes**:
+  - Sidebar: Added async onClick with store verification before navigation
+  - Workflow route: Changed useEffect to run once on mount only (no dependencies)
+  - Added debug logging to track workflow loading sequence
+- **Pattern**: When loading data into stores before navigation, verify the data is loaded
+- **Files**: `src/components/layout/Sidebar.tsx`, `src/routes/workspace/$projectId/workflows/new.tsx`
+
 ## Saved Workflows Not Showing in Sidebar (2025-01-13)
 
 - **Problem**: Saved workflows weren't appearing in the sidebar despite API returning data correctly

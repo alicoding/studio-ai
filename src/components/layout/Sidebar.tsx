@@ -54,7 +54,7 @@ export function Sidebar({
   projectId,
 }: SidebarProps) {
   const navigate = useNavigate()
-  const { loadWorkflow, fetchSavedWorkflows } = useWorkflowBuilderStore()
+  const { fetchSavedWorkflows } = useWorkflowBuilderStore()
   // Get data directly from Zustand stores
   const { configs, getProjectAgents, moveAgentToPosition, clearingAgentId } = useAgentStore()
   const { activeProjectId } = useProjectStore()
@@ -354,25 +354,10 @@ export function Sidebar({
                   {savedWorkflows.map((workflow) => (
                     <button
                       key={workflow.id}
-                      onClick={async () => {
-                        console.log(
-                          '[Sidebar] Loading workflow:',
-                          workflow.name,
-                          workflow.definition
-                        )
-                        // Load the workflow into the store
-                        loadWorkflow(workflow.definition)
-
-                        // Wait a bit for the store to update and persist
-                        await new Promise((resolve) => setTimeout(resolve, 150))
-
-                        // Get the current state to verify it loaded
-                        const currentWorkflow = useWorkflowBuilderStore.getState().workflow
-                        console.log('[Sidebar] Workflow loaded in store:', currentWorkflow?.name)
-
-                        // Navigate to the workflow builder
-                        console.log('[Sidebar] Navigating to workflow builder')
-                        navigate({ to: `/workspace/${projectId}/workflows/new` })
+                      onClick={() => {
+                        console.log('[Sidebar] Navigating to edit saved workflow:', workflow.name)
+                        // Navigate to the existing edit route for saved workflows
+                        navigate({ to: `/workflows/${workflow.id}/edit` })
                       }}
                       className="w-full text-left p-2 rounded hover:bg-secondary/50 transition-colors group"
                     >
