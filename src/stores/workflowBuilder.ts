@@ -55,7 +55,11 @@ interface WorkflowBuilderState {
   executeWorkflow: () => Promise<WorkflowExecutionResponse>
 
   // Save workflow to backend storage
-  saveWorkflow: (name?: string, description?: string, scope?: 'project' | 'global') => Promise<void>
+  saveWorkflow: (
+    name?: string,
+    description?: string,
+    scope?: 'project' | 'global'
+  ) => Promise<string>
 
   // Load workflows from backend storage
   fetchSavedWorkflows: () => Promise<
@@ -407,6 +411,7 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
         }))
 
         console.log('Workflow saved successfully:', response.workflow.id)
+        return response.workflow.id
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to save workflow'
         set({ isSaving: false, lastError: errorMessage })

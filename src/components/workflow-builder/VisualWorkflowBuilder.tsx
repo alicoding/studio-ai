@@ -50,6 +50,7 @@ const nodeTypes: NodeTypes = {
 interface VisualWorkflowBuilderProps {
   onClose: () => void
   scope?: 'project' | 'global'
+  onSaveSuccess?: (workflowId: string) => void
 }
 
 // Convert workflow steps to React Flow nodes
@@ -95,6 +96,7 @@ function stepsToEdges(steps: WorkflowStepDefinition[]): Edge[] {
 export default function VisualWorkflowBuilder({
   onClose,
   scope = 'project',
+  onSaveSuccess,
 }: VisualWorkflowBuilderProps) {
   // Use store state instead of local state
   const {
@@ -241,8 +243,11 @@ export default function VisualWorkflowBuilder({
 
   const handleSave = async () => {
     try {
-      await saveWorkflow(undefined, undefined, scope)
+      const workflowId = await saveWorkflow(undefined, undefined, scope)
       console.log('Workflow saved successfully:', workflow?.name)
+      if (onSaveSuccess) {
+        onSaveSuccess(workflowId)
+      }
     } catch (error) {
       console.error('Failed to save workflow:', error)
       // TODO: Show user-friendly error notification

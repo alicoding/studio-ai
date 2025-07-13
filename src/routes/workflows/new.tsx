@@ -21,5 +21,12 @@ function NewWorkflow() {
     navigate({ to: '/workflows' })
   }
 
-  return <VisualWorkflowBuilder onClose={handleClose} scope="global" />
+  const handleSaveSuccess = (workflowId: string) => {
+    // Navigate to the edit URL after first save
+    navigate({ to: `/workflows/${workflowId}/edit` })
+  }
+
+  return (
+    <VisualWorkflowBuilder onClose={handleClose} scope="global" onSaveSuccess={handleSaveSuccess} />
+  )
 }

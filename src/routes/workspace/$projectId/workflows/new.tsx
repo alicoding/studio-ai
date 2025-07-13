@@ -10,31 +10,26 @@ export const Route = createFileRoute('/workspace/$projectId/workflows/new')({
 function NewWorkflowInProject() {
   const navigate = useNavigate()
   const { projectId } = useParams({ from: '/workspace/$projectId/workflows/new' })
-  const { initWorkflow, workflow } = useWorkflowBuilderStore()
+  const { reset, initWorkflow } = useWorkflowBuilderStore()
 
-  // Only create a fresh workflow if one isn't already loaded
+  // Always create a fresh project workflow when this route loads
   useEffect(() => {
-    console.log('[NewWorkflowInProject] Component mounted, checking workflow state')
-    console.log('[NewWorkflowInProject] Current workflow:', workflow)
+    console.log('[NewWorkflowInProject] Component mounted, creating fresh project workflow')
+    console.log('[NewWorkflowInProject] Project ID:', projectId)
 
-    // Check if we have a workflow loaded
-    if (!workflow) {
-      console.log('[NewWorkflowInProject] No workflow loaded, creating new one')
-      initWorkflow('Untitled Workflow', 'Project workflow', projectId)
-    } else {
-      console.log(
-        '[NewWorkflowInProject] Using existing workflow:',
-        workflow.name,
-        'with',
-        workflow.steps.length,
-        'steps'
-      )
-    }
+    // Always reset and create new workflow for proper state isolation
+    reset() // Clear any existing workflow state
+    initWorkflow('Untitled Workflow', 'Project workflow', projectId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Only run once on mount to preserve loaded workflows
+  }, [projectId]) // Zustand store functions are stable
 
   const handleClose = () => {
     navigate({ to: `/workspace/${projectId}` })
+  }
+
+  const handleSaveSuccess = (workflowId: string) => {
+    // Navigate to the workspace edit URL after first save
+    navigate({ to: `/workspace/${projectId}/workflows/${workflowId}/edit` })
   }
 
   return (
@@ -46,7 +41,11 @@ function NewWorkflowInProject() {
         backgroundColor: 'var(--background)',
       }}
     >
-      <VisualWorkflowBuilder onClose={handleClose} scope="project" />
+      <VisualWorkflowBuilder
+        onClose={handleClose}
+        scope="project"
+        onSaveSuccess={handleSaveSuccess}
+      />
     </div>
   )
 }
