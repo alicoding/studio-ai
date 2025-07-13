@@ -7,7 +7,21 @@
  */
 
 import { Panel } from 'reactflow'
-import { Code2, Zap, Eye, Shield, Server, Palette, Building, GitBranch, RotateCcw, Layers, Users } from 'lucide-react'
+import {
+  Code2,
+  Zap,
+  Eye,
+  Shield,
+  Server,
+  Palette,
+  Building,
+  GitBranch,
+  RotateCcw,
+  Layers,
+  Users,
+  User,
+} from 'lucide-react'
+import { useAgentConfigs } from '@/hooks/useAgentConfigs'
 
 interface NodeTypeConfig {
   type: string
@@ -18,57 +32,21 @@ interface NodeTypeConfig {
   category: 'task' | 'control'
 }
 
-// Task nodes - execute actual work
-const taskNodes: NodeTypeConfig[] = [
-  {
-    type: 'Developer',
-    label: 'Developer',
-    icon: <Code2 className="w-4 h-4" />,
-    color: 'bg-blue-500',
-    description: 'Code implementation and development tasks',
-    category: 'task',
-  },
-  {
-    type: 'Architect',
-    label: 'Architect',
-    icon: <Building className="w-4 h-4" />,
-    color: 'bg-purple-500',
-    description: 'System design and architecture planning',
-    category: 'task',
-  },
-  {
-    type: 'Reviewer',
-    label: 'Reviewer',
-    icon: <Eye className="w-4 h-4" />,
-    color: 'bg-green-500',
-    description: 'Code review and quality assurance',
-    category: 'task',
-  },
-  {
-    type: 'Tester',
-    label: 'Tester',
-    icon: <Zap className="w-4 h-4" />,
-    color: 'bg-orange-500',
-    description: 'Testing and validation tasks',
-    category: 'task',
-  },
-  {
-    type: 'Security',
-    label: 'Security',
-    icon: <Shield className="w-4 h-4" />,
-    color: 'bg-red-500',
-    description: 'Security analysis and vulnerability assessment',
-    category: 'task',
-  },
-  {
-    type: 'DevOps',
-    label: 'DevOps',
-    icon: <Server className="w-4 h-4" />,
-    color: 'bg-gray-500',
-    description: 'Deployment and infrastructure management',
-    category: 'task',
-  },
-]
+// Icon mapping for agent roles
+const getIconForRole = (iconName: string) => {
+  const iconMap: Record<string, React.ReactNode> = {
+    Code2: <Code2 className="w-4 h-4" />,
+    Building: <Building className="w-4 h-4" />,
+    Eye: <Eye className="w-4 h-4" />,
+    Zap: <Zap className="w-4 h-4" />,
+    Shield: <Shield className="w-4 h-4" />,
+    Server: <Server className="w-4 h-4" />,
+    Layers: <Layers className="w-4 h-4" />,
+    Palette: <Palette className="w-4 h-4" />,
+    User: <User className="w-4 h-4" />,
+  }
+  return iconMap[iconName] || <User className="w-4 h-4" />
+}
 
 // Control flow nodes - LangGraph logic
 const controlNodes: NodeTypeConfig[] = [
@@ -112,6 +90,18 @@ const onDragStart = (event: React.DragEvent, nodeType: string) => {
 }
 
 export default function DraggableNodePalette() {
+  const { availableRoles, loading, error } = useAgentConfigs()
+
+  // Convert agent roles to task nodes
+  const taskNodes: NodeTypeConfig[] = availableRoles.map((role) => ({
+    type: role.role,
+    label: role.name,
+    icon: getIconForRole(role.icon),
+    color: role.color,
+    description: role.description,
+    category: 'task' as const,
+  }))
+
   return (
     <Panel
       position="top-left"
@@ -126,8 +116,12 @@ export default function DraggableNodePalette() {
         {/* Task Nodes Section */}
         <div>
           <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-            Task Nodes
+            Agent Roles
           </h4>
+          {loading && (
+            <div className="text-xs text-muted-foreground p-3">Loading agent roles...</div>
+          )}
+          {error && <div className="text-xs text-red-500 p-3">Error: {error}</div>}
           <div className="space-y-2">
             {taskNodes.map((nodeType) => (
               <div
@@ -141,7 +135,9 @@ export default function DraggableNodePalette() {
                   <div className="text-sm font-medium group-hover:text-foreground">
                     {nodeType.label}
                   </div>
-                  <div className="text-xs text-muted-foreground truncate">{nodeType.description}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {nodeType.description}
+                  </div>
                 </div>
               </div>
             ))}
@@ -166,7 +162,9 @@ export default function DraggableNodePalette() {
                   <div className="text-sm font-medium group-hover:text-foreground">
                     {nodeType.label}
                   </div>
-                  <div className="text-xs text-muted-foreground truncate">{nodeType.description}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {nodeType.description}
+                  </div>
                 </div>
               </div>
             ))}
