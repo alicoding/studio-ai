@@ -1,16 +1,17 @@
 # Claude Studio Gotchas
 
-## Saved Workflow Loading Issue (2025-01-13)
+## Saved Workflow Navigation Fix (2025-01-13)
 
-- **Problem**: Clicking saved workflows in sidebar navigated to /workflows/new but showed blank workflow
-- **Root Cause**: Navigation happened too quickly before workflow was loaded into Zustand store
-- **Solution**: Added async click handler with 150ms delay to ensure store persistence
+- **Problem**: Clicking saved workflows in sidebar navigated to `/workspace/{projectId}/workflows/new` instead of editing the saved workflow
+- **User Expectation**: Saved workflows should navigate to a "saved draft URL" for editing, not create a new workflow
+- **Root Cause**: Sidebar onClick handler was using `/workflows/new` route instead of existing `/workflows/{workflowId}/edit` route
+- **Solution**: Updated sidebar navigation to use dedicated edit route for saved workflows
 - **Key Changes**:
-  - Sidebar: Added async onClick with store verification before navigation
-  - Workflow route: Changed useEffect to run once on mount only (no dependencies)
-  - Added debug logging to track workflow loading sequence
-- **Pattern**: When loading data into stores before navigation, verify the data is loaded
-- **Files**: `src/components/layout/Sidebar.tsx`, `src/routes/workspace/$projectId/workflows/new.tsx`
+  - Sidebar: Changed onClick to navigate directly to `/workflows/${workflow.id}/edit`
+  - Edit route: Made project-aware to return to workspace context when closed
+  - Removed unnecessary workflow loading logic since edit route handles it
+- **Pattern**: Use existing edit routes instead of trying to load data into creation routes
+- **Files**: `src/components/layout/Sidebar.tsx`, `src/routes/workflows/$workflowId.edit.tsx`
 
 ## Saved Workflows Not Showing in Sidebar (2025-01-13)
 

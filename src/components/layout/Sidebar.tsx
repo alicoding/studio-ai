@@ -356,8 +356,8 @@ export function Sidebar({
                       key={workflow.id}
                       onClick={() => {
                         console.log('[Sidebar] Navigating to edit saved workflow:', workflow.name)
-                        // Navigate to the existing edit route for saved workflows
-                        navigate({ to: `/workflows/${workflow.id}/edit` })
+                        // Navigate to workspace-specific workflow edit route to maintain context
+                        navigate({ to: `/workspace/${projectId}/workflows/${workflow.id}/edit` })
                       }}
                       className="w-full text-left p-2 rounded hover:bg-secondary/50 transition-colors group"
                     >
