@@ -55,7 +55,7 @@ function EditWorkflowInProject() {
         backgroundColor: 'var(--background)',
       }}
     >
-      <VisualWorkflowBuilder onClose={handleClose} />
+      <VisualWorkflowBuilder onClose={handleClose} scope="project" />
     </div>
   )
 }

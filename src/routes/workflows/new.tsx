@@ -21,5 +21,5 @@ function NewWorkflow() {
     navigate({ to: '/workflows' })
   }
 
-  return <VisualWorkflowBuilder onClose={handleClose} />
+  return <VisualWorkflowBuilder onClose={handleClose} scope="global" />
 }
