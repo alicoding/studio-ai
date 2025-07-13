@@ -118,8 +118,10 @@ router.get('/', async (req, res) => {
       const crossProjectWorkflows = await workflowStorage.listCrossProject([projectId])
       workflows = [...workflows, ...crossProjectWorkflows]
     } else {
-      // If no filters, return all global workflows by default
-      workflows = await workflowStorage.listGlobal()
+      // If no filters, return all workflows (both global and project scope)
+      const globalWorkflows = await workflowStorage.listGlobal()
+      const projectWorkflows = await workflowStorage.listByScope('project')
+      workflows = [...globalWorkflows, ...projectWorkflows]
     }
 
     res.json({ workflows })

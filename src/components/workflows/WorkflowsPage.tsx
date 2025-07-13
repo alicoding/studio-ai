@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { Plus, Search, MoreVertical, Edit, Copy, Trash2, Play } from 'lucide-react'
+import { Plus, Search, MoreVertical, Edit, Copy, Trash2, Play, Upload } from 'lucide-react'
 import ky from 'ky'
 import { format } from 'date-fns'
 import { Button } from '../ui/button'
@@ -8,6 +8,7 @@ import { Input } from '../ui/input'
 import { Select } from '../ui/select'
 import { useProjectStore } from '../../stores/projects'
 import { useToast } from '../../hooks/useToast'
+import { ImportExecutedWorkflowsModal } from './ImportExecutedWorkflowsModal'
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3456/api'
 
@@ -52,6 +53,7 @@ const WorkflowsPage: React.FC = () => {
   const [selectedWorkflows, setSelectedWorkflows] = useState<Set<string>>(new Set())
   const [showDropdown, setShowDropdown] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false)
 
   const currentProjectId = useProjectStore((state) => state.activeProjectId)
 
@@ -260,13 +262,23 @@ const WorkflowsPage: React.FC = () => {
       <div className="border-b px-6 py-4">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-semibold">Workflows</h1>
-          <Button
-            onClick={() => navigate({ to: '/workflows/new' })}
-            className="flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            New Workflow
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              Import
+            </Button>
+            <Button
+              onClick={() => navigate({ to: '/workflows/new' })}
+              className="flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              New Workflow
+            </Button>
+          </div>
         </div>
 
         {/* Filters and Search */}
@@ -511,6 +523,20 @@ const WorkflowsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Import Modal */}
+      <ImportExecutedWorkflowsModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        projectId={currentProjectId || undefined}
+        onImportSuccess={(workflow) => {
+          toast({
+            title: 'Success',
+            description: `Workflow "${workflow.name}" imported successfully`,
+          })
+          fetchWorkflows()
+        }}
+      />
     </div>
   )
 }

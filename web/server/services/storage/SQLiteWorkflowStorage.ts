@@ -27,8 +27,12 @@ export class SQLiteWorkflowStorage implements IWorkflowStorage {
     const db = getDb()
     const id = uuidv4()
 
-    // Determine scope: if projectId is provided, default to 'project', otherwise use provided scope or 'global'
-    const scope = request.scope || (request.projectId ? 'project' : 'global')
+    // Determine scope:
+    // - If scope is explicitly provided, use it
+    // - If projectId is 'global' or not provided, use 'global' scope
+    // - Otherwise, use 'project' scope
+    const scope =
+      request.scope || (request.projectId && request.projectId !== 'global' ? 'project' : 'global')
 
     const workflow = {
       id,

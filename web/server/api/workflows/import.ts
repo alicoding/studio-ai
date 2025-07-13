@@ -64,13 +64,14 @@ router.post('/executed/:threadId', async (req, res) => {
 
     // Create the saved workflow
     const createRequest: CreateWorkflowRequest = {
-      projectId,
+      projectId: projectId === 'global' ? undefined : projectId,
       name: workflowDefinition.name,
       description: workflowDefinition.description,
       definition: workflowDefinition,
       tags: ['imported', 'executed'],
       source: 'api',
       createdBy: executedWorkflow.startedBy || 'system',
+      scope: projectId === 'global' ? 'global' : 'project',
     }
 
     const savedWorkflow = await workflowStorage.create(createRequest)
@@ -137,13 +138,14 @@ router.post('/executed/bulk', async (req, res) => {
         }
 
         const createRequest: CreateWorkflowRequest = {
-          projectId,
+          projectId: projectId === 'global' ? undefined : projectId,
           name: workflowDefinition.name,
           description: workflowDefinition.description,
           definition: workflowDefinition,
           tags: ['imported', 'executed'],
           source: 'api',
           createdBy: executedWorkflow.startedBy || 'system',
+          scope: projectId === 'global' ? 'global' : 'project',
         }
 
         const savedWorkflow = await workflowStorage.create(createRequest)
