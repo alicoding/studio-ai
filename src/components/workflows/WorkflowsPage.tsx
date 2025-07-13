@@ -126,7 +126,7 @@ const WorkflowsPage: React.FC = () => {
 
   // Handle workflow actions
   const handleEdit = (workflow: SavedWorkflow) => {
-    navigate({ to: '/workflows/new', search: { loadWorkflow: workflow.id } })
+    navigate({ to: `/workflows/${workflow.id}/edit` })
   }
 
   const handleClone = async (workflow: SavedWorkflow) => {

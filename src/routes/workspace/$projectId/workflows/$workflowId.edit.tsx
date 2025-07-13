@@ -24,8 +24,14 @@ function EditWorkflowInProject() {
           `[EditWorkflowInProject] Loading workflow ${workflowId} for project ${projectId}`
         )
 
-        const workflow = await loadWorkflow(workflowId)
-        loadWorkflowDefinition(workflow.definition)
+        const savedWorkflow = await loadWorkflow(workflowId)
+        // Update the workflow definition with the saved name and description
+        const updatedDefinition = {
+          ...savedWorkflow.definition,
+          name: savedWorkflow.name,
+          description: savedWorkflow.description,
+        }
+        loadWorkflowDefinition(updatedDefinition)
       } catch (error) {
         console.error('[EditWorkflowInProject] Failed to load workflow:', error)
         // Return to workspace instead of global workflows page
