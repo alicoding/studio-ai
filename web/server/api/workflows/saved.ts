@@ -85,6 +85,7 @@ router.get('/', async (req, res) => {
       #swagger.parameters['projectId'] = { in: 'query', description: 'Filter by project ID' }
       #swagger.parameters['scope'] = { in: 'query', description: 'Filter by scope (project|global|cross-project)' }
       #swagger.parameters['global'] = { in: 'query', description: 'Show only global workflows (true/false)' }
+      #swagger.parameters['includeGlobal'] = { in: 'query', description: 'When using projectId, also include global workflows (true/false, default: false)' }
       #swagger.responses[200] = {
         description: 'List of workflows',
         schema: { type: 'array', items: { $ref: '#/components/schemas/SavedWorkflow' } }
@@ -101,12 +102,17 @@ router.get('/', async (req, res) => {
       // Get workflows by specific scope
       workflows = await workflowStorage.listByScope(scope as 'project' | 'global' | 'cross-project')
     } else if (projectId && typeof projectId === 'string') {
-      // Get project-specific workflows (backward compatibility)
+      // Check if includeGlobal flag is explicitly set (for backward compatibility)
+      const includeGlobal = req.query.includeGlobal === 'true'
+
+      // Get project-specific workflows
       workflows = await workflowStorage.listByProject(projectId)
 
-      // Also include global workflows for this project
-      const globalWorkflows = await workflowStorage.listGlobal()
-      workflows = [...workflows, ...globalWorkflows]
+      // Only include global workflows if explicitly requested
+      if (includeGlobal) {
+        const globalWorkflows = await workflowStorage.listGlobal()
+        workflows = [...workflows, ...globalWorkflows]
+      }
 
       // And cross-project workflows accessible by this project
       const crossProjectWorkflows = await workflowStorage.listCrossProject([projectId])
