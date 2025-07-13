@@ -1,5 +1,19 @@
 # Claude Studio Gotchas
 
+## Workspace Navigation Context Fix (2025-07-13)
+
+- **Problem**: Major navigation issue where clicking saved workflows in workspace sidebar took users OUT of workspace context
+- **User Impact**: Users clicked "Test workflow" in bns-ai workspace sidebar → navigated to `/workflows/{id}/edit` (global) → lost workspace context
+- **Root Cause**: Sidebar was using global workflow routes instead of workspace-specific routes
+- **Solution**: Created workspace-specific workflow edit routes and updated navigation
+- **Key Changes**:
+  - Created `/workspace/{projectId}/workflows/{workflowId}/edit` route for workspace context
+  - Updated Sidebar.tsx to use workspace routes instead of global ones
+  - Fixed WebSocket connection to use stable server (3456) instead of window.location.origin
+  - Maintains proper workspace UX flow and context
+- **Pattern**: Always provide workspace-specific routes for workspace features to maintain context
+- **Files**: `src/routes/workspace/$projectId/workflows/$workflowId.edit.tsx`, `src/components/layout/Sidebar.tsx`, `src/hooks/useWebSocket.ts`
+
 ## Saved Workflow Navigation Fix (2025-01-13)
 
 - **Problem**: Clicking saved workflows in sidebar navigated to `/workspace/{projectId}/workflows/new` instead of editing the saved workflow
