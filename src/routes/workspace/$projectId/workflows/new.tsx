@@ -14,11 +14,24 @@ function NewWorkflowInProject() {
 
   // Only create a fresh workflow if one isn't already loaded
   useEffect(() => {
-    // If no workflow is loaded, create a new one
+    console.log('[NewWorkflowInProject] Component mounted, checking workflow state')
+    console.log('[NewWorkflowInProject] Current workflow:', workflow)
+
+    // Check if we have a workflow loaded
     if (!workflow) {
+      console.log('[NewWorkflowInProject] No workflow loaded, creating new one')
       initWorkflow('Untitled Workflow', 'Project workflow', projectId)
+    } else {
+      console.log(
+        '[NewWorkflowInProject] Using existing workflow:',
+        workflow.name,
+        'with',
+        workflow.steps.length,
+        'steps'
+      )
     }
-  }, [workflow, initWorkflow, projectId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Only run once on mount to preserve loaded workflows
 
   const handleClose = () => {
     navigate({ to: `/workspace/${projectId}` })

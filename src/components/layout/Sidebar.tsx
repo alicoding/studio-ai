@@ -354,8 +354,24 @@ export function Sidebar({
                   {savedWorkflows.map((workflow) => (
                     <button
                       key={workflow.id}
-                      onClick={() => {
+                      onClick={async () => {
+                        console.log(
+                          '[Sidebar] Loading workflow:',
+                          workflow.name,
+                          workflow.definition
+                        )
+                        // Load the workflow into the store
                         loadWorkflow(workflow.definition)
+
+                        // Wait a bit for the store to update and persist
+                        await new Promise((resolve) => setTimeout(resolve, 150))
+
+                        // Get the current state to verify it loaded
+                        const currentWorkflow = useWorkflowBuilderStore.getState().workflow
+                        console.log('[Sidebar] Workflow loaded in store:', currentWorkflow?.name)
+
+                        // Navigate to the workflow builder
+                        console.log('[Sidebar] Navigating to workflow builder')
                         navigate({ to: `/workspace/${projectId}/workflows/new` })
                       }}
                       className="w-full text-left p-2 rounded hover:bg-secondary/50 transition-colors group"
