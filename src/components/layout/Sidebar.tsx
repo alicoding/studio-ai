@@ -1,15 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AgentCard } from '../projects/AgentCard'
 import { Button } from '../ui/button'
-import { UserPlus, Bot, Users, CheckSquare, Square, Trash2, Activity } from 'lucide-react'
+import { UserPlus, Bot, Users, CheckSquare, Square, Trash2, Activity, FileText } from 'lucide-react'
 import { useAgentStore, useProjectStore } from '../../stores'
 import { DeleteAgentModal } from '../modals/DeleteAgentModal'
 import { WorkflowList } from '../workflow/WorkflowList'
 import { WorkflowDebugger } from '../workflow/WorkflowDebugger'
-import { WorkflowLibrary } from '../workflow-builder/WorkflowLibrary'
 import { useWorkspaceLayout } from '../../hooks/useWorkspaceLayout'
 import { useWorkflowBuilderStore } from '../../stores/workflowBuilder'
+import type { WorkflowDefinition } from '../../../web/server/schemas/workflow-builder'
 import {
   DndContext,
   closestCenter,
@@ -54,13 +54,42 @@ export function Sidebar({
   projectId,
 }: SidebarProps) {
   const navigate = useNavigate()
-  const { loadWorkflow } = useWorkflowBuilderStore()
+  const { loadWorkflow, fetchSavedWorkflows } = useWorkflowBuilderStore()
   // Get data directly from Zustand stores
   const { configs, getProjectAgents, moveAgentToPosition, clearingAgentId } = useAgentStore()
   const { activeProjectId } = useProjectStore()
 
+  // State for saved workflows
+  const [savedWorkflows, setSavedWorkflows] = useState<
+    Array<{
+      id: string
+      name: string
+      description?: string
+      definition: WorkflowDefinition
+      updatedAt: string
+    }>
+  >([])
+  const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(false)
+
   // Use workspace layout for proper agent selection that switches canvas mode
   const { selectedAgentId, setSelectedAgent, canvasMode, setCanvasMode } = useWorkspaceLayout()
+
+  // Load saved workflows when workflows tab is selected
+  useEffect(() => {
+    if (canvasMode === 'workflow' && activeProjectId) {
+      setIsLoadingWorkflows(true)
+      fetchSavedWorkflows()
+        .then((workflows) => {
+          setSavedWorkflows(workflows)
+        })
+        .catch((error) => {
+          console.error('Failed to load saved workflows:', error)
+        })
+        .finally(() => {
+          setIsLoadingWorkflows(false)
+        })
+    }
+  }, [canvasMode, activeProjectId, fetchSavedWorkflows])
 
   // Sidebar state - derive from canvas mode
   const activeTab: SidebarTab = canvasMode === 'workflow' ? 'workflows' : 'agents'
@@ -302,18 +331,47 @@ export function Sidebar({
       return (
         <div className="flex flex-col h-full">
           {/* Saved Workflows Section */}
-          <div className="px-3 py-2 border-b">
-            <h3 className="text-xs font-medium text-muted-foreground mb-2">Saved Workflows</h3>
-            <div className="max-h-48 overflow-y-auto">
-              <WorkflowLibrary
-                className="text-xs"
-                showActions={false}
-                onLoadWorkflow={(workflow) => {
-                  // Load workflow into store and navigate to builder
-                  loadWorkflow(workflow)
-                  navigate({ to: `/workspace/${projectId}/workflows/new` })
-                }}
-              />
+          <div className="border-b">
+            <div className="px-3 py-2">
+              <h3 className="text-xs font-medium text-muted-foreground">Saved Workflows</h3>
+            </div>
+            <div className="px-3 pb-3">
+              {isLoadingWorkflows ? (
+                <div className="text-center py-8 text-xs text-muted-foreground">
+                  <div className="animate-spin w-4 h-4 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2" />
+                  <p>Loading workflows...</p>
+                </div>
+              ) : savedWorkflows.length === 0 ? (
+                <div className="text-center py-8 text-xs text-muted-foreground">
+                  <p>No saved workflows</p>
+                  <p className="mt-1 opacity-75">Create and save workflows to see them here</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {savedWorkflows.map((workflow) => (
+                    <button
+                      key={workflow.id}
+                      onClick={() => {
+                        loadWorkflow(workflow.definition)
+                        navigate({ to: `/workspace/${projectId}/workflows/new` })
+                      }}
+                      className="w-full text-left p-2 rounded hover:bg-secondary/50 transition-colors group"
+                    >
+                      <div className="flex items-start gap-2">
+                        <FileText className="w-3 h-3 mt-0.5 text-muted-foreground group-hover:text-primary" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">{workflow.name}</p>
+                          {workflow.description && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              {workflow.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
