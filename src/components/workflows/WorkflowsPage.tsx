@@ -126,7 +126,7 @@ const WorkflowsPage: React.FC = () => {
 
   // Handle workflow actions
   const handleEdit = (workflow: SavedWorkflow) => {
-    navigate({ to: '/', search: { loadWorkflow: workflow.id } })
+    navigate({ to: '/workflows/new', search: { loadWorkflow: workflow.id } })
   }
 
   const handleClone = async (workflow: SavedWorkflow) => {
@@ -260,7 +260,10 @@ const WorkflowsPage: React.FC = () => {
       <div className="border-b px-6 py-4">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-semibold">Workflows</h1>
-          <Button onClick={() => navigate({ to: '/' })} className="flex items-center gap-2">
+          <Button
+            onClick={() => navigate({ to: '/workflows/new' })}
+            className="flex items-center gap-2"
+          >
             <Plus className="w-4 h-4" />
             New Workflow
           </Button>
@@ -330,7 +333,9 @@ const WorkflowsPage: React.FC = () => {
         ) : filteredWorkflows.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64">
             <div className="text-gray-500 mb-4">No workflows found</div>
-            <Button onClick={() => navigate({ to: '/' })}>Create Your First Workflow</Button>
+            <Button onClick={() => navigate({ to: '/workflows/new' })}>
+              Create Your First Workflow
+            </Button>
           </div>
         ) : viewMode === 'grid' ? (
           // Grid View

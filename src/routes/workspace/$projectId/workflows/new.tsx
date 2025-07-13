@@ -1,4 +1,7 @@
 import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router'
+import { useEffect } from 'react'
+import VisualWorkflowBuilder from '../../../../components/workflow-builder/VisualWorkflowBuilder'
+import { useWorkflowBuilderStore } from '../../../../stores/workflowBuilder'
 
 export const Route = createFileRoute('/workspace/$projectId/workflows/new')({
   component: NewWorkflowInProject,
@@ -7,8 +10,13 @@ export const Route = createFileRoute('/workspace/$projectId/workflows/new')({
 function NewWorkflowInProject() {
   const navigate = useNavigate()
   const { projectId } = useParams({ from: '/workspace/$projectId/workflows/new' })
+  const { reset, initWorkflow } = useWorkflowBuilderStore()
 
-  console.log('NewWorkflowInProject rendering for projectId:', projectId)
+  // Always create a fresh workflow when this route loads
+  useEffect(() => {
+    reset() // Clear any existing workflow
+    initWorkflow('Untitled Workflow', 'Project workflow', projectId)
+  }, [reset, initWorkflow, projectId])
 
   const handleClose = () => {
     navigate({ to: `/workspace/${projectId}` })
@@ -19,18 +27,11 @@ function NewWorkflowInProject() {
       style={{
         position: 'fixed',
         inset: 0,
-        backgroundColor: 'red',
-        zIndex: 9999,
-        color: 'white',
-        padding: '20px',
+        zIndex: 1000000,
+        backgroundColor: 'var(--background)',
       }}
     >
-      <h1>WORKFLOW BUILDER ROUTE TEST</h1>
-      <p>Project ID: {projectId}</p>
-      <p>This proves the route is working!</p>
-      <button onClick={handleClose} style={{ padding: '10px', marginTop: '10px' }}>
-        Close
-      </button>
+      <VisualWorkflowBuilder onClose={handleClose} />
     </div>
   )
 }

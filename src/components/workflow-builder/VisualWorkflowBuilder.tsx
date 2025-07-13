@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button'
 import { ModalLayout } from '@/components/ui/modal-layout'
 import { X, Save, Download, Upload, Settings, Folder, AlertTriangle, Library } from 'lucide-react'
 import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
-import { useProjectStore, useAgentStore } from '@/stores'
+import { useProjectStore } from '@/stores'
 import type {
   WorkflowStepDefinition,
   WorkflowDefinition,
@@ -101,7 +101,6 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
     isSaving,
     validationResult,
     lastError,
-    initWorkflow,
     updateWorkflowMeta,
     addStep,
     setDependencies,
@@ -113,7 +112,6 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
   } = useWorkflowBuilderStore()
 
   const projects = useProjectStore((state) => state.projects)
-  const agents = useAgentStore((state) => state.agents)
 
   // Load modal state
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false)
@@ -146,16 +144,7 @@ export default function VisualWorkflowBuilder({ onClose }: VisualWorkflowBuilder
     setDisplayEdges(edges)
   }, [nodes, edges, setDisplayNodes, setDisplayEdges])
 
-  // Initialize workflow if none exists
-  useEffect(() => {
-    if (!workflow) {
-      const currentProject = agents[0]?.projectId
-        ? projects.find((p) => p.id === agents[0].projectId)
-        : null
-
-      initWorkflow('Untitled Workflow', 'Workflow created in visual builder', currentProject?.id)
-    }
-  }, [workflow, initWorkflow, agents, projects])
+  // Workflow initialization is now handled by the routes that open this component
 
   const handleWorkflowNameChange = useCallback(
     (name: string) => {

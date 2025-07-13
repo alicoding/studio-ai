@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { AgentCard } from '../projects/AgentCard'
 import { Button } from '../ui/button'
 import { UserPlus, Bot, Users, CheckSquare, Square, Trash2, Activity } from 'lucide-react'
@@ -6,7 +7,9 @@ import { useAgentStore, useProjectStore } from '../../stores'
 import { DeleteAgentModal } from '../modals/DeleteAgentModal'
 import { WorkflowList } from '../workflow/WorkflowList'
 import { WorkflowDebugger } from '../workflow/WorkflowDebugger'
+import { WorkflowLibrary } from '../workflow-builder/WorkflowLibrary'
 import { useWorkspaceLayout } from '../../hooks/useWorkspaceLayout'
+import { useWorkflowBuilderStore } from '../../stores/workflowBuilder'
 import {
   DndContext,
   closestCenter,
@@ -50,6 +53,8 @@ export function Sidebar({
   onLoadTeam,
   projectId,
 }: SidebarProps) {
+  const navigate = useNavigate()
+  const { loadWorkflow } = useWorkflowBuilderStore()
   // Get data directly from Zustand stores
   const { configs, getProjectAgents, moveAgentToPosition, clearingAgentId } = useAgentStore()
   const { activeProjectId } = useProjectStore()
@@ -296,9 +301,30 @@ export function Sidebar({
     if (activeTab === 'workflows') {
       return (
         <div className="flex flex-col h-full">
+          {/* Saved Workflows Section */}
+          <div className="px-3 py-2 border-b">
+            <h3 className="text-xs font-medium text-muted-foreground mb-2">Saved Workflows</h3>
+            <div className="max-h-48 overflow-y-auto">
+              <WorkflowLibrary
+                className="text-xs"
+                showActions={false}
+                onLoadWorkflow={(workflow) => {
+                  // Load workflow into store and navigate to builder
+                  loadWorkflow(workflow)
+                  navigate({ to: `/workspace/${projectId}/workflows/new` })
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Executed Workflows Section */}
           <div className="flex-1 overflow-y-auto">
+            <div className="px-3 py-2">
+              <h3 className="text-xs font-medium text-muted-foreground mb-2">Recent Activity</h3>
+            </div>
             <WorkflowList projectId={projectId} />
           </div>
+
           {/* Temporary debugging */}
           {process.env.NODE_ENV === 'development' && (
             <div className="px-4 py-2 border-t bg-background/50">

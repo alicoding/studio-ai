@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, useParams, Outlet } from '@tanstack/react-router'
 import { useEffect, useState, useMemo, useRef } from 'react'
 import type { JSX } from 'react'
 import { toast } from 'sonner'
@@ -506,10 +506,15 @@ function WorkspacePage(): JSX.Element | null {
                 canvasMode={layout.canvasMode}
                 onViewChange={layout.setViewMode}
                 onSidebarToggle={layout.toggleSidebar}
-                onNewWorkflow={() => navigate({ to: `/workspace/${projectId}/workflows/new` })}
+                onNewWorkflow={() => {
+                  console.log('New Workflow clicked! ProjectId:', projectId)
+                  navigate({ to: `/workspace/${projectId}/workflows/new` })
+                }}
               />
 
               <div className="flex-1 overflow-hidden">
+                {/* Check if we have a child route (like /workflows/new) */}
+                <Outlet />
                 {/* Canvas Content - State-preserving agent/workflow view */}
                 <CanvasContent />
               </div>
