@@ -426,6 +426,31 @@ invoke({
 - **Server restart required** when changing API schemas or core services
 - **REQUIRED**: Update @docs/gotchas.md with key learnings before task completion
 
+## Conditional Nodes Implementation Status (2025-01-13)
+
+**CRITICAL**: Conditional nodes are partially implemented. Backend is complete, UI store connection is complete, but full integration pending.
+
+### Completed:
+
+- ✅ **Backend LangGraph Integration** - WorkflowOrchestrator uses native `addConditionalEdges()`
+- ✅ **ConditionEvaluator Service** - Safe JavaScript expression evaluation with template variables
+- ✅ **Schema Updates** - Added condition, trueBranch, falseBranch fields
+- ✅ **ConditionalNode Store Connection** - UI component saves conditions to workflow store
+
+### Pending (Phase 2.2+):
+
+- ⚠️ **Workflow Builder Data Flow** - Ensure conditional data reaches execution API
+- ⚠️ **Edge Connection Logic** - trueBranch/falseBranch must be set when connecting edges
+- ⚠️ **Testing** - API and E2E testing of conditional workflows
+- ⚠️ **MCP Tool Support** - Update MCP tools to handle conditionals
+
+### Key Files:
+
+- `web/server/services/ConditionEvaluator.ts` - Evaluates conditions with template variables
+- `web/server/services/WorkflowOrchestrator.ts` - LangGraph conditional edges implementation
+- `src/components/workflow-builder/nodes/ConditionalNode.tsx` - UI component with store connection
+- `docs/conditional-nodes-implementation.md` - Full implementation tracking
+
 ## Contact
 
 For questions or issues, create a GitHub issue or discuss in the project chat.
