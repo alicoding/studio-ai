@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router'
 import { useEffect, useState, useMemo, useRef } from 'react'
+import type { JSX } from 'react'
 import { toast } from 'sonner'
 import { DeleteAgentModal } from '../../components/modals/DeleteAgentModal'
 import { Sidebar } from '../../components/layout/Sidebar'
@@ -46,7 +47,7 @@ interface ProjectData {
   workspacePath?: string
 }
 
-function WorkspacePage() {
+function WorkspacePage(): JSX.Element | null {
   const navigate = useNavigate()
   const { projectId } = useParams({ from: '/workspace/$projectId' })
 
@@ -435,7 +436,10 @@ function WorkspacePage() {
         onProjectClose={handleCloseProject}
       />
 
-      {openProjectIds.length > 0 && openProjects.length === 0 && projects.length === 0 ? (
+      {!currentProject &&
+      openProjectIds.length > 0 &&
+      openProjects.length === 0 &&
+      projects.length === 0 ? (
         // Show loading state when we have persisted project IDs but projects haven't loaded yet
         <div className="flex items-center justify-center h-[calc(100vh-90px)]">
           <div className="text-center">
@@ -443,7 +447,7 @@ function WorkspacePage() {
             <p className="text-muted-foreground">Restoring your open projects</p>
           </div>
         </div>
-      ) : openProjects.length === 0 ? (
+      ) : !currentProject && openProjects.length === 0 ? (
         <div className="flex items-center justify-center h-[calc(100vh-90px)]">
           <div className="text-center">
             <h2 className="text-2xl font-semibold mb-4">No projects open</h2>

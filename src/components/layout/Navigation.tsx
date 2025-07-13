@@ -1,21 +1,33 @@
 import { Link, useLocation } from '@tanstack/react-router'
 import { Settings, Database, Search, Workflow } from 'lucide-react'
+import { useProjectStore } from '../../stores'
 
 export function Navigation() {
   const location = useLocation()
+  const { activeProjectId, getOpenProjects } = useProjectStore()
 
   const isActive = (path: string) => {
     return location.pathname === path
   }
+
+  // Determine workspace URL - use active project if available, fallback to dashboard
+  const workspaceUrl = activeProjectId
+    ? `/workspace/${activeProjectId}`
+    : getOpenProjects().length > 0
+      ? `/workspace/${getOpenProjects()[0].id}`
+      : '/'
+
+  // Check if current path is workspace-related
+  const isWorkspaceActive = location.pathname === '/' || location.pathname.startsWith('/workspace')
 
   return (
     <nav className="flex items-center justify-between bg-card border-b border-border px-6 h-14">
       <div className="text-xl font-semibold text-primary">Claude Studio</div>
       <div className="flex gap-6">
         <Link
-          to="/"
+          to={workspaceUrl}
           className={`px-4 py-2 rounded-md transition-colors font-medium ${
-            isActive('/')
+            isWorkspaceActive
               ? 'text-primary bg-primary/10 border border-primary/20'
               : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
           }`}
