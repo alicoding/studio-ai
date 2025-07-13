@@ -497,6 +497,7 @@ function WorkspacePage(): JSX.Element | null {
               onAddAgent={() => modalOps.openModal('agentSelection')}
               onCreateAgent={() => modalOps.openModal('createAgent')}
               onLoadTeam={() => modalOps.openModal('teamSelection')}
+              projectId={projectId}
             />
 
             <main className="flex-1 flex flex-col overflow-hidden">

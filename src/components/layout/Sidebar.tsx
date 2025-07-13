@@ -76,14 +76,17 @@ export function Sidebar({
 
   // Load saved workflows when workflows tab is selected
   useEffect(() => {
+    console.log('[Sidebar] Workflow loading check:', { canvasMode, projectId })
     if (canvasMode === 'workflow' && projectId) {
       setIsLoadingWorkflows(true)
+      console.log('[Sidebar] Fetching saved workflows for project:', projectId)
       fetchSavedWorkflows()
         .then((workflows) => {
+          console.log('[Sidebar] Fetched workflows:', workflows)
           setSavedWorkflows(workflows)
         })
         .catch((error) => {
-          console.error('Failed to load saved workflows:', error)
+          console.error('[Sidebar] Failed to load saved workflows:', error)
         })
         .finally(() => {
           setIsLoadingWorkflows(false)

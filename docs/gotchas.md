@@ -1,5 +1,23 @@
 # Claude Studio Gotchas
 
+## Saved Workflows Not Showing in Sidebar (2025-01-13)
+
+- **Problem**: Saved workflows weren't appearing in the sidebar despite API returning data correctly
+- **Root Causes**:
+  1. Missing `projectId` prop - Sidebar component expected projectId but wasn't receiving it from parent
+  2. Database table missing - saved_workflows table didn't exist initially (migration was empty)
+  3. Wrong database file - Local .claude-studio/studio.db vs ~/.claude-studio/studio.db confusion
+- **Solution**:
+  1. Added `projectId={projectId}` prop to Sidebar component in workspace/$projectId.tsx
+  2. Fixed migration 006_add_saved_workflows.ts to actually create the table with indexes
+  3. Database is at ~/.claude-studio/studio.db (not local .claude-studio/)
+- **Key Lesson**: Always verify complete data flow: Database → API → Props → Component
+- **Debugging Pattern**: Check database tables exist, verify API returns data, trace prop passing
+- **Files Modified**:
+  - src/routes/workspace/$projectId.tsx (added projectId prop)
+  - src/lib/storage/migrations/006_add_saved_workflows.ts (fixed migration)
+- **Note**: Multiple .db files in .claude-studio/ can be confusing - the real one is in home directory
+
 ## File System Migration Issues (2025-01-13)
 
 - **Problem**: Migration from /Users/ali to /Volumes/AliDev caused multiple issues:
