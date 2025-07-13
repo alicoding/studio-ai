@@ -59,19 +59,36 @@ router.post('/status/:threadId', async (req: Request, res: Response) => {
 })
 
 /**
- * Get all workflow statuses from database
+ * Get workflow statuses from database, optionally filtered by project
  */
 router.get('/workflows', async (req: Request, res: Response) => {
   try {
+    const { projectId } = req.query as { projectId?: string }
     const registry = WorkflowRegistry.getInstance()
 
-    // First get total count
-    const allWorkflows = await registry.listWorkflows() // No limit to get true count
-    console.log('[Workflows API] Total workflows in database:', allWorkflows.length)
+    // Build filter options
+    const filterOptions: { limit?: number; projectId?: string } = { limit: 100 }
+    if (projectId) {
+      filterOptions.projectId = projectId
+    }
+
+    // First get total count (with same filter)
+    const totalFilterOptions = projectId ? { projectId } : {}
+    const allWorkflows = await registry.listWorkflows(totalFilterOptions) // No limit to get true count
+    console.log(
+      '[Workflows API] Total workflows in database:',
+      allWorkflows.length,
+      projectId ? `for project ${projectId}` : ''
+    )
 
     // Then get limited results for response (to prevent huge responses)
-    const workflows = await registry.listWorkflows({ limit: 100 }) // Limit to 100 recent workflows
-    console.log('[Workflows API] Returning', workflows.length, 'workflows (limited)')
+    const workflows = await registry.listWorkflows(filterOptions) // Limit to 100 recent workflows
+    console.log(
+      '[Workflows API] Returning',
+      workflows.length,
+      'workflows (limited)',
+      projectId ? `for project ${projectId}` : ''
+    )
 
     res.json({ workflows, totalCount: allWorkflows.length })
   } catch (error) {
@@ -286,7 +303,15 @@ export async function updateWorkflowStatus(
       role?: string
       agentId?: string
       task: string
-      status: 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'not_executed' | 'skipped' | 'aborted'
+      status:
+        | 'pending'
+        | 'running'
+        | 'completed'
+        | 'failed'
+        | 'blocked'
+        | 'not_executed'
+        | 'skipped'
+        | 'aborted'
       startTime?: string
       endTime?: string
       error?: string

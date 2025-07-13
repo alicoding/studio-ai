@@ -145,7 +145,7 @@ function ProjectsPage() {
   useWebSocketOperations()
 
   // Global workflow events (SSE for workflow updates)
-  useWorkflowEvents()
+  useWorkflowEvents(activeProjectId ?? undefined)
 
   // Get only the open projects for workspace tabs
   const openProjects = getOpenProjects()

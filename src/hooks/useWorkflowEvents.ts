@@ -9,17 +9,16 @@
 import { useEffect, useRef } from 'react'
 import { useWorkflowStore } from '../stores/workflows'
 
-export const useWorkflowEvents = () => {
+export const useWorkflowEvents = (projectId?: string) => {
   const eventSourceRef = useRef<EventSource | null>(null)
   const fetchWorkflows = useWorkflowStore((state) => state.fetchWorkflows)
   const updateWorkflow = useWorkflowStore((state) => state.updateWorkflow)
   const updateStep = useWorkflowStore((state) => state.updateStep)
 
-  // Initial fetch on mount only
+  // Initial fetch on mount and when project changes
   useEffect(() => {
-    fetchWorkflows()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Empty dependency array for mount-only effect
+    fetchWorkflows(projectId)
+  }, [fetchWorkflows, projectId])
 
   useEffect(() => {
     // Create global SSE connection for workflow events

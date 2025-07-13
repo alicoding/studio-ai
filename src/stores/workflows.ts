@@ -44,7 +44,7 @@ interface WorkflowStore {
   deleteWorkflow: (threadId: string) => Promise<boolean>
   bulkDeleteWorkflows: (threadIds: string[]) => Promise<number>
   cleanupOldWorkflows: (daysOld: number) => Promise<number>
-  fetchWorkflows: () => Promise<void>
+  fetchWorkflows: (projectId?: string) => Promise<void>
   // Selection methods
   toggleWorkflowSelection: (threadId: string) => void
   selectAllWorkflows: () => void
@@ -146,12 +146,15 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
       }
     }),
 
-  fetchWorkflows: async () => {
+  fetchWorkflows: async (projectId?: string) => {
     try {
       // Use window.location.origin (dev server has Redis cross-server communication)
-      const url = `${window.location.origin}/api/invoke-status/workflows`
-      console.log('[WorkflowStore] Fetching workflows from:', url)
-      const response = await fetch(url)
+      const url = new URL(`${window.location.origin}/api/invoke-status/workflows`)
+      if (projectId) {
+        url.searchParams.set('projectId', projectId)
+      }
+      console.log('[WorkflowStore] Fetching workflows from:', url.toString())
+      const response = await fetch(url.toString())
       if (!response.ok) {
         throw new Error(`Failed to fetch workflows: ${response.statusText}`)
       }
