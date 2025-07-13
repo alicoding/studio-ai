@@ -2,10 +2,7 @@
   "mcpServers": {
     "mcp-server-firecrawl": {
       "command": "npx",
-      "args": [
-        "-y",
-        "firecrawl-mcp"
-      ],
+      "args": ["-y", "firecrawl-mcp"],
       "env": {
         "FIRECRAWL_API_KEY": "fc-83ecdca6d56d4233aef5c60454590e5a"
       }
@@ -26,45 +23,26 @@
         "OLLAMA_API_KEY": "YOUR_OLLAMA_API_KEY_HERE"
       }
     },
-    "messaging": {
+    "studio-ai": {
       "command": "node",
       "args": [
-        "/Users/ali/Documents/ai-projects/ai-workflow/mcp/packages/messaging/dist/index.js"
-      ]
+        "/Volumes/AliDev/ai-projects/claude-swarm/claude-team/claude-studio/web/server/mcp/studio-ai/dist/index.js"
+      ],
+      "env": {
+        "CLAUDE_STUDIO_API": "http://localhost:3456/api"
+      }
     },
-    "studio-ai": {
-        "command": "node",
-        "args": ["/Users/ali/claude-swarm/claude-team/claude-studio/web/server/mcp/studio-ai/dist/index.js"],
-        "env": {
-          "CLAUDE_STUDIO_API": "http://localhost:3456/api"
-        }
-      },
     "playwright": {
       "command": "npx",
-      "args": [
-        "@playwright/mcp@latest",
-        "--vision"
-      ]
-    },
-    "screen-pilot": {
-      "command": "/Users/ali/ScreenPilot/venv/bin/python",
-      "args": [
-        "/Users/ali/ScreenPilot/main.py"
-      ]
+      "args": ["@playwright/mcp@latest", "--vision"]
     },
     "sequential-thinking": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ]
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
     },
     "Context7": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp@latest"
-      ]
+      "args": ["-y", "@upstash/context7-mcp@latest"]
     }
   }
 }

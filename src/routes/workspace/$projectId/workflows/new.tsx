@@ -10,13 +10,15 @@ export const Route = createFileRoute('/workspace/$projectId/workflows/new')({
 function NewWorkflowInProject() {
   const navigate = useNavigate()
   const { projectId } = useParams({ from: '/workspace/$projectId/workflows/new' })
-  const { reset, initWorkflow } = useWorkflowBuilderStore()
+  const { initWorkflow, workflow } = useWorkflowBuilderStore()
 
-  // Always create a fresh workflow when this route loads
+  // Only create a fresh workflow if one isn't already loaded
   useEffect(() => {
-    reset() // Clear any existing workflow
-    initWorkflow('Untitled Workflow', 'Project workflow', projectId)
-  }, [reset, initWorkflow, projectId])
+    // If no workflow is loaded, create a new one
+    if (!workflow) {
+      initWorkflow('Untitled Workflow', 'Project workflow', projectId)
+    }
+  }, [workflow, initWorkflow, projectId])
 
   const handleClose = () => {
     navigate({ to: `/workspace/${projectId}` })

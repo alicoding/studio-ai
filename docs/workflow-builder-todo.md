@@ -302,6 +302,27 @@ Once the basics work perfectly, we can evolve:
 
 **None!** Foundation is complete. Ready for next incremental step.
 
+## 🐛 Issues Fixed
+
+### **Saved Workflow Loading Issue** (Jan 13, 2025)
+
+**Problem**: Clicking on saved workflows navigated to `/workspace/{projectId}/workflows/new` but always showed a blank new workflow instead of loading the saved one.
+
+**Root Cause**: Race condition in `src/routes/workspace/$projectId/workflows/new.tsx`. The route component's `useEffect` was always calling `reset()` and `initWorkflow()` when mounting, which cleared any workflow that was loaded by the Sidebar onClick handler.
+
+**Solution**: Modified the route component to check if a workflow is already loaded before initializing a new one:
+
+```typescript
+// Only create a fresh workflow if one isn't already loaded
+useEffect(() => {
+  if (!workflow) {
+    initWorkflow('Untitled Workflow', 'Project workflow', projectId)
+  }
+}, [workflow, initWorkflow, projectId])
+```
+
+**Result**: Saved workflows now load properly when clicked in the sidebar.
+
 ---
 
 **Last Updated**: Jan 2025
