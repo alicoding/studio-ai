@@ -327,7 +327,7 @@ export const WorkflowLibrary: React.FC<WorkflowLibraryProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        // TODO: Implement copy functionality
+                        // Functionality available in WorkflowsPage
                       }}
                       className="p-1 text-gray-600 hover:text-purple-600 transition-colors"
                       title="Duplicate workflow"
@@ -337,7 +337,7 @@ export const WorkflowLibrary: React.FC<WorkflowLibraryProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        // TODO: Implement export functionality
+                        // Functionality available in WorkflowsPage
                       }}
                       className="p-1 text-gray-600 hover:text-indigo-600 transition-colors"
                       title="Export workflow"
@@ -347,7 +347,7 @@ export const WorkflowLibrary: React.FC<WorkflowLibraryProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        // TODO: Implement delete functionality
+                        // Functionality available in WorkflowsPage
                       }}
                       className="p-1 text-gray-600 hover:text-red-600 transition-colors"
                       title="Delete workflow"

@@ -31,6 +31,21 @@ import { WorkflowValidator } from './WorkflowValidator'
 import { WorkflowEventEmitter } from './WorkflowEventEmitter'
 import { WorkflowStateManager } from './WorkflowStateManager'
 import { WorkflowGraphGenerator } from './WorkflowGraphGenerator'
+import { ConditionEvaluator } from './ConditionEvaluator'
+import type { ConditionContext } from '../schemas/workflow-builder'
+
+// Extended WorkflowStep type that includes conditional fields
+interface ConditionalWorkflowStep extends WorkflowStep {
+  type?: 'task' | 'parallel' | 'conditional'
+  condition?: string
+  trueBranch?: string
+  falseBranch?: string
+}
+
+// Type guard to check if step is conditional
+function isConditionalStep(step: WorkflowStep): step is ConditionalWorkflowStep {
+  return 'type' in step && (step as ConditionalWorkflowStep).type === 'conditional'
+}
 
 // LangGraph state type
 interface WorkflowState {
@@ -95,6 +110,7 @@ export class WorkflowOrchestrator {
   private eventEmitter: WorkflowEventEmitter
   private stateManager = new WorkflowStateManager()
   private graphGenerator = new WorkflowGraphGenerator()
+  private conditionEvaluator = ConditionEvaluator.getInstance()
 
   constructor(io?: Server, workflowEvents?: EventEmitter) {
     this.io = io
@@ -370,16 +386,32 @@ export class WorkflowOrchestrator {
       workflow.addNode(step.id!, this.createStepNode(step), { retryPolicy })
     })
 
-    // Add edges based on dependencies
+    // Add edges based on dependencies and conditional logic
     steps.forEach((step) => {
-      if (step.deps && step.deps.length > 0) {
-        // This step depends on others - add edges from dependencies
-        step.deps.forEach((depId) => {
-          workflow.addEdge(depId as '__start__', step.id! as '__start__')
-        })
+      // Handle conditional steps with LangGraph conditional edges
+      if (isConditionalStep(step) && step.condition) {
+        // Add conditional edges for this step
+        workflow.addConditionalEdges(
+          step.id!,
+          (state: typeof WorkflowStateSchema.State) => {
+            return this.evaluateStepCondition(step, state)
+          },
+          {
+            true: step.trueBranch || '__end__',
+            false: step.falseBranch || '__end__',
+          }
+        )
       } else {
-        // No dependencies - connect from start (allows parallel execution)
-        workflow.addEdge('__start__', step.id! as '__start__')
+        // Standard dependency-based edges
+        if (step.deps && step.deps.length > 0) {
+          // This step depends on others - add edges from dependencies
+          step.deps.forEach((depId) => {
+            workflow.addEdge(depId as '__start__', step.id! as '__start__')
+          })
+        } else {
+          // No dependencies - connect from start (allows parallel execution)
+          workflow.addEdge('__start__', step.id! as '__start__')
+        }
       }
     })
 
@@ -391,6 +423,47 @@ export class WorkflowOrchestrator {
 
     const checkpointer = await this.getCheckpointer()
     return workflow.compile({ checkpointer })
+  }
+
+  /**
+   * Evaluate condition for conditional workflow step
+   * SOLID: Single responsibility for condition evaluation
+   * DRY: Reuses existing ConditionEvaluator service
+   */
+  private evaluateStepCondition(
+    step: ConditionalWorkflowStep,
+    state: typeof WorkflowStateSchema.State
+  ): 'true' | 'false' {
+    if (!step.condition) {
+      console.warn(`Conditional step ${step.id} has no condition, defaulting to false`)
+      return 'false'
+    }
+
+    try {
+      // Build condition context from workflow state
+      const context: ConditionContext = {
+        stepOutputs: state.stepOutputs || {},
+        stepResults: state.stepResults || {},
+        metadata: {
+          threadId: state.threadId,
+          projectId: state.projectId,
+          currentStepIndex: state.currentStepIndex,
+        },
+      }
+
+      // Evaluate condition using ConditionEvaluator service
+      const result = this.conditionEvaluator.evaluateCondition(step.condition, context)
+
+      if (result.error) {
+        console.error(`Condition evaluation error for step ${step.id}: ${result.error}`)
+        return 'false' // Default to false on error
+      }
+
+      return result.result ? 'true' : 'false'
+    } catch (error) {
+      console.error(`Unexpected error evaluating condition for step ${step.id}:`, error)
+      return 'false' // Default to false on unexpected error
+    }
   }
 
   /**

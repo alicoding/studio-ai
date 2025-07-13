@@ -29,6 +29,10 @@ export interface WorkflowStepDefinition {
   task: string // Task description with template vars
   deps: string[] // Array of step IDs this depends on
   config?: StepConfig // Optional step configuration
+  // Conditional step fields (only for type: 'conditional')
+  condition?: string // JavaScript expression (e.g., "{step1.output} === 'success'")
+  trueBranch?: string // Step ID to execute if condition is true
+  falseBranch?: string // Step ID to execute if condition is false
 }
 
 /**
@@ -39,6 +43,26 @@ export interface StepConfig {
   retries?: number // Number of retry attempts
   continueOnError?: boolean // Continue workflow even if step fails
   parallelLimit?: number // For parallel steps, max concurrent
+}
+
+/**
+ * Condition evaluation context for conditional steps
+ * Library-First: Uses existing template variable patterns
+ */
+export interface ConditionContext {
+  stepOutputs: Record<string, string> // Previous step outputs for template substitution
+  stepResults: Record<string, { status: string; response: string }> // Full step results
+  metadata: Record<string, unknown> // Additional context data
+}
+
+/**
+ * Condition evaluation result
+ * KISS: Simple boolean result with optional error
+ */
+export interface ConditionResult {
+  result: boolean // True or false evaluation result
+  error?: string // Error message if evaluation failed
+  evaluatedExpression?: string // The expression after template substitution
 }
 
 /**
@@ -128,4 +152,69 @@ export function isWorkflowStepDefinition(obj: unknown): obj is WorkflowStepDefin
     'deps' in obj &&
     Array.isArray((obj as WorkflowStepDefinition).deps)
   )
+}
+
+/**
+ * Validates conditional step configuration
+ * SOLID: Single responsibility for conditional validation
+ */
+export function validateConditionalStep(step: WorkflowStepDefinition): ValidationError[] {
+  const errors: ValidationError[] = []
+
+  if (step.type !== 'conditional') {
+    return errors // Not a conditional step, no validation needed
+  }
+
+  // Conditional steps must have a condition
+  if (!step.condition || step.condition.trim() === '') {
+    errors.push({
+      stepId: step.id,
+      field: 'condition',
+      message: 'Conditional steps must have a condition expression',
+      code: 'CONDITIONAL_MISSING_CONDITION',
+    })
+  }
+
+  // Conditional steps must have at least one branch
+  if (!step.trueBranch && !step.falseBranch) {
+    errors.push({
+      stepId: step.id,
+      field: 'branches',
+      message: 'Conditional steps must have at least one branch (trueBranch or falseBranch)',
+      code: 'CONDITIONAL_MISSING_BRANCHES',
+    })
+  }
+
+  return errors
+}
+
+/**
+ * Validates condition expression syntax
+ * KISS: Basic syntax validation without evaluation
+ */
+export function validateConditionSyntax(condition: string): ValidationError | null {
+  if (!condition || condition.trim() === '') {
+    return {
+      field: 'condition',
+      message: 'Condition cannot be empty',
+      code: 'CONDITION_EMPTY',
+    }
+  }
+
+  // Basic syntax checks - more comprehensive validation in ConditionEvaluator
+  const trimmed = condition.trim()
+
+  // Check for template variable patterns
+  const templateVarPattern = /\{[^}]+\}/g
+  const hasTemplateVars = templateVarPattern.test(trimmed)
+
+  if (!hasTemplateVars && !trimmed.includes('true') && !trimmed.includes('false')) {
+    return {
+      field: 'condition',
+      message: 'Condition must contain template variables (e.g., {step1.output}) or boolean values',
+      code: 'CONDITION_INVALID_SYNTAX',
+    }
+  }
+
+  return null
 }
