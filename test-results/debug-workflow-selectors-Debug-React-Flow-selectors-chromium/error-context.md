@@ -29,17 +29,20 @@
 - button "Library"
 - button "Execute"
 - img
-- button "tester Describe your tester task here... tester":
-    - text: tester
+- button "developer Return the word \"success\" developer":
+    - text: developer
     - button
     - button
-    - text: Describe your tester task here... tester
-- button "tester Describe your tester task here... tester":
-    - text: tester
+    - text: Return the word "success" developer
+- button "Conditional Click to set condition... True False":
+    - text: Conditional Click to set condition...
     - button
+    - text: True False
+- button "While Loop Exit":
+    - text: While
     - button
-    - text: Describe your tester task here... tester
-- button "zoom in" [disabled]:
+    - text: Loop Exit
+- button "zoom in":
     - img
 - button "zoom out":
     - img

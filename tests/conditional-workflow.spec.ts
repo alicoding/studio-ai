@@ -45,8 +45,8 @@ class WorkflowBuilderPage {
       await this.page.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2)
       await this.page.mouse.down()
 
-      // Move to canvas center
-      await this.page.mouse.move(canvasBox.x + 400, canvasBox.y + 300)
+      // Move to canvas center, with offset to avoid palette overlay
+      await this.page.mouse.move(canvasBox.x + 700, canvasBox.y + 300)
       await this.page.mouse.up()
 
       // Wait for the node to be added
@@ -71,8 +71,9 @@ class WorkflowBuilderPage {
       )
       await this.page.mouse.down()
 
-      // Move to the target position on canvas
-      await this.page.mouse.move(canvasBox.x + position.x, canvasBox.y + position.y)
+      // Move to the target position on canvas (ensure it's far from palette)
+      // Add 300px offset to avoid palette overlay
+      await this.page.mouse.move(canvasBox.x + position.x + 300, canvasBox.y + position.y)
       await this.page.mouse.up()
 
       // Wait for the node to be added
@@ -83,31 +84,48 @@ class WorkflowBuilderPage {
   // Node Configuration
   async setConditionalNodeCondition(nodeId: string, condition: string) {
     const node = this.page.locator(`[data-id="${nodeId}"]`)
-    await node.click()
 
-    // Click to edit condition
-    await node.locator('text=Click to set condition...').click()
+    // Click the condition display area to enter editing mode
+    // Use force click to bypass intercepting elements
+    await node.locator('[data-testid="condition-display"]').click({ force: true })
+
+    // Wait for editing mode to activate
+    await node.locator('input[placeholder="Enter condition..."]').waitFor({ state: 'visible' })
 
     // Enter condition
     await node.locator('input[placeholder="Enter condition..."]').fill(condition)
 
     // Save condition
     await node.locator('button:has-text("Save")').click()
+
+    // Wait for editing mode to close
+    await node.locator('input[placeholder="Enter condition..."]').waitFor({ state: 'hidden' })
   }
 
   async setTaskNodeDetails(nodeId: string, task: string, role: string = 'developer') {
     const node = this.page.locator(`[data-id="${nodeId}"]`)
-    await node.click()
 
-    // Open settings
-    await node.locator('[data-testid="node-settings"]').click()
+    // Click the content area to enter editing mode (avoid double-click toggle issue)
+    // Use force click to bypass intercepting elements like the node palette
+    const contentArea = node.locator('.text-sm.text-muted-foreground.cursor-pointer')
+    await contentArea.click({ force: true })
 
-    // Fill task details
-    await this.page.locator('textarea[placeholder="Enter task description..."]').fill(task)
-    await this.page.locator('select[name="role"]').selectOption(role)
+    // Wait for editing mode to activate
+    await node
+      .locator('textarea[placeholder="Enter task description..."]')
+      .waitFor({ state: 'visible' })
+
+    // Fill task details - scope selectors to the specific node
+    await node.locator('textarea[placeholder="Enter task description..."]').fill(task)
+    await node.locator('select[name="role"]').selectOption(role)
 
     // Save
-    await this.page.locator('button:has-text("Save")').click()
+    await node.locator('button:has-text("Save")').click()
+
+    // Wait for editing mode to close
+    await node
+      .locator('textarea[placeholder="Enter task description..."]')
+      .waitFor({ state: 'hidden' })
   }
 
   // Edge Connections
@@ -200,41 +218,38 @@ test.describe('Conditional Workflow E2E Tests', () => {
     await workflowBuilder.navigateToWorkflowBuilder()
 
     // Step 2: Create workflow structure
-    // Add initial task node
+    // Add initial task node (will be step1)
     await workflowBuilder.dragTaskNodeToCanvas({ x: 200, y: 200 })
     await workflowBuilder.setTaskNodeDetails('step1', 'Return the word "success"', 'developer')
 
-    // Add conditional node
+    // Add conditional node (will be step2)
     await workflowBuilder.dragConditionalNodeToCanvas()
-    await workflowBuilder.setConditionalNodeCondition(
-      'conditional1',
-      '{step1.output} === "success"'
-    )
+    await workflowBuilder.setConditionalNodeCondition('step2', '{step1.output} === "success"')
 
-    // Add true branch task
+    // Add true branch task (will be step3)
     await workflowBuilder.dragTaskNodeToCanvas({ x: 600, y: 200 })
     await workflowBuilder.setTaskNodeDetails(
-      'step2',
+      'step3',
       'Execute TRUE branch - Say "Condition was true!"',
       'developer'
     )
 
-    // Add false branch task
+    // Add false branch task (will be step4)
     await workflowBuilder.dragTaskNodeToCanvas({ x: 600, y: 400 })
     await workflowBuilder.setTaskNodeDetails(
-      'step3',
+      'step4',
       'Execute FALSE branch - Say "Condition was false!"',
       'developer'
     )
 
     // Step 3: Connect nodes
-    await workflowBuilder.connectNodes('step1', 'conditional1')
-    await workflowBuilder.connectNodes('conditional1', 'step2', 'true')
-    await workflowBuilder.connectNodes('conditional1', 'step3', 'false')
+    await workflowBuilder.connectNodes('step1', 'step2')
+    await workflowBuilder.connectNodes('step2', 'step3', 'true')
+    await workflowBuilder.connectNodes('step2', 'step4', 'false')
 
     // Step 4: Verify UI state before execution
-    await workflowBuilder.verifyConditionalNodeState('conditional1', '{step1.output} === "success"')
-    await workflowBuilder.verifyNodeConnections('conditional1', ['step2', 'step3'])
+    await workflowBuilder.verifyConditionalNodeState('step2', '{step1.output} === "success"')
+    await workflowBuilder.verifyNodeConnections('step2', ['step3', 'step4'])
 
     // Step 5: Save workflow
     await workflowBuilder.saveWorkflow('Test True Branch Workflow')
@@ -246,9 +261,9 @@ test.describe('Conditional Workflow E2E Tests', () => {
     // Step 7: Verify execution results
     const executedSteps = await workflowBuilder.getExecutedSteps()
     expect(executedSteps).toContain('step1')
-    expect(executedSteps).toContain('conditional1')
-    expect(executedSteps).toContain('step2') // True branch should execute
-    expect(executedSteps).not.toContain('step3') // False branch should not execute
+    expect(executedSteps).toContain('step2') // Conditional node
+    expect(executedSteps).toContain('step3') // True branch should execute
+    expect(executedSteps).not.toContain('step4') // False branch should not execute
 
     // Step 8: Verify workflow completed successfully
     const status = await workflowBuilder.getWorkflowStatus()
@@ -268,29 +283,26 @@ test.describe('Conditional Workflow E2E Tests', () => {
     await workflowBuilder.setTaskNodeDetails('step1', 'Return the word "failure"', 'developer')
 
     await workflowBuilder.dragConditionalNodeToCanvas()
-    await workflowBuilder.setConditionalNodeCondition(
-      'conditional1',
-      '{step1.output} === "success"'
-    )
+    await workflowBuilder.setConditionalNodeCondition('step2', '{step1.output} === "success"')
 
     await workflowBuilder.dragTaskNodeToCanvas({ x: 600, y: 200 })
     await workflowBuilder.setTaskNodeDetails(
-      'step2',
+      'step3',
       'Execute TRUE branch - Say "Condition was true!"',
       'developer'
     )
 
     await workflowBuilder.dragTaskNodeToCanvas({ x: 600, y: 400 })
     await workflowBuilder.setTaskNodeDetails(
-      'step3',
+      'step4',
       'Execute FALSE branch - Say "Condition was false!"',
       'developer'
     )
 
     // Step 3: Connect nodes
-    await workflowBuilder.connectNodes('step1', 'conditional1')
-    await workflowBuilder.connectNodes('conditional1', 'step2', 'true')
-    await workflowBuilder.connectNodes('conditional1', 'step3', 'false')
+    await workflowBuilder.connectNodes('step1', 'step2')
+    await workflowBuilder.connectNodes('step2', 'step3', 'true')
+    await workflowBuilder.connectNodes('step2', 'step4', 'false')
 
     // Step 4: Save and execute
     await workflowBuilder.saveWorkflow('Test False Branch Workflow')
@@ -300,9 +312,9 @@ test.describe('Conditional Workflow E2E Tests', () => {
     // Step 5: Verify false branch execution
     const executedSteps = await workflowBuilder.getExecutedSteps()
     expect(executedSteps).toContain('step1')
-    expect(executedSteps).toContain('conditional1')
-    expect(executedSteps).not.toContain('step2') // True branch should not execute
-    expect(executedSteps).toContain('step3') // False branch should execute
+    expect(executedSteps).toContain('step2') // Conditional node
+    expect(executedSteps).not.toContain('step3') // True branch should not execute
+    expect(executedSteps).toContain('step4') // False branch should execute
   })
 
   test('Workflow state persistence after page reload', async ({ page }) => {
