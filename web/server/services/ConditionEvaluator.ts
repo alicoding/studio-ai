@@ -13,6 +13,8 @@ import type {
   ValidationError,
 } from '../schemas/workflow-builder'
 
+import type { WorkflowCondition } from '../schemas/condition-types'
+
 export class ConditionEvaluator {
   private static instance: ConditionEvaluator
 
@@ -24,9 +26,25 @@ export class ConditionEvaluator {
   }
 
   /**
+   * Evaluate a workflow condition (structured or legacy string)
+   * SOLID: Single entry point for all condition types
+   * DRY: Delegates to appropriate evaluator
+   */
+  evaluateWorkflowCondition(
+    condition: WorkflowCondition,
+    context: ConditionContext
+  ): ConditionResult {
+    // Import StructuredConditionEvaluator dynamically to avoid circular dependency
+    const { StructuredConditionEvaluator } = require('./StructuredConditionEvaluator')
+    const structuredEvaluator = StructuredConditionEvaluator.getInstance()
+    return structuredEvaluator.evaluateCondition(condition, context)
+  }
+
+  /**
    * Evaluate a condition expression with template variable substitution
    * KISS: Simple boolean evaluation with error handling
    * DRY: Uses existing template variable patterns
+   * @deprecated Use evaluateWorkflowCondition for new implementations
    */
   evaluateCondition(condition: string, context: ConditionContext): ConditionResult {
     try {

@@ -13,7 +13,7 @@ import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
 
 interface ConditionalNodeData {
   label: string
-  condition: string
+  condition: string // UI still uses string for editing, conversion happens in handleSave
   description?: string
   stepId?: string // The workflow step ID associated with this node
 }
@@ -28,8 +28,13 @@ function ConditionalNode({ data, selected, id }: NodeProps<ConditionalNodeData>)
   const handleSave = () => {
     // Update the workflow step with the new condition
     if (data.stepId || id) {
+      // Convert string condition to WorkflowCondition (legacy format for backward compatibility)
+      const workflowCondition = localCondition.trim()
+        ? { version: '1.0' as const, expression: localCondition }
+        : undefined
+
       updateStep(data.stepId || id, {
-        condition: localCondition,
+        condition: workflowCondition,
         type: 'conditional' as const,
         // Note: trueBranch and falseBranch would be set when connecting edges in the visual builder
         // The visual builder handles the connection logic

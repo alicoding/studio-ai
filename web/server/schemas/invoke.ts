@@ -9,6 +9,61 @@
 
 import { z } from 'zod'
 
+// Define WorkflowCondition schema to support both structured and legacy conditions
+const WorkflowConditionSchema = z.union([
+  // Structured condition (v2.0)
+  z.object({
+    version: z.literal('2.0'),
+    rootGroup: z.object({
+      id: z.string(),
+      combinator: z.enum(['AND', 'OR']),
+      rules: z
+        .array(
+          z.object({
+            id: z.string(),
+            leftValue: z.union([
+              // Template variable
+              z.object({
+                stepId: z.string(),
+                field: z.enum(['output', 'status', 'response']),
+              }),
+              // Static value
+              z.object({
+                type: z.enum(['string', 'number', 'boolean', 'array', 'object', 'dateTime']),
+                value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+              }),
+            ]),
+            operation: z.string(), // ConditionOperation enum values
+            rightValue: z
+              .union([
+                // Template variable
+                z.object({
+                  stepId: z.string(),
+                  field: z.enum(['output', 'status', 'response']),
+                }),
+                // Static value
+                z.object({
+                  type: z.enum(['string', 'number', 'boolean', 'array', 'object', 'dateTime']),
+                  value: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+                }),
+              ])
+              .optional(),
+            dataType: z.enum(['string', 'number', 'boolean', 'array', 'object', 'dateTime']),
+          })
+        )
+        .optional(),
+      groups: z.array(z.any()).optional(), // Recursive groups handled by WorkflowCondition type
+    }),
+  }),
+  // Legacy condition (v1.0 or undefined)
+  z.object({
+    version: z.union([z.literal('1.0'), z.undefined()]).optional(),
+    expression: z.string(),
+  }),
+  // Backward compatibility: plain string conditions
+  z.string(),
+])
+
 // Single workflow step
 export const WorkflowStepSchema = z
   .object({
@@ -20,7 +75,7 @@ export const WorkflowStepSchema = z
     deps: z.array(z.string()).optional(), // Dependencies on other steps
     // Conditional step fields (only for type: 'conditional')
     type: z.enum(['task', 'conditional', 'parallel']).optional().default('task'),
-    condition: z.string().optional(), // JavaScript expression (e.g., "{step1.output} === 'success'")
+    condition: WorkflowConditionSchema.optional(), // Structured condition or legacy JavaScript expression
     trueBranch: z.string().optional(), // Step ID to execute if condition is true
     falseBranch: z.string().optional(), // Step ID to execute if condition is false
   })
