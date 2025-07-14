@@ -37,14 +37,12 @@ import type {
 // Custom node types
 import WorkflowStepNode from './nodes/WorkflowStepNode'
 import ConditionalNode from './nodes/ConditionalNode'
-import LoopNode from './nodes/LoopNode'
 import DraggableNodePalette from './DraggableNodePalette'
 import WorkflowLibraryModal from './WorkflowLibraryModal'
 
 const nodeTypes: NodeTypes = {
   workflowStep: WorkflowStepNode,
   conditional: ConditionalNode,
-  loop: LoopNode,
 }
 
 interface VisualWorkflowBuilderProps {
@@ -57,12 +55,7 @@ interface VisualWorkflowBuilderProps {
 function stepsToNodes(steps: WorkflowStepDefinition[]): Node[] {
   return steps.map((step, index) => ({
     id: step.id,
-    type:
-      step.type === 'conditional'
-        ? 'conditional'
-        : step.type === 'parallel'
-          ? 'loop'
-          : 'workflowStep',
+    type: step.type === 'conditional' ? 'conditional' : 'workflowStep',
     position: { x: 200 + (index % 3) * 250, y: 100 + Math.floor(index / 3) * 200 },
     data: {
       label: step.role || step.type || 'Task',
@@ -216,26 +209,11 @@ export default function VisualWorkflowBuilder({
       if (!nodeType) return
 
       // Handle different node types - add to store instead of local state
-      const isControlFlow = ['Conditional', 'Loop', 'Parallel', 'Human'].includes(nodeType)
-
       if (nodeType === 'Conditional') {
         addStep({
           type: 'conditional',
           task: 'Configure conditional logic here...',
           role: 'conditional',
-        })
-      } else if (nodeType === 'Loop') {
-        addStep({
-          type: 'parallel', // Using parallel type for now
-          task: 'Configure loop logic here...',
-          role: 'loop',
-        })
-      } else if (isControlFlow) {
-        // For future control flow nodes (Parallel, Human)
-        addStep({
-          type: 'parallel',
-          task: `Configure your ${nodeType.toLowerCase()} logic here...`,
-          role: nodeType.toLowerCase(),
         })
       } else {
         // Regular task nodes (Developer, Architect, etc.)

@@ -16,9 +16,7 @@ import {
   Palette,
   Building,
   GitBranch,
-  RotateCcw,
   Layers,
-  Users,
   User,
 } from 'lucide-react'
 import { useAgentConfigs } from '@/hooks/useAgentConfigs'
@@ -48,7 +46,7 @@ const getIconForRole = (iconName: string) => {
   return iconMap[iconName] || <User className="w-4 h-4" />
 }
 
-// Control flow nodes - LangGraph logic
+// Control flow nodes - Only show what actually works
 const controlNodes: NodeTypeConfig[] = [
   {
     type: 'Conditional',
@@ -58,30 +56,8 @@ const controlNodes: NodeTypeConfig[] = [
     description: 'If/else branching logic',
     category: 'control',
   },
-  {
-    type: 'Loop',
-    label: 'Loop',
-    icon: <RotateCcw className="w-4 h-4" />,
-    color: 'bg-indigo-500',
-    description: 'While, for, or retry loops',
-    category: 'control',
-  },
-  {
-    type: 'Parallel',
-    label: 'Parallel',
-    icon: <Layers className="w-4 h-4" />,
-    color: 'bg-teal-500',
-    description: 'Execute multiple tasks simultaneously',
-    category: 'control',
-  },
-  {
-    type: 'Human',
-    label: 'Human Input',
-    icon: <Users className="w-4 h-4" />,
-    color: 'bg-pink-500',
-    description: 'Wait for human intervention',
-    category: 'control',
-  },
+  // TODO: Implement these properly before showing them
+  // Loop, Parallel, and Human Input nodes removed until actual implementation
 ]
 
 const onDragStart = (event: React.DragEvent, nodeType: string) => {

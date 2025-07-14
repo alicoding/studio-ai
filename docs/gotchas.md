@@ -642,3 +642,20 @@
   - `web/server/api/workflows/execute.ts` - Already had validation (lines 63-68)
 - **Result**: Workflows cannot be executed without proper project context
 - **Pattern**: Always validate required fields at multiple levels for defense in depth
+
+## Fake Node Types Removed (2025-07-14)
+
+- **Problem**: Loop, Parallel, and Human Input nodes were fake UI elements misleading users
+- **User Feedback**: "Loop, Parallel and Human Input is faked?"
+- **Root Cause**: Nodes were added to palette but had no backend implementation
+  - Loop mapped to `type: 'parallel'` with comment "Using parallel type for now"
+  - Parallel and Human also mapped to `type: 'parallel'`
+  - No actual loop iteration, parallel execution, or human input functionality
+- **Solution**: Removed fake nodes from UI to prevent user confusion
+- **Files Modified**:
+  - `src/components/workflow-builder/DraggableNodePalette.tsx` - Removed fake nodes from palette
+  - `src/components/workflow-builder/VisualWorkflowBuilder.tsx` - Removed fake node handling
+  - Removed unused imports (RotateCcw, Users, LoopNode)
+- **Result**: UI now only shows nodes that actually work (Task and Conditional)
+- **Pattern**: Never show UI elements for unimplemented features - it misleads users
+- **Future**: Implement these properly with LangGraph before re-adding to UI
