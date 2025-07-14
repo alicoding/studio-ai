@@ -11,7 +11,7 @@ import { GitBranch, Edit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
 import { extractAvailableFields, conditionToReadableText } from '@/lib/condition-utils'
-import type { WorkflowCondition } from '../../../web/server/schemas/condition-types'
+import type { WorkflowCondition } from '@/types/condition-types'
 import ConditionBuilderModal from '../condition/ConditionBuilderModal'
 
 interface ConditionalNodeData {

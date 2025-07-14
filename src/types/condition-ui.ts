@@ -15,7 +15,7 @@ import type {
   StructuredCondition,
   WorkflowCondition,
   LogicalCombinator,
-} from '../../web/server/schemas/condition-types'
+} from './condition-types'
 
 /**
  * Available field that can be selected in condition rules

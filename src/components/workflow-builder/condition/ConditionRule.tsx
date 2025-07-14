@@ -23,9 +23,9 @@ import { validateConditionRule, conditionValueToField } from '@/lib/condition-ut
 import {
   OPERATION_METADATA,
   getOperationsForDataType,
-} from '../../../web/server/schemas/condition-types'
+  type ConditionDataType,
+} from '@/types/condition-types'
 import type { ConditionRuleProps } from '@/types/condition-ui'
-import type { ConditionDataType } from '../../../web/server/schemas/condition-types'
 import FieldSelector from './FieldSelector'
 import OperationSelector from './OperationSelector'
 import ValueInput from './ValueInput'

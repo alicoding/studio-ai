@@ -7,16 +7,7 @@
  * Library-First: Uses existing condition types and patterns
  */
 
-import type {
-  ConditionDataType,
-  ConditionOperation,
-  ConditionValue,
-  ConditionRule,
-  ConditionGroup,
-  StructuredCondition,
-  WorkflowCondition,
-  LogicalCombinator,
-  TemplateVariable,
+import {
   OPERATION_METADATA,
   getOperationsForDataType,
   isTemplateVariable,
@@ -24,7 +15,16 @@ import type {
   isStructuredCondition,
   isLegacyCondition,
   ConditionValueHelpers,
-} from '../../web/server/schemas/condition-types'
+  type ConditionDataType,
+  type ConditionOperation,
+  type ConditionValue,
+  type ConditionRule,
+  type ConditionGroup,
+  type StructuredCondition,
+  type WorkflowCondition,
+  type LogicalCombinator,
+  type TemplateVariable,
+} from '@/types/condition-types'
 
 import type { AvailableField, ValueInputConfig } from '../types/condition-ui'
 

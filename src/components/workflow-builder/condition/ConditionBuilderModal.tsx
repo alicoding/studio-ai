@@ -21,18 +21,16 @@ import {
   validateStructuredCondition,
   conditionToReadableText,
   cloneCondition,
+  legacyToStructuredCondition,
 } from '@/lib/condition-utils'
 import {
   isStructuredCondition,
   isLegacyCondition,
-  legacyToStructuredCondition,
-} from '../../../web/server/schemas/condition-types'
+  type StructuredCondition,
+  type ConditionGroup,
+} from '@/types/condition-types'
 import type { ConditionBuilderModalProps } from '@/types/condition-ui'
-import type {
-  StructuredCondition,
-  ConditionGroup,
-} from '../../../web/server/schemas/condition-types'
-import ConditionGroup from './ConditionGroup'
+import ConditionGroupComponent from './ConditionGroup'
 
 function ConditionBuilderModal({
   isOpen,
@@ -260,7 +258,7 @@ function ConditionBuilderModal({
                   )}
 
                   {/* Condition builder */}
-                  <ConditionGroup
+                  <ConditionGroupComponent
                     group={condition.rootGroup}
                     availableFields={availableFields}
                     level={0}

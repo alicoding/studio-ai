@@ -16,10 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  OPERATION_METADATA,
-  getOperationsForDataType,
-} from '../../../web/server/schemas/condition-types'
+import { OPERATION_METADATA, getOperationsForDataType } from '@/types/condition-types'
 import type { OperationSelectorProps } from '@/types/condition-ui'
 
 function OperationSelector({

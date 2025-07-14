@@ -20,8 +20,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { createEmptyRule, generateConditionId } from '@/lib/condition-utils'
 import type { ConditionGroupProps } from '@/types/condition-ui'
-import type { LogicalCombinator, ConditionRule } from '../../../web/server/schemas/condition-types'
-import ConditionRule from './ConditionRule'
+import type { LogicalCombinator, ConditionRule } from '@/types/condition-types'
+import ConditionRuleComponent from './ConditionRule'
 
 function ConditionGroup({
   group,
@@ -230,7 +230,7 @@ function ConditionGroup({
                   </Badge>
                 </div>
               )}
-              <ConditionRule
+              <ConditionRuleComponent
                 rule={rule}
                 availableFields={availableFields}
                 isSelected={selectedRuleId === rule.id}

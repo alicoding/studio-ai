@@ -20,11 +20,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getValueInputConfig } from '@/lib/condition-utils'
-import {
-  ConditionValueHelpers,
-  isTemplateVariable,
-  isStaticValue,
-} from '../../../web/server/schemas/condition-types'
+import { ConditionValueHelpers, isTemplateVariable, isStaticValue } from '@/types/condition-types'
 import type { ValueInputProps, AvailableField } from '@/types/condition-ui'
 import FieldSelector from './FieldSelector'
 
@@ -45,6 +41,8 @@ function ValueInput({
 
   // Get current values for display
   const staticValue = value && isStaticValue(value) ? value.value : ''
+  const staticStringValue =
+    typeof staticValue === 'boolean' ? String(staticValue) : staticValue || ''
   const templateField =
     value && isTemplateVariable(value)
       ? availableFields.find((f) => f.stepId === value.stepId && f.field === value.field)
@@ -62,6 +60,10 @@ function ValueInput({
       onValueChange(ConditionValueHelpers.staticString(String(newValue)))
     }
   }
+
+  const handleStringChange = (value: string) => handleStaticValueChange(value)
+  const handleNumberChange = (value: string) => handleStaticValueChange(value)
+  const handleBooleanChange = (value: boolean) => handleStaticValueChange(value)
 
   const handleFieldSelect = (field: AvailableField) => {
     onValueChange({
@@ -85,8 +87,8 @@ function ValueInput({
         return (
           <Input
             type="number"
-            value={staticValue || ''}
-            onChange={(e) => handleStaticValueChange(e.target.value)}
+            value={staticStringValue}
+            onChange={(e) => handleNumberChange(e.target.value)}
             placeholder={inputConfig.placeholder}
             disabled={disabled}
           />
@@ -97,7 +99,7 @@ function ValueInput({
           <div className="flex items-center space-x-2">
             <Switch
               checked={Boolean(staticValue)}
-              onCheckedChange={handleStaticValueChange}
+              onCheckedChange={handleBooleanChange}
               disabled={disabled}
             />
             <Label className="text-sm">{Boolean(staticValue) ? 'True' : 'False'}</Label>
@@ -135,8 +137,8 @@ function ValueInput({
         return (
           <Input
             type="datetime-local"
-            value={staticValue || ''}
-            onChange={(e) => handleStaticValueChange(e.target.value)}
+            value={staticStringValue}
+            onChange={(e) => handleStringChange(e.target.value)}
             placeholder={inputConfig.placeholder}
             disabled={disabled}
           />
@@ -146,8 +148,8 @@ function ValueInput({
         return (
           <Input
             type="text"
-            value={staticValue || ''}
-            onChange={(e) => handleStaticValueChange(e.target.value)}
+            value={staticStringValue}
+            onChange={(e) => handleStringChange(e.target.value)}
             placeholder={inputConfig.placeholder || placeholder}
             disabled={disabled}
           />
