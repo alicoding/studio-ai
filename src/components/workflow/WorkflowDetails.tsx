@@ -206,7 +206,11 @@ curl -s "http://localhost:3457/api/workflow-graph/${debugInfo.threadId}" | jq
               </div>
               <div className="flex items-center gap-1">
                 <GitBranch className="w-3 h-3" />
-                <span>{currentProject?.name || workflow.projectName || 'Unknown project'}</span>
+                <span
+                  className={!currentProject?.name && !workflow.projectName ? 'text-red-500' : ''}
+                >
+                  {currentProject?.name || workflow.projectName || 'No project context'}
+                </span>
               </div>
               <div className="flex items-center gap-1">
                 <Clock className="w-3 h-3" />

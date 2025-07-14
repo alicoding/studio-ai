@@ -259,6 +259,7 @@ export default function VisualWorkflowBuilder({
       }
     } catch (error) {
       console.error('Execution failed:', error)
+      // Error will be displayed in the UI via lastError state
     }
   }
 

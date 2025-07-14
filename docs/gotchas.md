@@ -626,3 +626,19 @@
   - Fixed `Cannot read properties of undefined (reading 'projectId')` with optional chaining
   - Removed Apple resource fork files causing lint errors
 - **Result**: Conditional workflows now match n8n quality with guided condition building and proper execution
+
+## Workflow ProjectId Validation (2025-07-14)
+
+- **Problem**: Workflows executing without projectId showing "Unknown Project" in UI
+- **Root Cause**: Workflows initialized with default 'default' projectId when none provided
+- **Solution**: Enforce projectId validation at multiple levels:
+  1. **Store Level**: Changed default from 'default' to empty string in workflowBuilder store
+  2. **Execution Validation**: Added projectId check in executeWorkflow() function
+  3. **UI Feedback**: Show "No project context" in red when projectId missing
+  4. **API Level**: Existing validation already prevents execution without projectId
+- **Files Modified**:
+  - `src/stores/workflowBuilder.ts` - Added projectId validation in executeWorkflow()
+  - `src/components/workflow/WorkflowDetails.tsx` - Better UI for missing project context
+  - `web/server/api/workflows/execute.ts` - Already had validation (lines 63-68)
+- **Result**: Workflows cannot be executed without proper project context
+- **Pattern**: Always validate required fields at multiple levels for defense in depth

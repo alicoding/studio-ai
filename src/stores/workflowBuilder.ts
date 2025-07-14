@@ -129,7 +129,7 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
           createdAt: new Date().toISOString(),
           version: 1,
           tags: [],
-          projectId: projectId || 'default', // TODO: Get from current project
+          projectId: projectId || '', // Empty string if no projectId provided
         },
       }
 
@@ -333,6 +333,20 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
     executeWorkflow: async () => {
       const state = get()
       if (!state.workflow) throw new Error('No workflow to execute')
+
+      // Validate projectId is present
+      if (!state.workflow.metadata.projectId) {
+        const errorMessage = 'Cannot execute workflow without a project context'
+        set({
+          lastError: errorMessage,
+          validationResult: {
+            valid: false,
+            errors: [{ message: errorMessage, code: 'missing_project_id' }],
+            warnings: [],
+          },
+        })
+        throw new Error(errorMessage)
+      }
 
       set({ isExecuting: true, lastError: null })
 
