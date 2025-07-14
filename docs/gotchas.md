@@ -604,3 +604,25 @@
 - Never convert tool names to lowercase - SDK is case-sensitive
 - Fixed in `web/server/services/claude-agent.ts` - preserve original casing
 - Pattern: Always use discovered tool names without modification
+
+## n8n-Style Conditional Nodes Implementation Complete (2025-07-14)
+
+- **Problem**: User identified conditional nodes as "terrible" compared to n8n - required manual JavaScript syntax input
+- **Solution**: Complete redesign to match n8n quality with structured condition builder
+- **Key Achievements**:
+  1. **Visual Condition Builder**: Replaced text input with guided dropdown UI
+  2. **Structured Data Model**: 50+ operations across 6 data types (String, Number, Boolean, Array, Object, DateTime)
+  3. **Type-Safe Evaluation**: Eliminated JavaScript eval() with structured condition engine
+  4. **Template Variables**: Full support for `{stepId.output}`, `{stepId.status}`, `{stepId.response}`
+  5. **LangGraph Integration**: Native conditional edges with proper branch routing
+- **Files Modified**:
+  - `src/components/workflow-builder/nodes/ConditionalNode.tsx` - Visual builder modal integration
+  - `src/components/workflow-builder/condition/ConditionBuilderModal.tsx` (NEW) - n8n-inspired UI
+  - `web/server/schemas/condition-types.ts` (NEW) - Structured condition data model
+  - `web/server/services/StructuredConditionEvaluator.ts` (NEW) - Type-safe evaluation engine
+  - `src/routes/__root.tsx` - Added TooltipProvider for UI components
+- **Critical Runtime Fixes**:
+  - Fixed `TypeError: Cannot read properties of undefined (reading 'forEach')` with null checks
+  - Fixed `Cannot read properties of undefined (reading 'projectId')` with optional chaining
+  - Removed Apple resource fork files causing lint errors
+- **Result**: Conditional workflows now match n8n quality with guided condition building and proper execution

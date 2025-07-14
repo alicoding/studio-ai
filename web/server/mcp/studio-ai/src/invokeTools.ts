@@ -13,10 +13,54 @@ import ky, { HTTPError } from 'ky'
 // Copy types locally to avoid rootDir issues
 interface WorkflowStep {
   id?: string
-  role: string
+  role?: string
+  agentId?: string
   task: string
   sessionId?: string
   deps?: string[]
+  // Conditional step fields (structured conditions v2.0)
+  type?: 'task' | 'conditional' | 'parallel'
+  condition?: WorkflowCondition
+  trueBranch?: string
+  falseBranch?: string
+}
+
+// Structured condition types for v2.0 support
+interface StructuredCondition {
+  version: '2.0'
+  rootGroup: ConditionGroup
+}
+
+interface LegacyCondition {
+  version?: '1.0' | undefined
+  expression: string
+}
+
+type WorkflowCondition = StructuredCondition | LegacyCondition | string
+
+interface ConditionGroup {
+  id: string
+  combinator: 'AND' | 'OR'
+  rules?: ConditionRule[]
+  groups?: ConditionGroup[]
+}
+
+interface ConditionRule {
+  id: string
+  leftValue: TemplateVariable | StaticValue
+  operation: string
+  rightValue?: TemplateVariable | StaticValue
+  dataType: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'dateTime'
+}
+
+interface TemplateVariable {
+  stepId: string
+  field: 'output' | 'status' | 'response'
+}
+
+interface StaticValue {
+  type: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'dateTime'
+  value: string | number | boolean | null
 }
 
 interface InvokeRequest {
@@ -82,6 +126,53 @@ WORKFLOW PATTERNS:
      ]
    })
 
+5. Conditional workflows with structured conditions (v2.0):
+   invoke({
+     workflow: [
+       { id: "test", role: "dev", task: "Run tests and return result" },
+       { 
+         id: "deploy_check", 
+         type: "conditional",
+         task: "Check if deployment should proceed",
+         condition: {
+           version: "2.0",
+           rootGroup: {
+             id: "root",
+             combinator: "AND",
+             rules: [{
+               id: "rule1",
+               leftValue: { stepId: "test", field: "output" },
+               operation: "equals",
+               rightValue: { type: "string", value: "success" },
+               dataType: "string"
+             }]
+           }
+         },
+         trueBranch: "deploy",
+         falseBranch: "notify_failure",
+         deps: ["test"]
+       },
+       { id: "deploy", role: "dev", task: "Deploy to production" },
+       { id: "notify_failure", role: "dev", task: "Notify team of test failure" }
+     ]
+   })
+
+6. Legacy condition support (backward compatibility):
+   invoke({
+     workflow: [
+       { id: "check", role: "dev", task: "Check status" },
+       { 
+         id: "conditional_step", 
+         type: "conditional",
+         task: "Conditional execution",
+         condition: "{check.output} === 'ready'",  // Legacy string condition
+         trueBranch: "proceed",
+         falseBranch: "wait",
+         deps: ["check"]
+       }
+     ]
+   })
+
 RESUME FUNCTIONALITY:
 • Use same threadId to resume interrupted workflows
 • Check status: POST /api/invoke/status/:threadId  
@@ -94,6 +185,9 @@ TESTED SCENARIOS (100% Success Rate):
 • Complex multi-developer coordination (up to 12 steps)
 • Session resume and abort handling
 • Long-running operations (tested up to 1 hour)
+• Conditional workflows with structured conditions (v2.0)
+• Legacy condition backward compatibility
+• Template variable resolution in conditions
 
 DOCUMENTATION: See docs/mcp-invoke-production-guide.md for complete usage guide.`,
   inputSchema: {
@@ -110,6 +204,13 @@ DOCUMENTATION: See docs/mcp-invoke-production-guide.md for complete usage guide.
               agentId: { type: 'string' },
               task: { type: 'string' },
               deps: { type: 'array', items: { type: 'string' } },
+              type: { type: 'string', enum: ['task', 'conditional', 'parallel'] },
+              condition: {
+                type: 'object',
+                description: 'Structured condition (v2.0) or legacy condition string',
+              },
+              trueBranch: { type: 'string' },
+              falseBranch: { type: 'string' },
             },
             required: ['task'],
             additionalProperties: false,
@@ -124,6 +225,13 @@ DOCUMENTATION: See docs/mcp-invoke-production-guide.md for complete usage guide.
                 agentId: { type: 'string' },
                 task: { type: 'string' },
                 deps: { type: 'array', items: { type: 'string' } },
+                type: { type: 'string', enum: ['task', 'conditional', 'parallel'] },
+                condition: {
+                  type: 'object',
+                  description: 'Structured condition (v2.0) or legacy condition string',
+                },
+                trueBranch: { type: 'string' },
+                falseBranch: { type: 'string' },
               },
               required: ['task'],
               additionalProperties: false,
@@ -131,7 +239,7 @@ DOCUMENTATION: See docs/mcp-invoke-production-guide.md for complete usage guide.
           },
         ],
         description:
-          'Single step {role:"dev", task:"code"} OR multi-step array [{id:"step1", role:"dev", task:"code"}, {id:"step2", role:"ux", task:"design UI based on {step1.output}", deps:["step1"]}]. Use deps array for sequential workflows. Template variables {stepId.output} pass data between steps.',
+          'Single step {role:"dev", task:"code"} OR multi-step array [{id:"step1", role:"dev", task:"code"}, {id:"step2", type:"conditional", condition:{version:"2.0", rootGroup:{...}}, trueBranch:"step3", falseBranch:"step4"}]. Supports structured conditions (v2.0), legacy conditions, and template variables {stepId.output}.',
       },
       projectId: {
         type: 'string',

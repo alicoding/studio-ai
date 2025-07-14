@@ -44,6 +44,48 @@ export interface WorkflowStepDefinition {
     continueOnError?: boolean
     parallelLimit?: number
   }
+  // Conditional step fields for structured conditions v2.0
+  condition?: WorkflowCondition
+  trueBranch?: string
+  falseBranch?: string
+}
+
+// Structured condition types for v2.0 support
+interface StructuredCondition {
+  version: '2.0'
+  rootGroup: ConditionGroup
+}
+
+interface LegacyCondition {
+  version?: '1.0' | undefined
+  expression: string
+}
+
+type WorkflowCondition = StructuredCondition | LegacyCondition | string
+
+interface ConditionGroup {
+  id: string
+  combinator: 'AND' | 'OR'
+  rules?: ConditionRule[]
+  groups?: ConditionGroup[]
+}
+
+interface ConditionRule {
+  id: string
+  leftValue: TemplateVariable | StaticValue
+  operation: string
+  rightValue?: TemplateVariable | StaticValue
+  dataType: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'dateTime'
+}
+
+interface TemplateVariable {
+  stepId: string
+  field: 'output' | 'status' | 'response'
+}
+
+interface StaticValue {
+  type: 'string' | 'number' | 'boolean' | 'array' | 'object' | 'dateTime'
+  value: string | number | boolean | null
 }
 
 interface WorkflowValidationResult {
@@ -120,9 +162,9 @@ const NODE_TYPES = [
   },
   {
     type: 'conditional',
-    description: 'Task with conditional execution (future feature)',
-    required: ['task'],
-    optional: ['agentId', 'role', 'deps', 'config'],
+    description: 'Task with conditional execution using structured conditions (v2.0)',
+    required: ['task', 'condition'],
+    optional: ['agentId', 'role', 'deps', 'config', 'trueBranch', 'falseBranch'],
     schema: {
       id: 'string (auto-generated)',
       type: '"conditional"',
@@ -130,11 +172,13 @@ const NODE_TYPES = [
       role: 'string - role-based assignment',
       task: 'string - task description',
       deps: 'string[] - dependencies',
+      condition: 'WorkflowCondition - structured condition (v2.0) or legacy expression',
+      trueBranch: 'string - step ID to execute if condition is true',
+      falseBranch: 'string - step ID to execute if condition is false',
       config: {
         timeout: 'number - timeout in milliseconds',
         retries: 'number - retry attempts',
         continueOnError: 'boolean',
-        condition: 'string - condition expression (future)',
       },
     },
   },
@@ -419,6 +463,10 @@ export async function handleAddWorkflowStep(args: {
       agentId: args.step.agentId,
       role: args.step.role,
       config: args.step.config,
+      // Conditional step fields
+      condition: args.step.condition,
+      trueBranch: args.step.trueBranch,
+      falseBranch: args.step.falseBranch,
     }
 
     // Add to workflow

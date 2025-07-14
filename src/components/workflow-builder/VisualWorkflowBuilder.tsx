@@ -80,14 +80,16 @@ function stepsToEdges(steps: WorkflowStepDefinition[]): Edge[] {
   const edges: Edge[] = []
 
   steps.forEach((step) => {
-    step.deps.forEach((depId) => {
-      edges.push({
-        id: `${depId}-${step.id}`,
-        source: depId,
-        target: step.id,
-        type: 'smoothstep',
+    if (step.deps && Array.isArray(step.deps)) {
+      step.deps.forEach((depId) => {
+        edges.push({
+          id: `${depId}-${step.id}`,
+          source: depId,
+          target: step.id,
+          type: 'smoothstep',
+        })
       })
-    })
+    }
   })
 
   return edges
@@ -162,10 +164,10 @@ export default function VisualWorkflowBuilder({
 
   // Get current project context
   const currentProject = useMemo(() => {
-    return workflow?.metadata.projectId
+    return workflow?.metadata?.projectId
       ? projects.find((p) => p.id === workflow.metadata.projectId)
       : null
-  }, [workflow?.metadata.projectId, projects])
+  }, [workflow?.metadata?.projectId, projects])
 
   const onConnect = useCallback(
     (params: Connection | Edge) => {
