@@ -37,12 +37,18 @@ import type {
 // Custom node types
 import WorkflowStepNode from './nodes/WorkflowStepNode'
 import ConditionalNode from './nodes/ConditionalNode'
+import LoopNode from './nodes/LoopNode'
+import ParallelNode from './nodes/ParallelNode'
+import HumanNode from './nodes/HumanNode'
 import DraggableNodePalette from './DraggableNodePalette'
 import WorkflowLibraryModal from './WorkflowLibraryModal'
 
 const nodeTypes: NodeTypes = {
   workflowStep: WorkflowStepNode,
   conditional: ConditionalNode,
+  loop: LoopNode,
+  parallel: ParallelNode,
+  human: HumanNode,
 }
 
 interface VisualWorkflowBuilderProps {
@@ -53,19 +59,52 @@ interface VisualWorkflowBuilderProps {
 
 // Convert workflow steps to React Flow nodes
 function stepsToNodes(steps: WorkflowStepDefinition[]): Node[] {
-  return steps.map((step, index) => ({
-    id: step.id,
-    type: step.type === 'conditional' ? 'conditional' : 'workflowStep',
-    position: { x: 200 + (index % 3) * 250, y: 100 + Math.floor(index / 3) * 200 },
-    data: {
-      label: step.role || step.type || 'Task',
-      task: step.task,
-      role: step.role,
-      agentId: step.agentId,
-      type: step.type,
-      stepId: step.id, // Reference to store
-    },
-  }))
+  return steps.map((step, index) => {
+    // Map step type to React Flow node type
+    let nodeType = 'workflowStep'
+    switch (step.type) {
+      case 'conditional':
+        nodeType = 'conditional'
+        break
+      case 'loop':
+        nodeType = 'loop'
+        break
+      case 'parallel':
+        nodeType = 'parallel'
+        break
+      case 'human':
+        nodeType = 'human'
+        break
+    }
+
+    return {
+      id: step.id,
+      type: nodeType,
+      position: { x: 200 + (index % 3) * 250, y: 100 + Math.floor(index / 3) * 200 },
+      data: {
+        label: step.role || step.type || 'Task',
+        task: step.task,
+        role: step.role,
+        agentId: step.agentId,
+        type: step.type,
+        stepId: step.id, // Reference to store
+        // Include additional fields for specific node types
+        ...(step.type === 'loop' && {
+          items: step.items,
+          loopVar: step.loopVar,
+          maxIterations: step.maxIterations,
+        }),
+        ...(step.type === 'parallel' && {
+          parallelSteps: step.parallelSteps,
+        }),
+        ...(step.type === 'human' && {
+          prompt: step.prompt,
+          approvalRequired: step.approvalRequired,
+          timeoutSeconds: step.timeoutSeconds,
+        }),
+      },
+    }
+  })
 }
 
 // Convert workflow steps dependencies to React Flow edges
@@ -209,19 +248,48 @@ export default function VisualWorkflowBuilder({
       if (!nodeType) return
 
       // Handle different node types - add to store instead of local state
-      if (nodeType === 'Conditional') {
-        addStep({
-          type: 'conditional',
-          task: 'Configure conditional logic here...',
-          role: 'conditional',
-        })
-      } else {
-        // Regular task nodes (Developer, Architect, etc.)
-        addStep({
-          type: 'task',
-          task: `Describe your ${nodeType.toLowerCase()} task here...`,
-          role: nodeType.toLowerCase(),
-        })
+      switch (nodeType) {
+        case 'Conditional':
+          addStep({
+            type: 'conditional',
+            task: 'Configure conditional logic here...',
+            role: 'conditional',
+          })
+          break
+        case 'Loop':
+          addStep({
+            type: 'loop',
+            task: 'Configure loop iteration here...',
+            role: 'loop',
+            items: ['item1', 'item2', 'item3'],
+            loopVar: 'item',
+          })
+          break
+        case 'Parallel':
+          addStep({
+            type: 'parallel',
+            task: 'Configure parallel execution here...',
+            role: 'parallel',
+            parallelSteps: [],
+          })
+          break
+        case 'Human':
+          addStep({
+            type: 'human',
+            task: 'Configure human input here...',
+            role: 'human',
+            prompt: 'Please review and approve to continue',
+            approvalRequired: true,
+            timeoutSeconds: 3600,
+          })
+          break
+        default:
+          // Regular task nodes (Developer, Architect, etc.)
+          addStep({
+            type: 'task',
+            task: `Describe your ${nodeType.toLowerCase()} task here...`,
+            role: nodeType.toLowerCase(),
+          })
       }
     },
     [addStep]

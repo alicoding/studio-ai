@@ -34,7 +34,7 @@ export interface WorkflowDefinition {
  */
 export interface WorkflowStepDefinition {
   id: string // Step ID (e.g., "step1", "design_api")
-  type: 'task' | 'parallel' | 'conditional' // Step type (for future expansion)
+  type: 'task' | 'parallel' | 'conditional' | 'loop' | 'human' // Step type
   agentId?: string // Specific agent ID (e.g., "dev_01")
   role?: string // Or role-based (e.g., "developer")
   task: string // Task description with template vars
@@ -44,6 +44,16 @@ export interface WorkflowStepDefinition {
   condition?: WorkflowCondition // Structured condition or legacy JavaScript expression
   trueBranch?: string // Step ID to execute if condition is true
   falseBranch?: string // Step ID to execute if condition is false
+  // Loop-specific fields
+  items?: string[] // Array of items to loop over
+  loopVar?: string // Variable name for current item (default: 'item')
+  maxIterations?: number // Maximum number of iterations
+  // Human input fields
+  prompt?: string // Prompt for human input
+  approvalRequired?: boolean // Whether approval is required
+  timeoutSeconds?: number // Timeout for human input
+  // Parallel fields
+  parallelSteps?: string[] // IDs of steps to run in parallel
 }
 
 /**

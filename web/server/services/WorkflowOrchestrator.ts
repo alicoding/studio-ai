@@ -34,17 +34,42 @@ import { WorkflowGraphGenerator } from './WorkflowGraphGenerator'
 import { ConditionEvaluator } from './ConditionEvaluator'
 import type { ConditionContext } from '../schemas/workflow-builder'
 
-// Extended WorkflowStep type that includes conditional fields
-interface ConditionalWorkflowStep extends WorkflowStep {
-  type?: 'task' | 'parallel' | 'conditional'
+// Extended WorkflowStep type that includes conditional fields and new node types
+interface ExtendedWorkflowStep extends WorkflowStep {
+  type?: 'task' | 'parallel' | 'conditional' | 'loop' | 'human'
   condition?: string
   trueBranch?: string
   falseBranch?: string
+  // Loop-specific fields
+  items?: string[] // Array of items to loop over
+  loopVar?: string // Variable name for current item
+  maxIterations?: number // Maximum number of iterations
+  // Human input fields
+  prompt?: string // Prompt for human input
+  approvalRequired?: boolean // Whether approval is required
+  timeoutSeconds?: number // Timeout for human input
+  // Parallel fields
+  parallelSteps?: string[] // IDs of steps to run in parallel
 }
 
 // Type guard to check if step is conditional
-function isConditionalStep(step: WorkflowStep): step is ConditionalWorkflowStep {
-  return 'type' in step && (step as ConditionalWorkflowStep).type === 'conditional'
+function isConditionalStep(step: WorkflowStep): step is ExtendedWorkflowStep {
+  return 'type' in step && (step as ExtendedWorkflowStep).type === 'conditional'
+}
+
+// Type guard to check if step is loop
+function isLoopStep(step: WorkflowStep): step is ExtendedWorkflowStep {
+  return 'type' in step && (step as ExtendedWorkflowStep).type === 'loop'
+}
+
+// Type guard to check if step is parallel
+function isParallelStep(step: WorkflowStep): step is ExtendedWorkflowStep {
+  return 'type' in step && (step as ExtendedWorkflowStep).type === 'parallel'
+}
+
+// Type guard to check if step is human input
+function isHumanStep(step: WorkflowStep): step is ExtendedWorkflowStep {
+  return 'type' in step && (step as ExtendedWorkflowStep).type === 'human'
 }
 
 // LangGraph state type
@@ -384,7 +409,22 @@ export class WorkflowOrchestrator {
     // Add a node for each step with retry policy
     // IMPORTANT: Skip conditional steps - they are not execution nodes
     steps.forEach((step) => {
-      if (!isConditionalStep(step)) {
+      if (isConditionalStep(step)) {
+        // Conditional steps are handled with conditional edges, not as nodes
+        return
+      }
+
+      if (isLoopStep(step)) {
+        // Loop nodes need special handling for iteration
+        workflow.addNode(step.id!, this.createLoopNode(step), { retryPolicy })
+      } else if (isParallelStep(step)) {
+        // Parallel nodes coordinate parallel execution
+        workflow.addNode(step.id!, this.createParallelNode(step), { retryPolicy })
+      } else if (isHumanStep(step)) {
+        // Human input nodes pause for approval
+        workflow.addNode(step.id!, this.createHumanNode(step), { retryPolicy })
+      } else {
+        // Regular task nodes
         workflow.addNode(step.id!, this.createStepNode(step), { retryPolicy })
       }
     })
@@ -638,6 +678,290 @@ export class WorkflowOrchestrator {
           status: abortInfo.isAbort ? ('aborted' as const) : ('failed' as const),
           // Preserve all sessionIds for potential resume
           sessionIds: state.sessionIds,
+        }
+      }
+    }
+  }
+
+  /**
+   * Create a LangGraph node for loop execution
+   * Uses native LangGraph patterns for iteration
+   */
+  private createLoopNode(step: ExtendedWorkflowStep) {
+    return async (state: typeof WorkflowStateSchema.State) => {
+      const startTime = Date.now()
+
+      // Emit loop start event
+      this.emitWorkflowEvent({
+        type: 'step_start',
+        threadId: state.threadId,
+        stepId: step.id,
+      })
+
+      try {
+        // Get items to loop over
+        const items = step.items || []
+        const loopVar = step.loopVar || 'item'
+        const maxIterations = step.maxIterations || items.length
+
+        const loopResults: StepResult[] = []
+        const loopOutputs: string[] = []
+
+        // Execute loop iterations
+        for (let i = 0; i < Math.min(items.length, maxIterations); i++) {
+          const item = items[i]
+
+          // Create a loop context with the current item
+          const loopContext = {
+            ...state,
+            [`${loopVar}`]: item,
+            [`${loopVar}_index`]: i,
+          }
+
+          // Execute the loop body (task with template variables)
+          const taskWithLoopVars = step.task?.replace(new RegExp(`\\{${loopVar}\\}`, 'g'), item)
+
+          const loopStep = {
+            ...step,
+            id: `${step.id}_iteration_${i}`,
+            task: taskWithLoopVars || step.task,
+          }
+
+          // Execute using the appropriate executor
+          const context: WorkflowContext = {
+            step: loopStep,
+            state: loopContext as typeof WorkflowStateSchema.State,
+            templateVariables: this.stateManager.resolveTemplateVariables(
+              loopStep.task || '',
+              loopContext.stepOutputs
+            ),
+          }
+
+          const executor = this.executorRegistry.getExecutor()
+          const result = await executor.execute(context)
+
+          loopResults.push(result)
+          loopOutputs.push(result.response)
+        }
+
+        // Combine loop results
+        const combinedResult: StepResult = {
+          stepId: step.id!,
+          status: loopResults.every((r) => r.status === 'success') ? 'success' : 'failed',
+          response: loopOutputs.join('\n---\n'),
+          sessionId: loopResults[0]?.sessionId,
+          duration: Date.now() - startTime,
+        }
+
+        this.emitWorkflowEvent({
+          type: 'step_complete',
+          threadId: state.threadId,
+          stepId: step.id,
+        })
+
+        return {
+          stepResults: { ...state.stepResults, [step.id!]: combinedResult },
+          stepOutputs: { ...state.stepOutputs, [step.id!]: combinedResult.response },
+          sessionIds: { ...state.sessionIds, [step.id!]: combinedResult.sessionId },
+        }
+      } catch (error) {
+        console.error(`Loop ${step.id} error:`, error)
+        const errorResult: StepResult = {
+          stepId: step.id!,
+          status: 'failed',
+          response: `Loop execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          duration: Date.now() - startTime,
+        }
+
+        return {
+          stepResults: { ...state.stepResults, [step.id!]: errorResult },
+          stepOutputs: { ...state.stepOutputs, [step.id!]: errorResult.response },
+          status: 'failed' as const,
+        }
+      }
+    }
+  }
+
+  /**
+   * Create a LangGraph node for parallel execution
+   * Uses native LangGraph branching for parallel flows
+   */
+  private createParallelNode(step: ExtendedWorkflowStep) {
+    return async (state: typeof WorkflowStateSchema.State) => {
+      const startTime = Date.now()
+
+      // Emit parallel start event
+      this.emitWorkflowEvent({
+        type: 'step_start',
+        threadId: state.threadId,
+        stepId: step.id,
+      })
+
+      try {
+        // Get parallel step IDs
+        const parallelStepIds = step.parallelSteps || []
+
+        // Execute all parallel steps concurrently
+        const parallelPromises = parallelStepIds.map(async (stepId) => {
+          const parallelStep = state.steps.find((s) => s.id === stepId)
+          if (!parallelStep) {
+            throw new Error(`Parallel step ${stepId} not found`)
+          }
+
+          const context: WorkflowContext = {
+            step: parallelStep,
+            state,
+            templateVariables: this.stateManager.resolveTemplateVariables(
+              parallelStep.task || '',
+              state.stepOutputs
+            ),
+          }
+
+          const executor = this.executorRegistry.getExecutor()
+          return executor.execute(context)
+        })
+
+        // Wait for all parallel executions
+        const parallelResults = await Promise.allSettled(parallelPromises)
+
+        // Process results
+        const successResults = parallelResults
+          .filter((r): r is PromiseFulfilledResult<StepResult> => r.status === 'fulfilled')
+          .map((r) => r.value)
+
+        const failedResults = parallelResults.filter(
+          (r): r is PromiseRejectedResult => r.status === 'rejected'
+        )
+
+        // Combine parallel results
+        const combinedResult: StepResult = {
+          stepId: step.id!,
+          status: failedResults.length === 0 ? 'success' : 'failed',
+          response: successResults.map((r) => r.response).join('\n---\n'),
+          sessionId: successResults[0]?.sessionId,
+          duration: Date.now() - startTime,
+        }
+
+        this.emitWorkflowEvent({
+          type: 'step_complete',
+          threadId: state.threadId,
+          stepId: step.id,
+        })
+
+        // Update state with results from all parallel steps
+        const newStepResults = { ...state.stepResults }
+        const newStepOutputs = { ...state.stepOutputs }
+        const newSessionIds = { ...state.sessionIds }
+
+        successResults.forEach((result) => {
+          newStepResults[result.stepId] = result
+          newStepOutputs[result.stepId] = result.response
+          if (result.sessionId) {
+            newSessionIds[result.stepId] = result.sessionId
+          }
+        })
+
+        // Also add the parallel node result
+        newStepResults[step.id!] = combinedResult
+        newStepOutputs[step.id!] = combinedResult.response
+        if (combinedResult.sessionId) {
+          newSessionIds[step.id!] = combinedResult.sessionId
+        }
+
+        return {
+          stepResults: newStepResults,
+          stepOutputs: newStepOutputs,
+          sessionIds: newSessionIds,
+        }
+      } catch (error) {
+        console.error(`Parallel ${step.id} error:`, error)
+        const errorResult: StepResult = {
+          stepId: step.id!,
+          status: 'failed',
+          response: `Parallel execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          duration: Date.now() - startTime,
+        }
+
+        return {
+          stepResults: { ...state.stepResults, [step.id!]: errorResult },
+          stepOutputs: { ...state.stepOutputs, [step.id!]: errorResult.response },
+          status: 'failed' as const,
+        }
+      }
+    }
+  }
+
+  /**
+   * Create a LangGraph node for human input/approval
+   * Implements human-in-the-loop pattern
+   */
+  private createHumanNode(step: ExtendedWorkflowStep) {
+    return async (state: typeof WorkflowStateSchema.State) => {
+      const startTime = Date.now()
+
+      // Emit human input request event
+      this.emitWorkflowEvent({
+        type: 'human_input_required',
+        threadId: state.threadId,
+        stepId: step.id,
+        prompt: step.prompt || 'Human approval required',
+      })
+
+      try {
+        // For now, we'll simulate human approval
+        // In a real implementation, this would pause and wait for actual human input
+        // This could be implemented via:
+        // 1. WebSocket event to frontend
+        // 2. Polling endpoint for approval status
+        // 3. Callback URL for approval webhook
+
+        console.log(`Human input requested for step ${step.id}: ${step.prompt}`)
+
+        // Simulate approval after a delay (in real implementation, this would wait for actual input)
+        if (process.env.USE_MOCK_AI === 'true') {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+
+          const approvalResult: StepResult = {
+            stepId: step.id!,
+            status: 'success',
+            response: 'Human approval granted (simulated)',
+            duration: Date.now() - startTime,
+          }
+
+          this.emitWorkflowEvent({
+            type: 'human_input_received',
+            threadId: state.threadId,
+            stepId: step.id,
+            approved: true,
+          })
+
+          this.emitWorkflowEvent({
+            type: 'step_complete',
+            threadId: state.threadId,
+            stepId: step.id,
+          })
+
+          return {
+            stepResults: { ...state.stepResults, [step.id!]: approvalResult },
+            stepOutputs: { ...state.stepOutputs, [step.id!]: approvalResult.response },
+          }
+        }
+
+        // In production, this would integrate with a real approval system
+        throw new Error('Human input workflow not fully implemented for production use')
+      } catch (error) {
+        console.error(`Human input ${step.id} error:`, error)
+        const errorResult: StepResult = {
+          stepId: step.id!,
+          status: 'failed',
+          response: `Human input failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          duration: Date.now() - startTime,
+        }
+
+        return {
+          stepResults: { ...state.stepResults, [step.id!]: errorResult },
+          stepOutputs: { ...state.stepOutputs, [step.id!]: errorResult.response },
+          status: 'failed' as const,
         }
       }
     }

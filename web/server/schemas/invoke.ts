@@ -73,15 +73,34 @@ export const WorkflowStepSchema = z
     task: z.string().min(1), // Task with template variables
     sessionId: z.string().optional(), // Resume specific session
     deps: z.array(z.string()).optional(), // Dependencies on other steps
-    // Conditional step fields (only for type: 'conditional')
-    type: z.enum(['task', 'conditional', 'parallel']).optional().default('task'),
+    // Step type
+    type: z.enum(['task', 'conditional', 'parallel', 'loop', 'human']).optional().default('task'),
+    // Conditional step fields
     condition: WorkflowConditionSchema.optional(), // Structured condition or legacy JavaScript expression
     trueBranch: z.string().optional(), // Step ID to execute if condition is true
     falseBranch: z.string().optional(), // Step ID to execute if condition is false
+    // Loop-specific fields
+    items: z.array(z.string()).optional(), // Array of items to loop over
+    loopVar: z.string().optional(), // Variable name for current item (default: 'item')
+    maxIterations: z.number().optional(), // Maximum number of iterations
+    // Human input fields
+    prompt: z.string().optional(), // Prompt for human input
+    approvalRequired: z.boolean().optional(), // Whether approval is required
+    timeoutSeconds: z.number().optional(), // Timeout for human input
+    // Parallel fields
+    parallelSteps: z.array(z.string()).optional(), // IDs of steps to run in parallel
   })
-  .refine((data) => data.role || data.agentId || data.type === 'conditional', {
-    message: "Either 'role' or 'agentId' must be provided (except for conditional steps)",
-  })
+  .refine(
+    (data) => {
+      // Some node types don't require agents
+      const noAgentTypes = ['conditional', 'loop', 'parallel', 'human']
+      return data.role || data.agentId || noAgentTypes.includes(data.type || 'task')
+    },
+    {
+      message:
+        "Either 'role' or 'agentId' must be provided (except for conditional, loop, parallel, and human steps)",
+    }
+  )
   .refine(
     (data) => {
       // Conditional steps must have condition and at least one branch
@@ -93,6 +112,42 @@ export const WorkflowStepSchema = z
     {
       message:
         'Conditional steps must have a condition and at least one branch (trueBranch or falseBranch)',
+    }
+  )
+  .refine(
+    (data) => {
+      // Loop steps must have items to loop over
+      if (data.type === 'loop') {
+        return data.items && data.items.length > 0
+      }
+      return true
+    },
+    {
+      message: 'Loop steps must have items array with at least one item',
+    }
+  )
+  .refine(
+    (data) => {
+      // Parallel steps must have parallelSteps array
+      if (data.type === 'parallel') {
+        return data.parallelSteps && data.parallelSteps.length > 0
+      }
+      return true
+    },
+    {
+      message: 'Parallel steps must have parallelSteps array with at least one step ID',
+    }
+  )
+  .refine(
+    (data) => {
+      // Human steps must have a prompt
+      if (data.type === 'human') {
+        return data.prompt && data.prompt.length > 0
+      }
+      return true
+    },
+    {
+      message: 'Human input steps must have a prompt',
     }
   )
 

@@ -1,165 +1,181 @@
 /**
- * LoopNode - Visual loop/iteration node
+ * LoopNode - Loop iteration node for workflow builder
  *
- * SOLID: Single responsibility - loop logic
- * KISS: Circular shape with loop arrow makes iteration obvious
+ * SOLID: Single responsibility - loop configuration UI
+ * DRY: Reuses common node components and patterns
+ * KISS: Simple form for loop parameters
+ * Library-First: Uses React Flow Handle component
  */
 
-import { memo, useState } from 'react'
 import { Handle, Position, NodeProps } from 'reactflow'
-import { RotateCcw, Settings, Repeat } from 'lucide-react'
+import { RotateCcw, Plus, X } from 'lucide-react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
 
 interface LoopNodeData {
   label: string
-  loopType: 'while' | 'for' | 'retry'
-  condition: string
+  items?: string[]
+  loopVar?: string
   maxIterations?: number
-  currentIteration?: number
 }
 
-function LoopNode({ data, selected }: NodeProps<LoopNodeData>) {
+export default function LoopNode({ id, data, selected }: NodeProps<LoopNodeData>) {
   const [isEditing, setIsEditing] = useState(false)
-  const [localCondition, setLocalCondition] = useState(data.condition || '')
-  const [maxIterations, setMaxIterations] = useState(data.maxIterations || 10)
+  const [items, setItems] = useState<string[]>(data.items || ['item1', 'item2', 'item3'])
+  const [loopVar, setLoopVar] = useState(data.loopVar || 'item')
+  const [maxIterations, setMaxIterations] = useState(data.maxIterations || 0)
+  const [newItem, setNewItem] = useState('')
+
+  const updateStep = useWorkflowBuilderStore((state) => state.updateStep)
 
   const handleSave = () => {
-    // TODO: Update store with new loop settings
+    updateStep(id, {
+      items,
+      loopVar,
+      maxIterations: maxIterations || items.length,
+    })
     setIsEditing(false)
   }
 
-  const getLoopIcon = () => {
-    switch (data.loopType) {
-      case 'retry': return <RotateCcw className="w-5 h-5 text-orange-600" />
-      case 'for': return <Repeat className="w-5 h-5 text-blue-600" />
-      default: return <RotateCcw className="w-5 h-5 text-green-600" />
+  const handleAddItem = () => {
+    if (newItem.trim()) {
+      setItems([...items, newItem.trim()])
+      setNewItem('')
     }
   }
 
-  const getLoopColor = () => {
-    switch (data.loopType) {
-      case 'retry': return 'border-orange-500 bg-orange-50'
-      case 'for': return 'border-blue-500 bg-blue-50'
-      default: return 'border-green-500 bg-green-50'
-    }
+  const handleRemoveItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index))
   }
 
   return (
-    <div className="relative">
-      {/* Connection Handles */}
-      <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-green-500" />
-      
-      {/* Circular Loop Node */}
-      <div 
-        className={`
-          w-32 h-32 rounded-full border-4 ${getLoopColor()}
-          ${selected ? 'ring-2 ring-primary' : ''} 
-          flex flex-col items-center justify-center shadow-lg
-          transition-all duration-200 hover:shadow-xl relative
-        `}
-      >
-        {/* Loop Icon */}
-        <div className="mb-1">
-          {getLoopIcon()}
+    <div
+      className={`workflow-node bg-card border-2 ${
+        selected ? 'border-purple-500 shadow-lg' : 'border-border'
+      } rounded-lg p-4 min-w-[250px]`}
+    >
+      <Handle type="target" position={Position.Top} className="workflow-handle" />
+
+      <div className="flex items-center gap-2 mb-3">
+        <div className="bg-purple-500 p-2 rounded-md text-white">
+          <RotateCcw className="w-4 h-4" />
         </div>
-        
-        {/* Loop Type */}
-        <div className="text-xs font-medium text-foreground capitalize">
-          {data.loopType || 'While'}
+        <div className="flex-1">
+          <h3 className="font-semibold text-sm">Loop</h3>
+          <p className="text-xs text-muted-foreground">Iterate over {items.length} items</p>
         </div>
-        
-        {/* Iteration Counter */}
-        {data.currentIteration !== undefined && (
-          <div className="text-xs text-muted-foreground">
-            {data.currentIteration}/{data.maxIterations || '∞'}
-          </div>
-        )}
-        
-        {/* Settings Button */}
-        <Button
-          size="sm"
-          variant="ghost"
-          className="absolute top-1 right-1 p-1 h-5 w-5"
-          onClick={() => setIsEditing(!isEditing)}
-        >
-          <Settings className="w-3 h-3" />
-        </Button>
       </div>
 
-      {/* Loop Back Handle (Left) */}
-      <Handle 
-        type="source" 
-        position={Position.Left} 
-        id="loop"
-        className="w-3 h-3 !bg-yellow-500"
-        style={{ top: '50%', left: '-6px' }}
-      />
-      
-      {/* Continue Handle (Bottom) */}
-      <Handle 
-        type="source" 
-        position={Position.Bottom} 
-        id="continue"
-        className="w-3 h-3 !bg-green-500"
-      />
-      
-      {/* Loop Labels */}
-      <div className="absolute -left-12 top-1/2 transform -translate-y-1/2 text-xs text-yellow-600 font-medium">
-        Loop
-      </div>
-      <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs text-green-600 font-medium">
-        Exit
-      </div>
+      {!isEditing ? (
+        <div className="space-y-2">
+          <div className="text-xs">
+            <span className="text-muted-foreground">Variable:</span> {loopVar}
+          </div>
+          <div className="text-xs">
+            <span className="text-muted-foreground">Items:</span> {items.join(', ')}
+          </div>
+          {maxIterations > 0 && maxIterations < items.length && (
+            <div className="text-xs">
+              <span className="text-muted-foreground">Max iterations:</span> {maxIterations}
+            </div>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsEditing(true)}
+            className="w-full mt-2"
+          >
+            Configure Loop
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor={`${id}-loopvar`} className="text-xs">
+              Loop Variable Name
+            </Label>
+            <Input
+              id={`${id}-loopvar`}
+              value={loopVar}
+              onChange={(e) => setLoopVar(e.target.value)}
+              placeholder="item"
+              className="h-8"
+            />
+          </div>
 
-      {/* Condition Editor Modal/Popup */}
-      {isEditing && (
-        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 bg-card border border-border rounded-lg shadow-lg p-4 min-w-[250px] z-10">
-          <h4 className="text-sm font-medium mb-3">Loop Configuration</h4>
-          
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-muted-foreground">Loop Type</label>
-              <select className="w-full text-sm p-2 border border-border rounded bg-background">
-                <option value="while">While (condition)</option>
-                <option value="for">For (iterations)</option>
-                <option value="retry">Retry (on failure)</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="text-xs text-muted-foreground">Condition</label>
-              <input
-                type="text"
-                value={localCondition}
-                onChange={(e) => setLocalCondition(e.target.value)}
-                placeholder="e.g., output.success !== true"
-                className="w-full text-sm p-2 border border-border rounded bg-background"
-              />
-            </div>
-            
-            <div>
-              <label className="text-xs text-muted-foreground">Max Iterations</label>
-              <input
-                type="number"
-                value={maxIterations}
-                onChange={(e) => setMaxIterations(parseInt(e.target.value))}
-                className="w-full text-sm p-2 border border-border rounded bg-background"
-              />
+          <div>
+            <Label className="text-xs">Items to Loop Over</Label>
+            <div className="space-y-2">
+              {items.map((item, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Input
+                    value={item}
+                    onChange={(e) => {
+                      const newItems = [...items]
+                      newItems[index] = e.target.value
+                      setItems(newItems)
+                    }}
+                    className="h-8"
+                  />
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleRemoveItem(index)}
+                    className="h-8 w-8"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+              <div className="flex items-center gap-2">
+                <Input
+                  value={newItem}
+                  onChange={(e) => setNewItem(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddItem()}
+                  placeholder="Add item..."
+                  className="h-8"
+                />
+                <Button size="icon" variant="outline" onClick={handleAddItem} className="h-8 w-8">
+                  <Plus className="w-3 h-3" />
+                </Button>
+              </div>
             </div>
           </div>
-          
-          <div className="flex justify-end gap-2 mt-4">
-            <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>
-              Cancel
-            </Button>
-            <Button size="sm" onClick={handleSave}>
+
+          <div>
+            <Label htmlFor={`${id}-maxiter`} className="text-xs">
+              Max Iterations (0 = all items)
+            </Label>
+            <Input
+              id={`${id}-maxiter`}
+              type="number"
+              value={maxIterations}
+              onChange={(e) => setMaxIterations(parseInt(e.target.value) || 0)}
+              min={0}
+              className="h-8"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleSave} className="flex-1">
               Save
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsEditing(false)}
+              className="flex-1"
+            >
+              Cancel
             </Button>
           </div>
         </div>
       )}
+
+      <Handle type="source" position={Position.Bottom} className="workflow-handle" />
     </div>
   )
 }
-
-export default memo(LoopNode)
