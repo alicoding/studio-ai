@@ -1,5 +1,23 @@
 # Claude Studio Gotchas
 
+## Conditional Workflow Execution Fix (2025-07-13)
+
+- **Problem**: Conditional workflows started but never executed any steps, remaining in pending state indefinitely
+- **Root Causes**: Multiple architectural issues with LangGraph conditional edge implementation
+- **Solutions Applied**:
+  1. **Conditional Steps as Routing Only**: Conditional steps are no longer added as execution nodes in LangGraph
+  2. **Mock Executor Enhancement**: MockStepExecutor now handles `type: 'task'` when `USE_MOCK_AI=true`
+  3. **Agent Validation Bypass**: WorkflowValidator skips agent requirements in mock mode
+  4. **Dependency Resolution**: WorkflowStateManager treats conditional dependencies as always satisfied
+  5. **Smart Output Pattern Matching**: MockStepExecutor recognizes "return the word X" patterns
+- **Key Files Modified**:
+  - `web/server/services/WorkflowOrchestrator.ts` - Skip conditional nodes, filter conditional dependencies
+  - `web/server/services/executors/MockStepExecutor.ts` - Handle task types, pattern matching
+  - `web/server/services/WorkflowValidator.ts` - Skip validation in mock mode
+  - `web/server/services/WorkflowStateManager.ts` - Handle conditional dependencies
+- **Result**: Conditional workflows now execute properly with TRUE/FALSE branch routing working correctly
+- **Testing**: Use `USE_MOCK_AI=true npx tsx test-conditional-workflow.ts` to verify functionality
+
 ## Workspace Navigation Context Fix (2025-07-13)
 
 - **Problem**: Major navigation issue where clicking saved workflows in workspace sidebar took users OUT of workspace context
