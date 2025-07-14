@@ -42,27 +42,19 @@ export default defineConfig({
             // Don't write to response if already sent
             if (!res.headersSent) {
               res.writeHead(503, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ 
-                error: 'Backend temporarily unavailable', 
-                retryAfter: 5,
-                fallbackAvailable: true 
-              }))
+              res.end(
+                JSON.stringify({
+                  error: 'Backend temporarily unavailable',
+                  retryAfter: 5,
+                  fallbackAvailable: true,
+                })
+              )
             }
           })
         },
       },
-      '/socket.io': {
-        target: 'http://localhost:3457',
-        ws: true,
-        changeOrigin: true,
-        timeout: 5000,
-        // Fallback for WebSocket connections
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('[Vite Proxy] WebSocket dev server unavailable:', err.message)
-          })
-        },
-      },
+      // WebSocket proxy removed - frontend connects directly to stable server (3456)
+      // This prevents proxy conflicts since useWebSocket connects to http://localhost:3456
       // Fallback proxy for when dev server is down
       '/api-fallback': {
         target: 'http://localhost:3456',

@@ -10,6 +10,7 @@
 import React, { useMemo } from 'react'
 import { useWorkspaceLayout } from '../../hooks/useWorkspaceLayout'
 import { WorkflowDetails } from '../workflow/WorkflowDetails'
+import { ApprovalCanvasContent } from '../approvals/ApprovalCanvasContent'
 import { MessageSquare } from 'lucide-react'
 import { MessageHistoryViewer } from '../messages/MessageHistoryViewer'
 import { ChatPanel } from '../projects/ChatPanel'
@@ -109,6 +110,16 @@ export const CanvasContent: React.FC<CanvasContentProps> = ({ className = '' }) 
         }}
       >
         <WorkflowDetails selectedWorkflowId={selectedWorkflowId} />
+      </div>
+
+      {/* Approval Canvas Panel - Always mounted to preserve state */}
+      <div
+        className="absolute inset-0"
+        style={{
+          display: canvasMode === 'approval' ? 'block' : 'none',
+        }}
+      >
+        <ApprovalCanvasContent scope="project" projectId={activeProjectId || undefined} />
       </div>
     </div>
   )

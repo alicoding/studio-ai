@@ -105,7 +105,7 @@ export class DatabaseService {
         this.createApprovalTables()
 
         // Record migration as applied
-        this.db.prepare('INSERT INTO migrations (filename) VALUES (?)').run(approvalMigrationName)
+        this.db.prepare('INSERT INTO migrations (name) VALUES (?)').run(approvalMigrationName)
 
         console.log(`✅ Migration ${approvalMigrationName} applied successfully`)
       } catch (error) {

@@ -10,6 +10,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Clock, AlertTriangle, CheckCircle, XCircle, BarChart3, TrendingUp } from 'lucide-react'
 import { useWebSocket } from '../../hooks/useWebSocket'
+import { useApprovalColors } from '../../hooks/useTheme'
 import type { WorkflowApproval } from '../../../web/server/schemas/approval-types'
 
 interface ApprovalCountsProps {
@@ -54,6 +55,9 @@ export const ApprovalCounts: React.FC<ApprovalCountsProps> = ({
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+
+  // Theme-aware colors
+  const colors = useApprovalColors()
 
   // WebSocket for real-time updates
   const { socket } = useWebSocket()
@@ -119,7 +123,7 @@ export const ApprovalCounts: React.FC<ApprovalCountsProps> = ({
     try {
       setError(null)
 
-      const url = projectId ? `/api/projects/${projectId}/approvals` : '/api/approvals'
+      const url = projectId ? `/api/approvals/projects/${projectId}/pending` : '/api/approvals'
 
       const response = await fetch(url)
       if (!response.ok) {
@@ -262,31 +266,46 @@ export const ApprovalCounts: React.FC<ApprovalCountsProps> = ({
 
   // Badge mode - small badges for sidebar/header
   if (displayMode === 'badges') {
+    const pendingColors = colors.getStatusColor('pending')
+    const overdueColors = colors.getStatusColor('overdue')
+
     return (
-      <div className={`flex items-center space-x-2 ${className}`}>
+      <div className={`flex items-center space-x-1 ${className}`}>
         {stats.pending > 0 && (
           <button
             onClick={() => handleCountClick('pending')}
+            style={{
+              backgroundColor: pendingColors.text,
+              color: pendingColors.bg,
+              borderColor: pendingColors.text,
+            }}
             className={`
-              px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs font-medium
-              transition-colors
-              ${onCountClick ? 'hover:bg-orange-200 cursor-pointer' : ''}
+              px-2 py-1 rounded text-xs font-bold
+              transition-colors shadow-sm border
+              ${onCountClick ? 'hover:opacity-80 cursor-pointer' : ''}
             `}
+            title={`${stats.pending} pending approvals`}
           >
-            {stats.pending} pending
+            {stats.pending}
           </button>
         )}
 
         {stats.overdue > 0 && (
           <button
             onClick={() => handleCountClick('overdue')}
+            style={{
+              backgroundColor: overdueColors.text,
+              color: overdueColors.bg,
+              borderColor: overdueColors.text,
+            }}
             className={`
-              px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium
-              transition-colors animate-pulse
-              ${onCountClick ? 'hover:bg-red-200 cursor-pointer' : ''}
+              px-2 py-1 rounded text-xs font-bold
+              transition-colors animate-pulse shadow-sm border
+              ${onCountClick ? 'hover:opacity-80 cursor-pointer' : ''}
             `}
+            title={`${stats.overdue} overdue approvals`}
           >
-            {stats.overdue} overdue
+            {stats.overdue}
           </button>
         )}
       </div>

@@ -18,7 +18,6 @@ import { DeleteAgentModal } from '../modals/DeleteAgentModal'
 import { WorkflowList } from '../workflow/WorkflowList'
 import { WorkflowDebugger } from '../workflow/WorkflowDebugger'
 import { ApprovalCounts } from '../approvals/ApprovalCounts'
-import { PendingApprovalsList } from '../approvals/PendingApprovalsList'
 import { OverdueApprovalsAlert } from '../approvals/OverdueApprovalsAlert'
 import { useWorkspaceLayout } from '../../hooks/useWorkspaceLayout'
 import { useWorkflowBuilderStore } from '../../stores/workflowBuilder'
@@ -437,19 +436,28 @@ export function Sidebar({
             />
           </div>
 
-          {/* Pending Approvals List */}
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <div className="px-3 py-2 border-b">
-              <h3 className="text-xs font-medium text-muted-foreground">Pending Approvals</h3>
-            </div>
-            <div className="h-full overflow-auto">
-              <PendingApprovalsList
-                projectId={projectId}
-                onApprovalUpdate={() => {
-                  // Refresh other components if needed
-                }}
-                className="p-3"
-              />
+          {/* Navigation only - detailed approvals shown in canvas */}
+          <div className="flex-1 p-3 space-y-4">
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-3">
+                Detailed approval management is now in the main canvas
+              </p>
+
+              {/* Context navigation */}
+              <div className="space-y-2">
+                <button
+                  className="w-full text-left p-2 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  onClick={() => console.log('Navigate to global approvals')}
+                >
+                  → Global Approvals
+                </button>
+                <button
+                  className="w-full text-left p-2 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  onClick={() => console.log('Navigate to all approvals')}
+                >
+                  → All Approvals
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -61,7 +61,7 @@ export const OverdueApprovalsAlert: React.FC<OverdueApprovalsAlertProps> = ({
       setError(null)
 
       const url = projectId
-        ? `/api/projects/${projectId}/approvals?status=pending`
+        ? `/api/approvals/projects/${projectId}/pending`
         : '/api/approvals?status=pending'
 
       const response = await fetch(url)

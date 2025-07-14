@@ -2,28 +2,9 @@
 @import 'tw-animate-css';
 @import 'reactflow/dist/style.css';
 
-/* Tailwind v4 theme configuration using @theme directive */
+/* Tailwind v4 theme configuration with light/dark mode support */
 @theme {
-  --color-background: #1a1a1a;
-  --color-foreground: #e0e0e0;
-  --color-card: #2a2a2a;
-  --color-card-foreground: #e0e0e0;
-  --color-popover: #2a2a2a;
-  --color-popover-foreground: #e0e0e0;
-  --color-primary: #4a9eff;
-  --color-primary-foreground: #1a1a1a;
-  --color-secondary: #3a3a3a;
-  --color-secondary-foreground: #e0e0e0;
-  --color-muted: #3a3a3a;
-  --color-muted-foreground: #888888;
-  --color-accent: #3a3a3a;
-  --color-accent-foreground: #e0e0e0;
-  --color-destructive: #ef4444;
-  --color-destructive-foreground: #fef2f2;
-  --color-border: #3a3a3a;
-  --color-input: #2a2a2a;
-  --color-ring: #4a9eff;
-
+  /* Base colors for both themes */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -34,6 +15,114 @@
 @layer base {
   :root {
     --radius: 0.5rem;
+
+    /* Light theme (default) */
+    --color-background: #ffffff;
+    --color-foreground: #0f172a;
+    --color-card: #ffffff;
+    --color-card-foreground: #0f172a;
+    --color-popover: #ffffff;
+    --color-popover-foreground: #0f172a;
+    --color-primary: #2563eb;
+    --color-primary-foreground: #f8fafc;
+    --color-secondary: #f1f5f9;
+    --color-secondary-foreground: #0f172a;
+    --color-muted: #f1f5f9;
+    --color-muted-foreground: #64748b;
+    --color-accent: #f1f5f9;
+    --color-accent-foreground: #0f172a;
+    --color-destructive: #dc2626;
+    --color-destructive-foreground: #fef2f2;
+    --color-border: #e2e8f0;
+    --color-input: #ffffff;
+    --color-ring: #2563eb;
+
+    /* Approval-specific semantic colors (light theme) */
+    --color-approval-critical: #dc2626;
+    --color-approval-critical-bg: #fef2f2;
+    --color-approval-critical-foreground: #ffffff;
+    --color-approval-high: #ea580c;
+    --color-approval-high-bg: #fff7ed;
+    --color-approval-high-foreground: #ffffff;
+    --color-approval-medium: #d97706;
+    --color-approval-medium-bg: #fffbeb;
+    --color-approval-medium-foreground: #ffffff;
+    --color-approval-low: #16a34a;
+    --color-approval-low-bg: #f0fdf4;
+    --color-approval-low-foreground: #ffffff;
+
+    /* Approval status colors (light theme) */
+    --color-approval-pending: #ea580c;
+    --color-approval-pending-bg: #fff7ed;
+    --color-approval-approved: #16a34a;
+    --color-approval-approved-bg: #f0fdf4;
+    --color-approval-rejected: #dc2626;
+    --color-approval-rejected-bg: #fef2f2;
+    --color-approval-overdue: #dc2626;
+    --color-approval-overdue-bg: #fef2f2;
+
+    /* Professional approval interface colors */
+    --color-approval-canvas-bg: #f8fafc;
+    --color-approval-card-bg: #ffffff;
+    --color-approval-card-border: #e2e8f0;
+    --color-approval-queue-bg: #f1f5f9;
+    --color-approval-action-approve: #16a34a;
+    --color-approval-action-reject: #dc2626;
+  }
+
+  /* Dark theme */
+  [data-theme='dark'] {
+    --color-background: #0f172a;
+    --color-foreground: #f1f5f9;
+    --color-card: #1e293b;
+    --color-card-foreground: #f1f5f9;
+    --color-popover: #1e293b;
+    --color-popover-foreground: #f1f5f9;
+    --color-primary: #3b82f6;
+    --color-primary-foreground: #0f172a;
+    --color-secondary: #334155;
+    --color-secondary-foreground: #f1f5f9;
+    --color-muted: #334155;
+    --color-muted-foreground: #94a3b8;
+    --color-accent: #334155;
+    --color-accent-foreground: #f1f5f9;
+    --color-destructive: #ef4444;
+    --color-destructive-foreground: #fef2f2;
+    --color-border: #334155;
+    --color-input: #1e293b;
+    --color-ring: #3b82f6;
+
+    /* Approval-specific semantic colors (dark theme) */
+    --color-approval-critical: #ef4444;
+    --color-approval-critical-bg: #7f1d1d;
+    --color-approval-critical-foreground: #ffffff;
+    --color-approval-high: #f97316;
+    --color-approval-high-bg: #9a3412;
+    --color-approval-high-foreground: #ffffff;
+    --color-approval-medium: #eab308;
+    --color-approval-medium-bg: #a16207;
+    --color-approval-medium-foreground: #000000;
+    --color-approval-low: #22c55e;
+    --color-approval-low-bg: #166534;
+    --color-approval-low-foreground: #ffffff;
+
+    /* Approval status colors (dark theme) */
+    --color-approval-pending: #f97316;
+    --color-approval-pending-bg: #9a3412;
+    --color-approval-approved: #22c55e;
+    --color-approval-approved-bg: #166534;
+    --color-approval-rejected: #ef4444;
+    --color-approval-rejected-bg: #7f1d1d;
+    --color-approval-overdue: #ef4444;
+    --color-approval-overdue-bg: #7f1d1d;
+
+    /* Professional approval interface colors (dark theme) */
+    --color-approval-canvas-bg: #0f172a;
+    --color-approval-card-bg: #1e293b;
+    --color-approval-card-border: #334155;
+    --color-approval-queue-bg: #334155;
+    --color-approval-action-approve: #22c55e;
+    --color-approval-action-reject: #ef4444;
   }
 
   * {

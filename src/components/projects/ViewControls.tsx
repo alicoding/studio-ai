@@ -3,7 +3,7 @@ import { useAgentStore } from '../../stores'
 import { Button } from '../ui/button'
 
 type ViewMode = 'single' | 'split' | 'grid'
-type CanvasMode = 'agent' | 'workflow'
+type CanvasMode = 'agent' | 'workflow' | 'approval'
 
 interface ViewControlsProps {
   currentView: ViewMode

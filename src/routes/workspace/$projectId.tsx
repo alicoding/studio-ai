@@ -29,6 +29,7 @@ import { useWorkspaceLayout } from '../../hooks/useWorkspaceLayout'
 import { useWebSocketOperations } from '../../hooks/useWebSocketOperations'
 import { useWorkspaceShortcuts } from '../../hooks/useShortcuts'
 import { useWorkflowEvents } from '../../hooks/useWorkflowEvents'
+import { useApprovalEvents } from '../../hooks/useApprovalEvents'
 
 import { CanvasContent } from '../../components/workspace/CanvasContent'
 import { CreateProjectModal } from '../../components/projects/CreateProjectModal'
@@ -36,6 +37,7 @@ import { ConnectionStatusBanner } from '../../components/ui/ConnectionStatusBann
 import { ErrorMonitor } from '../../services/ErrorMonitor'
 import { useDiagnosticsStore } from '../../stores/diagnostics'
 import VisualWorkflowBuilder from '../../components/workflow-builder/VisualWorkflowBuilder'
+import HumanApprovalModal from '../../components/workflow/HumanApprovalModal'
 
 export const Route = createFileRoute('/workspace/$projectId')({
   component: WorkspacePage,
@@ -150,6 +152,14 @@ function WorkspacePage(): JSX.Element | null {
 
   // Global workflow events (SSE for workflow updates)
   useWorkflowEvents()
+
+  // Approval events for human-in-the-loop workflows
+  const {
+    pendingApproval,
+    isModalOpen: isApprovalModalOpen,
+    closeModal: closeApprovalModal,
+    onApprovalProcessed,
+  } = useApprovalEvents(projectId)
 
   // Get only the open projects for workspace tabs
   const openProjects = getOpenProjects()
@@ -585,6 +595,14 @@ function WorkspacePage(): JSX.Element | null {
           isDeleting={deleteModalState.isDeleting}
         />
       )}
+
+      {/* Human Approval Modal */}
+      <HumanApprovalModal
+        approval={pendingApproval}
+        isOpen={isApprovalModalOpen}
+        onClose={closeApprovalModal}
+        onApprovalProcessed={onApprovalProcessed}
+      />
     </>
   )
 }
