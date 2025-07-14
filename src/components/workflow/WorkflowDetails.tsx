@@ -14,7 +14,17 @@ import { WorkflowGraph } from './WorkflowGraph'
 import { WorkflowStepList } from './WorkflowStepList'
 import { useWorkflowGraph } from '../../hooks/useWorkflowGraph'
 import { WorkflowGraphService } from '../../services/workflowGraphService'
-import { Activity, Clock, User, GitBranch, List, Network, Copy, CheckCircle, PlayCircle } from 'lucide-react'
+import {
+  Activity,
+  Clock,
+  User,
+  GitBranch,
+  List,
+  Network,
+  Copy,
+  CheckCircle,
+  PlayCircle,
+} from 'lucide-react'
 
 interface WorkflowDetailsProps {
   selectedWorkflowId: string | null
@@ -98,40 +108,43 @@ export const WorkflowDetails: React.FC<WorkflowDetailsProps> = ({
   // Calculate resume points from workflow data (DRY principle - don't depend on graph API)
   const getResumePoints = () => {
     if (!workflow) return []
-    
+
     // Resume points are failed steps that can be restarted
-    return workflow.steps
-      .filter(step => step.status === 'failed')
-      .map(step => step.id)
+    return workflow.steps.filter((step) => step.status === 'failed').map((step) => step.id)
   }
 
   const resumePoints = getResumePoints()
-  const canResume = resumePoints.length > 0 && (workflow?.status === 'failed' || workflow?.status === 'aborted')
+  const canResume =
+    resumePoints.length > 0 && (workflow?.status === 'failed' || workflow?.status === 'aborted')
 
   const handleResume = async () => {
     if (!workflow || resuming || !canResume) return
-    
+
     setResuming(true)
     try {
       // Convert workflow steps to the format expected by the API
-      const workflowSteps = workflow.steps.map(step => ({
+      const workflowSteps = workflow.steps.map((step) => ({
         id: step.id,
         role: step.role,
         task: step.task,
-        deps: step.dependencies || []
+        deps: step.dependencies || [],
       }))
 
       // Call the resume API
       const result = await WorkflowGraphService.resumeWorkflow(workflow.threadId, workflowSteps)
-      
+
       // Show success message with resume points from our calculation
-      alert(`Workflow resumed successfully!\n\nThread ID: ${result.threadId}\nStatus: ${result.status}\n\nThe workflow will continue from the resume points:\n${resumePoints.join(', ')}`)
-      
+      alert(
+        `Workflow resumed successfully!\n\nThread ID: ${result.threadId}\nStatus: ${result.status}\n\nThe workflow will continue from the resume points:\n${resumePoints.join(', ')}`
+      )
+
       // Refresh workflow data without full page reload
       await fetchWorkflows()
     } catch (error) {
       console.error('Failed to resume workflow:', error)
-      alert(`Failed to resume workflow: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      alert(
+        `Failed to resume workflow: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     } finally {
       setResuming(false)
     }
@@ -208,7 +221,7 @@ curl -s "http://localhost:3457/api/workflow-graph/${debugInfo.threadId}" | jq
                 onClick={handleResume}
                 disabled={resuming}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium ${
-                  resuming 
+                  resuming
                     ? 'bg-amber-400 text-white cursor-not-allowed opacity-75'
                     : 'bg-amber-500 text-white hover:bg-amber-600'
                 }`}
@@ -244,6 +257,7 @@ curl -s "http://localhost:3457/api/workflow-graph/${debugInfo.threadId}" | jq
               </button>
             </div>
             <span
+              data-testid="workflow-status"
               className={`px-3 py-1 rounded-full text-sm font-medium ${
                 workflow.status === 'running'
                   ? 'bg-blue-500/20 text-blue-500'
@@ -273,10 +287,10 @@ curl -s "http://localhost:3457/api/workflow-graph/${debugInfo.threadId}" | jq
             </h3>
             {graphData && graphData.graph.nodes.length > 0 ? (
               // Use the new WorkflowStepList component with loop visualization
-              <WorkflowStepList 
-                nodes={graphData.graph.nodes} 
+              <WorkflowStepList
+                nodes={graphData.graph.nodes}
                 resumePoints={resumePoints}
-                className="pb-6" 
+                className="pb-6"
               />
             ) : (
               // Fallback to simple list when graph data is not available
@@ -284,7 +298,10 @@ curl -s "http://localhost:3457/api/workflow-graph/${debugInfo.threadId}" | jq
                 {workflow.steps.map((step, index) => {
                   const isResumePoint = resumePoints.includes(step.id)
                   return (
-                    <div key={step.id} className={`p-4 border border-border rounded-lg ${isResumePoint ? 'ring-2 ring-amber-500' : ''}`}>
+                    <div
+                      key={step.id}
+                      className={`p-4 border border-border rounded-lg ${isResumePoint ? 'ring-2 ring-amber-500' : ''}`}
+                    >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-mono text-muted-foreground">
@@ -311,45 +328,45 @@ curl -s "http://localhost:3457/api/workflow-graph/${debugInfo.threadId}" | jq
                           {step.status}
                         </span>
                       </div>
-                    <div className="mb-3">
-                      <div className="text-xs font-medium text-muted-foreground mb-1">Task:</div>
-                      <p className="text-sm bg-secondary/50 p-2 rounded">{step.task}</p>
-                    </div>
-
-                    {(workflow.results?.[step.id] || step.output) && (
                       <div className="mb-3">
-                        <div className="text-xs font-medium text-muted-foreground mb-1">
-                          Output:
-                        </div>
-                        <div className="text-sm bg-primary/5 p-3 rounded whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
-                          {workflow.results?.[step.id] || step.output}
-                        </div>
+                        <div className="text-xs font-medium text-muted-foreground mb-1">Task:</div>
+                        <p className="text-sm bg-secondary/50 p-2 rounded">{step.task}</p>
                       </div>
-                    )}
 
-                    <div className="flex gap-4 text-xs text-muted-foreground">
-                      {step.role && <div>Role: {step.role}</div>}
-                      {step.agentId && <div>Agent: {step.agentId}</div>}
+                      {(workflow.results?.[step.id] || step.output) && (
+                        <div className="mb-3">
+                          <div className="text-xs font-medium text-muted-foreground mb-1">
+                            Output:
+                          </div>
+                          <div className="text-sm bg-primary/5 p-3 rounded whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
+                            {workflow.results?.[step.id] || step.output}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex gap-4 text-xs text-muted-foreground">
+                        {step.role && <div>Role: {step.role}</div>}
+                        {step.agentId && <div>Agent: {step.agentId}</div>}
+                      </div>
+
+                      {step.error && (
+                        <div className="text-xs text-red-500 mt-2 p-2 bg-red-500/10 rounded">
+                          Error: {step.error}
+                        </div>
+                      )}
+
+                      {isResumePoint && (
+                        <div className="mt-2 text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                          <div className="flex items-center gap-1 text-amber-700">
+                            <PlayCircle className="w-3 h-3" />
+                            <span className="font-medium">Checkpoint saved</span>
+                          </div>
+                          <div className="text-amber-600 mt-0.5">
+                            Can resume workflow from this point
+                          </div>
+                        </div>
+                      )}
                     </div>
-
-                    {step.error && (
-                      <div className="text-xs text-red-500 mt-2 p-2 bg-red-500/10 rounded">
-                        Error: {step.error}
-                      </div>
-                    )}
-
-                    {isResumePoint && (
-                      <div className="mt-2 text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                        <div className="flex items-center gap-1 text-amber-700">
-                          <PlayCircle className="w-3 h-3" />
-                          <span className="font-medium">Checkpoint saved</span>
-                        </div>
-                        <div className="text-amber-600 mt-0.5">
-                          Can resume workflow from this point
-                        </div>
-                      </div>
-                    )}
-                  </div>
                   )
                 })}
               </div>

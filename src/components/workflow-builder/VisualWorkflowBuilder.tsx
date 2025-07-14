@@ -298,7 +298,10 @@ export default function VisualWorkflowBuilder({
   }
 
   return (
-    <div className="fixed inset-0 z-50 w-full h-screen bg-background text-foreground">
+    <div
+      data-testid="workflow-builder"
+      className="fixed inset-0 z-50 w-full h-screen bg-background text-foreground"
+    >
       {/* Enhanced Toolbar with Project Context */}
       <div className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
         <div className="flex items-center gap-4">
@@ -344,6 +347,13 @@ export default function VisualWorkflowBuilder({
             <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted px-3 py-1 rounded-md">
               <Folder className="w-4 h-4" />
               <span>{currentProject.name}</span>
+            </div>
+          )}
+
+          {/* Mock Mode Indicator */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-100 px-3 py-1 rounded-md">
+              <span>Mock Mode</span>
             </div>
           )}
         </div>

@@ -26,7 +26,7 @@ function WorkflowStepNode({ id, data, selected }: NodeProps<WorkflowStepData>) {
   const [isEditing, setIsEditing] = useState(false)
   const [localTask, setLocalTask] = useState(data.task || '')
   const [localRole, setLocalRole] = useState(data.role || '')
-  
+
   const { updateStep, removeStep, getStep } = useWorkflowBuilderStore()
 
   // Get the current step data from store
@@ -102,12 +102,13 @@ function WorkflowStepNode({ id, data, selected }: NodeProps<WorkflowStepData>) {
             variant="ghost"
             className="p-1 h-6 w-6"
             onClick={() => setIsEditing(!isEditing)}
+            data-testid="node-settings"
           >
             <Settings className="w-3 h-3" />
           </Button>
-          <Button 
-            size="sm" 
-            variant="ghost" 
+          <Button
+            size="sm"
+            variant="ghost"
             className="p-1 h-6 w-6 text-red-600 hover:text-red-700"
             onClick={handleDelete}
           >
@@ -122,31 +123,43 @@ function WorkflowStepNode({ id, data, selected }: NodeProps<WorkflowStepData>) {
           <div className="space-y-2">
             <div>
               <label className="text-xs font-medium text-muted-foreground">Role</label>
-              <input
-                type="text"
+              <select
+                name="role"
                 value={localRole}
                 onChange={(e) => setLocalRole(e.target.value)}
-                placeholder="e.g., developer, architect..."
                 className="w-full text-xs p-1 border border-border rounded bg-background text-foreground"
-              />
+              >
+                <option value="">Select role...</option>
+                <option value="developer">Developer</option>
+                <option value="architect">Architect</option>
+                <option value="reviewer">Reviewer</option>
+                <option value="tester">Tester</option>
+                <option value="security">Security</option>
+                <option value="orchestrator">Orchestrator</option>
+                <option value="ux">UX Designer</option>
+              </select>
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground">Task</label>
               <textarea
                 value={localTask}
                 onChange={(e) => setLocalTask(e.target.value)}
-                placeholder="Describe the task..."
+                placeholder="Enter task description..."
                 className="w-full text-sm p-2 border border-border rounded resize-none bg-background text-foreground"
                 rows={3}
               />
             </div>
             <div className="flex justify-end gap-1">
-              <Button size="sm" variant="outline" onClick={() => {
-                setIsEditing(false)
-                // Reset local state to original values
-                setLocalTask(stepData?.task || data.task || '')
-                setLocalRole(stepData?.role || data.role || '')
-              }}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setIsEditing(false)
+                  // Reset local state to original values
+                  setLocalTask(stepData?.task || data.task || '')
+                  setLocalRole(stepData?.role || data.role || '')
+                }}
+              >
                 Cancel
               </Button>
               <Button size="sm" onClick={handleTaskSave}>

@@ -51,7 +51,11 @@ interface ExtendedWorkflowStepListProps extends WorkflowStepListProps {
   resumePoints?: string[]
 }
 
-export function WorkflowStepList({ nodes, className = '', resumePoints = [] }: ExtendedWorkflowStepListProps) {
+export function WorkflowStepList({
+  nodes,
+  className = '',
+  resumePoints = [],
+}: ExtendedWorkflowStepListProps) {
   const [expandedLoops, setExpandedLoops] = useState<Set<string>>(new Set())
 
   // Detect loop iterations
@@ -232,6 +236,8 @@ function NodeCard({
 }) {
   return (
     <div
+      data-testid={node.data.status === 'completed' ? 'completed-step' : 'workflow-step'}
+      data-step-id={node.id}
       className={`p-4 border rounded-lg ${
         node.type === 'operator' ? 'border-amber-500/30 bg-amber-500/5' : 'border-border'
       } ${isInLoop ? 'ml-4' : ''}`}
@@ -264,20 +270,22 @@ function NodeCard({
           {node.type === 'operator' ? 'Decision Logic:' : 'Task:'}
         </div>
         <p className="text-sm bg-secondary/50 p-2 rounded">{node.data.task}</p>
-        
+
         {/* Show decision outcome for operators */}
         {node.type === 'operator' && node.data.output && (
           <div className="mt-2">
             <div className="text-xs font-medium text-muted-foreground mb-1">Decision Outcome:</div>
-            <div className={`text-sm px-2 py-1 rounded border ${
-              node.data.output.includes('SUCCESS') 
-                ? 'bg-green-50 text-green-700 border-green-200'
-                : node.data.output.includes('FAILED')
-                ? 'bg-red-50 text-red-700 border-red-200'
-                : node.data.output.includes('BLOCKED')
-                ? 'bg-amber-50 text-amber-700 border-amber-200'
-                : 'bg-purple-50 text-purple-700 border-purple-200'
-            }`}>
+            <div
+              className={`text-sm px-2 py-1 rounded border ${
+                node.data.output.includes('SUCCESS')
+                  ? 'bg-green-50 text-green-700 border-green-200'
+                  : node.data.output.includes('FAILED')
+                    ? 'bg-red-50 text-red-700 border-red-200'
+                    : node.data.output.includes('BLOCKED')
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-purple-50 text-purple-700 border-purple-200'
+              }`}
+            >
               {node.data.output}
             </div>
           </div>

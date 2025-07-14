@@ -232,14 +232,14 @@ export interface WorkflowStepDefinition {
 - [x] **Phase 1.3: Condition Evaluation Engine** - Created ConditionEvaluator service with template variables
 - [x] **Phase 2.1: ConditionalNode Store Connection** - Removed TODO and connected to workflow store
 - [x] **Phase 2.2: Workflow Builder Integration** - Conditional data flows to execution API, edge connections set trueBranch/falseBranch
+- [x] **Phase 3.1: API Testing** - Conditional workflow execution working end-to-end with proper branching
 
 ### **In Progress** 🟡
 
-- [ ] Phase 3.1: API Testing - Test conditional workflow execution
+- [ ] Phase 3.2: Playwright E2E Testing - Test UI conditional workflows
 
 ### **Pending** ⏳
 
-- [ ] Phase 3.2: Playwright E2E Testing - Test UI conditional workflows
 - [ ] Phase 4.1: MCP Tool Integration - Update MCP tools for conditional support
 
 ### **✅ PHASE 1 COMPLETE - Backend LangGraph Integration**

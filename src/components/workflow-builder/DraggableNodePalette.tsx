@@ -106,6 +106,7 @@ export default function DraggableNodePalette() {
     <Panel
       position="top-left"
       className="bg-card border border-border rounded-lg shadow-lg p-4 m-4 min-w-[240px]"
+      data-testid="node-palette"
     >
       <div className="flex items-center gap-2 mb-4">
         <Palette className="w-4 h-4 text-muted-foreground" />
@@ -129,6 +130,7 @@ export default function DraggableNodePalette() {
                 draggable
                 onDragStart={(e) => onDragStart(e, nodeType.type)}
                 className="flex items-center gap-3 p-3 border border-border rounded-lg bg-background hover:bg-muted cursor-grab active:cursor-grabbing transition-colors group"
+                data-testid={`${nodeType.type.toLowerCase()}-node-template`}
               >
                 <div className={`${nodeType.color} p-2 rounded-md text-white`}>{nodeType.icon}</div>
                 <div className="flex-1 min-w-0">
@@ -156,6 +158,11 @@ export default function DraggableNodePalette() {
                 draggable
                 onDragStart={(e) => onDragStart(e, nodeType.type)}
                 className="flex items-center gap-3 p-3 border border-border rounded-lg bg-background hover:bg-muted cursor-grab active:cursor-grabbing transition-colors group"
+                data-testid={
+                  nodeType.type === 'Conditional'
+                    ? 'conditional-node-template'
+                    : `${nodeType.type.toLowerCase()}-node-template`
+                }
               >
                 <div className={`${nodeType.color} p-2 rounded-md text-white`}>{nodeType.icon}</div>
                 <div className="flex-1 min-w-0">

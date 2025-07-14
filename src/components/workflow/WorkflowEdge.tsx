@@ -33,7 +33,7 @@ export const WorkflowEdge = memo(
   }: EdgeProps<WorkflowEdgeData>) => {
     // Get edge type from data or default to dependency
     const edgeType = data?.edgeType || 'dependency'
-    
+
     const [edgePath, labelX, labelY] = getBezierPath({
       sourceX,
       sourceY,
@@ -72,7 +72,13 @@ export const WorkflowEdge = memo(
 
     return (
       <>
-        <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={getEdgeStyle()} />
+        <BaseEdge
+          id={id}
+          path={edgePath}
+          markerEnd={markerEnd}
+          style={getEdgeStyle()}
+          data-testid={`edge-${id}`}
+        />
         {edgeLabel && (
           <EdgeLabelRenderer>
             <div

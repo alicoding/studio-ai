@@ -86,6 +86,7 @@ function ConditionalNode({ data, selected, id }: NodeProps<ConditionalNodeData>)
             <div
               className="text-xs text-center cursor-pointer hover:text-foreground text-muted-foreground"
               onClick={() => setIsEditing(true)}
+              data-testid="condition-display"
             >
               {data.condition || 'Click to set condition...'}
             </div>
@@ -96,6 +97,7 @@ function ConditionalNode({ data, selected, id }: NodeProps<ConditionalNodeData>)
             variant="ghost"
             className="absolute top-0 right-0 p-1 h-4 w-4"
             onClick={() => setIsEditing(!isEditing)}
+            data-testid="node-settings"
           >
             <Settings className="w-2 h-2" />
           </Button>

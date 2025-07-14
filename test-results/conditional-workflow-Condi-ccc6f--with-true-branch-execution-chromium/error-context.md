@@ -1,0 +1,70 @@
+# Page snapshot
+
+```yaml
+- navigation:
+    - text: Claude Studio
+    - link "Workspace":
+        - /url: /workspace/ea5e9bb8-e90a-4bbf-93a1-3023fa2c7f21
+    - link "Projects":
+        - /url: /projects
+    - link "Agents":
+        - /url: /agents
+    - link "Teams":
+        - /url: /teams
+    - link "Workflows":
+        - /url: /workflows
+    - link "Storage":
+        - /url: /storage
+    - link "Search":
+        - /url: /session-search
+    - link "Settings":
+        - /url: /settings?tab=system
+- button
+- textbox "Enter workflow name...": Untitled Workflow
+- text: Unsaved changes Mock Mode
+- button "Validate"
+- button "Save"
+- button "Export"
+- button "Load"
+- button "Library"
+- button "Execute"
+- img
+- button "tester Describe your tester task here... tester":
+    - text: tester
+    - button
+    - button
+    - text: Describe your tester task here... tester
+- button "tester Describe your tester task here... tester":
+    - text: tester
+    - button
+    - button
+    - text: Describe your tester task here... tester
+- button "zoom in" [disabled]:
+    - img
+- button "zoom out":
+    - img
+- button "fit view":
+    - img
+- button "toggle interactivity":
+    - img
+- img "React Flow mini map"
+- img
+- heading "Node Palette" [level=3]
+- heading "Agent Roles" [level=4]
+- text: Senior Tester Testing and validation tasks Full Stack Developer dev role tasks Solution Architect System design and architecture planning
+- heading "Control Flow" [level=4]
+- text: Conditional If/else branching logic Loop While, for, or retry loops Parallel Execute multiple tasks simultaneously Human Input Wait for human intervention 💡 Drag nodes onto the canvas to create workflow steps
+- link "React Flow attribution":
+    - /url: https://reactflow.dev
+    - text: React Flow
+- region "Notifications alt+T"
+- button "Inspect components (Cmd+Shift+I)"
+- text: Component Inspector Cmd+Shift+I
+- button
+- contentinfo:
+    - button "Open TanStack Router Devtools":
+        - img
+        - img
+        - text: '- TanStack Router'
+- text: HMR Active
+```

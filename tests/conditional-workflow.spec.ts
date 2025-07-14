@@ -34,20 +34,50 @@ class WorkflowBuilderPage {
   async dragConditionalNodeToCanvas() {
     const palette = this.page.locator('[data-testid="node-palette"]')
     const conditionalNode = palette.locator('[data-testid="conditional-node-template"]')
-    const canvas = this.page.locator('.react-flow__viewport')
 
-    // Drag conditional node to canvas center
-    await conditionalNode.dragTo(canvas, {
-      targetPosition: { x: 400, y: 300 },
-    })
+    // Get the bounding box for more precise positioning
+    const nodeBox = await conditionalNode.boundingBox()
+    const canvas = this.page.locator('.react-flow__viewport')
+    const canvasBox = await canvas.boundingBox()
+
+    if (nodeBox && canvasBox) {
+      // Start the drag from the center of the conditional node
+      await this.page.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2)
+      await this.page.mouse.down()
+
+      // Move to canvas center
+      await this.page.mouse.move(canvasBox.x + 400, canvasBox.y + 300)
+      await this.page.mouse.up()
+
+      // Wait for the node to be added
+      await this.page.waitForTimeout(500)
+    }
   }
 
   async dragTaskNodeToCanvas(position: { x: number; y: number }) {
     const palette = this.page.locator('[data-testid="node-palette"]')
-    const taskNode = palette.locator('[data-testid="task-node-template"]')
-    const canvas = this.page.locator('.react-flow__viewport')
+    const taskNode = palette.locator('[data-testid*="node-template"]').first()
 
-    await taskNode.dragTo(canvas, { targetPosition: position })
+    // Get the bounding box for more precise positioning
+    const taskNodeBox = await taskNode.boundingBox()
+    const canvas = this.page.locator('.react-flow__viewport')
+    const canvasBox = await canvas.boundingBox()
+
+    if (taskNodeBox && canvasBox) {
+      // Start the drag from the center of the task node
+      await this.page.mouse.move(
+        taskNodeBox.x + taskNodeBox.width / 2,
+        taskNodeBox.y + taskNodeBox.height / 2
+      )
+      await this.page.mouse.down()
+
+      // Move to the target position on canvas
+      await this.page.mouse.move(canvasBox.x + position.x, canvasBox.y + position.y)
+      await this.page.mouse.up()
+
+      // Wait for the node to be added
+      await this.page.waitForTimeout(500)
+    }
   }
 
   // Node Configuration
@@ -73,7 +103,7 @@ class WorkflowBuilderPage {
     await node.locator('[data-testid="node-settings"]').click()
 
     // Fill task details
-    await this.page.locator('input[placeholder="Enter task description..."]').fill(task)
+    await this.page.locator('textarea[placeholder="Enter task description..."]').fill(task)
     await this.page.locator('select[name="role"]').selectOption(role)
 
     // Save
