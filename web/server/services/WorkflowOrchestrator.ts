@@ -7,120 +7,28 @@
  * Library-First: LangGraph for state, string-template for variables
  */
 
-import { StateGraph, Annotation, BaseCheckpointSaver, type RetryPolicy } from '@langchain/langgraph'
+import { BaseCheckpointSaver } from '@langchain/langgraph'
 import { v4 as uuidv4 } from 'uuid'
 import { ClaudeService } from './ClaudeService'
 import { SimpleOperator } from './SimpleOperator'
 import { UnifiedAgentConfigService } from './UnifiedAgentConfigService'
 import { StudioProjectService } from './StudioProjectService'
-import { detectAbortError, AbortError } from '../utils/errorUtils'
+import { detectAbortError } from '../utils/errorUtils'
 import { updateWorkflowStatus } from '../api/invoke-status'
 import type { InvokeRequest, InvokeResponse, WorkflowStep, StepResult } from '../schemas/invoke'
 import type { WorkflowGraph } from '../schemas/workflow-graph'
 import type { Server } from 'socket.io'
 import { EventEmitter } from 'events'
 import { WorkflowMonitor } from './WorkflowMonitor'
-import { FlowLogger } from '../utils/FlowLogger'
-import {
-  StepExecutorRegistry,
-  MockStepExecutor,
-  ClaudeStepExecutor,
-  type WorkflowContext,
-} from './executors'
+import { StepExecutorRegistry, MockStepExecutor, ClaudeStepExecutor } from './executors'
 import { WorkflowValidator } from './WorkflowValidator'
 import { WorkflowEventEmitter } from './WorkflowEventEmitter'
 import { WorkflowStateManager } from './WorkflowStateManager'
 import { WorkflowGraphGenerator } from './WorkflowGraphGenerator'
 import { ConditionEvaluator } from './ConditionEvaluator'
+import { WorkflowNodeFactory } from './WorkflowNodeFactory'
+import { WorkflowBuilder } from './WorkflowBuilder'
 import type { ConditionContext } from '../schemas/workflow-builder'
-
-// Extended WorkflowStep type that includes conditional fields and new node types
-interface ExtendedWorkflowStep extends WorkflowStep {
-  type?: 'task' | 'parallel' | 'conditional' | 'loop' | 'human'
-  condition?: string
-  trueBranch?: string
-  falseBranch?: string
-  // Loop-specific fields
-  items?: string[] // Array of items to loop over
-  loopVar?: string // Variable name for current item
-  maxIterations?: number // Maximum number of iterations
-  // Human input fields
-  prompt?: string // Prompt for human input
-  approvalRequired?: boolean // Whether approval is required
-  timeoutSeconds?: number // Timeout for human input
-  // Parallel fields
-  parallelSteps?: string[] // IDs of steps to run in parallel
-}
-
-// Type guard to check if step is conditional
-function isConditionalStep(step: WorkflowStep): step is ExtendedWorkflowStep {
-  return 'type' in step && (step as ExtendedWorkflowStep).type === 'conditional'
-}
-
-// Type guard to check if step is loop
-function isLoopStep(step: WorkflowStep): step is ExtendedWorkflowStep {
-  return 'type' in step && (step as ExtendedWorkflowStep).type === 'loop'
-}
-
-// Type guard to check if step is parallel
-function isParallelStep(step: WorkflowStep): step is ExtendedWorkflowStep {
-  return 'type' in step && (step as ExtendedWorkflowStep).type === 'parallel'
-}
-
-// Type guard to check if step is human input
-function isHumanStep(step: WorkflowStep): step is ExtendedWorkflowStep {
-  return 'type' in step && (step as ExtendedWorkflowStep).type === 'human'
-}
-
-// LangGraph state type
-interface WorkflowState {
-  stepResults: Record<string, StepResult>
-  stepOutputs: Record<string, string>
-  sessionIds: Record<string, string>
-  currentStepIndex: number
-  status: 'running' | 'completed' | 'partial' | 'failed' | 'aborted'
-  [key: string]: unknown
-}
-
-// Workflow state schema
-const WorkflowStateSchema = Annotation.Root({
-  steps: Annotation<WorkflowStep[]>({
-    reducer: (x, y) => y,
-    default: () => [],
-  }),
-  currentStepIndex: Annotation<number>({
-    reducer: (x, y) => y,
-    default: () => 0,
-  }),
-  stepResults: Annotation<Record<string, StepResult>>({
-    reducer: (x, y) => ({ ...x, ...y }),
-    default: () => ({}),
-  }),
-  stepOutputs: Annotation<Record<string, string>>({
-    reducer: (x, y) => ({ ...x, ...y }),
-    default: () => ({}),
-  }),
-  sessionIds: Annotation<Record<string, string>>({
-    reducer: (x, y) => ({ ...x, ...y }),
-    default: () => ({}),
-  }),
-  threadId: Annotation<string>({
-    reducer: (x, y) => y,
-    default: () => '',
-  }),
-  projectId: Annotation<string>({
-    reducer: (x, y) => y,
-    default: () => '',
-  }),
-  status: Annotation<'running' | 'completed' | 'partial' | 'failed' | 'aborted'>({
-    reducer: (x, y) => y,
-    default: () => 'running',
-  }),
-  startNewConversation: Annotation<boolean>({
-    reducer: (x, y) => y,
-    default: () => false,
-  }),
-})
 
 export class WorkflowOrchestrator {
   private claudeService = new ClaudeService()
@@ -136,11 +44,19 @@ export class WorkflowOrchestrator {
   private stateManager = new WorkflowStateManager()
   private graphGenerator = new WorkflowGraphGenerator()
   private conditionEvaluator = ConditionEvaluator.getInstance()
+  private nodeFactory: WorkflowNodeFactory
+  private workflowBuilder: WorkflowBuilder
 
   constructor(io?: Server, workflowEvents?: EventEmitter) {
     this.io = io
     this.workflowEvents = workflowEvents
     this.eventEmitter = new WorkflowEventEmitter(io, workflowEvents)
+    this.nodeFactory = new WorkflowNodeFactory(this.executorRegistry, this.eventEmitter)
+    this.workflowBuilder = new WorkflowBuilder(
+      this.nodeFactory,
+      this.conditionEvaluator,
+      this.stateManager
+    )
     this.initializeExecutors()
   }
 
@@ -270,7 +186,8 @@ export class WorkflowOrchestrator {
     this.emitGraphUpdate(threadId, normalizedSteps, {}, {})
 
     // Build and execute workflow
-    const workflow = await this.buildWorkflow(normalizedSteps)
+    const checkpointer = await this.getCheckpointer()
+    const workflow = await this.workflowBuilder.buildWorkflow(normalizedSteps, checkpointer)
 
     const initialState = {
       steps: normalizedSteps,
@@ -380,115 +297,12 @@ export class WorkflowOrchestrator {
   }
 
   /**
-   * Build LangGraph workflow from steps
-   */
-  private async buildWorkflow(steps: WorkflowStep[]) {
-    const workflow = new StateGraph(WorkflowStateSchema)
-
-    // Define retry policy for all nodes
-    const retryPolicy: RetryPolicy = {
-      maxAttempts: 3,
-      initialInterval: 1000, // 1 second
-      backoffFactor: 2,
-      maxInterval: 30000, // 30 seconds
-      jitter: true,
-      retryOn: (error) => {
-        // Retry on network errors, timeouts, and other transient failures
-        // Don't retry on validation errors or explicit failures
-        const message = error?.message || ''
-        const nonRetryableErrors = [
-          'validation failed',
-          'invalid configuration',
-          'unauthorized',
-          'forbidden',
-        ]
-        return !nonRetryableErrors.some((err) => message.toLowerCase().includes(err))
-      },
-    }
-
-    // Add a node for each step with retry policy
-    // IMPORTANT: Skip conditional steps - they are not execution nodes
-    steps.forEach((step) => {
-      if (isConditionalStep(step)) {
-        // Conditional steps are handled with conditional edges, not as nodes
-        return
-      }
-
-      if (isLoopStep(step)) {
-        // Loop nodes need special handling for iteration
-        workflow.addNode(step.id!, this.createLoopNode(step), { retryPolicy })
-      } else if (isParallelStep(step)) {
-        // Parallel nodes coordinate parallel execution
-        workflow.addNode(step.id!, this.createParallelNode(step), { retryPolicy })
-      } else if (isHumanStep(step)) {
-        // Human input nodes pause for approval
-        workflow.addNode(step.id!, this.createHumanNode(step), { retryPolicy })
-      } else {
-        // Regular task nodes
-        workflow.addNode(step.id!, this.createStepNode(step), { retryPolicy })
-      }
-    })
-
-    // Add edges based on dependencies and conditional logic
-    steps.forEach((step) => {
-      // Handle conditional steps with LangGraph conditional edges
-      if (isConditionalStep(step) && step.condition) {
-        // For conditional steps, add conditional edges from each dependency
-        if (step.deps && step.deps.length > 0) {
-          step.deps.forEach((depId) => {
-            // Add conditional edges from the dependency to the branches
-            workflow.addConditionalEdges(
-              depId as '__start__',
-              (state: typeof WorkflowStateSchema.State) => {
-                return this.evaluateStepCondition(step, state)
-              },
-              {
-                true: step.trueBranch || '__end__',
-                false: step.falseBranch || '__end__',
-              }
-            )
-          })
-        }
-      } else {
-        // Standard dependency-based edges for non-conditional steps
-        if (step.deps && step.deps.length > 0) {
-          // Filter out conditional dependencies and only add edges for non-conditional deps
-          const nonConditionalDeps = step.deps.filter((depId) => {
-            const depStep = steps.find((s) => s.id === depId)
-            return !(depStep && isConditionalStep(depStep))
-          })
-
-          // Add edges for non-conditional dependencies
-          nonConditionalDeps.forEach((depId) => {
-            workflow.addEdge(depId as '__start__', step.id! as '__start__')
-          })
-
-          // If this step only has conditional dependencies, it will be routed by conditional edges
-          // so we don't need to add any edges here
-        } else {
-          // No dependencies - connect from start (allows parallel execution)
-          workflow.addEdge('__start__', step.id! as '__start__')
-        }
-      }
-    })
-
-    // Connect final steps to end
-    const finalSteps = this.stateManager.findFinalSteps(steps)
-    finalSteps.forEach((stepId) => {
-      workflow.addEdge(stepId as '__start__', '__end__')
-    })
-
-    const checkpointer = await this.getCheckpointer()
-    return workflow.compile({ checkpointer })
-  }
-
-  /**
    * Evaluate condition for conditional workflow step
    * SOLID: Single responsibility for condition evaluation
    * DRY: Reuses existing ConditionEvaluator service
    */
   private evaluateStepCondition(
-    step: ConditionalWorkflowStep,
+    step: WorkflowStep & { condition?: string },
     state: typeof WorkflowStateSchema.State
   ): 'true' | 'false' {
     if (!step.condition) {
@@ -523,450 +337,7 @@ export class WorkflowOrchestrator {
     }
   }
 
-  /**
-   * Create a LangGraph node for a workflow step
-   * Refactored to use executor pattern for AI-agnostic workflow orchestration
-   */
-  private createStepNode(step: WorkflowStep) {
-    return async (state: typeof WorkflowStateSchema.State) => {
-      const startTime = Date.now()
-
-      // Emit step start event for recovery tracking
-      this.emitWorkflowEvent({
-        type: 'step_start',
-        threadId: state.threadId,
-        stepId: step.id,
-      })
-
-      // Update monitor with step start event
-      const monitor = WorkflowMonitor.getInstance()
-      monitor.updateHeartbeat(state.threadId, step.id)
-
-      // Emit graph update showing current step
-      this.emitGraphUpdate(
-        state.threadId,
-        state.steps,
-        state.stepResults,
-        state.sessionIds,
-        step.id // Current step being executed
-      )
-
-      // Log flow for documentation
-      FlowLogger.log('step-execution', `Step ${step.id} START`)
-      FlowLogger.log('step-execution', `-> WorkflowMonitor.updateHeartbeat(${step.id})`)
-
-      try {
-        // Check if dependencies are satisfied using state manager
-        const depCheck = this.stateManager.areDependenciesSatisfied(
-          step,
-          state.stepResults,
-          state.steps
-        )
-        if (!depCheck.satisfied) {
-          return {
-            stepResults: {
-              [step.id!]: {
-                id: step.id!,
-                status: 'blocked' as const,
-                response: `Blocked: dependency ${depCheck.failedDependency} did not complete successfully`,
-                sessionId: '',
-                duration: Date.now() - startTime,
-              },
-            },
-          }
-        }
-
-        // EXECUTOR PATTERN: Get appropriate executor for this step
-        const executor = this.executorRegistry.getExecutor(step)
-        console.log(
-          `[WorkflowOrchestrator] Step ${step.id} using executor: ${executor.constructor.name}`
-        )
-
-        // Build executor context from workflow state
-        const context: WorkflowContext = {
-          stepOutputs: state.stepOutputs,
-          projectId: state.projectId,
-          threadId: state.threadId,
-          io: this.io,
-          sessionIds: state.sessionIds,
-          startNewConversation: state.startNewConversation,
-        }
-
-        // DELEGATE EXECUTION: Let the executor handle the step
-        FlowLogger.log('step-execution', `-> ${executor.constructor.name}.execute()`)
-        const stepResult = await executor.execute(step, context)
-        FlowLogger.log(
-          'step-execution',
-          `<- ${executor.constructor.name} completed with status: ${stepResult.status}`
-        )
-
-        // Emit step events based on result
-        if (stepResult.status === 'success') {
-          FlowLogger.log('step-execution', `Step ${step.id} SUCCESS - emitting step_complete`)
-          this.emitWorkflowEvent({
-            type: 'step_complete',
-            threadId: state.threadId,
-            stepId: step.id,
-            sessionId: stepResult.sessionId || undefined,
-          })
-          // Update monitor on step completion
-          monitor.updateHeartbeat(state.threadId, step.id)
-          FlowLogger.log('step-execution', `-> WorkflowMonitor.updateHeartbeat(${step.id})`)
-        } else {
-          FlowLogger.log('step-execution', `Step ${step.id} FAILED - status: ${stepResult.status}`)
-        }
-
-        // Emit graph update after step completion
-        this.emitGraphUpdate(
-          state.threadId,
-          state.steps,
-          { ...state.stepResults, [step.id!]: stepResult },
-          { ...state.sessionIds, [step.id!]: stepResult.sessionId || '' }
-        )
-
-        // Update workflow status with sessionId
-        if (stepResult.sessionId) {
-          const sessionIds: Record<string, string> = {}
-          sessionIds[step.id!] = stepResult.sessionId
-          await updateWorkflowStatus(state.threadId, {
-            sessionIds,
-            currentStep: step.id,
-          })
-        }
-
-        // Update state - merge with existing state
-        return {
-          stepResults: { ...state.stepResults, [step.id!]: stepResult },
-          stepOutputs: { ...state.stepOutputs, [step.id!]: stepResult.response },
-          sessionIds: { ...state.sessionIds, [step.id!]: stepResult.sessionId },
-          currentStepIndex: state.currentStepIndex + 1,
-        }
-      } catch (error) {
-        console.error(`Step ${step.id} error:`, error)
-
-        // Check if this is an abort error using centralized detection
-        const abortInfo = detectAbortError(error)
-
-        // Preserve the last known sessionId for the step if it exists
-        // If the error is an AbortError, it might have a sessionId attached
-        let lastSessionId = state.sessionIds[step.id!] || step.sessionId || ''
-        if (error instanceof AbortError && error.sessionId) {
-          lastSessionId = error.sessionId
-          console.log(`[WorkflowOrchestrator] Using sessionId from AbortError: ${lastSessionId}`)
-        }
-
-        // Emit step failed event for recovery
-        this.emitWorkflowEvent({
-          type: 'step_failed',
-          threadId: state.threadId,
-          stepId: step.id,
-          retry: 0, // Retry count tracked by LangGraph's RetryPolicy
-        })
-
-        return {
-          stepResults: {
-            ...state.stepResults,
-            [step.id!]: {
-              id: step.id!,
-              status: abortInfo.isAbort ? ('aborted' as const) : ('failed' as const),
-              response: abortInfo.message,
-              sessionId: lastSessionId, // Preserve sessionId for resume
-              duration: Date.now() - startTime,
-              abortedAt: abortInfo.isAbort ? new Date().toISOString() : undefined,
-            },
-          },
-          status: abortInfo.isAbort ? ('aborted' as const) : ('failed' as const),
-          // Preserve all sessionIds for potential resume
-          sessionIds: state.sessionIds,
-        }
-      }
-    }
-  }
-
-  /**
-   * Create a LangGraph node for loop execution
-   * Uses native LangGraph patterns for iteration
-   */
-  private createLoopNode(step: ExtendedWorkflowStep) {
-    return async (state: typeof WorkflowStateSchema.State) => {
-      const startTime = Date.now()
-
-      // Emit loop start event
-      this.emitWorkflowEvent({
-        type: 'step_start',
-        threadId: state.threadId,
-        stepId: step.id,
-      })
-
-      try {
-        // Get items to loop over
-        const items = step.items || []
-        const loopVar = step.loopVar || 'item'
-        const maxIterations = step.maxIterations || items.length
-
-        const loopResults: StepResult[] = []
-        const loopOutputs: string[] = []
-
-        // Execute loop iterations
-        for (let i = 0; i < Math.min(items.length, maxIterations); i++) {
-          const item = items[i]
-
-          // Create a loop context with the current item
-          const loopContext = {
-            ...state,
-            [`${loopVar}`]: item,
-            [`${loopVar}_index`]: i,
-          }
-
-          // Execute the loop body (task with template variables)
-          const taskWithLoopVars = step.task?.replace(new RegExp(`\\{${loopVar}\\}`, 'g'), item)
-
-          const loopStep = {
-            ...step,
-            id: `${step.id}_iteration_${i}`,
-            task: taskWithLoopVars || step.task,
-          }
-
-          // Execute using the appropriate executor
-          const context: WorkflowContext = {
-            step: loopStep,
-            state: loopContext as typeof WorkflowStateSchema.State,
-            templateVariables: this.stateManager.resolveTemplateVariables(
-              loopStep.task || '',
-              loopContext.stepOutputs
-            ),
-          }
-
-          const executor = this.executorRegistry.getExecutor()
-          const result = await executor.execute(context)
-
-          loopResults.push(result)
-          loopOutputs.push(result.response)
-        }
-
-        // Combine loop results
-        const combinedResult: StepResult = {
-          stepId: step.id!,
-          status: loopResults.every((r) => r.status === 'success') ? 'success' : 'failed',
-          response: loopOutputs.join('\n---\n'),
-          sessionId: loopResults[0]?.sessionId,
-          duration: Date.now() - startTime,
-        }
-
-        this.emitWorkflowEvent({
-          type: 'step_complete',
-          threadId: state.threadId,
-          stepId: step.id,
-        })
-
-        return {
-          stepResults: { ...state.stepResults, [step.id!]: combinedResult },
-          stepOutputs: { ...state.stepOutputs, [step.id!]: combinedResult.response },
-          sessionIds: { ...state.sessionIds, [step.id!]: combinedResult.sessionId },
-        }
-      } catch (error) {
-        console.error(`Loop ${step.id} error:`, error)
-        const errorResult: StepResult = {
-          stepId: step.id!,
-          status: 'failed',
-          response: `Loop execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          duration: Date.now() - startTime,
-        }
-
-        return {
-          stepResults: { ...state.stepResults, [step.id!]: errorResult },
-          stepOutputs: { ...state.stepOutputs, [step.id!]: errorResult.response },
-          status: 'failed' as const,
-        }
-      }
-    }
-  }
-
-  /**
-   * Create a LangGraph node for parallel execution
-   * Uses native LangGraph branching for parallel flows
-   */
-  private createParallelNode(step: ExtendedWorkflowStep) {
-    return async (state: typeof WorkflowStateSchema.State) => {
-      const startTime = Date.now()
-
-      // Emit parallel start event
-      this.emitWorkflowEvent({
-        type: 'step_start',
-        threadId: state.threadId,
-        stepId: step.id,
-      })
-
-      try {
-        // Get parallel step IDs
-        const parallelStepIds = step.parallelSteps || []
-
-        // Execute all parallel steps concurrently
-        const parallelPromises = parallelStepIds.map(async (stepId) => {
-          const parallelStep = state.steps.find((s) => s.id === stepId)
-          if (!parallelStep) {
-            throw new Error(`Parallel step ${stepId} not found`)
-          }
-
-          const context: WorkflowContext = {
-            step: parallelStep,
-            state,
-            templateVariables: this.stateManager.resolveTemplateVariables(
-              parallelStep.task || '',
-              state.stepOutputs
-            ),
-          }
-
-          const executor = this.executorRegistry.getExecutor()
-          return executor.execute(context)
-        })
-
-        // Wait for all parallel executions
-        const parallelResults = await Promise.allSettled(parallelPromises)
-
-        // Process results
-        const successResults = parallelResults
-          .filter((r): r is PromiseFulfilledResult<StepResult> => r.status === 'fulfilled')
-          .map((r) => r.value)
-
-        const failedResults = parallelResults.filter(
-          (r): r is PromiseRejectedResult => r.status === 'rejected'
-        )
-
-        // Combine parallel results
-        const combinedResult: StepResult = {
-          stepId: step.id!,
-          status: failedResults.length === 0 ? 'success' : 'failed',
-          response: successResults.map((r) => r.response).join('\n---\n'),
-          sessionId: successResults[0]?.sessionId,
-          duration: Date.now() - startTime,
-        }
-
-        this.emitWorkflowEvent({
-          type: 'step_complete',
-          threadId: state.threadId,
-          stepId: step.id,
-        })
-
-        // Update state with results from all parallel steps
-        const newStepResults = { ...state.stepResults }
-        const newStepOutputs = { ...state.stepOutputs }
-        const newSessionIds = { ...state.sessionIds }
-
-        successResults.forEach((result) => {
-          newStepResults[result.stepId] = result
-          newStepOutputs[result.stepId] = result.response
-          if (result.sessionId) {
-            newSessionIds[result.stepId] = result.sessionId
-          }
-        })
-
-        // Also add the parallel node result
-        newStepResults[step.id!] = combinedResult
-        newStepOutputs[step.id!] = combinedResult.response
-        if (combinedResult.sessionId) {
-          newSessionIds[step.id!] = combinedResult.sessionId
-        }
-
-        return {
-          stepResults: newStepResults,
-          stepOutputs: newStepOutputs,
-          sessionIds: newSessionIds,
-        }
-      } catch (error) {
-        console.error(`Parallel ${step.id} error:`, error)
-        const errorResult: StepResult = {
-          stepId: step.id!,
-          status: 'failed',
-          response: `Parallel execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          duration: Date.now() - startTime,
-        }
-
-        return {
-          stepResults: { ...state.stepResults, [step.id!]: errorResult },
-          stepOutputs: { ...state.stepOutputs, [step.id!]: errorResult.response },
-          status: 'failed' as const,
-        }
-      }
-    }
-  }
-
-  /**
-   * Create a LangGraph node for human input/approval
-   * Implements human-in-the-loop pattern
-   */
-  private createHumanNode(step: ExtendedWorkflowStep) {
-    return async (state: typeof WorkflowStateSchema.State) => {
-      const startTime = Date.now()
-
-      // Emit human input request event
-      this.emitWorkflowEvent({
-        type: 'human_input_required',
-        threadId: state.threadId,
-        stepId: step.id,
-        prompt: step.prompt || 'Human approval required',
-      })
-
-      try {
-        // For now, we'll simulate human approval
-        // In a real implementation, this would pause and wait for actual human input
-        // This could be implemented via:
-        // 1. WebSocket event to frontend
-        // 2. Polling endpoint for approval status
-        // 3. Callback URL for approval webhook
-
-        console.log(`Human input requested for step ${step.id}: ${step.prompt}`)
-
-        // Simulate approval after a delay (in real implementation, this would wait for actual input)
-        if (process.env.USE_MOCK_AI === 'true') {
-          await new Promise((resolve) => setTimeout(resolve, 2000))
-
-          const approvalResult: StepResult = {
-            stepId: step.id!,
-            status: 'success',
-            response: 'Human approval granted (simulated)',
-            duration: Date.now() - startTime,
-          }
-
-          this.emitWorkflowEvent({
-            type: 'human_input_received',
-            threadId: state.threadId,
-            stepId: step.id,
-            approved: true,
-          })
-
-          this.emitWorkflowEvent({
-            type: 'step_complete',
-            threadId: state.threadId,
-            stepId: step.id,
-          })
-
-          return {
-            stepResults: { ...state.stepResults, [step.id!]: approvalResult },
-            stepOutputs: { ...state.stepOutputs, [step.id!]: approvalResult.response },
-          }
-        }
-
-        // In production, this would integrate with a real approval system
-        throw new Error('Human input workflow not fully implemented for production use')
-      } catch (error) {
-        console.error(`Human input ${step.id} error:`, error)
-        const errorResult: StepResult = {
-          stepId: step.id!,
-          status: 'failed',
-          response: `Human input failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          duration: Date.now() - startTime,
-        }
-
-        return {
-          stepResults: { ...state.stepResults, [step.id!]: errorResult },
-          stepOutputs: { ...state.stepOutputs, [step.id!]: errorResult.response },
-          status: 'failed' as const,
-        }
-      }
-    }
-  }
-
+  // Node creation methods moved to WorkflowNodeFactory for SOLID compliance
   /**
    * Get current workflow state by threadId
    * Shows which steps completed, which are in progress, and available sessionIds
@@ -984,7 +355,8 @@ export class WorkflowOrchestrator {
   }> {
     try {
       // Build workflow to get the compiled graph
-      const workflow = await this.buildWorkflow(steps)
+      const checkpointer = await this.getCheckpointer()
+      const workflow = await this.workflowBuilder.buildWorkflow(steps, checkpointer)
 
       // Get current state from LangGraph checkpointer
       const state = await workflow.getState({
@@ -1078,4 +450,6 @@ export class WorkflowOrchestrator {
       graph,
     })
   }
+
+  // Human approval methods removed - use HumanApprovalService directly
 }

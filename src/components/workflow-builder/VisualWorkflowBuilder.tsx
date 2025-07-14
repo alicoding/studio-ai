@@ -216,15 +216,15 @@ export default function VisualWorkflowBuilder({
           }
           // Also add dependency from conditional node to target
           const targetStep = workflow?.steps.find((s) => s.id === params.target)
-          if (targetStep && !targetStep.deps.includes(params.source)) {
-            const newDeps = [...targetStep.deps, params.source]
+          if (targetStep && !(targetStep.deps || []).includes(params.source)) {
+            const newDeps = [...(targetStep.deps || []), params.source]
             setDependencies(params.target, newDeps)
           }
         } else {
           // Regular dependency handling for non-conditional nodes
           const targetStep = workflow?.steps.find((s) => s.id === params.target)
           if (targetStep) {
-            const newDeps = [...targetStep.deps, params.source]
+            const newDeps = [...(targetStep.deps || []), params.source]
             setDependencies(params.target, newDeps)
           }
         }

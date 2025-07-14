@@ -152,6 +152,7 @@
     "dotenv": "^17.0.0",
     "drizzle-kit": "^0.31.4",
     "drizzle-orm": "^0.44.2",
+    "esbuild": "^0.25.6",
     "express": "^5.1.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.19.2",

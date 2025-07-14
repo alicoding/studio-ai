@@ -143,6 +143,24 @@ mcp__studio -
 
 Must commit the work before writing the "Summary" at the end of the task.
 
+### Feature Planning System
+
+**MANDATORY**: For any complex feature development (>2 days work), create a comprehensive plan:
+
+1. **Create Feature Plan**: `docs/feature-plans/{feature-name}.md` with detailed breakdown
+2. **Use Template Structure**:
+   - Overview & Requirements
+   - User Experience Flow
+   - Technical Architecture
+   - **Atomic Tasks**: Break into granular `[ ]` checkbox tasks
+   - Dependencies & Risk Assessment
+   - Testing Strategy & Success Metrics
+3. **Sticky Todo Tracking**: Create sticky todo item: `🎯 FEATURE PLAN: {Name} - Track progress in docs/feature-plans/{file}.md`
+4. **Session Persistence**: Sticky todos survive session changes and remind of active feature work
+5. **Update Progress**: Check off `[x]` tasks in .md file as completed, keep file current
+
+**Pattern**: This ensures complex features are properly planned, tracked, and can be resumed across multiple sessions without losing context.
+
 ### Architecture Guidelines:
 
 1. **Workspace-Centric Design**

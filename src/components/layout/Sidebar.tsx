@@ -2,11 +2,24 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { AgentCard } from '../projects/AgentCard'
 import { Button } from '../ui/button'
-import { UserPlus, Bot, Users, CheckSquare, Square, Trash2, Activity, FileText } from 'lucide-react'
+import {
+  UserPlus,
+  Bot,
+  Users,
+  CheckSquare,
+  Square,
+  Trash2,
+  Activity,
+  FileText,
+  Clock,
+} from 'lucide-react'
 import { useAgentStore, useProjectStore } from '../../stores'
 import { DeleteAgentModal } from '../modals/DeleteAgentModal'
 import { WorkflowList } from '../workflow/WorkflowList'
 import { WorkflowDebugger } from '../workflow/WorkflowDebugger'
+import { ApprovalCounts } from '../approvals/ApprovalCounts'
+import { PendingApprovalsList } from '../approvals/PendingApprovalsList'
+import { OverdueApprovalsAlert } from '../approvals/OverdueApprovalsAlert'
 import { useWorkspaceLayout } from '../../hooks/useWorkspaceLayout'
 import { useWorkflowBuilderStore } from '../../stores/workflowBuilder'
 import type { WorkflowDefinition } from '../../../web/server/schemas/workflow-builder'
@@ -39,7 +52,7 @@ interface SidebarProps {
   projectId?: string
 }
 
-type SidebarTab = 'agents' | 'workflows'
+type SidebarTab = 'agents' | 'workflows' | 'approvals'
 
 export function Sidebar({
   isCollapsed,
@@ -95,7 +108,8 @@ export function Sidebar({
   }, [canvasMode, projectId, fetchSavedWorkflows])
 
   // Sidebar state - derive from canvas mode
-  const activeTab: SidebarTab = canvasMode === 'workflow' ? 'workflows' : 'agents'
+  const activeTab: SidebarTab =
+    canvasMode === 'workflow' ? 'workflows' : canvasMode === 'approval' ? 'approvals' : 'agents'
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -397,6 +411,51 @@ export function Sidebar({
       )
     }
 
+    if (activeTab === 'approvals') {
+      return (
+        <div className="flex flex-col h-full">
+          {/* Overdue Alerts */}
+          <div className="p-3 border-b">
+            <OverdueApprovalsAlert
+              projectId={projectId}
+              onViewApprovals={() => {
+                // Could scroll to pending section or open modal
+              }}
+            />
+          </div>
+
+          {/* Approval Stats */}
+          <div className="p-3 border-b">
+            <ApprovalCounts
+              projectId={projectId}
+              displayMode="detailed"
+              showTrends={true}
+              onCountClick={(status) => {
+                // Could filter the pending list by status
+                console.log('Filter approvals by status:', status)
+              }}
+            />
+          </div>
+
+          {/* Pending Approvals List */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="px-3 py-2 border-b">
+              <h3 className="text-xs font-medium text-muted-foreground">Pending Approvals</h3>
+            </div>
+            <div className="h-full overflow-auto">
+              <PendingApprovalsList
+                projectId={projectId}
+                onApprovalUpdate={() => {
+                  // Refresh other components if needed
+                }}
+                className="p-3"
+              />
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return null
   }
 
@@ -433,6 +492,18 @@ export function Sidebar({
         >
           <Activity className="w-5 h-5" />
           <span className="text-[10px] font-medium">Workflows</span>
+        </button>
+
+        <button
+          onClick={() => setCanvasMode('approval')}
+          className={`flex flex-col items-center gap-2 py-4 px-2 mx-2 rounded-lg hover:bg-accent/50 transition-colors ${
+            activeTab === 'approvals' ? 'bg-accent text-primary shadow-sm' : 'text-muted-foreground'
+          }`}
+          title="Approvals"
+        >
+          <Clock className="w-5 h-5" />
+          <span className="text-[10px] font-medium">Approvals</span>
+          <ApprovalCounts projectId={projectId} displayMode="badges" className="mt-1" />
         </button>
 
         {/* Selection Mode Toggle (only show on agents tab) */}

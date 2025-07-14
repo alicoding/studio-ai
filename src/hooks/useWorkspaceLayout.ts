@@ -11,7 +11,7 @@ import { useCallback } from 'react'
 import { useProjectStore } from '../stores'
 
 export type ViewMode = 'single' | 'split' | 'grid'
-export type CanvasMode = 'agent' | 'workflow'
+export type CanvasMode = 'agent' | 'workflow' | 'approval'
 
 interface WorkspaceLayout {
   // State

@@ -56,7 +56,7 @@ interface ProjectState {
   error: string | null
 
   // Canvas mode and selection state preservation
-  canvasMode: 'agent' | 'workflow'
+  canvasMode: 'agent' | 'workflow' | 'approval'
   selectedAgentId: string | null // Preserved when in workflow mode
   selectedWorkflowId: string | null // Preserved when in agent mode
 
@@ -100,7 +100,7 @@ interface ProjectState {
   toggleChat: () => void
 
   // Canvas mode and selection state preservation
-  setCanvasMode: (mode: 'agent' | 'workflow') => void
+  setCanvasMode: (mode: 'agent' | 'workflow' | 'approval') => void
   setSelectedAgent: (agentId: string | null) => void
   setSelectedWorkflow: (workflowId: string | null) => void
 
