@@ -18,10 +18,28 @@ export const WorkflowStepSchema = z
     task: z.string().min(1), // Task with template variables
     sessionId: z.string().optional(), // Resume specific session
     deps: z.array(z.string()).optional(), // Dependencies on other steps
+    // Conditional step fields (only for type: 'conditional')
+    type: z.enum(['task', 'conditional', 'parallel']).optional().default('task'),
+    condition: z.string().optional(), // JavaScript expression (e.g., "{step1.output} === 'success'")
+    trueBranch: z.string().optional(), // Step ID to execute if condition is true
+    falseBranch: z.string().optional(), // Step ID to execute if condition is false
   })
-  .refine((data) => data.role || data.agentId, {
-    message: "Either 'role' or 'agentId' must be provided",
+  .refine((data) => data.role || data.agentId || data.type === 'conditional', {
+    message: "Either 'role' or 'agentId' must be provided (except for conditional steps)",
   })
+  .refine(
+    (data) => {
+      // Conditional steps must have condition and at least one branch
+      if (data.type === 'conditional') {
+        return data.condition && (data.trueBranch || data.falseBranch)
+      }
+      return true
+    },
+    {
+      message:
+        'Conditional steps must have a condition and at least one branch (trueBranch or falseBranch)',
+    }
+  )
 
 export type WorkflowStep = z.infer<typeof WorkflowStepSchema>
 

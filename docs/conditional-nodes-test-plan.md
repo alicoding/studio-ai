@@ -166,9 +166,9 @@ Check server logs for:
 | Test Case                        | Component       | Status         | Notes              |
 | -------------------------------- | --------------- | -------------- | ------------------ |
 | Save condition in UI             | ConditionalNode | ✅ Implemented | Phase 2.1 complete |
-| Condition in workflow definition | Store           | ⏳ Pending     | Phase 2.2          |
-| trueBranch/falseBranch set       | Visual Builder  | ⏳ Pending     | Phase 2.2          |
-| Condition flows to API           | API             | ⏳ Pending     | Phase 2.2          |
+| Condition in workflow definition | Store           | ✅ Implemented | Phase 2.2 complete |
+| trueBranch/falseBranch set       | Visual Builder  | ✅ Implemented | Phase 2.2 complete |
+| Condition flows to API           | API             | ✅ Implemented | Phase 2.2 complete |
 | LangGraph evaluates              | Backend         | ✅ Implemented | Phase 1 complete   |
 | Correct branch executes          | E2E             | ⏳ Pending     | Phase 3            |
 
@@ -224,15 +224,19 @@ describe('Conditional Workflows', () => {
 
 ## 📝 Test Execution Log
 
-### Session 1 (2025-01-13) - Phase 2.1
+### Session 1 (2025-01-13) - Phase 2.1 & 2.2
 
 - ✅ ConditionalNode saves to store
 - ✅ TypeScript/ESLint passing
-- ⏳ Full E2E test pending (requires Phase 2.2)
+- ✅ Edge connection logic implemented
+- ✅ API data flow working (conditional fields passed through)
+- ✅ trueBranch/falseBranch set by visual builder
+- ✅ Workflow execution endpoint updated
 
-### Next Session - Phase 2.2+
+### Next Session - Phase 3+
 
-- [ ] Test edge connection logic
-- [ ] Test API data flow
-- [ ] Test full workflow execution
+- [ ] Test full conditional workflow execution
+- [ ] Create test workflow with conditional node in UI
+- [ ] Verify branching logic works correctly
+- [ ] Test with different condition expressions
 - [ ] Document any bugs found

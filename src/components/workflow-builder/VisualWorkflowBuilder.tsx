@@ -109,6 +109,7 @@ export default function VisualWorkflowBuilder({
     lastError,
     updateWorkflowMeta,
     addStep,
+    updateStep,
     setDependencies,
     validateWorkflow,
     executeWorkflow,
@@ -169,17 +170,35 @@ export default function VisualWorkflowBuilder({
   const onConnect = useCallback(
     (params: Connection | Edge) => {
       if (params.source && params.target) {
-        // Update dependencies in store instead of just UI
-        const targetStep = workflow?.steps.find((s) => s.id === params.target)
-        if (targetStep) {
-          const newDeps = [...targetStep.deps, params.source]
-          setDependencies(params.target, newDeps)
+        // Check if the source is a conditional node
+        const sourceStep = workflow?.steps.find((s) => s.id === params.source)
+
+        if (sourceStep?.type === 'conditional') {
+          // Handle conditional node connections based on source handle
+          if (params.sourceHandle === 'true') {
+            updateStep(params.source, { trueBranch: params.target })
+          } else if (params.sourceHandle === 'false') {
+            updateStep(params.source, { falseBranch: params.target })
+          }
+          // Also add dependency from conditional node to target
+          const targetStep = workflow?.steps.find((s) => s.id === params.target)
+          if (targetStep && !targetStep.deps.includes(params.source)) {
+            const newDeps = [...targetStep.deps, params.source]
+            setDependencies(params.target, newDeps)
+          }
+        } else {
+          // Regular dependency handling for non-conditional nodes
+          const targetStep = workflow?.steps.find((s) => s.id === params.target)
+          if (targetStep) {
+            const newDeps = [...targetStep.deps, params.source]
+            setDependencies(params.target, newDeps)
+          }
         }
       }
       // Also update display for immediate feedback
       setDisplayEdges((eds) => addEdge(params, eds))
     },
-    [setDependencies, setDisplayEdges, workflow?.steps]
+    [setDependencies, setDisplayEdges, workflow?.steps, updateStep]
   )
 
   const onDragOver = useCallback((event: React.DragEvent) => {

@@ -42,6 +42,11 @@ router.post('/', async (req: Request, res: Response) => {
       agentId: step.agentId,
       task: step.task,
       deps: step.deps.length > 0 ? step.deps : undefined,
+      // Include conditional fields for conditional steps
+      type: step.type,
+      condition: step.condition,
+      trueBranch: step.trueBranch,
+      falseBranch: step.falseBranch,
     }))
 
     // Generate thread ID if not provided

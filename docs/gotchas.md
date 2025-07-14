@@ -247,6 +247,28 @@
 - Check for stale tsx processes with `ps aux | grep tsx`
 - EventEmitter needs to be shared via `req.app.get/set` for SSE
 
+## Conditional Nodes Implementation (2025-01-13)
+
+- **Problem**: User discovered conditional nodes were UI mockups without backend integration
+- **Root Cause**: ConditionalNode.tsx had TODO comment, WorkflowOrchestrator only built static edges
+- **Solution**: Implemented real LangGraph conditional edges with ConditionEvaluator service
+- **Key Insight**: Always verify UI features have complete backend integration
+- **Implementation Pattern**:
+  ```typescript
+  // LangGraph native conditional edges
+  workflow.addConditionalEdges(stepId, (state) => evaluateCondition(step.condition, state), {
+    true: trueBranch,
+    false: falseBranch,
+  })
+  ```
+- **Security**: ConditionEvaluator uses Function constructor with restricted scope, not eval()
+- **Template Variables**: Supports {stepId.output}, {stepId.status}, {stepId.response}
+- **Status**: Backend complete, UI store connection complete, edge connection logic pending
+- **Files**:
+  - web/server/services/ConditionEvaluator.ts (NEW)
+  - web/server/services/WorkflowOrchestrator.ts (modified)
+  - src/components/workflow-builder/nodes/ConditionalNode.tsx (TODO removed)
+
 ## MCP (Model Context Protocol) Limitations
 
 - MCP servers CANNOT be passed to Claude agents in Claude Studio
