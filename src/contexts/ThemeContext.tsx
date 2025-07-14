@@ -9,7 +9,7 @@
 
 import { createContext, useEffect, useState, ReactNode } from 'react'
 
-export type Theme = 'light' | 'dark'
+export type Theme = 'light' | 'dark' | 'system'
 
 interface ThemeContextType {
   theme: Theme
@@ -34,7 +34,7 @@ export function ThemeProvider({
     // Check localStorage first
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem(storageKey) as Theme
-      if (stored === 'light' || stored === 'dark') {
+      if (stored === 'light' || stored === 'dark' || stored === 'system') {
         return stored
       }
     }
@@ -70,8 +70,14 @@ export function ThemeProvider({
     // Remove previous theme class
     root.removeAttribute('data-theme')
 
+    // Determine effective theme
+    let effectiveTheme = theme
+    if (theme === 'system') {
+      effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    }
+
     // Add new theme class
-    if (theme === 'dark') {
+    if (effectiveTheme === 'dark') {
       root.setAttribute('data-theme', 'dark')
     }
   }, [theme])
@@ -80,17 +86,17 @@ export function ThemeProvider({
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
 
-    const handleChange = (e: MediaQueryListEvent) => {
-      // Only auto-switch if user hasn't manually set a preference
-      const stored = localStorage.getItem(storageKey)
-      if (!stored) {
-        setThemeState(e.matches ? 'dark' : 'light')
+    const handleChange = (_e: MediaQueryListEvent) => {
+      // Update theme if user is using system preference
+      if (theme === 'system') {
+        // Force re-render to apply new system theme
+        setThemeState('system')
       }
     }
 
     mediaQuery.addEventListener('change', handleChange)
     return () => mediaQuery.removeEventListener('change', handleChange)
-  }, [storageKey])
+  }, [theme, storageKey])
 
   const value: ThemeContextType = {
     theme,

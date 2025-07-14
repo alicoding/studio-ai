@@ -11,6 +11,7 @@ import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { ScrollArea } from '../ui/scroll-area'
 import { AlertTriangle, Clock, CheckCircle, XCircle } from 'lucide-react'
+import { useApprovalColors } from '../../hooks/useTheme'
 import type { EnrichedApproval } from '../../hooks/useApprovals'
 
 export interface ApprovalQueueProps {
@@ -26,22 +27,17 @@ export function ApprovalQueue({
   onSelectApproval,
   className = '',
 }: ApprovalQueueProps) {
+  // Theme-aware colors
+  const colors = useApprovalColors()
+
   if (approvals.length === 0) {
     return null
   }
 
-  const getRiskColor = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'critical':
-        return 'bg-red-500'
-      case 'high':
-        return 'bg-orange-500'
-      case 'medium':
-        return 'bg-yellow-500'
-      case 'low':
-        return 'bg-green-500'
-      default:
-        return 'bg-gray-500'
+  const getRiskColorStyle = (riskLevel: string) => {
+    const riskColors = colors.getRiskColor(riskLevel as 'critical' | 'high' | 'medium' | 'low')
+    return {
+      backgroundColor: riskColors.text,
     }
   }
 
@@ -96,7 +92,8 @@ export function ApprovalQueue({
                 <div className="flex items-center space-x-2">
                   {getStatusIcon(approval)}
                   <div
-                    className={`w-2 h-2 rounded-full ${getRiskColor(approval.riskLevel)}`}
+                    className="w-2 h-2 rounded-full"
+                    style={getRiskColorStyle(approval.riskLevel)}
                     title={`${approval.riskLevel} risk`}
                   />
                 </div>

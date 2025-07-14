@@ -1,6 +1,7 @@
 import { Link, useLocation } from '@tanstack/react-router'
 import { Settings, Database, Search, Workflow } from 'lucide-react'
 import { useProjectStore } from '../../stores'
+import { ThemeToggle } from '../ui/ThemeToggle'
 
 export function Navigation() {
   const location = useLocation()
@@ -98,18 +99,21 @@ export function Navigation() {
           Search
         </Link>
       </div>
-      <Link
-        to="/settings"
-        search={{ tab: 'system' }}
-        className={`p-2 rounded-md transition-colors ${
-          isActive('/settings')
-            ? 'text-primary bg-primary/10 border border-primary/20'
-            : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-        }`}
-        title="Settings"
-      >
-        <Settings className="w-5 h-5" />
-      </Link>
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+        <Link
+          to="/settings"
+          search={{ tab: 'system' }}
+          className={`p-2 rounded-md transition-colors ${
+            isActive('/settings')
+              ? 'text-primary bg-primary/10 border border-primary/20'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+          }`}
+          title="Settings"
+        >
+          <Settings className="w-5 h-5" />
+        </Link>
+      </div>
     </nav>
   )
 }
