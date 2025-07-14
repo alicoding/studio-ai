@@ -1,6 +1,6 @@
 /**
  * Workflow State Manager - Manages workflow state and status determination
- * 
+ *
  * SOLID: Single responsibility - only manages workflow state
  * DRY: Centralized status logic and state operations
  * KISS: Simple state transitions and status mapping
@@ -60,11 +60,22 @@ export class WorkflowStateManager {
    */
   mapStepResultToStepStatus(
     stepResult?: StepResult
-  ): 'pending' | 'running' | 'completed' | 'failed' | 'blocked' | 'not_executed' | 'skipped' | 'aborted' {
+  ):
+    | 'pending'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'blocked'
+    | 'not_executed'
+    | 'skipped'
+    | 'aborted' {
     if (!stepResult) return 'pending'
 
     // Detect if step never actually executed (has failed status but empty response)
-    if (stepResult.status === 'failed' && (!stepResult.response || stepResult.response.trim() === '')) {
+    if (
+      stepResult.status === 'failed' &&
+      (!stepResult.response || stepResult.response.trim() === '')
+    ) {
       return 'not_executed'
     }
 
@@ -89,10 +100,7 @@ export class WorkflowStateManager {
   /**
    * Build updated steps array with final statuses
    */
-  buildUpdatedSteps(
-    steps: WorkflowStep[],
-    stepResults: Record<string, StepResult>
-  ) {
+  buildUpdatedSteps(steps: WorkflowStep[], stepResults: Record<string, StepResult>) {
     return steps.map((step) => {
       const stepResult = stepResults[step.id!]
       const stepStatus = this.mapStepResultToStepStatus(stepResult)
@@ -151,9 +159,20 @@ export class WorkflowStateManager {
 
   /**
    * Find steps with no dependents (final steps)
+   * Excludes conditional steps as they are not execution nodes
    */
   findFinalSteps(steps: WorkflowStep[]): string[] {
-    const stepIds = new Set(steps.map((s) => s.id!))
+    // Type guard for conditional steps
+    const isConditionalStep = (step: WorkflowStep): boolean => {
+      return 'type' in step && (step as WorkflowStep & { type: string }).type === 'conditional'
+    }
+
+    // Only consider non-conditional steps as potential final steps
+    const executableSteps = steps.filter((step) => {
+      return !isConditionalStep(step)
+    })
+
+    const stepIds = new Set(executableSteps.map((s) => s.id!))
     const dependedOn = new Set<string>()
 
     steps.forEach((step) => {
@@ -167,16 +186,31 @@ export class WorkflowStateManager {
 
   /**
    * Check if dependencies are satisfied for a step
+   * Handles conditional steps specially since they don't execute as nodes
    */
   areDependenciesSatisfied(
     step: WorkflowStep,
-    stepResults: Record<string, StepResult>
+    stepResults: Record<string, StepResult>,
+    allSteps?: WorkflowStep[]
   ): { satisfied: boolean; failedDependency?: string } {
     if (!step.deps || step.deps.length === 0) {
       return { satisfied: true }
     }
 
     for (const depId of step.deps) {
+      // Check if dependency is a conditional step
+      const isConditionalDep = allSteps?.some(
+        (s) =>
+          s.id === depId &&
+          'type' in s &&
+          (s as WorkflowStep & { type: string }).type === 'conditional'
+      )
+
+      if (isConditionalDep) {
+        // Conditional dependencies are handled by LangGraph routing, treat as satisfied
+        continue
+      }
+
       const depResult = stepResults[depId]
       if (!depResult || depResult.status !== 'success') {
         return { satisfied: false, failedDependency: depId }

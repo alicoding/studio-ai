@@ -95,6 +95,7 @@ export class ConditionEvaluator {
   private safeEvaluate(expression: string): boolean {
     // Basic security check - ensure expression only contains allowed patterns
     const cleanExpression = expression.replace(/"[^"]*"/g, '""') // Remove string literals for checking
+    // Allow alphanumeric, whitespace, equals (=, ==, ===), not (!), and/or (&, |), comparisons (<, >), parentheses, quotes
     const hasDisallowedChars = /[^a-zA-Z0-9\s=!&|<>()"]/.test(cleanExpression)
 
     if (hasDisallowedChars) {

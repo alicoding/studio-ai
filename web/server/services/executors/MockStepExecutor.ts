@@ -45,7 +45,17 @@ export class MockStepExecutor implements StepExecutor {
   ])
 
   canHandle(step: ExecutorWorkflowStep): boolean {
-    return step.type === 'mock' || (!step.type && process.env.USE_MOCK_AI === 'true')
+    // Handle explicit mock type
+    if (step.type === 'mock') {
+      return true
+    }
+
+    // In mock mode, handle all task types and no type
+    if (process.env.USE_MOCK_AI === 'true') {
+      return !step.type || step.type === 'task'
+    }
+
+    return false
   }
 
   async execute(step: ExecutorWorkflowStep, context: WorkflowContext): Promise<StepResult> {
@@ -138,6 +148,14 @@ export class MockStepExecutor implements StepExecutor {
     ) {
       console.log(`[MockStepExecutor] Matched pattern: documentation`)
       return this.mockResponses.get('documentation')!
+    }
+
+    // Check for specific output requests (like "return the word X")
+    const returnWordMatch = resolvedTask.match(/return\s+(?:the\s+word\s+)?['""]?(\w+)['""]?/i)
+    if (returnWordMatch) {
+      const requestedWord = returnWordMatch[1]
+      console.log(`[MockStepExecutor] Matched "return word" pattern, returning: "${requestedWord}"`)
+      return requestedWord
     }
 
     // Generate contextual response based on dependencies

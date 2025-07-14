@@ -1,6 +1,6 @@
 /**
  * Workflow Validator - Validates workflow configurations before execution
- * 
+ *
  * SOLID: Single responsibility - only validates workflows
  * DRY: Centralized validation logic
  * KISS: Simple validation rules with clear error messages
@@ -18,8 +18,15 @@ export class WorkflowValidator {
   /**
    * Validate agent configurations before starting workflow
    * Prevents stuck workflows by failing fast on invalid agents
+   * Skips validation in mock mode since no real agents are needed
    */
   async validateAgentConfigs(steps: WorkflowStep[], projectId?: string): Promise<void> {
+    // Skip agent validation in mock mode
+    if (process.env.USE_MOCK_AI === 'true') {
+      console.log('[WorkflowValidator] Skipping agent validation in mock mode')
+      return
+    }
+
     for (const step of steps) {
       // Must specify either agentId or role
       if (!step.agentId && !step.role) {
@@ -41,8 +48,8 @@ export class WorkflowValidator {
    * Validate step dependencies
    */
   validateDependencies(steps: WorkflowStep[]): void {
-    const stepIds = new Set(steps.map(s => s.id!))
-    
+    const stepIds = new Set(steps.map((s) => s.id!))
+
     for (const step of steps) {
       if (step.deps) {
         for (const depId of step.deps) {
@@ -54,7 +61,7 @@ export class WorkflowValidator {
         }
       }
     }
-    
+
     // Check for circular dependencies
     this.validateNoCycles(steps)
   }
@@ -145,21 +152,21 @@ export class WorkflowValidator {
   private validateNoCycles(steps: WorkflowStep[]): void {
     const visited = new Set<string>()
     const recursionStack = new Set<string>()
-    
-    const stepMap = new Map(steps.map(s => [s.id!, s]))
-    
+
+    const stepMap = new Map(steps.map((s) => [s.id!, s]))
+
     const hasCycle = (stepId: string): boolean => {
       if (recursionStack.has(stepId)) {
         return true // Back edge found - cycle detected
       }
-      
+
       if (visited.has(stepId)) {
         return false // Already processed
       }
-      
+
       visited.add(stepId)
       recursionStack.add(stepId)
-      
+
       const step = stepMap.get(stepId)
       if (step?.deps) {
         for (const depId of step.deps) {
@@ -168,11 +175,11 @@ export class WorkflowValidator {
           }
         }
       }
-      
+
       recursionStack.delete(stepId)
       return false
     }
-    
+
     for (const step of steps) {
       if (!visited.has(step.id!) && hasCycle(step.id!)) {
         throw new Error(

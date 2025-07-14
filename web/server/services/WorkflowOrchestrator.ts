@@ -382,32 +382,49 @@ export class WorkflowOrchestrator {
     }
 
     // Add a node for each step with retry policy
+    // IMPORTANT: Skip conditional steps - they are not execution nodes
     steps.forEach((step) => {
-      workflow.addNode(step.id!, this.createStepNode(step), { retryPolicy })
+      if (!isConditionalStep(step)) {
+        workflow.addNode(step.id!, this.createStepNode(step), { retryPolicy })
+      }
     })
 
     // Add edges based on dependencies and conditional logic
     steps.forEach((step) => {
       // Handle conditional steps with LangGraph conditional edges
       if (isConditionalStep(step) && step.condition) {
-        // Add conditional edges for this step
-        workflow.addConditionalEdges(
-          step.id!,
-          (state: typeof WorkflowStateSchema.State) => {
-            return this.evaluateStepCondition(step, state)
-          },
-          {
-            true: step.trueBranch || '__end__',
-            false: step.falseBranch || '__end__',
-          }
-        )
-      } else {
-        // Standard dependency-based edges
+        // For conditional steps, add conditional edges from each dependency
         if (step.deps && step.deps.length > 0) {
-          // This step depends on others - add edges from dependencies
           step.deps.forEach((depId) => {
+            // Add conditional edges from the dependency to the branches
+            workflow.addConditionalEdges(
+              depId as '__start__',
+              (state: typeof WorkflowStateSchema.State) => {
+                return this.evaluateStepCondition(step, state)
+              },
+              {
+                true: step.trueBranch || '__end__',
+                false: step.falseBranch || '__end__',
+              }
+            )
+          })
+        }
+      } else {
+        // Standard dependency-based edges for non-conditional steps
+        if (step.deps && step.deps.length > 0) {
+          // Filter out conditional dependencies and only add edges for non-conditional deps
+          const nonConditionalDeps = step.deps.filter((depId) => {
+            const depStep = steps.find((s) => s.id === depId)
+            return !(depStep && isConditionalStep(depStep))
+          })
+
+          // Add edges for non-conditional dependencies
+          nonConditionalDeps.forEach((depId) => {
             workflow.addEdge(depId as '__start__', step.id! as '__start__')
           })
+
+          // If this step only has conditional dependencies, it will be routed by conditional edges
+          // so we don't need to add any edges here
         } else {
           // No dependencies - connect from start (allows parallel execution)
           workflow.addEdge('__start__', step.id! as '__start__')
@@ -500,7 +517,11 @@ export class WorkflowOrchestrator {
 
       try {
         // Check if dependencies are satisfied using state manager
-        const depCheck = this.stateManager.areDependenciesSatisfied(step, state.stepResults)
+        const depCheck = this.stateManager.areDependenciesSatisfied(
+          step,
+          state.stepResults,
+          state.steps
+        )
         if (!depCheck.satisfied) {
           return {
             stepResults: {

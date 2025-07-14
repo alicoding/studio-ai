@@ -263,11 +263,14 @@
   ```
 - **Security**: ConditionEvaluator uses Function constructor with restricted scope, not eval()
 - **Template Variables**: Supports {stepId.output}, {stepId.status}, {stepId.response}
-- **Status**: Backend complete, UI store connection complete, edge connection logic pending
+- **Status**: Backend complete, UI integration complete, testing in progress
 - **Files**:
   - web/server/services/ConditionEvaluator.ts (NEW)
   - web/server/services/WorkflowOrchestrator.ts (modified)
   - src/components/workflow-builder/nodes/ConditionalNode.tsx (TODO removed)
+  - web/server/api/workflows/execute.ts (updated to pass conditional fields)
+  - web/server/schemas/invoke.ts (added conditional fields to WorkflowStep)
+  - src/components/workflow-builder/VisualWorkflowBuilder.tsx (edge connection logic)
 
 ## MCP (Model Context Protocol) Limitations
 
