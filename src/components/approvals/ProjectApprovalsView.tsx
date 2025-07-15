@@ -151,6 +151,25 @@ export const ProjectApprovalsView: React.FC<ProjectApprovalsViewProps> = ({
   }, [processedApprovals, isOverdue])
 
   /**
+   * Get theme-aware color for priority groups
+   * DRY: Centralized color mapping
+   */
+  const getGroupColor = (color: string): string => {
+    switch (color) {
+      case 'red':
+        return 'var(--color-approval-critical)'
+      case 'orange':
+        return 'var(--color-approval-high)'
+      case 'yellow':
+        return 'var(--color-approval-medium)'
+      case 'green':
+        return 'var(--color-approval-low)'
+      default:
+        return 'var(--color-muted-foreground)'
+    }
+  }
+
+  /**
    * Format time remaining
    * KISS: Simple time formatting
    */
@@ -179,25 +198,25 @@ export const ProjectApprovalsView: React.FC<ProjectApprovalsViewProps> = ({
         onClick={() => onApprovalClick(approval)}
         className={`
           p-4 border rounded-lg cursor-pointer transition-all hover:shadow-md
-          ${
-            overdue
-              ? 'border-red-300 bg-red-50 hover:bg-red-100'
-              : 'border-gray-200 bg-white hover:bg-gray-50'
-          }
+          ${overdue ? 'border hover:bg-secondary' : 'border hover:bg-secondary'}
         `}
+        style={{
+          borderColor: overdue ? 'var(--color-approval-overdue)' : 'var(--color-border)',
+          backgroundColor: overdue ? 'var(--color-approval-overdue-bg)' : 'var(--color-card)',
+        }}
       >
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             <div className="flex items-center space-x-2 mb-1">
-              <h4 className="text-sm font-medium text-gray-900 truncate">
+              <h4 className="text-sm font-medium text-foreground truncate">
                 {approval.workflowName || `Workflow ${approval.threadId.slice(-8)}`}
               </h4>
               <RiskAssessmentDisplay riskLevel={approval.riskLevel} className="flex-shrink-0" />
             </div>
 
-            <p className="text-sm text-gray-600 mb-2 line-clamp-2">{approval.prompt}</p>
+            <p className="text-sm text-muted-foreground mb-2 line-clamp-2">{approval.prompt}</p>
 
-            <div className="flex items-center space-x-4 text-xs text-gray-500">
+            <div className="flex items-center space-x-4 text-xs text-muted-foreground">
               <span>Step: {approval.stepId}</span>
               <span>Requested: {new Date(approval.requestedAt).toLocaleString()}</span>
             </div>
@@ -205,17 +224,23 @@ export const ProjectApprovalsView: React.FC<ProjectApprovalsViewProps> = ({
 
           <div className="flex flex-col items-end space-y-1 ml-4">
             <div
-              className={`
-              flex items-center space-x-1 px-2 py-1 rounded text-xs font-medium
-              ${overdue ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}
-            `}
+              className="flex items-center space-x-1 px-2 py-1 rounded text-xs font-medium"
+              style={{
+                backgroundColor: overdue
+                  ? 'var(--color-approval-overdue-bg)'
+                  : 'var(--color-approval-pending-bg)',
+                color: overdue ? 'var(--color-approval-overdue)' : 'var(--color-approval-pending)',
+              }}
             >
               <Clock className="w-3 h-3" />
               <span>{formatTimeRemaining(approval.expiresAt)}</span>
             </div>
 
             {overdue && (
-              <div className="flex items-center space-x-1 text-red-600">
+              <div
+                className="flex items-center space-x-1"
+                style={{ color: 'var(--color-approval-overdue)' }}
+              >
                 <AlertTriangle className="w-3 h-3" />
                 <span className="text-xs font-medium">Overdue</span>
               </div>
@@ -240,9 +265,12 @@ export const ProjectApprovalsView: React.FC<ProjectApprovalsViewProps> = ({
 
     return (
       <div className="mb-6">
-        <div className={`flex items-center space-x-2 mb-3 pb-2 border-b border-${color}-200`}>
-          <span className={`text-${color}-600`}>{icon}</span>
-          <h3 className={`text-sm font-medium text-${color}-800`}>
+        <div
+          className="flex items-center space-x-2 mb-3 pb-2 border-b"
+          style={{ borderBottomColor: 'var(--color-border)' }}
+        >
+          <span style={{ color: getGroupColor(color) }}>{icon}</span>
+          <h3 className="text-sm font-medium" style={{ color: getGroupColor(color) }}>
             {title} ({approvals.length})
           </h3>
         </div>
@@ -255,7 +283,10 @@ export const ProjectApprovalsView: React.FC<ProjectApprovalsViewProps> = ({
   if (isLoading) {
     return (
       <div className={`flex items-center justify-center p-8 ${className}`}>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div
+          className="animate-spin rounded-full h-8 w-8 border-b-2"
+          style={{ borderBottomColor: 'var(--color-primary)' }}
+        />
       </div>
     )
   }
@@ -264,12 +295,18 @@ export const ProjectApprovalsView: React.FC<ProjectApprovalsViewProps> = ({
     <div className={`space-y-4 ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Project Approvals</h2>
+        <h2 className="text-lg font-semibold text-foreground">Project Approvals</h2>
 
-        <div className="flex items-center space-x-2 text-sm text-gray-600">
+        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
           <span>{processedApprovals.length} approvals</span>
           {groupedApprovals.critical.length > 0 && (
-            <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium">
+            <span
+              className="px-2 py-1 rounded text-xs font-medium"
+              style={{
+                backgroundColor: 'var(--color-approval-critical-bg)',
+                color: 'var(--color-approval-critical)',
+              }}
+            >
               {groupedApprovals.critical.length} overdue/critical
             </span>
           )}
@@ -280,7 +317,7 @@ export const ProjectApprovalsView: React.FC<ProjectApprovalsViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0 sm:space-x-4">
         {/* Filter Buttons */}
         <div className="flex items-center space-x-2">
-          <Filter className="w-4 h-4 text-gray-500" />
+          <Filter className="w-4 h-4 text-muted-foreground" />
           {(['all', 'pending', 'overdue', 'high-risk'] as FilterOption[]).map((option) => (
             <button
               key={option}
@@ -289,8 +326,8 @@ export const ProjectApprovalsView: React.FC<ProjectApprovalsViewProps> = ({
                 px-3 py-1 text-xs font-medium rounded transition-colors
                 ${
                   filter === option
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'bg-primary text-primary-foreground !text-white'
+                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
                 }
               `}
             >
@@ -305,20 +342,20 @@ export const ProjectApprovalsView: React.FC<ProjectApprovalsViewProps> = ({
         {/* Search */}
         <div className="flex items-center space-x-2">
           <div className="relative">
-            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search workflows..."
-              className="pl-8 pr-4 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="pl-8 pr-4 py-1 text-sm border rounded focus:ring-2 focus:ring-primary focus:border-primary bg-input text-foreground"
             />
           </div>
 
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortOption)}
-            className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="text-sm border rounded px-2 py-1 focus:ring-2 focus:ring-primary focus:border-primary bg-input text-foreground"
           >
             <option value="priority">Sort by Priority</option>
             <option value="date">Sort by Date</option>
@@ -331,9 +368,9 @@ export const ProjectApprovalsView: React.FC<ProjectApprovalsViewProps> = ({
       <div>
         {processedApprovals.length === 0 ? (
           <div className="text-center py-8">
-            <CheckCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-sm font-medium text-gray-900 mb-1">No approvals found</h3>
-            <p className="text-sm text-gray-500">
+            <CheckCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-sm font-medium text-foreground mb-1">No approvals found</h3>
+            <p className="text-sm text-muted-foreground">
               {filter === 'all'
                 ? 'This project has no pending approvals'
                 : `No approvals match the "${filter}" filter`}

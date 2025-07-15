@@ -12,6 +12,7 @@ import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { ScrollArea } from '../ui/scroll-area'
 import { Folder, Globe, Users, AlertTriangle } from 'lucide-react'
+import { useApprovalColors } from '../../hooks/useTheme'
 import type { EnrichedApproval } from '../../hooks/useApprovals'
 
 // Define the approval decision request type locally for now
@@ -35,18 +36,14 @@ export function ConsolidatedApprovalView({
   onProcessApproval,
   className = '',
 }: ConsolidatedApprovalViewProps) {
-  const getRiskColor = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'critical':
-        return 'border-l-red-500 bg-red-50/50'
-      case 'high':
-        return 'border-l-orange-500 bg-orange-50/50'
-      case 'medium':
-        return 'border-l-yellow-500 bg-yellow-50/50'
-      case 'low':
-        return 'border-l-green-500 bg-green-50/50'
-      default:
-        return 'border-l-gray-500 bg-gray-50/50'
+  // Theme-aware colors
+  const colors = useApprovalColors()
+
+  const getRiskColorStyle = (riskLevel: string) => {
+    const riskColors = colors.getRiskColor(riskLevel as 'critical' | 'high' | 'medium' | 'low')
+    return {
+      borderLeftColor: riskColors.text,
+      backgroundColor: riskColors.bg,
     }
   }
 
@@ -131,7 +128,8 @@ export function ConsolidatedApprovalView({
                   {approvals.map((approval) => (
                     <div
                       key={approval.id}
-                      className={`p-4 border-l-4 hover:bg-muted/30 cursor-pointer transition-colors ${getRiskColor(approval.riskLevel)}`}
+                      className="p-4 border-l-4 hover:bg-muted/30 cursor-pointer transition-colors"
+                      style={getRiskColorStyle(approval.riskLevel)}
                       onClick={() => onSelectApproval(approval.id)}
                     >
                       <div className="flex items-start justify-between">
@@ -150,13 +148,16 @@ export function ConsolidatedApprovalView({
                             </Badge>
 
                             {approval.isOverdue && (
-                              <div className="flex items-center space-x-1 text-red-600">
+                              <div
+                                className="flex items-center space-x-1"
+                                style={{ color: 'var(--color-approval-overdue)' }}
+                              >
                                 <AlertTriangle className="h-3 w-3" />
                                 <span className="text-xs font-medium">OVERDUE</span>
                               </div>
                             )}
 
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-foreground/70">
                               {formatTimeRemaining(approval.timeRemaining)}
                             </span>
                           </div>
@@ -167,11 +168,11 @@ export function ConsolidatedApprovalView({
                               <span className="text-sm font-medium">
                                 {approval.workflowName || 'Unnamed Workflow'}
                               </span>
-                              <span className="text-xs text-muted-foreground">
+                              <span className="text-xs text-foreground/70">
                                 Step: {approval.stepId}
                               </span>
                             </div>
-                            <p className="text-sm text-muted-foreground line-clamp-2">
+                            <p className="text-sm text-foreground/80 line-clamp-2">
                               {approval.prompt}
                             </p>
                           </div>
@@ -182,7 +183,10 @@ export function ConsolidatedApprovalView({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="text-green-600 border-green-200 hover:bg-green-50"
+                                style={{
+                                  color: colors.actions.approve,
+                                  borderColor: colors.actions.approve,
+                                }}
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   onProcessApproval(approval.id, {
@@ -196,7 +200,10 @@ export function ConsolidatedApprovalView({
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="text-red-600 border-red-200 hover:bg-red-50"
+                                style={{
+                                  color: 'var(--color-approval-rejected)',
+                                  borderColor: 'var(--color-approval-rejected)',
+                                }}
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   onProcessApproval(approval.id, {
@@ -212,7 +219,7 @@ export function ConsolidatedApprovalView({
                         </div>
 
                         {/* Timestamp */}
-                        <div className="text-xs text-muted-foreground text-right ml-4">
+                        <div className="text-xs text-foreground/60 text-right ml-4">
                           <div>Requested</div>
                           <div>{new Date(approval.requestedAt).toLocaleDateString()}</div>
                           <div>{new Date(approval.requestedAt).toLocaleTimeString()}</div>
