@@ -160,7 +160,12 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
     },
 
     loadWorkflow: (workflow) => {
-      set({
+      console.log('[WorkflowBuilder] Loading workflow:', workflow)
+      console.log('[WorkflowBuilder] Workflow positions:', workflow.positions)
+      console.log('[WorkflowBuilder] Workflow steps:', workflow.steps)
+
+      // Force complete state replacement to override any persisted state
+      set(() => ({
         workflow,
         isDirty: false,
         selectedStepId: null,
@@ -168,7 +173,10 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
         nodePositions: workflow.positions || {},
         validationResult: null,
         lastError: null,
-      })
+        isValidating: false,
+        isExecuting: false,
+        isSaving: false,
+      }))
     },
 
     updateWorkflowMeta: (updates) => {
@@ -496,6 +504,9 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
           positions: state.nodePositions,
         }
 
+        console.log('[WorkflowBuilder] Saving workflow with positions:', state.nodePositions)
+        console.log('[WorkflowBuilder] Workflow steps being saved:', state.workflow.steps)
+
         const saveData = {
           name: workflowName,
           description: workflowDescription,
@@ -505,6 +516,8 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
           source: 'ui' as const,
           isTemplate: false,
         }
+
+        console.log('[WorkflowBuilder] Save data being sent:', saveData)
 
         const response = await ky
           .post('/api/workflows/saved', {
@@ -654,6 +667,7 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
     partialize: (state) => ({
       workflow: state.workflow,
       isDirty: state.isDirty,
+      nodePositions: state.nodePositions, // Also persist node positions
     }),
   }
 )

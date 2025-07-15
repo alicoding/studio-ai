@@ -20,7 +20,11 @@ function EditWorkflow() {
     // Load the workflow when component mounts
     const loadWorkflowData = async () => {
       try {
+        console.log('[WorkflowEdit] Loading workflow from database:', workflowId)
         const savedWorkflow = await loadWorkflow(workflowId)
+        console.log('[WorkflowEdit] Loaded workflow from DB:', savedWorkflow)
+        console.log('[WorkflowEdit] Workflow definition from DB:', savedWorkflow.definition)
+
         // Preserve all workflow data including positions
         // The definition already contains the saved name and description
         loadWorkflowDefinition(savedWorkflow.definition)

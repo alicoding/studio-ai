@@ -34,6 +34,10 @@ export class SQLiteWorkflowStorage implements IWorkflowStorage {
     const scope =
       request.scope || (request.projectId && request.projectId !== 'global' ? 'project' : 'global')
 
+    console.log('[SQLiteWorkflowStorage] Creating workflow with definition:', request.definition)
+    console.log('[SQLiteWorkflowStorage] Definition positions:', request.definition.positions)
+    console.log('[SQLiteWorkflowStorage] Definition steps:', request.definition.steps)
+
     const workflow = {
       id,
       projectId: request.projectId, // Now optional
@@ -211,23 +215,27 @@ export class SQLiteWorkflowStorage implements IWorkflowStorage {
     const isValidUnixSeconds = (ts: number) => ts > 946684800 && ts < 4102444800
 
     return {
-      id: row.id,
-      projectId: row.projectId || row.project_id, // Handle both camelCase and snake_case, now optional
-      name: row.name,
-      description: row.description,
-      definition: JSON.parse(row.definition),
-      createdBy: row.createdBy || row.created_by || 'system',
+      id: row.id as string,
+      projectId: (row.projectId || row.project_id) as string | undefined, // Handle both camelCase and snake_case, now optional
+      name: row.name as string,
+      description: row.description as string | undefined,
+      definition: JSON.parse(row.definition as string),
+      createdBy: (row.createdBy || row.created_by || 'system') as string,
       createdAt: new Date(
-        isValidUnixSeconds(createdTimestamp) ? createdTimestamp * 1000 : createdTimestamp
+        isValidUnixSeconds(createdTimestamp as number)
+          ? (createdTimestamp as number) * 1000
+          : (createdTimestamp as number)
       ).toISOString(),
       updatedAt: new Date(
-        isValidUnixSeconds(updatedTimestamp) ? updatedTimestamp * 1000 : updatedTimestamp
+        isValidUnixSeconds(updatedTimestamp as number)
+          ? (updatedTimestamp as number) * 1000
+          : (updatedTimestamp as number)
       ).toISOString(),
-      version: row.version || 1,
-      tags: JSON.parse(row.tags || '[]'),
+      version: (row.version as number) || 1,
+      tags: JSON.parse((row.tags as string) || '[]'),
       isTemplate: Boolean(row.isTemplate || row.is_template),
-      source: row.source || 'ui',
-      scope: row.scope || 'project', // Default to 'project' for backward compatibility
+      source: (row.source as 'ui' | 'mcp' | 'api') || 'ui',
+      scope: (row.scope as 'project' | 'global' | 'cross-project') || 'project', // Default to 'project' for backward compatibility
     }
   }
 }

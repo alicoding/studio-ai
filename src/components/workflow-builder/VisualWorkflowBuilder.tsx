@@ -91,6 +91,8 @@ function stepsToNodes(
     const defaultPosition = { x: 200 + (index % 3) * 250, y: 100 + Math.floor(index / 3) * 200 }
     const position = storedPosition || defaultPosition
 
+    console.log(`[stepsToNodes] Step ${step.id}: task="${step.task}", position=`, position)
+
     return {
       id: step.id,
       type: nodeType,
@@ -208,6 +210,8 @@ export default function VisualWorkflowBuilder({
   // Convert store workflow to React Flow format with selection state
   const nodes = useMemo(() => {
     if (!workflow) return []
+    console.log('[VisualWorkflowBuilder] Creating nodes with positions:', nodePositions)
+    console.log('[VisualWorkflowBuilder] Workflow steps:', workflow.steps)
     return stepsToNodes(workflow.steps, nodePositions).map((node) => ({
       ...node,
       selected: selectedStepIds.includes(node.id),
