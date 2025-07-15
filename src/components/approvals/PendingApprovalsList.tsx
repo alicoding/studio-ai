@@ -10,6 +10,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Clock, AlertTriangle, User, Calendar, Filter } from 'lucide-react'
 import { useWebSocket } from '../../hooks/useWebSocket'
+import { useApprovalColors } from '../../hooks/useTheme'
 import type { WorkflowApproval } from '../../../web/server/schemas/approval-types'
 import { RiskAssessmentDisplay } from './RiskAssessmentDisplay'
 import { ApprovalDecisionForm } from './ApprovalDecisionForm'
@@ -34,6 +35,9 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
   const [filter, setFilter] = useState<FilterType>('all')
   const [sortBy, setSortBy] = useState<SortType>('priority')
   const [selectedApproval, setSelectedApproval] = useState<WorkflowApproval | null>(null)
+
+  // Theme-aware colors
+  const colors = useApprovalColors()
 
   // WebSocket for real-time updates
   const { socket } = useWebSocket()
@@ -266,23 +270,26 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
   if (isLoading) {
     return (
       <div className={`flex items-center justify-center p-8 ${className}`}>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-        <span className="ml-3 text-gray-600">Loading approvals...</span>
+        <div
+          className="animate-spin rounded-full h-8 w-8 border-b-2"
+          style={{ borderColor: colors.getStatusColor('pending').text }}
+        />
+        <span className="ml-3 text-muted-foreground">Loading approvals...</span>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className={`p-4 bg-red-50 border border-red-200 rounded-lg ${className}`}>
-        <div className="flex items-center text-red-600">
+      <div className={`p-4 bg-destructive/10 border border-destructive/20 rounded-lg ${className}`}>
+        <div className="flex items-center text-destructive">
           <AlertTriangle className="w-5 h-5 mr-2" />
           <span className="font-medium">Error loading approvals</span>
         </div>
-        <p className="text-red-600 text-sm mt-1">{error}</p>
+        <p className="text-destructive text-sm mt-1">{error}</p>
         <button
           onClick={() => fetchApprovals()}
-          className="mt-2 px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
+          className="mt-2 px-3 py-1 bg-destructive/20 text-destructive rounded text-sm hover:bg-destructive/30 transition-colors"
         >
           Retry
         </button>
@@ -295,11 +302,11 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
       {/* Header with filters */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-semibold text-foreground">
             Pending Approvals ({processedApprovals.length})
           </h3>
           {processedApprovals.some(isOverdue) && (
-            <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium">
+            <span className="px-2 py-1 bg-destructive/10 text-destructive rounded text-xs font-medium">
               {processedApprovals.filter(isOverdue).length} overdue
             </span>
           )}
@@ -308,7 +315,7 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
         <div className="flex items-center space-x-2">
           {/* Filter buttons */}
           <div className="flex items-center space-x-1">
-            <Filter className="w-4 h-4 text-gray-500" />
+            <Filter className="w-4 h-4 text-muted-foreground" />
             {(['all', 'overdue', 'high-risk', 'recent'] as FilterType[]).map((filterType) => (
               <button
                 key={filterType}
@@ -317,8 +324,8 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
                   px-2 py-1 text-xs font-medium rounded transition-colors
                   ${
                     filter === filterType
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      ? 'bg-primary/10 text-primary'
+                      : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
                   }
                 `}
               >
@@ -331,7 +338,7 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortType)}
-            className="text-xs border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500"
+            className="text-xs border border-input rounded px-2 py-1 bg-background text-foreground focus:ring-2 focus:ring-ring"
           >
             <option value="priority">Priority</option>
             <option value="date">Date Created</option>
@@ -343,9 +350,9 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
       {/* Approvals list */}
       {processedApprovals.length === 0 ? (
         <div className="text-center py-8">
-          <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h4 className="text-sm font-medium text-gray-900 mb-1">No pending approvals</h4>
-          <p className="text-sm text-gray-500">
+          <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h4 className="text-sm font-medium text-foreground mb-1">No pending approvals</h4>
+          <p className="text-sm text-muted-foreground">
             {filter === 'all'
               ? 'All approvals have been resolved'
               : `No approvals match the "${filter}" filter`}
@@ -362,8 +369,8 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
                 key={approval.id}
                 className={`
                   border rounded-lg transition-all
-                  ${overdue ? 'border-red-300 bg-red-50' : 'border-gray-200 bg-white'}
-                  ${isSelected ? 'ring-2 ring-blue-500' : ''}
+                  ${overdue ? 'border-destructive/30 bg-destructive/5' : 'border-border bg-card'}
+                  ${isSelected ? 'ring-2 ring-ring' : ''}
                 `}
               >
                 <div
@@ -373,7 +380,7 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2 mb-2">
-                        <h4 className="text-sm font-medium text-gray-900 truncate">
+                        <h4 className="text-sm font-medium text-foreground truncate">
                           {approval.workflowName || `Workflow ${approval.threadId.slice(-8)}`}
                         </h4>
                         <RiskAssessmentDisplay
@@ -381,16 +388,18 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
                           className="flex-shrink-0"
                         />
                         {overdue && (
-                          <span className="flex items-center space-x-1 text-red-600">
+                          <span className="flex items-center space-x-1 text-destructive">
                             <AlertTriangle className="w-3 h-3" />
                             <span className="text-xs font-medium">Overdue</span>
                           </span>
                         )}
                       </div>
 
-                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">{approval.prompt}</p>
+                      <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                        {approval.prompt}
+                      </p>
 
-                      <div className="flex items-center space-x-4 text-xs text-gray-500">
+                      <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                         <div className="flex items-center space-x-1">
                           <User className="w-3 h-3" />
                           <span>Step: {approval.stepId}</span>
@@ -401,7 +410,7 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
                         </div>
                         <div className="flex items-center space-x-1">
                           <Clock className="w-3 h-3" />
-                          <span className={overdue ? 'text-red-600 font-medium' : ''}>
+                          <span className={overdue ? 'text-destructive font-medium' : ''}>
                             {formatTimeRemaining(approval.expiresAt)}
                           </span>
                         </div>
@@ -412,7 +421,7 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
 
                 {/* Expanded decision form */}
                 {isSelected && (
-                  <div className="border-t border-gray-200 p-4 bg-gray-50">
+                  <div className="border-t border-border p-4 bg-muted/30">
                     <ApprovalDecisionForm
                       onDecision={(decision, comment, reasoning) =>
                         handleApprovalDecision(approval.id, decision, comment, reasoning)

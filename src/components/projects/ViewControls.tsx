@@ -38,7 +38,7 @@ export function ViewControls({
   return (
     <div className="flex items-center gap-2 p-2 bg-card border-b">
       <button
-        className="p-2 text-muted-foreground hover:text-white hover:bg-secondary rounded transition-colors"
+        className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded transition-colors"
         title="Toggle Sidebar"
         onClick={onSidebarToggle}
       >
@@ -53,8 +53,8 @@ export function ViewControls({
               key={mode}
               className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded transition-colors ${
                 currentView === mode
-                  ? 'bg-blue-600 text-white'
-                  : 'text-muted-foreground hover:text-white hover:bg-secondary'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
               }`}
               onClick={() => onViewChange(mode as ViewMode)}
             >

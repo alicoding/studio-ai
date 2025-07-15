@@ -446,13 +446,13 @@ export function Sidebar({
               {/* Context navigation */}
               <div className="space-y-2">
                 <button
-                  className="w-full text-left p-2 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  className="w-full text-left p-2 text-sm text-primary hover:bg-accent rounded transition-colors"
                   onClick={() => console.log('Navigate to global approvals')}
                 >
                   → Global Approvals
                 </button>
                 <button
-                  className="w-full text-left p-2 text-sm text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  className="w-full text-left p-2 text-sm text-primary hover:bg-accent rounded transition-colors"
                   onClick={() => console.log('Navigate to all approvals')}
                 >
                   → All Approvals

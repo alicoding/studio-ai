@@ -10,6 +10,7 @@ import {
 import type { Server } from 'socket.io'
 import { detectAbortError, AbortError } from '../utils/errorUtils'
 import { eventSystem } from './EventSystem'
+import { SessionService } from './SessionService'
 import * as path from 'path'
 import * as os from 'os'
 
@@ -41,21 +42,30 @@ export class ClaudeAgent {
   private agent: Agent
   private abortController?: AbortController
   private isAborted: boolean = false
-  private sessionId?: string
   private onSessionUpdate?: (sessionId: string) => void
   private config?: AgentConfig
+  private projectPath?: string
+  private projectId?: string
 
-  constructor(id: string, role: Role, sessionId?: string | null, configOverrides?: AgentConfig) {
+  constructor(
+    id: string,
+    role: Role,
+    projectPath: string,
+    projectId: string,
+    configOverrides?: AgentConfig
+  ) {
     this.agent = {
       id,
       role,
       status: 'online',
-      sessionId: sessionId || null,
+      sessionId: null, // Never store session in agent
     }
-    // Keep internal sessionId in sync
-    this.sessionId = sessionId || undefined
     // Store configuration
     this.config = configOverrides
+    // Store project path for cwd
+    this.projectPath = projectPath
+    // Store project ID for session lookups
+    this.projectId = projectId
     console.log(`[SYSTEM PROMPT DEBUG] ClaudeAgent created with config:`, configOverrides)
     console.log(`[SYSTEM PROMPT DEBUG] System prompt:`, configOverrides?.systemPrompt)
   }
@@ -87,11 +97,16 @@ export class ClaudeAgent {
       this.agent.status = 'busy'
       this.isAborted = false // Reset abort flag
 
-      // Clear session IDs if forcing new session
-      if (forceNewSession) {
-        console.log('Forcing new session - clearing existing session IDs')
-        this.sessionId = undefined
-        this.agent.sessionId = null
+      // Get current session from SessionService (single source of truth)
+      const sessionService = SessionService.getInstance()
+      let currentSessionId: string | null = null
+
+      if (!forceNewSession && this.projectId) {
+        currentSessionId = await sessionService.getSession(this.projectId, this.agent.id)
+        console.log(`[ClaudeAgent] Retrieved session from SessionService: ${currentSessionId}`)
+      } else if (forceNewSession && this.projectId) {
+        console.log('Forcing new session - clearing session in SessionService')
+        await sessionService.clearSession(this.projectId, this.agent.id)
       }
 
       // Emit status update via EventSystem
@@ -100,8 +115,7 @@ export class ClaudeAgent {
 
       console.log('Sending message to Claude SDK:', content)
       console.log('Project path:', projectPath)
-      console.log('Current sessionId:', this.sessionId)
-      console.log('Agent sessionId:', this.agent.sessionId)
+      console.log('Current sessionId from SessionService:', currentSessionId)
       console.log('Force new session:', forceNewSession)
       console.log('Agent config:', this.config)
       console.log('[SYSTEM PROMPT DEBUG] Agent system prompt:', this.config?.systemPrompt)
@@ -115,10 +129,27 @@ export class ClaudeAgent {
       let hasError = false
       let errorMessage = ''
 
+      // Prefer passed parameter over stored project path (parameter is more up-to-date)
+      const effectiveProjectPath = projectPath || this.projectPath
+
       // Expand tilde in project path if present
-      const expandedProjectPath = projectPath?.startsWith('~/')
-        ? path.join(os.homedir(), projectPath.slice(2))
-        : projectPath
+      const expandedProjectPath = effectiveProjectPath?.startsWith('~/')
+        ? path.join(os.homedir(), effectiveProjectPath.slice(2))
+        : effectiveProjectPath
+
+      console.log('[ClaudeAgent] Project path resolution:', {
+        storedProjectPath: this.projectPath,
+        paramProjectPath: projectPath,
+        effectiveProjectPath,
+        expandedProjectPath,
+      })
+
+      if (!expandedProjectPath) {
+        const errorMsg =
+          'Project path is required but not provided. Cannot determine working directory for Claude SDK.'
+        console.error('[ClaudeAgent] ERROR:', errorMsg)
+        throw new Error(errorMsg)
+      }
 
       // Get tool restrictions (async)
       const allowedTools = await this.getToolRestrictions('allowed')
@@ -127,8 +158,8 @@ export class ClaudeAgent {
       // Build query options from agent configuration
       const queryOptions: Options = {
         maxTurns: this.config?.maxTurns || 500, // Use configured maxTurns or default to 500
-        cwd: expandedProjectPath || process.cwd(), // Set working directory to project path
-        resume: forceNewSession ? undefined : this.sessionId || this.agent.sessionId || undefined, // Don't resume if forcing new session
+        cwd: expandedProjectPath, // MUST pass project path - no fallback!
+        resume: currentSessionId || undefined, // Use session from SessionService
         allowedTools, // Pass allowed tools if any restrictions
         disallowedTools, // Pass disallowed tools if any restrictions
         model: this.mapToValidModel(this.config?.model), // Use valid Claude Code model name
@@ -203,6 +234,24 @@ export class ClaudeAgent {
             break
           }
 
+          // CRITICAL: Check for session updates FIRST, before any WebSocket emissions
+          // This prevents race condition between WebSocket and REST API
+          const messageSessionId = 'session_id' in message ? message.session_id : undefined
+          if (messageSessionId && messageSessionId !== currentSessionId) {
+            console.log('📍 Session checkpoint update:', {
+              from: currentSessionId,
+              to: messageSessionId,
+              messageType: message.type,
+            })
+            currentSessionId = messageSessionId
+
+            // Update session in SessionService IMMEDIATELY (single source of truth)
+            if (this.onSessionUpdate && messageSessionId) {
+              await this.onSessionUpdate(messageSessionId)
+              console.log('📍 SessionService updated with new session ID before WebSocket emission')
+            }
+          }
+
           // Emit all messages through WebSocket if io is provided
           if (io && sessionId && !this.isAborted) {
             // ALWAYS use agent instance ID for consistent WebSocket routing
@@ -215,17 +264,21 @@ export class ClaudeAgent {
               const content = message.message?.content || ''
 
               console.log(`[WebSocket] Emitting message:new with sessionId: ${effectiveSessionId}`)
-              await eventSystem.emitNewMessage(effectiveSessionId, {
-                role: message.type,
-                content: content,
-                timestamp: new Date().toISOString(),
-                isMeta: false, // SDK messages don't have isMeta property
-                isStreaming: true, // Indicate this is a streaming message
-                ...(message.type === 'assistant' && {
-                  model: message.message?.model,
-                  usage: message.message?.usage,
-                }),
-              })
+              await eventSystem.emitNewMessage(
+                effectiveSessionId,
+                {
+                  role: message.type,
+                  content: content,
+                  timestamp: new Date().toISOString(),
+                  isMeta: false, // SDK messages don't have isMeta property
+                  isStreaming: true, // Indicate this is a streaming message
+                  ...(message.type === 'assistant' && {
+                    model: message.message?.model,
+                    usage: message.message?.usage,
+                  }),
+                },
+                this.projectId
+              )
             }
 
             // Note: There is no 'error' type in SDKMessage union
@@ -253,23 +306,6 @@ export class ClaudeAgent {
             }
           }
 
-          // Extract sessionId from message to track checkpoints
-          const messageSessionId = 'session_id' in message ? message.session_id : undefined
-          if (messageSessionId && messageSessionId !== this.sessionId) {
-            console.log('📍 Session checkpoint update:', {
-              from: this.sessionId,
-              to: messageSessionId,
-              messageType: message.type,
-            })
-            this.sessionId = messageSessionId
-            this.agent.sessionId = messageSessionId
-
-            // Notify session update callback
-            if (this.onSessionUpdate) {
-              this.onSessionUpdate(messageSessionId)
-            }
-          }
-
           // Handle result message
           if (message.type === 'result' && message.subtype === 'success') {
             resultText = message.result || resultText
@@ -281,9 +317,13 @@ export class ClaudeAgent {
         const abortInfo = detectAbortError(error)
         if (this.isAborted || abortInfo.isAbort) {
           console.log(`[ClaudeAgent] Query loop was aborted for agent ${this.agent.id}`)
-          console.log(`[ClaudeAgent] Last known sessionId: ${this.sessionId}`)
+          console.log(`[ClaudeAgent] Last known sessionId: ${currentSessionId}`)
           // Create a proper AbortError with sessionId for recovery
-          throw new AbortError('Query was aborted by user', this.sessionId, abortInfo.type)
+          throw new AbortError(
+            'Query was aborted by user',
+            currentSessionId || undefined,
+            abortInfo.type
+          )
         }
         throw error
       }
@@ -300,7 +340,7 @@ export class ClaudeAgent {
       }
 
       console.log('Final response:', resultText)
-      console.log('Session ID after query:', this.sessionId)
+      console.log('Session ID after query:', currentSessionId)
 
       this.agent.status = 'online'
 
@@ -336,12 +376,16 @@ export class ClaudeAgent {
         console.log(
           `[ClaudeAgent] Query was aborted for agent ${this.agent.id} - type: ${abortInfo.type}`
         )
-        console.log(`[ClaudeAgent] Preserving sessionId for resume: ${this.sessionId}`)
+        // For abort errors, we need to get the latest session from SessionService
+        const latestSessionId = this.projectId
+          ? await SessionService.getInstance().getSession(this.projectId, this.agent.id)
+          : null
+        console.log(`[ClaudeAgent] Preserving sessionId for resume: ${latestSessionId}`)
         // Re-throw as AbortError to preserve sessionId
         if (error instanceof AbortError) {
           throw error // Already has sessionId
         }
-        throw new AbortError(abortInfo.message, this.sessionId, abortInfo.type)
+        throw new AbortError(abortInfo.message, latestSessionId || undefined, abortInfo.type)
       }
 
       // Provide more detailed error information
@@ -446,5 +490,16 @@ export class ClaudeAgent {
       typeof (tool as Record<string, unknown>).name === 'string' &&
       typeof (tool as Record<string, unknown>).enabled === 'boolean'
     )
+  }
+
+  /**
+   * Get the current Claude session ID from SessionService
+   */
+  async getCurrentSessionId(): Promise<string | undefined> {
+    if (!this.projectId) {
+      return undefined
+    }
+    const sessionId = await SessionService.getInstance().getSession(this.projectId, this.agent.id)
+    return sessionId || undefined
   }
 }

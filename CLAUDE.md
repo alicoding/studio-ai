@@ -279,13 +279,6 @@ claude-studio/
 └── public/              # Static assets
 ```
 
-## Standards
-
-@docs/standards/typescript.md
-@docs/standards/api-patterns.md
-@docs/standards/components.md
-@docs/gotchas.md
-
 ## Studio Projects & Agents
 
 ### Agent Management
@@ -443,6 +436,45 @@ invoke({
 - Document significant changes in relevant docs/ files
 - **Server restart required** when changing API schemas or core services
 - **REQUIRED**: Update @docs/gotchas.md with key learnings before task completion
+
+### Claude SDK Session Management
+
+**CRITICAL**: Claude SDK creates NEW session IDs on each turn/checkpoint, not resuming existing ones.
+
+**Pattern**:
+
+- SessionService stores: `aa966796-307e-46fa-968a-654c669594db` (old)
+- Claude SDK creates: `8552d46a-033f-4fae-94ac-c26eccba3261` (new)
+- **Race Condition**: WebSocket emits with new session, REST API uses old session
+
+**Key Insight**: Claude SDK session IDs are purely backend - frontend only uses agent instance IDs (`developer_01`). The backend must immediately update SessionService when Claude SDK creates new sessions to prevent REST/WebSocket inconsistency.
+
+### WebSocket Message Routing Pattern (MANDATORY)
+
+**CRITICAL**: All WebSocket messages MUST include `projectId` for proper message routing and filtering.
+
+**Pattern**:
+
+```typescript
+// ✅ CORRECT: Always include projectId
+await eventSystem.emitNewMessage(sessionId, message, projectId)
+
+// ❌ WRONG: Missing projectId causes message filtering failures
+await eventSystem.emitNewMessage(sessionId, message)
+```
+
+**Frontend Filtering Logic**:
+
+```typescript
+// Frontend checks BOTH sessionId AND projectId
+if (data.sessionId === webSocketSessionId && data.projectId === projectId) {
+  // Process message
+}
+```
+
+**Why This Matters**: Without `projectId`, frontend message filtering fails and messages don't appear in UI despite being emitted correctly.
+
+**Fixed in**: EventSystem.emitNewMessage() and claude-agent.ts - always pass `this.projectId`
 
 ## Conditional Nodes Implementation Status (2025-01-13)
 

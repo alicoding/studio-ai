@@ -39,9 +39,9 @@ export function useMessageOperations() {
   const { sendMessage: sendClaudeMessage } = useClaudeMessages()
   const { isAICommand, executeAICommand } = useAICommands()
 
-  const { selectedAgentId, updateAgentSessionId } = useAgentStore()
+  const { updateAgentSessionId } = useAgentStore()
 
-  const { activeProjectId, addToQueue } = useProjectStore()
+  const { activeProjectId, addToQueue, selectedAgentId } = useProjectStore()
 
   /**
    * Handle @mention messages
@@ -104,12 +104,8 @@ export function useMessageOperations() {
         const selectedAgent = agents.find((a) => a.id === selectedAgentId)
 
         console.log('[Command] Executing AI command:', message)
-        
-        const result = await executeAICommand(
-          message,
-          selectedAgentId,
-          selectedAgent?.sessionId
-        )
+
+        const result = await executeAICommand(message, selectedAgentId, selectedAgent?.sessionId)
 
         return {
           success: result.success,
@@ -133,8 +129,16 @@ export function useMessageOperations() {
       try {
         const result = await commandService.executeCommand(message, context)
 
-        console.log('[Command] Execution result:', { type: result.type, hasContent: !!result.content, hasAction: !!result.action })
-        console.log('[Command] Context:', { selectedAgentId, sessionId: selectedAgent?.sessionId, hasAgent: !!selectedAgent })
+        console.log('[Command] Execution result:', {
+          type: result.type,
+          hasContent: !!result.content,
+          hasAction: !!result.action,
+        })
+        console.log('[Command] Context:', {
+          selectedAgentId,
+          sessionId: selectedAgent?.sessionId,
+          hasAgent: !!selectedAgent,
+        })
 
         // Handle command result
         if (result.type === 'error') {
@@ -150,9 +154,12 @@ export function useMessageOperations() {
         if (result.content) {
           // Use agentId for WebSocket routing consistency
           const effectiveSessionId = selectedAgentId || 'system'
-          
-          console.log('[Command] Sending system message with sessionId (agentId):', effectiveSessionId)
-          
+
+          console.log(
+            '[Command] Sending system message with sessionId (agentId):',
+            effectiveSessionId
+          )
+
           await studioApi.messages.sendSystem({
             sessionId: effectiveSessionId,
             content: result.content,
@@ -278,21 +285,23 @@ export function useMessageOperations() {
 
     // Get the selected agent to check if it's busy
     const agents = useAgentStore.getState().getProjectAgents(activeProjectId)
-    const selectedAgent = agents.find(a => a.id === selectedAgentId)
-    
+    const selectedAgent = agents.find((a) => a.id === selectedAgentId)
+
     if (!selectedAgent || selectedAgent.status !== 'busy') {
       console.log('Selected agent is not busy, nothing to interrupt')
       return
     }
 
     try {
-      console.log(`Aborting message for selected agent ${selectedAgentId} in project ${activeProjectId}`)
-      
+      console.log(
+        `Aborting message for selected agent ${selectedAgentId} in project ${activeProjectId}`
+      )
+
       await studioApi.messages.abort({
         projectId: activeProjectId,
         agentId: selectedAgentId,
       })
-      
+
       console.log('Message aborted successfully')
       toast.success(`Interrupted ${selectedAgent.name}`)
     } catch (error) {

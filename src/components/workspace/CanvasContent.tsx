@@ -42,7 +42,34 @@ export const CanvasContent: React.FC<CanvasContentProps> = ({ className = '' }) 
 
   // Handle sending messages
   const handleSendMessage = async (message: string) => {
-    const result = await messageOps.sendMessage(message, agents, activeProject)
+    // We need at least activeProjectId to send messages
+    if (!activeProjectId) {
+      console.error('Cannot send message: No active project selected')
+      return
+    }
+
+    // Check if we have an agent selected
+    if (!selectedAgentId) {
+      console.error(
+        'Cannot send message: No agent selected. Please select an agent from the sidebar.'
+      )
+      return
+    }
+
+    // For message operations, we can construct a minimal project object if needed
+    const projectForMessage = activeProject || {
+      id: activeProjectId,
+      name: 'Current Project',
+      path: '',
+      createdAt: new Date().toISOString(),
+      sessionCount: 0,
+      status: 'active' as const,
+      lastModified: new Date().toISOString(),
+      tags: [],
+      favorite: false,
+    }
+
+    const result = await messageOps.sendMessage(message, agents, projectForMessage)
     if (!result.success && result.error) {
       console.error('Failed to send message:', result.error)
     }
@@ -74,8 +101,7 @@ export const CanvasContent: React.FC<CanvasContentProps> = ({ className = '' }) 
             {/* Message history */}
             <div className="flex-1 overflow-hidden">
               <MessageHistoryViewer
-                key={`${selectedAgent.id}-${selectedAgent.sessionId || 'no-session'}`}
-                sessionId={selectedAgent.sessionId || ''}
+                key={selectedAgent.id}
                 projectId={activeProjectId}
                 agentName={selectedAgent.name}
                 agentId={selectedAgent.id}

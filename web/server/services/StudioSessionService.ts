@@ -74,20 +74,33 @@ export class StudioSessionService {
   }
 
   /**
-   * Get the Claude project folder for a workspace path
+   * Generate a project directory name from a workspace path matching Claude SDK's convention
    */
-  private getClaudeProjectFolder(workspacePath: string): string {
+  private generateProjectName(workspacePath: string): string {
     // Expand ~ to home directory first
     const expandedPath = workspacePath.startsWith('~')
       ? path.join(os.homedir(), workspacePath.slice(2))
       : workspacePath
 
-    // Claude SDK converts paths like /tmp/foo to -tmp-foo
-    const normalized = expandedPath.replace(/\//g, '-')
+    // Convert the full path to Claude SDK's directory naming convention
+    // Claude SDK replaces all / with - to create directory names
+    // e.g., /Volumes/AliDev/projects/bns-ai → -Volumes-AliDev-projects-bns-ai
+    const projectName = expandedPath.replace(/\//g, '-')
+
+    console.log(`[StudioSessionService] Converting path "${workspacePath}" → "${projectName}"`)
+
+    return projectName
+  }
+
+  /**
+   * Get the Claude project folder for a workspace path
+   */
+  private getClaudeProjectFolder(workspacePath: string): string {
+    const projectName = this.generateProjectName(workspacePath)
 
     // Check both with and without -private prefix as Claude uses both
-    const privatePath = path.join(os.homedir(), '.claude', 'projects', `-private${normalized}`)
-    const regularPath = path.join(os.homedir(), '.claude', 'projects', normalized)
+    const privatePath = path.join(os.homedir(), '.claude', 'projects', `${projectName}-private`)
+    const regularPath = path.join(os.homedir(), '.claude', 'projects', projectName)
 
     // Return the one that has more recent JSONL files (Claude SDK may use either)
     try {

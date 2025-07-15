@@ -20,9 +20,6 @@ export class ClaudeService {
     const agentKey = `${projectId}:${agentId}`
 
     if (!this.agents.has(agentKey)) {
-      // Get tracked sessionId for this project+agent
-      const trackedSessionId = await this.sessionService.getSession(projectId, agentId)
-
       // Get agent configuration if not provided
       let config = agentConfig
       if (!config) {
@@ -51,17 +48,30 @@ export class ClaudeService {
         }
       }
 
-      const agent = new ClaudeAgent(agentId, role, trackedSessionId, config)
+      // Project path is required - if not provided, throw error
+      if (!projectPath) {
+        throw new Error(
+          `Cannot create agent ${agentId} without project path. Project path determines where messages are stored.`
+        )
+      }
 
-      // Set up session update callback
-      agent.setSessionUpdateCallback(async (newSessionId: string) => {
-        await this.sessionService.updateSession(projectId, agentId, newSessionId)
-      })
+      const agent = new ClaudeAgent(agentId, role, projectPath, projectId, config)
 
       this.agents.set(agentKey, agent)
     }
 
-    return this.agents.get(agentKey)!
+    // CRITICAL: Always set session update callback, even for cached agents
+    // This ensures SessionService stays in sync when Claude SDK creates new sessions
+    const agent = this.agents.get(agentKey)!
+    agent.setSessionUpdateCallback(async (newSessionId: string) => {
+      console.log(
+        `📍 [ClaudeService] Session update callback called for ${agentId}: ${newSessionId}`
+      )
+      await this.sessionService.updateSession(projectId, agentId, newSessionId)
+      console.log(`📍 [ClaudeService] SessionService.updateSession completed for ${agentId}`)
+    })
+
+    return agent
   }
 
   // KISS: Simple wrapper around sendMessage with streaming support
@@ -90,7 +100,7 @@ export class ClaudeService {
 
       return {
         response,
-        sessionId: agentId, // Return stable agent ID, not Claude's changing session ID
+        sessionId: agentId, // Return stable agent ID for UI consistency
       }
     } catch (error) {
       console.error('Error sending message via Claude:', error)

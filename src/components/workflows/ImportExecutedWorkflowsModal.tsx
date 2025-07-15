@@ -126,13 +126,20 @@ export const ImportExecutedWorkflowsModal: React.FC<ImportExecutedWorkflowsModal
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-500" />
+        return (
+          <CheckCircle className="w-4 h-4" style={{ color: 'var(--color-workflow-completed)' }} />
+        )
       case 'failed':
-        return <XCircle className="w-4 h-4 text-red-500" />
+        return <XCircle className="w-4 h-4" style={{ color: 'var(--color-workflow-failed)' }} />
       case 'running':
-        return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+        return (
+          <Loader2
+            className="w-4 h-4 animate-spin"
+            style={{ color: 'var(--color-workflow-running)' }}
+          />
+        )
       default:
-        return <Clock className="w-4 h-4 text-gray-500" />
+        return <Clock className="w-4 h-4" style={{ color: 'var(--color-workflow-pending)' }} />
     }
   }
 
@@ -140,10 +147,21 @@ export const ImportExecutedWorkflowsModal: React.FC<ImportExecutedWorkflowsModal
     <ModalLayout isOpen={isOpen} onClose={onClose} title="Import Executed Workflows" size="lg">
       <div className="space-y-4">
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
+          <div
+            className="border rounded-lg p-4 flex items-start gap-3"
+            style={{
+              backgroundColor: 'var(--color-workflow-failed-bg)',
+              borderColor: 'var(--color-workflow-failed)',
+            }}
+          >
+            <AlertCircle
+              className="w-5 h-5 mt-0.5"
+              style={{ color: 'var(--color-workflow-failed)' }}
+            />
             <div className="flex-1">
-              <p className="text-sm text-red-800">{error}</p>
+              <p className="text-sm" style={{ color: 'var(--color-workflow-failed)' }}>
+                {error}
+              </p>
             </div>
           </div>
         )}

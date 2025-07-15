@@ -209,16 +209,74 @@ router.get('/:id/agents/:agentId/session', async (req: Request, res: Response) =
   }
 })
 
-// GET /api/studio-projects/:id/sessions/:sessionId/messages - Get messages from a Studio project session
-router.get('/:id/sessions/:sessionId/messages', async (req: Request, res: Response) => {
+// GET /api/studio-projects/:id/agents/:agentId/messages - Get messages for an agent (UPDATED: agent-based instead of session-based)
+router.get('/:id/agents/:agentId/messages', async (req: Request, res: Response) => {
   try {
-    const { id, sessionId } = req.params
+    const { id, agentId } = req.params
     const { cursor, limit = '50' } = req.query
 
-    // Get project to get workspace path
+    // CRITICAL: Get session ID directly from ClaudeAgent (single source of truth)
+    // This prevents race condition where SessionService has stale session IDs
+    console.log(
+      `[AGENT MESSAGES DEBUG] projectId: ${id}, agentId: ${agentId} - getting session from ClaudeAgent`
+    )
+
+    let sessionId: string | null = null
+
+    // Try to get session from active ClaudeAgent first (most current)
+    try {
+      const { ClaudeService } = await import('../services/ClaudeService')
+      const claudeService = new ClaudeService()
+
+      // Get project for workspace path and find agent role
+      const project = await studioProjectService.getProjectWithAgents(id)
+      console.log(`[AGENT MESSAGES DEBUG] Project workspacePath: ${project.workspacePath}`)
+
+      // Get agents with short IDs to find the correct role
+      const agentsWithShortIds = await studioProjectService.getProjectAgentsWithShortIds(id)
+      const projectAgent = agentsWithShortIds.find((a) => a.shortId === agentId)
+      const role = projectAgent?.role || 'dev' // fallback to 'dev' if not found
+      console.log(`[AGENT MESSAGES DEBUG] Found agent role: ${role} for agentId: ${agentId}`)
+
+      // Get the agent (this will create or retrieve cached agent)
+      const agent = await claudeService.getOrCreateAgent(
+        id,
+        agentId,
+        role as 'dev' | 'ux' | 'test' | 'pm',
+        project.workspacePath
+      )
+      sessionId = (await agent.getCurrentSessionId()) || null
+      console.log(`[AGENT MESSAGES DEBUG] ClaudeAgent returned session: ${sessionId}`)
+    } catch (error) {
+      console.log(`[AGENT MESSAGES DEBUG] Error getting session from ClaudeAgent:`, error)
+    }
+
+    // Fallback to SessionService if agent doesn't have session yet
+    if (!sessionId) {
+      const sessionService = SessionService.getInstance()
+      sessionId = await sessionService.getSession(id, agentId)
+      console.log(`[AGENT MESSAGES DEBUG] SessionService fallback returned: ${sessionId}`)
+    }
+
+    // If we still don't have a session ID, return empty messages
+    if (!sessionId) {
+      console.log(
+        `[AGENT MESSAGES DEBUG] No session found for agent ${agentId} - returning empty messages`
+      )
+      return res.json({
+        messages: [],
+        hasMore: false,
+        nextCursor: null,
+      })
+    }
+
+    console.log(`[AGENT MESSAGES DEBUG] Loading messages for session: ${sessionId}`)
+
+    // Get project for workspace path
     const project = await studioProjectService.getProjectWithAgents(id)
 
-    // Get messages from session
+    // Get messages from session using the session-based logic
+    const studioSessionService = StudioSessionService.getInstance()
     const result = await studioSessionService.getSessionMessages(
       project.workspacePath,
       sessionId,
@@ -231,7 +289,7 @@ router.get('/:id/sessions/:sessionId/messages', async (req: Request, res: Respon
 
     res.json(result)
   } catch (error) {
-    console.error('Error fetching Studio project session messages:', error)
+    console.error('Error fetching agent messages:', error)
     const message = error instanceof Error ? error.message : 'Failed to fetch messages'
     const status = message.includes('not found') ? 404 : 500
     res.status(status).json({ error: message })

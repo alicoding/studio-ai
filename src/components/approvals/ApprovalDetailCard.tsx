@@ -66,7 +66,9 @@ export function ApprovalDetailCard({
   const getStatusDisplay = () => {
     if (approval.isOverdue) {
       return {
-        icon: <AlertTriangle className="h-5 w-5 text-red-500" />,
+        icon: (
+          <AlertTriangle className="h-5 w-5" style={{ color: 'var(--color-approval-overdue)' }} />
+        ),
         text: 'Overdue',
         variant: 'destructive' as const,
       }
@@ -75,20 +77,22 @@ export function ApprovalDetailCard({
     switch (approval.status) {
       case 'approved':
         return {
-          icon: <CheckCircle className="h-5 w-5 text-green-500" />,
+          icon: (
+            <CheckCircle className="h-5 w-5" style={{ color: 'var(--color-approval-approved)' }} />
+          ),
           text: 'Approved',
           variant: 'default' as const,
         }
       case 'rejected':
         return {
-          icon: <XCircle className="h-5 w-5 text-red-500" />,
+          icon: <XCircle className="h-5 w-5" style={{ color: 'var(--color-approval-rejected)' }} />,
           text: 'Rejected',
           variant: 'destructive' as const,
         }
       case 'pending':
       default:
         return {
-          icon: <Clock className="h-5 w-5 text-orange-500" />,
+          icon: <Clock className="h-5 w-5" style={{ color: 'var(--color-approval-pending)' }} />,
           text: 'Pending',
           variant: 'secondary' as const,
         }

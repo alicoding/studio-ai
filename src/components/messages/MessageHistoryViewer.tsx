@@ -68,10 +68,9 @@ interface Message {
 }
 
 interface MessageHistoryViewerProps {
-  sessionId: string // Claude session ID for message history API
   projectId: string
+  agentId: string | null // Agent instance ID (e.g., "developer_01") - SINGLE SOURCE OF TRUTH, null when no agent selected
   agentName?: string
-  agentId?: string // Agent instance ID for WebSocket routing
 }
 
 // Helper function to associate tool results with tool uses
@@ -139,12 +138,7 @@ const ESTIMATED_ITEM_HEIGHT = 150 // Increased for richer content
 const PAGE_SIZE = 50
 const LOAD_MORE_THRESHOLD = 5 // Load more when within 5 items of the top
 
-export function MessageHistoryViewer({
-  sessionId,
-  projectId,
-  agentName,
-  agentId,
-}: MessageHistoryViewerProps) {
+export function MessageHistoryViewer({ projectId, agentId, agentName }: MessageHistoryViewerProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -177,20 +171,20 @@ export function MessageHistoryViewer({
     }
   }, [])
 
-  // Reset everything when session or agent changes
+  // Reset everything when agent changes
   useEffect(() => {
-    console.log('📍 Session/Agent changed:', { sessionId, agentId })
+    console.log('📍 Agent changed:', { agentId })
     setMessages([])
     setHasMore(true)
     cursorRef.current = null
     itemHeights.current = {}
     hasUserScrolled.current = false
     setError(null)
-    // Reset loaded session ref when session changes
-    if (loadedSessionRef.current !== sessionId) {
+    // Reset loaded session ref when agent changes
+    if (loadedSessionRef.current !== agentId) {
       loadedSessionRef.current = null
     }
-  }, [sessionId, agentId])
+  }, [agentId])
 
   // Track container height
   useEffect(() => {
@@ -226,12 +220,11 @@ export function MessageHistoryViewer({
     console.log('Setting up WebSocket message handler:', {
       hasSocket: !!socket,
       socketConnected: socket?.connected,
-      sessionId,
       agentId,
       projectId,
     })
 
-    if (!socket || !sessionId || !agentId) return
+    if (!socket || !agentId) return
 
     const handleNewMessage = (data: {
       sessionId: string
@@ -259,7 +252,7 @@ export function MessageHistoryViewer({
         webSocketSessionId: webSocketSessionId,
         ourProjectId: projectId,
         ourAgentId: agentId,
-        ourSessionId: sessionId,
+        // Using agentId for WebSocket routing
         matches: data.sessionId === webSocketSessionId && data.projectId === projectId,
         message: data.message,
         isStreaming: data.message.isStreaming,
@@ -288,7 +281,7 @@ export function MessageHistoryViewer({
           // This will cause the parent component to re-fetch agent data
           window.dispatchEvent(
             new CustomEvent('session-compacted', {
-              detail: { sessionId },
+              detail: { agentId },
             })
           )
         }
@@ -323,38 +316,26 @@ export function MessageHistoryViewer({
       socket.offAny()
       window.removeEventListener('websocket-reconnected', handleReconnect)
     }
-  }, [socket, sessionId, agentId, agentName, messages.length, projectId])
+  }, [socket, agentId, agentName, messages.length, projectId])
 
   const loadMoreMessages = useCallback(async () => {
-    if (loading || !hasMore || !sessionId || !projectId) return
+    if (loading || !hasMore || !agentId || !projectId) {
+      console.log('📍 loadMoreMessages early return:', { loading, hasMore, agentId, projectId })
+      return
+    }
 
-    console.log('🔄 Loading more messages, current count:', messages.length)
+    console.log('🔄 Loading more messages for agent:', agentId, 'current count:', messages.length)
     setLoading(true)
     setError(null)
 
     try {
-      // First, get the current session ID for this agent
-      let currentSessionId = sessionId
-      if (agentId) {
-        const sessionResponse = await fetch(
-          `/api/studio-projects/${projectId}/agents/${agentId}/session`
-        )
-        if (sessionResponse.ok) {
-          const sessionData = await sessionResponse.json()
-          if (sessionData.sessionId) {
-            currentSessionId = sessionData.sessionId
-            console.log('📍 Using current session ID from server:', currentSessionId)
-          }
-        }
-      }
-
       const params = new URLSearchParams({
         limit: PAGE_SIZE.toString(),
         ...(cursorRef.current && { cursor: cursorRef.current }),
       })
 
-      // Use Studio Projects API endpoint with the current session ID
-      const url = `/api/studio-projects/${projectId}/sessions/${currentSessionId}/messages?${params}`
+      // Use agent-based messages endpoint - let server handle session mapping internally
+      const url = `/api/studio-projects/${projectId}/agents/${agentId}/messages?${params}`
       const response = await fetch(url)
 
       if (!response.ok) {
@@ -401,39 +382,33 @@ export function MessageHistoryViewer({
     } finally {
       setLoading(false)
     }
-  }, [sessionId, projectId, loading, hasMore, messages.length, agentId])
+  }, [agentId, projectId, loading, hasMore, messages.length])
 
-  // Load initial messages when sessionId or projectId changes
+  // Load initial messages when agentId or projectId changes
   useEffect(() => {
     console.log('📍 Message loading effect triggered:', {
-      sessionId,
+      agentId,
       projectId,
       messagesLength: messages.length,
       loading,
-      hasSessionId: !!sessionId,
+      hasAgentId: !!agentId,
       hasProjectId: !!projectId,
-      loadedSession: loadedSessionRef.current,
+      loadedAgent: loadedSessionRef.current,
     })
 
-    // Check if we need to load messages for this session
+    // Check if we need to load messages for this agent
     const needsLoad =
-      sessionId &&
+      agentId &&
       projectId &&
       !loading &&
-      (messages.length === 0 || loadedSessionRef.current !== sessionId)
+      (messages.length === 0 || loadedSessionRef.current !== agentId)
 
     if (needsLoad) {
-      console.log(
-        '📍 Loading messages for session:',
-        sessionId,
-        '(was:',
-        loadedSessionRef.current,
-        ')'
-      )
-      loadedSessionRef.current = sessionId
+      console.log('📍 Loading messages for agent:', agentId, '(was:', loadedSessionRef.current, ')')
+      loadedSessionRef.current = agentId
       loadMoreMessages()
     }
-  }, [sessionId, projectId, loading, loadMoreMessages, messages.length]) // Include loadMoreMessages for React rules
+  }, [agentId, projectId, loading, loadMoreMessages, messages.length]) // Include loadMoreMessages for React rules
 
   // Listen for session clear events
   useEffect(() => {
@@ -446,7 +421,6 @@ export function MessageHistoryViewer({
 
       if (isThisSession) {
         console.log('🗑️ Session cleared, resetting message history for:', {
-          sessionId,
           agentId,
           clearedAgentId,
           oldSessionId,
@@ -471,7 +445,7 @@ export function MessageHistoryViewer({
     return () => {
       window.removeEventListener('agent-session-cleared', handleSessionCleared as EventListener)
     }
-  }, [sessionId, agentId])
+  }, [agentId])
 
   // Listen for reload messages after reconnection
   useEffect(() => {
@@ -639,6 +613,18 @@ export function MessageHistoryViewer({
 
   const isTyping = agent?.status === 'busy' && agentTypingStartTime
   const typingIndicatorHeight = 72 // Approximate height of typing indicator (p-4 + content + border)
+
+  // Early return when no agent is selected (after all hooks)
+  if (!agentId) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-muted-foreground">No agent selected</p>
+          <p className="text-sm text-muted-foreground">Select an agent to view message history</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div ref={containerRef} className="h-full bg-background relative">

@@ -31,9 +31,9 @@ export const RiskAssessmentDisplay: React.FC<RiskAssessmentDisplayProps> = ({
       case 'critical':
         return {
           icon: <AlertTriangle className="w-5 h-5" />,
-          color: 'text-red-600',
-          bgColor: 'bg-red-50',
-          borderColor: 'border-red-300',
+          color: 'var(--color-approval-critical)',
+          bgColor: 'var(--color-approval-critical-bg)',
+          borderColor: 'var(--color-approval-critical)',
           label: 'Critical Risk',
           description: 'This operation has critical impact and requires careful consideration',
         }
@@ -41,9 +41,9 @@ export const RiskAssessmentDisplay: React.FC<RiskAssessmentDisplayProps> = ({
       case 'high':
         return {
           icon: <AlertCircle className="w-5 h-5" />,
-          color: 'text-orange-600',
-          bgColor: 'bg-orange-50',
-          borderColor: 'border-orange-300',
+          color: 'var(--color-approval-high)',
+          bgColor: 'var(--color-approval-high-bg)',
+          borderColor: 'var(--color-approval-high)',
           label: 'High Risk',
           description: 'Significant changes will occur that may be difficult to reverse',
         }
@@ -51,9 +51,9 @@ export const RiskAssessmentDisplay: React.FC<RiskAssessmentDisplayProps> = ({
       case 'medium':
         return {
           icon: <Info className="w-5 h-5" />,
-          color: 'text-yellow-600',
-          bgColor: 'bg-yellow-50',
-          borderColor: 'border-yellow-300',
+          color: 'var(--color-approval-medium)',
+          bgColor: 'var(--color-approval-medium-bg)',
+          borderColor: 'var(--color-approval-medium)',
           label: 'Medium Risk',
           description: 'Standard operational changes with moderate impact',
         }
@@ -61,9 +61,9 @@ export const RiskAssessmentDisplay: React.FC<RiskAssessmentDisplayProps> = ({
       case 'low':
         return {
           icon: <Shield className="w-5 h-5" />,
-          color: 'text-green-600',
-          bgColor: 'bg-green-50',
-          borderColor: 'border-green-300',
+          color: 'var(--color-approval-low)',
+          bgColor: 'var(--color-approval-low-bg)',
+          borderColor: 'var(--color-approval-low)',
           label: 'Low Risk',
           description: 'Routine operation with minimal impact',
         }
@@ -111,27 +111,30 @@ export const RiskAssessmentDisplay: React.FC<RiskAssessmentDisplayProps> = ({
     <div className={`space-y-3 ${className}`}>
       {/* Risk Level Badge */}
       <div
-        className={`
-          inline-flex items-center space-x-2 px-3 py-2 rounded-lg border
-          ${visuals.bgColor} ${visuals.borderColor}
-        `}
+        className="inline-flex items-center space-x-2 px-3 py-2 rounded-lg border"
+        style={{
+          backgroundColor: visuals.bgColor,
+          borderColor: visuals.borderColor,
+        }}
       >
-        <span className={visuals.color}>{visuals.icon}</span>
-        <span className={`font-medium ${visuals.color}`}>{visuals.label}</span>
+        <span style={{ color: visuals.color }}>{visuals.icon}</span>
+        <span className="font-medium" style={{ color: visuals.color }}>
+          {visuals.label}
+        </span>
       </div>
 
       {/* Risk Description */}
-      <p className="text-sm text-gray-600">{visuals.description}</p>
+      <p className="text-sm text-muted-foreground">{visuals.description}</p>
 
       {/* Detailed Guidelines */}
       {showDetails && (
         <div className="mt-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Review Guidelines</h4>
+          <h4 className="text-sm font-medium text-foreground mb-2">Review Guidelines</h4>
           <ul className="space-y-1">
             {guidelines.map((guideline, index) => (
               <li key={index} className="flex items-start space-x-2">
-                <span className="text-gray-400 mt-0.5">•</span>
-                <span className="text-sm text-gray-600">{guideline}</span>
+                <span className="text-muted-foreground mt-0.5">•</span>
+                <span className="text-sm text-muted-foreground">{guideline}</span>
               </li>
             ))}
           </ul>
@@ -141,7 +144,7 @@ export const RiskAssessmentDisplay: React.FC<RiskAssessmentDisplayProps> = ({
       {/* Risk Scale Indicator */}
       <div className="mt-4">
         <div className="flex items-center space-x-2">
-          <span className="text-xs text-gray-500">Risk Scale:</span>
+          <span className="text-xs text-muted-foreground">Risk Scale:</span>
           <div className="flex space-x-1">
             {(['low', 'medium', 'high', 'critical'] as RiskLevel[]).map((level) => {
               const isActive = level === riskLevel
@@ -150,14 +153,12 @@ export const RiskAssessmentDisplay: React.FC<RiskAssessmentDisplayProps> = ({
               return (
                 <div
                   key={level}
-                  className={`
-                    w-8 h-2 rounded-full transition-all
-                    ${
-                      isActive
-                        ? `${levelVisuals.bgColor} ring-2 ring-offset-1 ring-${level === 'critical' ? 'red' : level === 'high' ? 'orange' : level === 'medium' ? 'yellow' : 'green'}-400`
-                        : 'bg-gray-200'
-                    }
-                  `}
+                  className={`w-8 h-2 rounded-full transition-all ${
+                    isActive ? 'ring-2 ring-offset-1 ring-primary' : ''
+                  }`}
+                  style={{
+                    backgroundColor: isActive ? levelVisuals.bgColor : 'var(--color-secondary)',
+                  }}
                   title={levelVisuals.label}
                 />
               )

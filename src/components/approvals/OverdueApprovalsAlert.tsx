@@ -10,6 +10,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { AlertTriangle, Clock, X, Eye, CheckCircle, XCircle } from 'lucide-react'
 import { useWebSocket } from '../../hooks/useWebSocket'
+import { useApprovalColors } from '../../hooks/useTheme'
 import type { WorkflowApproval } from '../../../web/server/schemas/approval-types'
 
 interface OverdueApprovalsAlertProps {
@@ -39,6 +40,9 @@ export const OverdueApprovalsAlert: React.FC<OverdueApprovalsAlertProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [isDismissed, setIsDismissed] = useState(false)
   const [lastChecked, setLastChecked] = useState<Date>(new Date())
+
+  // Theme-aware colors
+  const colors = useApprovalColors()
 
   // WebSocket for real-time updates
   const { socket } = useWebSocket()
@@ -255,15 +259,15 @@ export const OverdueApprovalsAlert: React.FC<OverdueApprovalsAlertProps> = ({
 
   if (error) {
     return (
-      <div className={`p-3 bg-yellow-50 border border-yellow-200 rounded-lg ${className}`}>
+      <div className={`p-3 bg-yellow-50/10 border border-yellow-500/20 rounded-lg ${className}`}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center text-yellow-700">
+          <div className="flex items-center text-yellow-600 dark:text-yellow-400">
             <AlertTriangle className="w-4 h-4 mr-2" />
             <span className="text-sm">Unable to check for overdue approvals</span>
           </div>
           <button
             onClick={() => fetchOverdueApprovals()}
-            className="text-yellow-700 hover:text-yellow-800 text-sm underline"
+            className="text-yellow-600 dark:text-yellow-400 hover:underline text-sm"
           >
             Retry
           </button>
@@ -283,23 +287,23 @@ export const OverdueApprovalsAlert: React.FC<OverdueApprovalsAlertProps> = ({
   const severity = getAlertSeverity(mostSevere)
   const actions = getAlertActions()
 
-  // Alert styling based on severity
+  // Alert styling based on severity using theme colors
   const alertStyles = {
-    warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
-    error: 'bg-orange-50 border-orange-200 text-orange-800',
-    critical: 'bg-red-50 border-red-200 text-red-800',
+    warning: 'bg-yellow-50/10 border-yellow-500/20 text-yellow-700 dark:text-yellow-300',
+    error: 'bg-orange-50/10 border-orange-500/20 text-orange-700 dark:text-orange-300',
+    critical: `${colors.getStatusColor('overdue').bg} border-2 border-current`,
   }
 
   const iconStyles = {
-    warning: 'text-yellow-600',
-    error: 'text-orange-600',
-    critical: 'text-red-600',
+    warning: 'text-yellow-600 dark:text-yellow-400',
+    error: 'text-orange-600 dark:text-orange-400',
+    critical: colors.getStatusColor('overdue').text,
   }
 
   const buttonStyles = {
-    primary: 'bg-blue-100 text-blue-800 hover:bg-blue-200',
-    secondary: 'bg-green-100 text-green-800 hover:bg-green-200',
-    danger: 'bg-red-100 text-red-800 hover:bg-red-200',
+    primary: 'bg-primary/10 text-primary hover:bg-primary/20',
+    secondary: 'bg-green-500/10 text-green-700 dark:text-green-300 hover:bg-green-500/20',
+    danger: 'bg-destructive/10 text-destructive hover:bg-destructive/20',
   }
 
   return (

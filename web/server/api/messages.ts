@@ -7,13 +7,8 @@ const claudeService = new ClaudeService()
 
 // POST /api/messages - Send a message to Claude
 // KISS: Simple endpoint that delegates to service
-// DEPRECATED: Use /api/invoke instead for unified agent invocation
+// Used for real-time interactive agent communication
 router.post('/', async (req: Request, res: Response) => {
-  // Add deprecation warning
-  console.warn('[DEPRECATION] /api/messages is deprecated. Use /api/invoke instead.')
-  res.setHeader('X-Deprecated', 'true')
-  res.setHeader('X-Deprecation-Message', 'Use /api/invoke instead')
-
   try {
     const {
       content,
@@ -49,6 +44,25 @@ router.post('/', async (req: Request, res: Response) => {
       },
     })
 
+    // Resolve project path if not provided
+    let resolvedProjectPath = projectPath
+    if (!resolvedProjectPath && projectId) {
+      try {
+        const { StudioProjectService } = await import('../services/StudioProjectService')
+        const projectService = new StudioProjectService()
+        const project = await projectService.getProjectWithAgents(projectId)
+        resolvedProjectPath = project.workspacePath
+        console.log(`[MESSAGES API DEBUG] Resolved project path from project ID:`, {
+          projectId,
+          projectName: project.name,
+          workspacePath: project.workspacePath,
+          resolvedProjectPath,
+        })
+      } catch (error) {
+        console.error('Failed to resolve project path:', error)
+      }
+    }
+
     // Get agent configuration dynamically
     let agentConfig = undefined
     try {
@@ -82,7 +96,7 @@ router.post('/', async (req: Request, res: Response) => {
       content,
       projectId,
       agentId,
-      projectPath,
+      resolvedProjectPath || projectPath,
       role as Role | undefined,
       undefined,
       io,
@@ -279,12 +293,24 @@ router.post('/mention', async (req: Request, res: Response) => {
         // Use the parsed message content from mention
         const messageContent = mention.content
 
+        // Resolve project path for target project if not provided
+        let targetProjectPath = undefined
+        try {
+          const { StudioProjectService } = await import('../services/StudioProjectService')
+          const projectService = new StudioProjectService()
+          const targetProject = await projectService.getProjectWithAgents(actualTargetProjectId)
+          targetProjectPath = targetProject.workspacePath
+          console.log(`Resolved target project path: ${targetProjectPath}`)
+        } catch (error) {
+          console.error('Failed to resolve target project path:', error)
+        }
+
         // Send the message to the target agent via Claude API
         const result = await claudeService.sendMessage(
           `Message from @${fromAgentId}: ${messageContent}`,
-          projectId,
+          actualTargetProjectId,
           targetAgentId,
-          undefined, // projectPath - will be resolved by service
+          targetProjectPath, // Use resolved project path
           'dev', // default role
           undefined, // sessionId - will be resolved
           io, // socket for streaming

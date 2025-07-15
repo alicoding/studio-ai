@@ -86,6 +86,9 @@ const io = new Server(httpServer, {
   },
 })
 
+// Note: Cluster adapter removed - requires Node.js cluster setup
+// Using Redis adapter instead for cross-server communication
+
 // Middleware
 app.use(
   cors({

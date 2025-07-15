@@ -162,8 +162,8 @@ export class EventSystem {
     await this.emit('agent:token-usage', { agentId, tokens, maxTokens })
   }
 
-  async emitNewMessage(sessionId: string, message: unknown): Promise<void> {
-    await this.emit('message:new', { sessionId, message })
+  async emitNewMessage(sessionId: string, message: unknown, projectId?: string): Promise<void> {
+    await this.emit('message:new', { sessionId, message, projectId })
   }
 
   /**

@@ -288,7 +288,7 @@ const WorkflowsPage: React.FC = () => {
         {/* Filters and Search */}
         <div className="flex items-center gap-4">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input
               type="text"
               placeholder="Search workflows..."
@@ -344,11 +344,11 @@ const WorkflowsPage: React.FC = () => {
       <div className="flex-1 overflow-auto p-6">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="text-gray-500">Loading workflows...</div>
+            <div className="text-muted-foreground">Loading workflows...</div>
           </div>
         ) : filteredWorkflows.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64">
-            <div className="text-gray-500 mb-4">No workflows found</div>
+            <div className="text-muted-foreground mb-4">No workflows found</div>
             <Button onClick={() => navigate({ to: '/workflows/new' })}>
               Create Your First Workflow
             </Button>
@@ -372,22 +372,22 @@ const WorkflowsPage: React.FC = () => {
 
                 <h3 className="font-semibold text-lg mb-2 pr-8">{workflow.name}</h3>
                 {workflow.description && (
-                  <p className="text-sm text-gray-600 mb-3">{workflow.description}</p>
+                  <p className="text-sm text-muted-foreground mb-3">{workflow.description}</p>
                 )}
 
-                <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
                   <span>{workflow.definition.steps.length} steps</span>
                   <span>•</span>
                   <span>{workflow.scope}</span>
                   {workflow.isTemplate && (
                     <>
                       <span>•</span>
-                      <span className="text-blue-600">Template</span>
+                      <span className="text-primary">Template</span>
                     </>
                   )}
                 </div>
 
-                <div className="text-xs text-gray-400 mb-3">
+                <div className="text-xs text-muted-foreground mb-3">
                   Updated {format(new Date(workflow.updatedAt), 'MMM d, yyyy')}
                 </div>
 
@@ -396,7 +396,7 @@ const WorkflowsPage: React.FC = () => {
                     {workflow.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded"
+                        className="px-2 py-1 bg-secondary text-secondary-foreground text-xs rounded"
                       >
                         {tag}
                       </span>
@@ -424,9 +424,9 @@ const WorkflowsPage: React.FC = () => {
                       <MoreVertical className="w-4 h-4" />
                     </Button>
                     {showDropdown === workflow.id && (
-                      <div className="absolute right-0 top-8 bg-white border rounded-lg shadow-lg py-1 z-10 w-40">
+                      <div className="absolute right-0 top-8 bg-card border rounded-lg shadow-lg py-1 z-10 w-40">
                         <button
-                          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 w-full text-left text-sm"
+                          className="flex items-center gap-2 px-3 py-2 hover:bg-secondary w-full text-left text-sm"
                           onClick={() => {
                             handleClone(workflow)
                             setShowDropdown(null)
@@ -436,7 +436,7 @@ const WorkflowsPage: React.FC = () => {
                           Clone
                         </button>
                         <button
-                          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 w-full text-left text-sm"
+                          className="flex items-center gap-2 px-3 py-2 hover:bg-secondary w-full text-left text-sm"
                           onClick={() => {
                             setShowHistoryModal({ id: workflow.id, name: workflow.name })
                             setShowDropdown(null)
@@ -446,7 +446,7 @@ const WorkflowsPage: React.FC = () => {
                           History
                         </button>
                         <button
-                          className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 w-full text-left text-sm text-red-600"
+                          className="flex items-center gap-2 px-3 py-2 hover:bg-secondary w-full text-left text-sm text-destructive"
                           onClick={() => {
                             handleDelete(workflow.id)
                             setShowDropdown(null)
@@ -489,7 +489,7 @@ const WorkflowsPage: React.FC = () => {
               </thead>
               <tbody>
                 {filteredWorkflows.map((workflow) => (
-                  <tr key={workflow.id} className="border-b hover:bg-gray-50">
+                  <tr key={workflow.id} className="border-b hover:bg-secondary">
                     <td className="p-2">
                       <input
                         type="checkbox"
@@ -499,10 +499,12 @@ const WorkflowsPage: React.FC = () => {
                       />
                     </td>
                     <td className="p-2 font-medium">{workflow.name}</td>
-                    <td className="p-2 text-sm text-gray-600">{workflow.description || '-'}</td>
+                    <td className="p-2 text-sm text-muted-foreground">
+                      {workflow.description || '-'}
+                    </td>
                     <td className="p-2">{workflow.definition.steps.length}</td>
                     <td className="p-2">
-                      <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                      <span className="px-2 py-1 bg-secondary text-secondary-foreground text-xs rounded">
                         {workflow.scope}
                       </span>
                     </td>
@@ -533,7 +535,7 @@ const WorkflowsPage: React.FC = () => {
                           size="sm"
                           variant="ghost"
                           onClick={() => handleDelete(workflow.id)}
-                          className="text-red-600 hover:text-red-700"
+                          className="text-destructive hover:text-destructive/80"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>

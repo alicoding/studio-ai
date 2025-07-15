@@ -38,8 +38,7 @@ export function SingleView({ selectedAgentId }: SingleViewProps) {
 
     return (
       <MessageHistoryViewer
-        key={`${selectedAgent.id}-${sessionId || 'no-session'}`} // Force re-mount when sessionId changes
-        sessionId={sessionId || ''} // Pass empty string if no session
+        key={`${selectedAgent.id}`} // Force re-mount when agent changes
         projectId={activeProjectId}
         agentName={selectedAgent.name}
         agentId={selectedAgent.id}

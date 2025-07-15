@@ -270,23 +270,39 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
   if (isLoading) {
     return (
       <div className={`flex items-center justify-center p-8 ${className}`}>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-        <span className="ml-3 text-gray-600">Loading approval history...</span>
+        <div
+          className="animate-spin rounded-full h-8 w-8 border-b-2"
+          style={{ borderBottomColor: 'var(--color-primary)' }}
+        />
+        <span className="ml-3 text-muted-foreground">Loading approval history...</span>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className={`p-4 bg-red-50 border border-red-200 rounded-lg ${className}`}>
-        <div className="flex items-center text-red-600">
+      <div
+        className={`p-4 border rounded-lg ${className}`}
+        style={{
+          backgroundColor: 'var(--color-destructive-bg)',
+          borderColor: 'var(--color-destructive)',
+        }}
+      >
+        <div className="flex items-center" style={{ color: 'var(--color-destructive)' }}>
           <XCircle className="w-5 h-5 mr-2" />
           <span className="font-medium">Error loading approval history</span>
         </div>
-        <p className="text-red-600 text-sm mt-1">{error}</p>
+        <p className="text-sm mt-1" style={{ color: 'var(--color-destructive)' }}>
+          {error}
+        </p>
         <button
           onClick={() => fetchApprovalHistory()}
-          className="mt-2 px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200"
+          className="mt-2 px-3 py-1 rounded text-sm transition-colors hover:opacity-80"
+          style={{
+            backgroundColor: 'var(--color-destructive-bg)',
+            color: 'var(--color-destructive)',
+            border: '1px solid var(--color-destructive)',
+          }}
         >
           Retry
         </button>
@@ -298,14 +314,19 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
     <div className={`space-y-4 ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">
+        <h3 className="text-lg font-semibold text-foreground">
           Approval History ({filteredApprovals.length})
         </h3>
 
         {enableExport && filteredApprovals.length > 0 && (
           <button
             onClick={exportToCSV}
-            className="flex items-center space-x-2 px-3 py-1.5 bg-blue-100 text-blue-800 rounded text-sm hover:bg-blue-200"
+            className="flex items-center space-x-2 px-3 py-1.5 rounded text-sm transition-colors hover:opacity-80"
+            style={{
+              backgroundColor: 'var(--color-primary-bg)',
+              color: 'var(--color-primary)',
+              border: '1px solid var(--color-primary)',
+            }}
           >
             <Download className="w-4 h-4" />
             <span>Export CSV</span>
@@ -315,16 +336,19 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
 
       {/* Filters and Search */}
       {showFilters && (
-        <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
+        <div className="space-y-3 p-3 rounded-lg" style={{ backgroundColor: 'var(--color-muted)' }}>
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search workflows, steps, comments..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 bg-input text-foreground"
+              style={{
+                borderColor: 'var(--color-border)',
+              }}
             />
           </div>
 
@@ -338,7 +362,8 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
                   status: e.target.value as HistoryFilters['status'],
                 }))
               }
-              className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500"
+              className="border rounded px-3 py-1.5 text-sm focus:ring-2 bg-input text-foreground"
+              style={{ borderColor: 'var(--color-border)' }}
             >
               <option value="all">All Decisions</option>
               <option value="approved">Approved</option>
@@ -353,7 +378,8 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
                   riskLevel: e.target.value as HistoryFilters['riskLevel'],
                 }))
               }
-              className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500"
+              className="border rounded px-3 py-1.5 text-sm focus:ring-2 bg-input text-foreground"
+              style={{ borderColor: 'var(--color-border)' }}
             >
               <option value="all">All Risk Levels</option>
               <option value="critical">Critical</option>
@@ -370,7 +396,8 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
                   timeRange: e.target.value as HistoryFilters['timeRange'],
                 }))
               }
-              className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500"
+              className="border rounded px-3 py-1.5 text-sm focus:ring-2 bg-input text-foreground"
+              style={{ borderColor: 'var(--color-border)' }}
             >
               <option value="all">All Time</option>
               <option value="today">Today</option>
@@ -384,7 +411,8 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
               placeholder="Decision by..."
               value={filters.decisionBy}
               onChange={(e) => setFilters((prev) => ({ ...prev, decisionBy: e.target.value }))}
-              className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500"
+              className="border rounded px-3 py-1.5 text-sm focus:ring-2 bg-input text-foreground"
+              style={{ borderColor: 'var(--color-border)' }}
             />
           </div>
         </div>
@@ -393,9 +421,9 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
       {/* History List */}
       {filteredApprovals.length === 0 ? (
         <div className="text-center py-8">
-          <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h4 className="text-sm font-medium text-gray-900 mb-1">No approval history found</h4>
-          <p className="text-sm text-gray-500">
+          <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h4 className="text-sm font-medium text-foreground mb-1">No approval history found</h4>
+          <p className="text-sm text-muted-foreground">
             {searchTerm || filters.status !== 'all' || filters.riskLevel !== 'all'
               ? 'Try adjusting your filters or search terms'
               : 'No approvals have been completed yet'}
@@ -410,10 +438,15 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
             return (
               <div
                 key={approval.id}
-                className={`
-                  border rounded-lg transition-all
-                  ${isApproved ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}
-                `}
+                className="border rounded-lg transition-all"
+                style={{
+                  borderColor: isApproved
+                    ? 'var(--color-approval-approved)'
+                    : 'var(--color-approval-rejected)',
+                  backgroundColor: isApproved
+                    ? 'var(--color-approval-approved-bg)'
+                    : 'var(--color-approval-rejected-bg)',
+                }}
               >
                 <div
                   className="p-4 cursor-pointer hover:bg-opacity-50"
@@ -422,7 +455,12 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
                   <div className="flex items-start justify-between">
                     <div className="flex items-start space-x-3 flex-1 min-w-0">
                       <div
-                        className={`flex-shrink-0 ${isApproved ? 'text-green-600' : 'text-red-600'}`}
+                        className="flex-shrink-0"
+                        style={{
+                          color: isApproved
+                            ? 'var(--color-approval-approved)'
+                            : 'var(--color-approval-rejected)',
+                        }}
                       >
                         {isApproved ? (
                           <CheckCircle className="w-5 h-5" />
@@ -433,7 +471,7 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center space-x-2 mb-1">
-                          <h4 className="text-sm font-medium text-gray-900 truncate">
+                          <h4 className="text-sm font-medium text-foreground truncate">
                             {approval.workflowName || `Workflow ${approval.threadId.slice(-8)}`}
                           </h4>
                           <RiskAssessmentDisplay
@@ -441,22 +479,25 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
                             className="flex-shrink-0"
                           />
                           <span
-                            className={`
-                            px-2 py-0.5 rounded text-xs font-medium
-                            ${
-                              isApproved ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                            }
-                          `}
+                            className="px-2 py-0.5 rounded text-xs font-medium"
+                            style={{
+                              backgroundColor: isApproved
+                                ? 'var(--color-approval-approved-bg)'
+                                : 'var(--color-approval-rejected-bg)',
+                              color: isApproved
+                                ? 'var(--color-approval-approved)'
+                                : 'var(--color-approval-rejected)',
+                            }}
                           >
                             {isApproved ? 'Approved' : 'Rejected'}
                           </span>
                         </div>
 
-                        <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                        <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
                           Step: {approval.stepId}
                         </p>
 
-                        <div className="flex items-center space-x-4 text-xs text-gray-500">
+                        <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                           <div className="flex items-center space-x-1">
                             <User className="w-3 h-3" />
                             <span>{approval.resolvedBy || 'Unknown'}</span>
@@ -473,7 +514,7 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex-shrink-0 text-gray-400 ml-2">
+                    <div className="flex-shrink-0 text-muted-foreground ml-2">
                       {isExpanded ? (
                         <ChevronDown className="w-4 h-4" />
                       ) : (
@@ -485,19 +526,32 @@ export const ApprovalHistoryViewer: React.FC<ApprovalHistoryViewerProps> = ({
 
                 {/* Expanded details */}
                 {isExpanded && (
-                  <div className="border-t border-gray-200 p-4 bg-white bg-opacity-50">
+                  <div
+                    className="border-t p-4"
+                    style={{
+                      borderTopColor: 'var(--color-border)',
+                      backgroundColor: 'var(--color-card)',
+                    }}
+                  >
                     <div className="space-y-3">
                       <div>
-                        <h5 className="text-sm font-medium text-gray-700 mb-1">Original Request</h5>
-                        <p className="text-sm text-gray-600">{approval.prompt}</p>
+                        <h5 className="text-sm font-medium text-foreground mb-1">
+                          Original Request
+                        </h5>
+                        <p className="text-sm text-muted-foreground">{approval.prompt}</p>
                       </div>
 
                       <div>
-                        <h5 className="text-sm font-medium text-gray-700 mb-1">Status</h5>
-                        <p className="text-sm text-gray-600 capitalize">{approval.status}</p>
+                        <h5 className="text-sm font-medium text-foreground mb-1">Status</h5>
+                        <p className="text-sm text-muted-foreground capitalize">
+                          {approval.status}
+                        </p>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-200 text-xs text-gray-500">
+                      <div
+                        className="grid grid-cols-2 gap-4 pt-2 border-t text-xs text-muted-foreground"
+                        style={{ borderTopColor: 'var(--color-border)' }}
+                      >
                         <div>
                           <span className="font-medium">Requested:</span>{' '}
                           {new Date(approval.requestedAt).toLocaleString()}

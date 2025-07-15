@@ -52,7 +52,6 @@ export function GridView({}: GridViewProps) {
               {selectedAgent && activeProjectId ? (
                 <div className="flex-1 overflow-hidden">
                   <MessageHistoryViewer
-                    sessionId={selectedAgent.sessionId || selectedAgent.id}
                     projectId={activeProjectId}
                     agentName={selectedAgent.name}
                     agentId={selectedAgent.id}

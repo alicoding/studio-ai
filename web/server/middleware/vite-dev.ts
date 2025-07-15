@@ -1,6 +1,6 @@
 /**
  * Vite Development Server Integration - Enables HMR on dev server
- * 
+ *
  * SOLID: Single responsibility - Vite integration only
  * DRY: Reuses existing Vite config
  * KISS: Simple library integration
@@ -22,7 +22,7 @@ export function configureViteExpress(): void {
     // Use existing Vite config
     viteConfigFile: 'vite.config.ts',
   })
-  
+
   console.log('✅ Vite Express configured for HMR')
 }
 
@@ -31,9 +31,11 @@ export function configureViteExpress(): void {
  * Works with existing Socket.IO setup
  */
 export function startViteExpressServer(app: Express, httpServer: Server, port: number): void {
-  // Use ViteExpress.listen instead of bind + manual listen
-  // This properly integrates Vite's middleware with Express
-  ViteExpress.listen(app, port, () => {
+  // Use ViteExpress.bind to integrate with our existing httpServer (which has Socket.IO)
+  // This ensures WebSocket connections work properly with both Vite HMR and Socket.IO
+  ViteExpress.bind(app, httpServer)
+
+  httpServer.listen(port, () => {
     console.log(`🚀 Server running on http://localhost:${port}`)
     console.log(`📡 WebSocket listening on ws://localhost:${port}`)
     console.log('🔥 Vite HMR enabled')

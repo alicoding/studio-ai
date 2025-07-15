@@ -42,7 +42,7 @@ export function ProjectCard({ project, onOpen, onEdit, onDelete, onClone }: Proj
   }
 
   return (
-    <div className="bg-card border rounded-lg overflow-hidden hover:border-gray-500 transition-colors group">
+    <div className="bg-card border rounded-lg overflow-hidden hover:border-primary/50 transition-colors group">
       <div className="aspect-video bg-background flex items-center justify-center border-b relative">
         <div className="flex items-center justify-center text-muted-foreground">
           <FolderOpen className="w-12 h-12" />

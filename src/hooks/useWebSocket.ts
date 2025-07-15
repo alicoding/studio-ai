@@ -2,17 +2,14 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 
 interface UseWebSocketOptions {
-  url?: string
   reconnectAttempts?: number
   reconnectDelay?: number
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
-  // Always connect to stable server (3456) for MCP compatibility and real-time events
-  // This ensures WebSocket connections work regardless of which server the UI is served from
-  const defaultUrl = 'http://localhost:3456'
-
-  const { url = defaultUrl, reconnectAttempts = 5, reconnectDelay = 1000 } = options
+  // Simple approach: connect to the same origin as the UI
+  // Redis adapter handles cross-server communication automatically
+  const { reconnectAttempts = 5, reconnectDelay = 1000 } = options
 
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -22,7 +19,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const connect = useCallback(() => {
     if (socketRef.current?.connected) return
 
-    const socket = io(url, {
+    // Connect to the same server serving the UI
+    const socketUrl = window.location.origin
+    console.log(`[WebSocket] Connecting to: ${socketUrl}`)
+
+    const socket = io(socketUrl, {
       reconnection: true,
       reconnectionAttempts: reconnectAttempts,
       reconnectionDelay: reconnectDelay,
@@ -57,7 +58,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     })
 
     socketRef.current = socket
-  }, [url, reconnectAttempts, reconnectDelay])
+  }, [reconnectAttempts, reconnectDelay])
 
   const disconnect = useCallback(() => {
     if (socketRef.current) {

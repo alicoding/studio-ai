@@ -7,7 +7,6 @@
  * Library-First: Uses established UI components and patterns
  */
 
-import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { ScrollArea } from '../ui/scroll-area'
 import { AlertTriangle, Clock, CheckCircle, XCircle } from 'lucide-react'
@@ -43,15 +42,17 @@ export function ApprovalQueue({
 
   const getStatusIcon = (approval: EnrichedApproval) => {
     if (approval.isOverdue) {
-      return <AlertTriangle className="h-4 w-4 text-red-500" />
+      return (
+        <AlertTriangle className="h-4 w-4" style={{ color: 'var(--color-approval-overdue)' }} />
+      )
     }
     if (approval.status === 'approved') {
-      return <CheckCircle className="h-4 w-4 text-green-500" />
+      return <CheckCircle className="h-4 w-4" style={{ color: 'var(--color-approval-approved)' }} />
     }
     if (approval.status === 'rejected') {
-      return <XCircle className="h-4 w-4 text-red-500" />
+      return <XCircle className="h-4 w-4" style={{ color: 'var(--color-approval-rejected)' }} />
     }
-    return <Clock className="h-4 w-4 text-orange-500" />
+    return <Clock className="h-4 w-4" style={{ color: 'var(--color-approval-pending)' }} />
   }
 
   const formatTimeRemaining = (seconds: number | undefined) => {
@@ -80,11 +81,13 @@ export function ApprovalQueue({
       <ScrollArea className="w-full">
         <div className="flex space-x-3 pb-2">
           {approvals.map((approval) => (
-            <Button
+            <button
               key={approval.id}
-              variant={selectedApprovalId === approval.id ? 'default' : 'outline'}
-              size="sm"
-              className="flex-shrink-0 min-w-[200px] h-auto p-3 flex flex-col items-start space-y-2"
+              className={`flex-shrink-0 min-w-[200px] h-auto p-3 flex flex-col items-start space-y-2 rounded-md border transition-all duration-150 ${
+                selectedApprovalId === approval.id
+                  ? 'bg-primary/8 border-primary/30 ring-1 ring-primary/20'
+                  : 'bg-card border-border hover:bg-accent/50 hover:border-border/80'
+              }`}
               onClick={() => onSelectApproval(approval.id)}
             >
               {/* Header with status and risk */}
@@ -119,7 +122,7 @@ export function ApprovalQueue({
                   Project
                 </Badge>
               )}
-            </Button>
+            </button>
           ))}
         </div>
       </ScrollArea>
