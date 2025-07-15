@@ -105,11 +105,33 @@ export class DatabaseService {
         this.createApprovalTables()
 
         // Record migration as applied
-        this.db.prepare('INSERT INTO migrations (name) VALUES (?)').run(approvalMigrationName)
+        this.db.prepare('INSERT INTO migrations (filename) VALUES (?)').run(approvalMigrationName)
 
         console.log(`✅ Migration ${approvalMigrationName} applied successfully`)
       } catch (error) {
         console.error(`❌ Failed to run migration ${approvalMigrationName}:`, error)
+      }
+    }
+
+    // Run the assigned_to field migration
+    const assignedToMigrationName = '008_add_assigned_to_field.ts'
+    const assignedToApplied = this.db
+      .prepare('SELECT filename FROM migrations WHERE filename = ?')
+      .get(assignedToMigrationName) as { filename: string } | undefined
+
+    if (!assignedToApplied) {
+      console.log(`Running migration: ${assignedToMigrationName}`)
+
+      try {
+        // Add assigned_to field to workflow_approvals
+        this.addAssignedToField()
+
+        // Record migration as applied
+        this.db.prepare('INSERT INTO migrations (filename) VALUES (?)').run(assignedToMigrationName)
+
+        console.log(`✅ Migration ${assignedToMigrationName} applied successfully`)
+      } catch (error) {
+        console.error(`❌ Failed to run migration ${assignedToMigrationName}:`, error)
       }
     }
   }
@@ -248,5 +270,21 @@ export class DatabaseService {
     `)
 
     console.log('✅ Created workflow approval tables with indexes and triggers')
+  }
+
+  private addAssignedToField() {
+    // Add assigned_to column to workflow_approvals table
+    this.db.exec(`
+      ALTER TABLE workflow_approvals 
+      ADD COLUMN assigned_to TEXT
+    `)
+
+    // Add index for assigned_to for performance
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_workflow_approvals_assigned_to 
+      ON workflow_approvals(assigned_to)
+    `)
+
+    console.log('✅ Added assigned_to field to workflow_approvals table')
   }
 }

@@ -1,5 +1,5 @@
 import { Link, useLocation } from '@tanstack/react-router'
-import { Settings, Database, Search, Workflow } from 'lucide-react'
+import { Settings, Database, Search, Workflow, Shield } from 'lucide-react'
 import { useProjectStore } from '../../stores'
 import { ThemeToggle } from '../ui/ThemeToggle'
 
@@ -75,6 +75,17 @@ export function Navigation() {
         >
           <Workflow className="w-4 h-4" />
           Workflows
+        </Link>
+        <Link
+          to="/approvals"
+          className={`px-4 py-2 rounded-md transition-colors font-medium flex items-center gap-2 ${
+            location.pathname.startsWith('/approvals')
+              ? 'text-primary bg-primary/10 border border-primary/20'
+              : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          Approvals
         </Link>
         <Link
           to="/storage"

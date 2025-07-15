@@ -7,17 +7,19 @@
  * Library-First: Uses established canvas patterns from workspace
  */
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useCallback } from 'react'
 import { Card, CardHeader, CardContent } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
-import { AlertCircle, Clock, Users, Filter, Search, ArrowRight } from 'lucide-react'
+import { AlertCircle, Clock, Users, Filter, ArrowRight } from 'lucide-react'
 import { useApprovals, type ApprovalScope, type ApprovalFilters } from '../../hooks/useApprovals'
 import { useApprovalColors } from '../../hooks/useTheme'
 import { ApprovalDetailCard } from './ApprovalDetailCard'
 import { ApprovalQueue } from './ApprovalQueue'
 import { ConsolidatedApprovalView } from './ConsolidatedApprovalView'
 import { GlobalApprovalLink } from './GlobalApprovalLink'
+import { ApprovalFiltersComponent } from './ApprovalFilters'
+import ky from 'ky'
 
 export interface ApprovalCanvasContentProps {
   scope: ApprovalScope
@@ -29,9 +31,20 @@ export interface ApprovalCanvasContentProps {
 export function ApprovalCanvasContent({
   scope,
   projectId,
-  filters = {},
+  filters: initialFilters = {},
   className = '',
 }: ApprovalCanvasContentProps) {
+  const [localFilters, setLocalFilters] = useState<ApprovalFilters>(initialFilters)
+
+  // Combine filters with search query
+  const effectiveFilters = useMemo(
+    () => ({
+      ...localFilters,
+      search: localFilters.search || undefined,
+    }),
+    [localFilters]
+  )
+
   const {
     approvals,
     loading,
@@ -42,7 +55,7 @@ export function ApprovalCanvasContent({
     selectedApprovalId,
     setSelectedApprovalId,
     groupedApprovals,
-  } = useApprovals({ scope, projectId, filters })
+  } = useApprovals({ scope, projectId, filters: effectiveFilters })
 
   // Theme-aware colors
   const colors = useApprovalColors()
@@ -59,6 +72,24 @@ export function ApprovalCanvasContent({
       setSelectedApprovalId(approvals[0].id)
     }
   }, [approvals, selectedApprovalId, setSelectedApprovalId])
+
+  // Handle user assignment
+  const handleUserAssignment = useCallback(
+    async (approvalId: string, userId: string | null) => {
+      try {
+        await ky.post(`/api/approvals/${approvalId}/assign`, {
+          json: { userId },
+        })
+
+        // Refresh approvals to get updated assignment
+        await refetch()
+      } catch (error) {
+        console.error('Failed to assign user:', error)
+        throw error
+      }
+    },
+    [refetch]
+  )
 
   // Scope-specific header content
   const getHeaderContent = () => {
@@ -100,18 +131,42 @@ export function ApprovalCanvasContent({
 
   // Error state
   if (error) {
+    const copyError = () => {
+      const errorDetails = {
+        message: error.message,
+        scope,
+        projectId,
+        endpoint: `/api/approvals`,
+        timestamp: new Date().toISOString(),
+        stack: error.stack,
+      }
+      navigator.clipboard.writeText(JSON.stringify(errorDetails, null, 2))
+    }
+
     return (
       <div className={`flex items-center justify-center h-full ${className}`}>
-        <Card className="max-w-md">
+        <Card className="max-w-2xl">
           <CardContent className="p-6 text-center space-y-4">
             <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
             <div>
               <h3 className="text-lg font-semibold">Failed to load approvals</h3>
               <p className="text-muted-foreground mt-2">{error.message}</p>
+              {error.stack && (
+                <div className="mt-4 p-3 bg-muted rounded-lg text-left">
+                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
+                    {error.stack}
+                  </pre>
+                </div>
+              )}
             </div>
-            <Button onClick={refetch} variant="outline">
-              Try Again
-            </Button>
+            <div className="flex gap-2 justify-center">
+              <Button onClick={refetch} variant="outline">
+                Try Again
+              </Button>
+              <Button onClick={copyError} variant="outline" size="sm">
+                Copy Error Details
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -190,6 +245,8 @@ export function ApprovalCanvasContent({
                 approval={selectedApproval}
                 onProcessApproval={processApproval}
                 onRefresh={refetch}
+                onAssignUser={handleUserAssignment}
+                assignedUserId={selectedApproval.assignedTo}
               />
             ) : (
               <div className="flex items-center justify-center h-full">
@@ -251,22 +308,13 @@ export function ApprovalCanvasContent({
             </Card>
           )}
 
-          {/* Quick actions */}
-          <Card>
-            <CardHeader className="pb-3">
-              <h4 className="font-medium">Quick Actions</h4>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button variant="outline" size="sm" className="w-full justify-start">
-                <Search className="h-4 w-4 mr-2" />
-                Search Approvals
-              </Button>
-              <Button variant="outline" size="sm" className="w-full justify-start">
-                <Filter className="h-4 w-4 mr-2" />
-                Filter by Risk
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Filters and Search */}
+          <ApprovalFiltersComponent
+            filters={localFilters}
+            onFiltersChange={setLocalFilters}
+            searchQuery={localFilters.search || ''}
+            onSearch={(query) => setLocalFilters({ ...localFilters, search: query || undefined })}
+          />
         </div>
       </div>
     </div>

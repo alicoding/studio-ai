@@ -131,7 +131,7 @@ export const ApprovalCounts: React.FC<ApprovalCountsProps> = ({
       }
 
       const data = await response.json()
-      const approvals = data.approvals || []
+      const approvals = data.data || []
       const calculatedStats = calculateStats(approvals)
 
       setStats(calculatedStats)

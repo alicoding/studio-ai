@@ -35,7 +35,8 @@ export interface WorkflowApproval {
   // Status and resolution
   status: ApprovalStatus
   resolvedAt?: string // ISO datetime
-  resolvedBy?: string // User ID
+  resolvedBy?: string // User ID who made the decision
+  assignedTo?: string // User ID who is assigned to handle the approval
 
   // Approval configuration
   approvalRequired: boolean

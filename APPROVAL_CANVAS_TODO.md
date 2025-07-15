@@ -4,6 +4,34 @@
 
 Implementing comprehensive approval canvas system with project-specific, global, and consolidated views using DRY architecture.
 
+## ✅ CURRENT STATUS: Single-User Auto-Assignment System
+
+**Updated**: 2025-07-15
+
+**IMPORTANT**: The system is currently designed for **single-user operation** with auto-assignment functionality:
+
+- **Only User**: "current-user" (you are the only user in the system)
+- **Auto-Assignment**: All new approvals automatically assign to "current-user"
+- **UI Integration**: Sidebar shows actual approval counts (4 pending, 2 overdue)
+- **API Fixed**: Resolved data format mismatch (`data.data` vs `data.approvals`)
+- **Scrolling Fixed**: Horizontal approval queue now has proper scroll indicators
+
+**What Works Now**:
+
+- ✅ Approvals auto-assign to you upon creation
+- ✅ Sidebar displays real approval counts
+- ✅ Approval queue has proper horizontal scrolling
+- ✅ Single-user assignment dropdown shows "You" as only option
+- ✅ Manual assignment/unassignment works
+- ✅ Database persistence working correctly
+
+**What's Left To Do**:
+
+- Multi-user support (if needed in future)
+- Notification system (Phase 4)
+- Timeout/escalation system (Phase 5)
+- Enhanced UI polish (Phase 6)
+
 ## High Priority Tasks
 
 ### 1. Core Data Layer
@@ -22,18 +50,18 @@ Implementing comprehensive approval canvas system with project-specific, global,
 
 - [x] Create `ApprovalDetailCard.tsx` - rich approval display with workflow context
 - [x] Create `ApprovalQueue.tsx` - horizontal pending queue navigation
-- [ ] Create `ApprovalActionPanel.tsx` - large action buttons with comment support (integrated into ApprovalDetailCard)
-- [ ] Create `WorkflowVisualization.tsx` - visual workflow context display (integrated into ApprovalDetailCard)
-- [ ] Create `ImpactPreview.tsx` - "what happens next" preview (integrated into ApprovalDetailCard)
+- [x] Create `ApprovalActionPanel.tsx` - large action buttons with comment support (integrated into ApprovalDetailCard)
+- [x] Create `WorkflowVisualization.tsx` - visual workflow context display (integrated into ApprovalDetailCard)
+- [x] Create `ImpactPreview.tsx` - "what happens next" preview (integrated into ApprovalDetailCard)
 
 ## Medium Priority Tasks
 
 ### 4. New Routes & Navigation
 
-- [ ] Create `/src/routes/approvals.tsx` - global approval management page
-- [ ] Create `/src/routes/approvals/all.tsx` - consolidated view
-- [ ] Create `/src/routes/approvals/$approvalId.tsx` - deep linking to specific approvals
-- [ ] Add top-level navigation for approval routes
+- [x] Create `/src/routes/approvals.tsx` - global approval management page
+- [x] Create `/src/routes/approvals/all.tsx` - consolidated view
+- [x] Create `/src/routes/approvals/$approvalId.tsx` - deep linking to specific approvals
+- [x] Add top-level navigation for approval routes
 
 ### 5. Multi-Project Views
 

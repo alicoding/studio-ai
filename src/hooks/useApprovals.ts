@@ -20,11 +20,12 @@ import type {
 // Re-export types for use in components
 export type { EnrichedApproval } from '../../web/server/schemas/approval-types'
 
-// API response format (different from schema)
-interface ApiApprovalResponse {
-  success: boolean
-  data: WorkflowApproval[]
-  count: number
+// API response format (unified for all possible response formats)
+interface ApiResponse {
+  success?: boolean
+  data?: WorkflowApproval[] | ApprovalListResponse
+  approvals?: WorkflowApproval[]
+  count?: number
 }
 
 export type ApprovalScope = 'project' | 'global' | 'consolidated'
@@ -34,6 +35,7 @@ export interface ApprovalFilters {
   riskLevel?: 'low' | 'medium' | 'high' | 'critical'
   priority?: 'urgent' | 'normal' | 'low'
   projectIds?: string[]
+  search?: string
 }
 
 export interface UseApprovalsOptions {
@@ -76,14 +78,21 @@ export function useApprovals(options: UseApprovalsOptions): UseApprovalsReturn {
     const baseUrl = '/api/approvals'
     const params = new URLSearchParams()
 
+    // Always request enriched data for UI display
+    params.set('enriched', 'true')
+
     // Add filters to params
     if (filters.status) params.set('status', filters.status)
     if (filters.riskLevel) params.set('riskLevel', filters.riskLevel)
+    if (filters.search) params.set('search', filters.search)
+    // Note: priority filter not supported by API yet
+    // Note: projectIds filter for consolidated view not implemented yet
 
     switch (scope) {
       case 'project':
         if (!projectId) throw new Error('projectId required for project scope')
-        return `${baseUrl}/projects/${projectId}/pending?${params.toString()}`
+        params.set('projectId', projectId)
+        return `${baseUrl}?${params.toString()}`
 
       case 'global':
         // Global approvals: no projectId filter, gets system-wide approvals
@@ -91,7 +100,7 @@ export function useApprovals(options: UseApprovalsOptions): UseApprovalsReturn {
 
       case 'consolidated':
         // All approvals across all projects + global
-        params.set('includeAll', 'true')
+        // API returns all, we group client-side
         return `${baseUrl}?${params.toString()}`
 
       default:
@@ -105,10 +114,35 @@ export function useApprovals(options: UseApprovalsOptions): UseApprovalsReturn {
       setLoading(true)
       setError(null)
 
-      const response = await ky.get(endpoint).json<ApiApprovalResponse | ApprovalListResponse>()
+      const response = await ky.get(endpoint).json<ApiResponse>()
 
       // Handle different API response formats
-      const approvals = 'data' in response ? response.data : response.approvals
+      let approvals: WorkflowApproval[]
+
+      if (response.success && response.data) {
+        // New API format: { success: true, data: { approvals: [...] } }
+        if (Array.isArray(response.data)) {
+          approvals = response.data
+        } else {
+          approvals = (response.data as ApprovalListResponse).approvals || []
+        }
+      } else if (response.data && Array.isArray(response.data)) {
+        // Legacy format: { data: [...] }
+        approvals = response.data
+      } else if (response.approvals) {
+        // Legacy format: { approvals: [...] }
+        approvals = response.approvals
+      } else {
+        // Unknown format
+        approvals = []
+      }
+
+      // Validate that approvals is an array
+      if (!Array.isArray(approvals)) {
+        throw new Error(
+          `Expected approvals to be an array, got ${typeof approvals}. Response: ${JSON.stringify(response)}`
+        )
+      }
 
       // Enrich approvals with calculated fields
       const enrichedApprovals: EnrichedApproval[] = approvals.map((approval: WorkflowApproval) => {
@@ -131,25 +165,31 @@ export function useApprovals(options: UseApprovalsOptions): UseApprovalsReturn {
 
       // Handle summary - create summary from data if not provided
       const today = new Date().toDateString()
-      const summary =
-        'summary' in response
-          ? response.summary
-          : {
-              pendingCount: enrichedApprovals.filter((a) => a.status === 'pending').length,
-              overdueCount: enrichedApprovals.filter((a) => a.isOverdue).length,
-              approvedToday: enrichedApprovals.filter(
-                (a) =>
-                  a.status === 'approved' &&
-                  a.resolvedAt &&
-                  new Date(a.resolvedAt).toDateString() === today
-              ).length,
-              rejectedToday: enrichedApprovals.filter(
-                (a) =>
-                  a.status === 'rejected' &&
-                  a.resolvedAt &&
-                  new Date(a.resolvedAt).toDateString() === today
-              ).length,
-            }
+      let summary = {
+        pendingCount: enrichedApprovals.filter((a) => a.status === 'pending').length,
+        overdueCount: enrichedApprovals.filter((a) => a.isOverdue).length,
+        approvedToday: enrichedApprovals.filter(
+          (a) =>
+            a.status === 'approved' &&
+            a.resolvedAt &&
+            new Date(a.resolvedAt).toDateString() === today
+        ).length,
+        rejectedToday: enrichedApprovals.filter(
+          (a) =>
+            a.status === 'rejected' &&
+            a.resolvedAt &&
+            new Date(a.resolvedAt).toDateString() === today
+        ).length,
+      }
+
+      // If API response has summary, use it (from ApprovalListResponse)
+      if (response.success && response.data && !Array.isArray(response.data)) {
+        const listResponse = response.data as ApprovalListResponse
+        if (listResponse.summary) {
+          summary = listResponse.summary
+        }
+      }
+
       setSummary(summary)
     } catch (err) {
       console.error('[useApprovals] Failed to fetch approvals:', err)

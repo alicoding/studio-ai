@@ -48,6 +48,8 @@ const ListApprovalsQuerySchema = z.object({
     .string()
     .optional()
     .transform((val) => (val ? (val.split(',') as ApprovalStatus[]) : undefined)),
+  riskLevel: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  search: z.string().optional(),
   page: z
     .string()
     .optional()
@@ -107,6 +109,8 @@ router.get('/', async (req, res) => {
     const result = await approvalOrchestrator.listApprovals({
       projectId: query.projectId,
       status: query.status,
+      riskLevel: query.riskLevel,
+      search: query.search,
       page: query.page,
       pageSize: query.pageSize,
       enriched: query.enriched,
@@ -212,6 +216,50 @@ router.post('/:id/decide', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to process approval decision',
+    })
+  }
+})
+
+/**
+ * POST /api/approvals/:id/assign - Assign approval to a user
+ * SOLID: Single responsibility - approval assignment endpoint
+ */
+router.post('/:id/assign', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { userId } = req.body
+
+    // userId can be null to unassign
+    if (userId !== null && typeof userId !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'userId must be a string or null',
+      })
+    }
+
+    // Update the approval record with the assignment
+    await approvalOrchestrator.assignApproval(id, userId)
+
+    res.json({
+      success: true,
+      message: userId ? `Approval assigned to user ${userId}` : 'Approval unassigned',
+      data: {
+        approvalId: id,
+        assignedTo: userId,
+      },
+    })
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('Cannot assign')) {
+      return res.status(409).json({
+        success: false,
+        error: error.message,
+      })
+    }
+
+    console.error('Error assigning approval:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to assign approval',
     })
   }
 })

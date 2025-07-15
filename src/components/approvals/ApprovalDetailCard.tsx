@@ -26,6 +26,9 @@ import {
 } from 'lucide-react'
 import { useApprovalColors } from '../../hooks/useTheme'
 import type { EnrichedApproval } from '../../hooks/useApprovals'
+import { WorkflowVisualization } from './WorkflowVisualization'
+import { ImpactPreview } from './ImpactPreview'
+import { ApprovalAssignment } from './ApprovalAssignment'
 
 // Define the approval decision request type locally for now
 interface ApprovalDecisionRequest {
@@ -39,6 +42,8 @@ export interface ApprovalDetailCardProps {
   approval: EnrichedApproval
   onProcessApproval: (approvalId: string, decision: ApprovalDecisionRequest) => Promise<void>
   onRefresh: () => void
+  onAssignUser?: (approvalId: string, userId: string | null) => Promise<void>
+  assignedUserId?: string
   className?: string
 }
 
@@ -46,6 +51,8 @@ export function ApprovalDetailCard({
   approval,
   onProcessApproval,
   onRefresh,
+  onAssignUser,
+  assignedUserId,
   className = '',
 }: ApprovalDetailCardProps) {
   const [comment, setComment] = useState('')
@@ -207,9 +214,30 @@ export function ApprovalDetailCard({
             </div>
           </CardContent>
         </Card>
+
+        {/* User Assignment */}
+        {onAssignUser && (
+          <ApprovalAssignment
+            approval={approval}
+            assignedUserId={assignedUserId}
+            onAssign={onAssignUser}
+            className="mt-4"
+          />
+        )}
       </div>
 
       <Separator />
+
+      {/* Workflow visualization */}
+      {approval.contextData?.workflowSteps && approval.contextData.workflowSteps.length > 0 && (
+        <>
+          <WorkflowVisualization
+            workflowSteps={approval.contextData.workflowSteps}
+            currentStepIndex={approval.contextData.currentStepIndex || 0}
+          />
+          <Separator />
+        </>
+      )}
 
       {/* Approval prompt */}
       <div className="space-y-3">
@@ -224,22 +252,35 @@ export function ApprovalDetailCard({
         </Card>
       </div>
 
-      {/* Context data if available */}
-      {approval.contextData && Object.keys(approval.contextData).length > 0 && (
+      {/* Impact preview */}
+      {approval.contextData?.impactAssessment && (
         <>
           <Separator />
-          <div className="space-y-3">
-            <h3 className="font-medium">Additional Context</h3>
-            <Card>
-              <CardContent className="p-4">
-                <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
-                  {JSON.stringify(approval.contextData, null, 2)}
-                </pre>
-              </CardContent>
-            </Card>
-          </div>
+          <ImpactPreview
+            impactAssessment={approval.contextData.impactAssessment}
+            className="mt-4"
+          />
         </>
       )}
+
+      {/* Raw context data if available (for debugging) */}
+      {approval.contextData &&
+        Object.keys(approval.contextData).length > 0 &&
+        process.env.NODE_ENV === 'development' && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <h3 className="font-medium">Debug: Raw Context Data</h3>
+              <Card>
+                <CardContent className="p-4">
+                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
+                    {JSON.stringify(approval.contextData, null, 2)}
+                  </pre>
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
 
       {/* Resolution info if already processed */}
       {approval.resolvedAt && (

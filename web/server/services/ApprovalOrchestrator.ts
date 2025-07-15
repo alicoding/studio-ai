@@ -34,6 +34,7 @@ interface ApprovalRow {
   status: string
   resolved_at: string | null
   resolved_by: string | null
+  assigned_to: string | null
   approval_required: number
   auto_approve_after_timeout: number
   escalation_user_id: string | null
@@ -100,22 +101,40 @@ export class ApprovalOrchestrator {
       approvalRequired: request.approvalRequired ?? true,
       autoApproveAfterTimeout: request.autoApproveAfterTimeout ?? false,
       escalationUserId: request.escalationUserId,
+      assignedTo: 'current-user', // Auto-assign to current user in single-user system
       createdAt: now,
       updatedAt: now,
     }
 
+    // Build the insert statement dynamically to avoid placeholder counting bugs
+    const fields = [
+      'id',
+      'thread_id',
+      'step_id',
+      'project_id',
+      'workflow_name',
+      'prompt',
+      'context_data',
+      'risk_level',
+      'requested_at',
+      'timeout_seconds',
+      'expires_at',
+      'status',
+      'approval_required',
+      'auto_approve_after_timeout',
+      'escalation_user_id',
+      'assigned_to',
+      'created_at',
+      'updated_at',
+    ]
+
+    const placeholders = fields.map(() => '?').join(', ')
     const stmt = this.db.prepare(`
-      INSERT INTO workflow_approvals (
-        id, thread_id, step_id, project_id, workflow_name,
-        prompt, context_data, risk_level, requested_at, timeout_seconds,
-        expires_at, status, approval_required, auto_approve_after_timeout,
-        escalation_user_id, created_at, updated_at
-      ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-      )
+      INSERT INTO workflow_approvals (${fields.join(', ')})
+      VALUES (${placeholders})
     `)
 
-    stmt.run(
+    const values = [
       approvalId,
       approval.threadId,
       approval.stepId,
@@ -131,9 +150,12 @@ export class ApprovalOrchestrator {
       approval.approvalRequired ? 1 : 0,
       approval.autoApproveAfterTimeout ? 1 : 0,
       approval.escalationUserId,
+      approval.assignedTo,
       approval.createdAt,
-      approval.updatedAt
-    )
+      approval.updatedAt,
+    ]
+
+    stmt.run(...values)
 
     return { id: approvalId, ...approval }
   }
@@ -278,12 +300,14 @@ export class ApprovalOrchestrator {
     options: {
       projectId?: string
       status?: ApprovalStatus[]
+      riskLevel?: string
+      search?: string
       page?: number
       pageSize?: number
       enriched?: boolean
     } = {}
   ): Promise<ApprovalListResponse> {
-    const { projectId, status = [], page = 1, pageSize = 20 } = options
+    const { projectId, status = [], riskLevel, search, page = 1, pageSize = 20 } = options
 
     let whereClause = ''
     const params: (string | number)[] = []
@@ -298,6 +322,19 @@ export class ApprovalOrchestrator {
       whereClause += whereClause ? ' AND ' : 'WHERE '
       whereClause += `status IN (${statusPlaceholders})`
       params.push(...status)
+    }
+
+    if (riskLevel) {
+      whereClause += whereClause ? ' AND ' : 'WHERE '
+      whereClause += 'risk_level = ?'
+      params.push(riskLevel)
+    }
+
+    if (search) {
+      whereClause += whereClause ? ' AND ' : 'WHERE '
+      whereClause += '(prompt LIKE ? OR workflow_name LIKE ? OR step_id LIKE ?)'
+      const searchPattern = `%${search}%`
+      params.push(searchPattern, searchPattern, searchPattern)
     }
 
     const offset = (page - 1) * pageSize
@@ -396,6 +433,26 @@ export class ApprovalOrchestrator {
   }
 
   /**
+   * Assign approval to a user
+   * SOLID: Single responsibility - approval assignment
+   */
+  async assignApproval(approvalId: string, userId: string | null): Promise<void> {
+    const now = new Date().toISOString()
+
+    const stmt = this.db.prepare(`
+      UPDATE workflow_approvals 
+      SET assigned_to = ?, updated_at = ?
+      WHERE id = ? AND status = 'pending'
+    `)
+
+    const result = stmt.run(userId, now, approvalId)
+
+    if (result.changes === 0) {
+      throw new Error(`Cannot assign approval ${approvalId} - not found or not pending`)
+    }
+  }
+
+  /**
    * Get pending approvals for a project
    * SOLID: Single responsibility - project approval queries
    */
@@ -422,20 +479,21 @@ export class ApprovalOrchestrator {
       id: row.id,
       threadId: row.thread_id,
       stepId: row.step_id,
-      projectId: row.project_id,
-      workflowName: row.workflow_name,
+      projectId: row.project_id || undefined,
+      workflowName: row.workflow_name || undefined,
       prompt: row.prompt,
-      contextData: row.context_data,
-      riskLevel: row.risk_level,
+      contextData: row.context_data || undefined,
+      riskLevel: row.risk_level as 'low' | 'medium' | 'high' | 'critical',
       requestedAt: row.requested_at,
       timeoutSeconds: row.timeout_seconds,
       expiresAt: row.expires_at,
-      status: row.status,
-      resolvedAt: row.resolved_at,
-      resolvedBy: row.resolved_by,
+      status: row.status as ApprovalStatus,
+      resolvedAt: row.resolved_at || undefined,
+      resolvedBy: row.resolved_by || undefined,
+      assignedTo: row.assigned_to || undefined,
       approvalRequired: Boolean(row.approval_required),
       autoApproveAfterTimeout: Boolean(row.auto_approve_after_timeout),
-      escalationUserId: row.escalation_user_id,
+      escalationUserId: row.escalation_user_id || undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
@@ -445,15 +503,15 @@ export class ApprovalOrchestrator {
     return {
       id: row.id,
       approvalId: row.approval_id,
-      decision: row.decision,
-      comment: row.comment,
-      reasoning: row.reasoning,
-      confidenceLevel: row.confidence_level,
+      decision: row.decision as 'approved' | 'rejected',
+      comment: row.comment || undefined,
+      reasoning: row.reasoning || undefined,
+      confidenceLevel: row.confidence_level || undefined,
       decidedBy: row.decided_by,
       decidedAt: row.decided_at,
-      workflowState: row.workflow_state,
-      userAgent: row.user_agent,
-      ipAddress: row.ip_address,
+      workflowState: row.workflow_state || undefined,
+      userAgent: row.user_agent || undefined,
+      ipAddress: row.ip_address || undefined,
       createdAt: row.created_at,
     }
   }

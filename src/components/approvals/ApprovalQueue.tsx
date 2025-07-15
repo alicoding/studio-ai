@@ -8,7 +8,7 @@
  */
 
 import { Badge } from '../ui/badge'
-import { ScrollArea } from '../ui/scroll-area'
+import { ScrollArea, ScrollBar } from '../ui/scroll-area'
 import { AlertTriangle, Clock, CheckCircle, XCircle } from 'lucide-react'
 import { useApprovalColors } from '../../hooks/useTheme'
 import type { EnrichedApproval } from '../../hooks/useApprovals'
@@ -125,6 +125,7 @@ export function ApprovalQueue({
             </button>
           ))}
         </div>
+        <ScrollBar orientation="horizontal" />
       </ScrollArea>
     </div>
   )
