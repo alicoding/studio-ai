@@ -43,21 +43,76 @@ function getContextKey(baseKey: string): string {
 export function createContextAwareStorage<T>(): PersistStorage<T> {
   const baseStorage = createUnifiedStorageAdapter<T>()
 
+  // Track context to prevent loops during context transitions
+  let lastSeenContext: string | null = null
+  let isContextTransitioning = false
+  let contextTransitionTimer: NodeJS.Timeout | null = null
+
   return {
     getItem: async (name: string): Promise<StorageValue<T> | null> => {
       const contextKey = getContextKey(name)
-      console.log('[WorkflowBuilderStorage] Getting item with context key:', contextKey)
+      const contextString = JSON.stringify(currentContext)
+
+      // Check if context is transitioning
+      if (contextString !== lastSeenContext) {
+        // Context has changed - mark as transitioning to prevent loops
+        isContextTransitioning = true
+        lastSeenContext = contextString
+
+        console.log(
+          '[WorkflowBuilderStorage] Context transition detected, getting item with key:',
+          contextKey
+        )
+
+        // Clear any existing transition timer
+        if (contextTransitionTimer) {
+          clearTimeout(contextTransitionTimer)
+        }
+
+        // Mark transition as complete after a brief delay
+        contextTransitionTimer = setTimeout(() => {
+          isContextTransitioning = false
+          console.log('[WorkflowBuilderStorage] Context transition complete')
+        }, 100)
+      }
+
       return baseStorage.getItem(contextKey)
     },
 
     setItem: async (name: string, value: StorageValue<T>): Promise<void> => {
       const contextKey = getContextKey(name)
-      console.log('[WorkflowBuilderStorage] Setting item with context key:', contextKey)
+      const contextString = JSON.stringify(currentContext)
+
+      // Skip storage during context transitions to prevent loops
+      if (isContextTransitioning) {
+        console.log('[WorkflowBuilderStorage] Skipping storage save during context transition')
+        return
+      }
+
+      // Skip storage during rehydration to prevent loops
+      if (typeof window !== 'undefined' && sessionStorage.getItem('workflow-rehydrating')) {
+        console.log('[WorkflowBuilderStorage] Skipping storage save during rehydration')
+        return
+      }
+
+      // Update context tracking if needed
+      if (contextString !== lastSeenContext) {
+        console.log('[WorkflowBuilderStorage] Setting item with new context key:', contextKey)
+        lastSeenContext = contextString
+      }
+
       await baseStorage.setItem(contextKey, value)
     },
 
     removeItem: async (name: string): Promise<void> => {
       const contextKey = getContextKey(name)
+
+      // Skip removal during context transitions
+      if (isContextTransitioning) {
+        console.log('[WorkflowBuilderStorage] Skipping storage removal during context transition')
+        return
+      }
+
       console.log('[WorkflowBuilderStorage] Removing item with context key:', contextKey)
       await baseStorage.removeItem(contextKey)
     },

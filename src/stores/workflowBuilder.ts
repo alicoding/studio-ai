@@ -912,7 +912,7 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>()(
             // DO NOT persist nodePositions separately - they should come from workflow.positions
           }
         },
-        // Add custom rehydration logic to respect loading flag
+        // Add custom rehydration logic to respect loading flag and prevent loops
         onRehydrateStorage:
           (_state: WorkflowBuilderState) =>
           (hydratedState?: WorkflowBuilderState, error?: unknown) => {
@@ -925,6 +925,15 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>()(
             if (typeof window !== 'undefined' && sessionStorage.getItem('workflow-loading')) {
               console.log('[WorkflowBuilder] Skipping rehydration during workflow load')
               return
+            }
+
+            // Set a flag to prevent storage operations during rehydration
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('workflow-rehydrating', 'true')
+              // Clear the flag after rehydration is complete
+              setTimeout(() => {
+                sessionStorage.removeItem('workflow-rehydrating')
+              }, 200)
             }
 
             if (hydratedState) {

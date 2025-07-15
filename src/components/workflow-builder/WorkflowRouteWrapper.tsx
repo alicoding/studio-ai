@@ -11,7 +11,6 @@ import { useEffect } from 'react'
 import VisualWorkflowBuilder from './VisualWorkflowBuilder'
 import { useWorkflowBuilderStore, setWorkflowBuilderContext } from '../../stores/workflowBuilder'
 import { useWorkflowLoader } from '../../hooks/useWorkflowLoader'
-import { clearWorkflowBuilderStorage } from '../../stores/workflowBuilderStorage'
 
 interface WorkflowRouteWrapperProps {
   mode: 'new' | 'edit'
@@ -38,16 +37,20 @@ export function WorkflowRouteWrapper({
   } = useWorkflowBuilderStore()
   const { loadWorkflow } = useWorkflowLoader()
 
-  // Set context for persistence isolation
+  // Set context for persistence isolation with debouncing
   useEffect(() => {
-    // Set the context for this workflow builder instance
-    setWorkflowBuilderContext(scope, projectId)
-    console.log('[WorkflowRouteWrapper] Context set:', { scope, projectId })
+    // Debounce context setting to prevent rapid context switches
+    const contextTimer = setTimeout(() => {
+      setWorkflowBuilderContext(scope, projectId)
+      console.log('[WorkflowRouteWrapper] Context set after debounce:', { scope, projectId })
+    }, 50)
 
     // Clean up context-specific storage when switching contexts
     return () => {
-      // Clear the storage for this context when unmounting
-      clearWorkflowBuilderStorage(scope, projectId)
+      clearTimeout(contextTimer)
+      // Don't clear storage on unmount - it deletes user data
+      // The context switch is enough to isolate the data
+      console.log('[WorkflowRouteWrapper] Component unmounting')
     }
   }, [scope, projectId])
 
