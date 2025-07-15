@@ -12,7 +12,11 @@ export const Route = createFileRoute('/workflows/$workflowId/edit')({
 function EditWorkflow() {
   const navigate = useNavigate()
   const { workflowId } = useParams({ from: '/workflows/$workflowId/edit' })
-  const { loadWorkflow: loadWorkflowDefinition, reset } = useWorkflowBuilderStore()
+  const {
+    loadWorkflow: loadWorkflowDefinition,
+    reset,
+    clearPersistedState,
+  } = useWorkflowBuilderStore()
   const { activeProjectId } = useProjectStore()
   const { loadWorkflow } = useWorkflowLoader()
 
@@ -20,6 +24,10 @@ function EditWorkflow() {
     // Load the workflow when component mounts
     const loadWorkflowData = async () => {
       try {
+        // Clear any persisted state first to ensure clean load from database
+        console.log('[WorkflowEdit] Clearing persisted state before loading workflow')
+        clearPersistedState()
+
         console.log('[WorkflowEdit] Loading workflow from database:', workflowId)
         const savedWorkflow = await loadWorkflow(workflowId)
         console.log('[WorkflowEdit] Loaded workflow from DB:', savedWorkflow)
@@ -41,7 +49,7 @@ function EditWorkflow() {
     return () => {
       reset()
     }
-  }, [workflowId, loadWorkflow, loadWorkflowDefinition, reset, navigate])
+  }, [workflowId, loadWorkflow, loadWorkflowDefinition, reset, navigate, clearPersistedState])
 
   const handleClose = () => {
     // If we have an active project, return to the project workspace

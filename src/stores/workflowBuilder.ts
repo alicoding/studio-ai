@@ -97,6 +97,9 @@ interface WorkflowBuilderState {
   // Error handling
   setError: (error: string | null) => void
   clearError: () => void
+
+  // Persistence management
+  clearPersistedState: () => void
 }
 
 // Helper to generate step IDs consistently
@@ -164,8 +167,17 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
       console.log('[WorkflowBuilder] Workflow positions:', workflow.positions)
       console.log('[WorkflowBuilder] Workflow steps:', workflow.steps)
 
+      // First, clear any persisted state to ensure clean load
+      console.log('[WorkflowBuilder] Clearing persisted state before loading workflow')
+      // Clear browser storage but don't reset the state yet
+      if (typeof window !== 'undefined') {
+        const storeName = 'claude-studio-workflow-builder'
+        localStorage.removeItem(storeName)
+        sessionStorage.removeItem(storeName)
+      }
+
       // Force complete state replacement to override any persisted state
-      set(() => ({
+      set({
         workflow,
         isDirty: false,
         selectedStepId: null,
@@ -176,7 +188,9 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
         isValidating: false,
         isExecuting: false,
         isSaving: false,
-      }))
+      })
+
+      console.log('[WorkflowBuilder] Workflow loaded successfully, steps:', workflow.steps)
     },
 
     updateWorkflowMeta: (updates) => {
@@ -661,6 +675,36 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
     // Error handling
     setError: (error) => set({ lastError: error }),
     clearError: () => set({ lastError: null }),
+
+    // Persistence management
+    clearPersistedState: () => {
+      // Clear the browser-persisted state for this store
+      if (typeof window !== 'undefined') {
+        // Clear from localStorage or whatever storage adapter is being used
+        const storeName = 'claude-studio-workflow-builder'
+        localStorage.removeItem(storeName)
+        sessionStorage.removeItem(storeName)
+
+        // Also clear from our unified storage
+        fetch(`/api/storage/item/workflow-builder/state`, { method: 'DELETE' }).catch(() => {
+          // Ignore errors - storage might not exist
+        })
+      }
+
+      // Reset the current state to initial values
+      set({
+        workflow: null,
+        isDirty: false,
+        selectedStepId: null,
+        selectedStepIds: [],
+        nodePositions: {},
+        validationResult: null,
+        isValidating: false,
+        isExecuting: false,
+        isSaving: false,
+        lastError: null,
+      })
+    },
   }),
   {
     // Only persist the workflow data, not UI state
