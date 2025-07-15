@@ -174,9 +174,20 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
         const storeName = 'claude-studio-workflow-builder'
         localStorage.removeItem(storeName)
         sessionStorage.removeItem(storeName)
+
+        // Also clear from unified storage synchronously to prevent race conditions
+        // Use navigator.sendBeacon for synchronous-like behavior
+        const deleteUrl = `/api/storage/item/workflow-builder/${storeName}`
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(deleteUrl, JSON.stringify({ method: 'DELETE' }))
+        } else {
+          // Fallback to fetch
+          fetch(deleteUrl, { method: 'DELETE' }).catch(() => {})
+        }
       }
 
       // Force complete state replacement to override any persisted state
+      // IMPORTANT: Use workflow.positions, not any existing nodePositions
       set({
         workflow,
         isDirty: false,
@@ -685,8 +696,8 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
         localStorage.removeItem(storeName)
         sessionStorage.removeItem(storeName)
 
-        // Also clear from our unified storage
-        fetch(`/api/storage/item/workflow-builder/state`, { method: 'DELETE' }).catch(() => {
+        // Also clear from our unified storage - use the correct key
+        fetch(`/api/storage/item/workflow-builder/${storeName}`, { method: 'DELETE' }).catch(() => {
           // Ignore errors - storage might not exist
         })
       }
@@ -711,7 +722,7 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
     partialize: (state) => ({
       workflow: state.workflow,
       isDirty: state.isDirty,
-      nodePositions: state.nodePositions, // Also persist node positions
+      // DO NOT persist nodePositions separately - they should come from workflow.positions
     }),
   }
 )
