@@ -21,13 +21,9 @@ function EditWorkflow() {
     const loadWorkflowData = async () => {
       try {
         const savedWorkflow = await loadWorkflow(workflowId)
-        // Update the workflow definition with the saved name and description
-        const updatedDefinition = {
-          ...savedWorkflow.definition,
-          name: savedWorkflow.name,
-          description: savedWorkflow.description,
-        }
-        loadWorkflowDefinition(updatedDefinition)
+        // Preserve all workflow data including positions
+        // The definition already contains the saved name and description
+        loadWorkflowDefinition(savedWorkflow.definition)
       } catch (error) {
         console.error('Failed to load workflow:', error)
         // TODO: Show error toast

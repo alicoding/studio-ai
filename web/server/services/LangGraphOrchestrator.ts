@@ -9,7 +9,7 @@
 
 import { StateGraph, Annotation, MemorySaver, messagesStateReducer } from '@langchain/langgraph'
 import { ChatOpenAI } from '@langchain/openai'
-import { HumanMessage, SystemMessage, BaseMessage } from '@langchain/core/messages'
+import { HumanMessage, SystemMessage, BaseMessage, AIMessage } from '@langchain/core/messages'
 import { createStorage } from '../../../src/lib/storage/UnifiedStorage'
 import { ContextBuilder } from './ContextBuilder'
 import path from 'path'
@@ -296,7 +296,37 @@ export class LangGraphOrchestrator {
       messages = [new SystemMessage(systemPrompt), ...state.messages]
     }
 
-    const response = await model.invoke(messages)
+    let response
+    try {
+      response = await model.invoke(messages)
+    } catch (error) {
+      // Handle API errors including rate limits
+      if (error instanceof Error) {
+        // Check for rate limit error (429)
+        if (error.message.includes('429') || error.message.toLowerCase().includes('rate limit')) {
+          console.error(`Rate limit hit for ${capability.models.primary}:`, error.message)
+          response = new AIMessage({
+            content: `Rate limit exceeded for ${capability.models.primary}. Please try again in a few moments or configure a different model.`,
+            response_metadata: { model_name: capability.models.primary, error: 'rate_limit' },
+          })
+        } else if (
+          error.message.includes('400') ||
+          error.message.includes('401') ||
+          error.message.includes('403')
+        ) {
+          console.error(`API error for ${capability.models.primary}:`, error.message)
+          response = new AIMessage({
+            content: `API error with ${capability.models.primary}: ${error.message}. Please check your API configuration.`,
+            response_metadata: { model_name: capability.models.primary, error: 'api_error' },
+          })
+        } else {
+          // Re-throw unexpected errors
+          throw error
+        }
+      } else {
+        throw error
+      }
+    }
 
     // With native LangChain reasoning model support, empty content should be rare
     // Only handle truly empty responses

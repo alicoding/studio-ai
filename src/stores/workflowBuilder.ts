@@ -24,6 +24,8 @@ interface WorkflowBuilderState {
 
   // UI state
   selectedStepId: string | null // Currently selected step
+  selectedStepIds: string[] // Multiple selected steps for bulk operations
+  nodePositions: Record<string, { x: number; y: number }> // Store node positions to prevent rearrangement
   validationResult: WorkflowValidationResult | null
   isValidating: boolean // Validation in progress
   isExecuting: boolean // Execution in progress
@@ -46,6 +48,16 @@ interface WorkflowBuilderState {
 
   // UI state management
   setSelectedStep: (stepId: string | null) => void
+  setSelectedSteps: (stepIds: string[]) => void
+  addToSelection: (stepId: string) => void
+  removeFromSelection: (stepId: string) => void
+  selectAllSteps: () => void
+  clearSelection: () => void
+  deleteSelectedSteps: () => void
+
+  // Node position management
+  updateNodePosition: (stepId: string, position: { x: number; y: number }) => void
+  getNodePosition: (stepId: string) => { x: number; y: number } | null
 
   // Validation - follows API patterns
   validateWorkflow: () => Promise<boolean>
@@ -111,6 +123,8 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
     workflow: null,
     isDirty: false,
     selectedStepId: null,
+    selectedStepIds: [],
+    nodePositions: {},
     validationResult: null,
     isValidating: false,
     isExecuting: false,
@@ -131,12 +145,15 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
           tags: [],
           projectId: projectId || '', // Empty string if no projectId provided
         },
+        positions: {},
       }
 
       set({
         workflow,
         isDirty: false,
         selectedStepId: null,
+        selectedStepIds: [],
+        nodePositions: {},
         validationResult: null,
         lastError: null,
       })
@@ -147,6 +164,8 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
         workflow,
         isDirty: false,
         selectedStepId: null,
+        selectedStepIds: [],
+        nodePositions: workflow.positions || {},
         validationResult: null,
         lastError: null,
       })
@@ -177,6 +196,8 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
         workflow: null,
         isDirty: false,
         selectedStepId: null,
+        selectedStepIds: [],
+        nodePositions: {},
         validationResult: null,
         isValidating: false,
         isExecuting: false,
@@ -292,6 +313,84 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
     // UI state management
     setSelectedStep: (stepId) => set({ selectedStepId: stepId }),
 
+    setSelectedSteps: (stepIds) => set({ selectedStepIds: stepIds }),
+
+    addToSelection: (stepId) => {
+      set((state) => ({
+        selectedStepIds: state.selectedStepIds.includes(stepId)
+          ? state.selectedStepIds
+          : [...state.selectedStepIds, stepId],
+      }))
+    },
+
+    removeFromSelection: (stepId) => {
+      set((state) => ({
+        selectedStepIds: state.selectedStepIds.filter((id) => id !== stepId),
+      }))
+    },
+
+    selectAllSteps: () => {
+      const state = get()
+      if (!state.workflow) return
+      set({ selectedStepIds: state.workflow.steps.map((step) => step.id) })
+    },
+
+    clearSelection: () => set({ selectedStepIds: [] }),
+
+    deleteSelectedSteps: () => {
+      const state = get()
+      if (!state.workflow || state.selectedStepIds.length === 0) return
+
+      // Remove all selected steps and their dependencies
+      const updatedSteps = state.workflow.steps
+        .filter((step) => !state.selectedStepIds.includes(step.id))
+        .map((step) => ({
+          ...step,
+          deps: step.deps.filter((depId) => !state.selectedStepIds.includes(depId)),
+        }))
+
+      set({
+        workflow: {
+          ...state.workflow,
+          steps: updatedSteps,
+          metadata: {
+            ...state.workflow.metadata,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+        isDirty: true,
+        selectedStepIds: [],
+        selectedStepId: state.selectedStepIds.includes(state.selectedStepId || '')
+          ? null
+          : state.selectedStepId,
+      })
+    },
+
+    // Node position management
+    updateNodePosition: (stepId, position) => {
+      set((state) => ({
+        nodePositions: {
+          ...state.nodePositions,
+          [stepId]: position,
+        },
+        workflow: state.workflow
+          ? {
+              ...state.workflow,
+              positions: {
+                ...state.workflow.positions,
+                [stepId]: position,
+              },
+            }
+          : null,
+        isDirty: true,
+      }))
+    },
+
+    getNodePosition: (stepId) => {
+      const state = get()
+      return state.nodePositions[stepId] || null
+    },
+
     // Validation - integrates with backend API
     validateWorkflow: async () => {
       const state = get()
@@ -391,10 +490,16 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
         const projectStore = useProjectStore.getState()
         const projectId = scope === 'project' ? projectStore.activeProjectId : null
 
+        // Include node positions in the workflow definition
+        const workflowWithPositions = {
+          ...state.workflow,
+          positions: state.nodePositions,
+        }
+
         const saveData = {
           name: workflowName,
           description: workflowDescription,
-          definition: state.workflow,
+          definition: workflowWithPositions,
           scope,
           projectId,
           source: 'ui' as const,

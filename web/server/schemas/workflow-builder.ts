@@ -27,6 +27,7 @@ export interface WorkflowDefinition {
   description?: string // Optional description
   steps: WorkflowStepDefinition[] // Array of workflow steps
   metadata: WorkflowMetadata // Workflow metadata
+  positions?: Record<string, { x: number; y: number }> // Node positions for UI layout
 }
 
 /**

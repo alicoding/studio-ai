@@ -7,7 +7,7 @@
  * Library-First: Uses React Flow (industry standard)
  */
 
-import { useCallback, useMemo, useEffect, useState } from 'react'
+import { useCallback, useMemo, useEffect, useState, useRef } from 'react'
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -21,6 +21,11 @@ import ReactFlow, {
   Node,
   NodeTypes,
   Panel,
+  NodeChange,
+  SelectionMode,
+  MarkerType,
+  PanOnScrollMode,
+  ReactFlowInstance,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
@@ -43,6 +48,7 @@ import HumanNode from './nodes/HumanNode'
 import DraggableNodePalette from './DraggableNodePalette'
 import WorkflowLibraryModal from './WorkflowLibraryModal'
 
+// Define nodeTypes outside component to prevent recreation warnings
 const nodeTypes: NodeTypes = {
   workflowStep: WorkflowStepNode,
   conditional: ConditionalNode,
@@ -58,7 +64,10 @@ interface VisualWorkflowBuilderProps {
 }
 
 // Convert workflow steps to React Flow nodes
-function stepsToNodes(steps: WorkflowStepDefinition[]): Node[] {
+function stepsToNodes(
+  steps: WorkflowStepDefinition[],
+  nodePositions: Record<string, { x: number; y: number }>
+): Node[] {
   return steps.map((step, index) => {
     // Map step type to React Flow node type
     let nodeType = 'workflowStep'
@@ -77,10 +86,15 @@ function stepsToNodes(steps: WorkflowStepDefinition[]): Node[] {
         break
     }
 
+    // Use stored position or calculate default position
+    const storedPosition = nodePositions[step.id]
+    const defaultPosition = { x: 200 + (index % 3) * 250, y: 100 + Math.floor(index / 3) * 200 }
+    const position = storedPosition || defaultPosition
+
     return {
       id: step.id,
       type: nodeType,
-      position: { x: 200 + (index % 3) * 250, y: 100 + Math.floor(index / 3) * 200 },
+      position,
       data: {
         label: step.role || step.type || 'Task',
         task: step.task,
@@ -119,6 +133,16 @@ function stepsToEdges(steps: WorkflowStepDefinition[]): Edge[] {
           source: depId,
           target: step.id,
           type: 'smoothstep',
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 20,
+            height: 20,
+            color: '#64748b',
+          },
+          style: {
+            stroke: '#64748b',
+            strokeWidth: 2,
+          },
         })
       })
     }
@@ -141,18 +165,29 @@ export default function VisualWorkflowBuilder({
     isSaving,
     validationResult,
     lastError,
+    selectedStepIds,
+    nodePositions,
     updateWorkflowMeta,
     addStep,
     updateStep,
+    removeStep,
     setDependencies,
     validateWorkflow,
     executeWorkflow,
     saveWorkflow,
     fetchSavedWorkflows,
     loadWorkflow,
+    selectAllSteps,
+    clearSelection,
+    deleteSelectedSteps,
+    setSelectedSteps,
+    updateNodePosition,
   } = useWorkflowBuilderStore()
 
   const projects = useProjectStore((state) => state.projects)
+
+  // React Flow instance for save/restore
+  const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
 
   // Load modal state
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false)
@@ -170,20 +205,129 @@ export default function VisualWorkflowBuilder({
   // Library modal state
   const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false)
 
-  // Convert store workflow to React Flow format
-  const nodes = useMemo(() => (workflow ? stepsToNodes(workflow.steps) : []), [workflow])
+  // Convert store workflow to React Flow format with selection state
+  const nodes = useMemo(() => {
+    if (!workflow) return []
+    return stepsToNodes(workflow.steps, nodePositions).map((node) => ({
+      ...node,
+      selected: selectedStepIds.includes(node.id),
+    }))
+  }, [workflow, selectedStepIds, nodePositions])
 
   const edges = useMemo(() => (workflow ? stepsToEdges(workflow.steps) : []), [workflow])
 
+  // React Flow canvas ref for focus management
+  const reactFlowRef = useRef<HTMLDivElement>(null)
+
   // Use React Flow hooks for UI interactions only
-  const [displayNodes, setDisplayNodes, onNodesChange] = useNodesState(nodes)
+  const [displayNodes, setDisplayNodes, onNodesChangeOriginal] = useNodesState(nodes)
   const [displayEdges, setDisplayEdges, onEdgesChange] = useEdgesState(edges)
 
-  // Sync store changes to display
+  // Enhanced onNodesChange handler that syncs with store
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      // Handle React Flow display changes first
+      onNodesChangeOriginal(changes)
+
+      // Process store updates for node removal and position changes
+      changes.forEach((change) => {
+        if (change.type === 'remove') {
+          removeStep(change.id)
+        }
+        // Handle position changes - store them to prevent reset
+        if (change.type === 'position' && change.position) {
+          updateNodePosition(change.id, change.position)
+        }
+      })
+
+      // Handle selection changes - collect selected node IDs directly from changes
+      const selectionChanges = changes.filter((change) => change.type === 'select')
+      if (selectionChanges.length > 0) {
+        // Calculate selected nodes from the changes
+        const selectedFromChanges = selectionChanges
+          .filter((change) => change.selected)
+          .map((change) => change.id)
+
+        // Update store with selected nodes
+        setSelectedSteps(selectedFromChanges)
+      }
+    },
+    [onNodesChangeOriginal, removeStep, setSelectedSteps, updateNodePosition]
+  )
+
+  // Sync store changes to display (only when structure changes, not positions)
   useEffect(() => {
     setDisplayNodes(nodes)
     setDisplayEdges(edges)
   }, [nodes, edges, setDisplayNodes, setDisplayEdges])
+
+  // Keyboard event handlers for canvas focus and shortcuts
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      // Only handle keyboard events when canvas is focused or no input is focused
+      const activeElement = document.activeElement
+      const isInputFocused =
+        activeElement?.tagName === 'INPUT' ||
+        activeElement?.tagName === 'TEXTAREA' ||
+        (activeElement as HTMLElement)?.contentEditable === 'true'
+
+      if (isInputFocused) return
+
+      // CMD+A / CTRL+A - Select all nodes
+      if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
+        event.preventDefault()
+        selectAllSteps()
+        // Also update React Flow display nodes to show selection
+        setTimeout(() => {
+          setDisplayNodes((nodes) => nodes.map((node) => ({ ...node, selected: true })))
+        }, 0)
+        return
+      }
+
+      // Delete / Backspace - Delete selected nodes
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault()
+        if (selectedStepIds.length > 0) {
+          deleteSelectedSteps()
+        }
+        return
+      }
+
+      // Escape - Clear selection
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        clearSelection()
+        // Also clear React Flow visual selection
+        setTimeout(() => {
+          setDisplayNodes((nodes) => nodes.map((node) => ({ ...node, selected: false })))
+        }, 0)
+        return
+      }
+    },
+    [selectAllSteps, deleteSelectedSteps, clearSelection, selectedStepIds, setDisplayNodes]
+  )
+
+  // Canvas click handler for focus management
+  const handlePaneClick = useCallback(() => {
+    // Focus the React Flow canvas to enable keyboard shortcuts
+    if (reactFlowRef.current) {
+      reactFlowRef.current.focus()
+    }
+    // Clear selection when clicking on empty canvas
+    clearSelection()
+    // Also clear React Flow visual selection
+    setTimeout(() => {
+      setDisplayNodes((nodes) => nodes.map((node) => ({ ...node, selected: false })))
+    }, 0)
+  }, [clearSelection, setDisplayNodes])
+
+  // Add keyboard event listeners
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [handleKeyDown])
 
   // Workflow initialization is now handled by the routes that open this component
 
@@ -311,6 +455,22 @@ export default function VisualWorkflowBuilder({
 
   const handleSave = async () => {
     try {
+      // Get the complete React Flow state including nodes, edges, and viewport
+      if (rfInstance && workflow) {
+        const flowData = rfInstance.toObject()
+
+        // Update the workflow with the latest React Flow data
+        updateWorkflowMeta({
+          name: workflow.name,
+          description: workflow.description,
+        })
+
+        // Save positions from React Flow's nodes
+        flowData.nodes.forEach((node) => {
+          updateNodePosition(node.id, node.position)
+        })
+      }
+
       const workflowId = await saveWorkflow(undefined, undefined, scope)
       console.log('Workflow saved successfully:', workflow?.name)
       if (onSaveSuccess) {
@@ -447,17 +607,36 @@ export default function VisualWorkflowBuilder({
       {/* React Flow Canvas */}
       <div className="h-[calc(100vh-4rem)]">
         <ReactFlow
+          ref={reactFlowRef}
           nodes={displayNodes}
           edges={displayEdges}
+          onInit={setRfInstance}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onDrop={onDrop}
           onDragOver={onDragOver}
+          onPaneClick={handlePaneClick}
           nodeTypes={nodeTypes}
           fitView
           attributionPosition="bottom-left"
           className="bg-background"
+          tabIndex={0}
+          style={{ outline: 'none' }}
+          selectionMode={SelectionMode.Partial}
+          multiSelectionKeyCode={['Meta', 'Control']}
+          selectNodesOnDrag={false}
+          selectionKeyCode={null}
+          deleteKeyCode={null}
+          panOnDrag={[1, 2]}
+          nodesDraggable={true}
+          selectionOnDrag={true}
+          panOnScroll={true}
+          zoomOnScroll={true}
+          zoomOnPinch={true}
+          panOnScrollMode={PanOnScrollMode.Free}
+          zoomOnDoubleClick={false}
+          preventScrolling={false}
         >
           <Controls className="bg-card border-border" />
           <MiniMap
