@@ -326,8 +326,8 @@ export const ProjectApprovalsView: React.FC<ProjectApprovalsViewProps> = ({
                 px-3 py-1 text-xs font-medium rounded transition-colors
                 ${
                   filter === option
-                    ? 'bg-primary text-primary-foreground !text-white'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                    ? 'bg-accent text-accent-foreground border border-border'
+                    : 'bg-card text-foreground border border-border hover:bg-accent/50'
                 }
               `}
             >
