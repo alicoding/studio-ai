@@ -9,7 +9,7 @@
 
 import { getDb } from '../../../../src/lib/storage/database'
 import { savedWorkflows } from '../../../../src/lib/storage/schema'
-import { eq, desc, inArray } from 'drizzle-orm'
+import { eq, desc, inArray, and } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import type {
   IWorkflowStorage,
@@ -34,14 +34,25 @@ export class SQLiteWorkflowStorage implements IWorkflowStorage {
     const scope =
       request.scope || (request.projectId && request.projectId !== 'global' ? 'project' : 'global')
 
+    // Generate unique name to avoid constraint violations
+    const uniqueName = await this.generateUniqueName(request.name, request.projectId, scope)
+
     console.log('[SQLiteWorkflowStorage] Creating workflow with definition:', request.definition)
     console.log('[SQLiteWorkflowStorage] Definition positions:', request.definition.positions)
     console.log('[SQLiteWorkflowStorage] Definition steps:', request.definition.steps)
+    if (uniqueName !== request.name) {
+      console.log(
+        '[SQLiteWorkflowStorage] Generated unique name:',
+        uniqueName,
+        'from:',
+        request.name
+      )
+    }
 
     const workflow = {
       id,
       projectId: request.projectId, // Now optional
-      name: request.name,
+      name: uniqueName,
       description: request.description,
       definition: JSON.stringify(request.definition),
       createdBy: request.createdBy || 'system',
@@ -87,7 +98,29 @@ export class SQLiteWorkflowStorage implements IWorkflowStorage {
       updatedAt: new Date(), // Drizzle expects Date object for timestamp fields
     }
 
-    if (updates.name !== undefined) updateData.name = updates.name
+    // Handle name updates with conflict resolution like create() does
+    if (updates.name !== undefined) {
+      const current = await this.getById(id)
+      if (current) {
+        // Generate unique name to avoid constraint violations
+        const uniqueName = await this.generateUniqueName(
+          updates.name,
+          current.projectId,
+          current.scope
+        )
+        updateData.name = uniqueName
+        if (uniqueName !== updates.name) {
+          console.log(
+            '[SQLiteWorkflowStorage] Generated unique name for update:',
+            uniqueName,
+            'from:',
+            updates.name
+          )
+        }
+      } else {
+        updateData.name = updates.name
+      }
+    }
     if (updates.description !== undefined) updateData.description = updates.description
     if (updates.definition !== undefined) {
       updateData.definition = JSON.stringify(updates.definition)
@@ -199,6 +232,52 @@ export class SQLiteWorkflowStorage implements IWorkflowStorage {
     // Filter by projectIds that have access (could be stored in metadata in future)
     // For now, cross-project workflows are accessible by all projects
     return crossProjectResults.map((row) => this.mapToSavedWorkflow(row))
+  }
+
+  /**
+   * Generate unique name to avoid constraint violations
+   * KISS: Simple suffix numbering approach
+   */
+  private async generateUniqueName(
+    baseName: string,
+    projectId: string | undefined,
+    scope: 'project' | 'global' | 'cross-project'
+  ): Promise<string> {
+    const db = getDb()
+
+    // Check if base name already exists
+    let existing
+    if (scope === 'project' && projectId) {
+      // For project-scoped workflows, check uniqueness within project
+      existing = await db
+        .select({ name: savedWorkflows.name })
+        .from(savedWorkflows)
+        .where(and(eq(savedWorkflows.projectId, projectId), eq(savedWorkflows.scope, scope)))
+    } else {
+      // For global workflows, check uniqueness globally
+      existing = await db
+        .select({ name: savedWorkflows.name })
+        .from(savedWorkflows)
+        .where(eq(savedWorkflows.scope, scope))
+    }
+
+    const existingNames = new Set(existing.map((row) => row.name))
+
+    // If base name is available, use it
+    if (!existingNames.has(baseName)) {
+      return baseName
+    }
+
+    // Generate numbered suffix until we find a unique name
+    let counter = 2
+    let candidateName = `${baseName} (${counter})`
+
+    while (existingNames.has(candidateName)) {
+      counter++
+      candidateName = `${baseName} (${counter})`
+    }
+
+    return candidateName
   }
 
   /**

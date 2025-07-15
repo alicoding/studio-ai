@@ -16,6 +16,7 @@ interface PersistConfig<T> {
   version?: number
   partialize?: (state: T) => Partial<T>
   migrate?: PersistOptions<T>['migrate']
+  onRehydrateStorage?: PersistOptions<T>['onRehydrateStorage']
 }
 
 /**
@@ -39,13 +40,15 @@ export function createPersistentStore<T>(
     migrate: persistConfig?.migrate,
     // Use our unified storage instead of localStorage
     storage: createUnifiedStorageAdapter<T>(),
-    // Handle storage errors gracefully
-    onRehydrateStorage: () => (_state, error) => {
-      if (error) {
-        console.error(`Failed to rehydrate ${storeName}:`, error)
-        // Store continues with initial state
-      }
-    },
+    // Handle storage errors gracefully - use custom handler if provided, otherwise default
+    onRehydrateStorage:
+      persistConfig?.onRehydrateStorage ||
+      (() => (_state, error) => {
+        if (error) {
+          console.error(`Failed to rehydrate ${storeName}:`, error)
+          // Store continues with initial state
+        }
+      }),
   }
 
   return create<T>()(
