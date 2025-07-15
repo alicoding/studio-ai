@@ -22,6 +22,13 @@ interface WorkflowBuilderState {
   workflow: WorkflowDefinition | null
   isDirty: boolean // Has unsaved changes
 
+  // Draft and saved state separation
+  savedWorkflow: WorkflowDefinition | null // Last saved version
+  draftWorkflow: WorkflowDefinition | null // Current draft with changes
+  autoSaveEnabled: boolean // Whether auto-save is enabled
+  lastSavedAt: string | null // When workflow was last saved
+  conflictVersion: string | null // Version that caused a conflict
+
   // UI state
   selectedStepId: string | null // Currently selected step
   selectedStepIds: string[] // Multiple selected steps for bulk operations
@@ -38,6 +45,16 @@ interface WorkflowBuilderState {
   updateWorkflowMeta: (updates: Partial<Pick<WorkflowDefinition, 'name' | 'description'>>) => void
   setDirty: (dirty: boolean) => void
   reset: () => void
+
+  // Draft and saved state management
+  createDraft: () => void
+  saveDraft: () => void
+  loadDraft: () => void
+  discardDraft: () => void
+  markAsSaved: (workflow: WorkflowDefinition) => void
+  setAutoSaveEnabled: (enabled: boolean) => void
+  hasUnsavedChanges: () => boolean
+  getLastSavedVersion: () => WorkflowDefinition | null
 
   // Step management - consistent with agents store patterns
   addStep: (step: Partial<WorkflowStepDefinition>) => string // Returns generated step ID
@@ -125,6 +142,14 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
     // Initial state
     workflow: null,
     isDirty: false,
+
+    // Draft and saved state separation
+    savedWorkflow: null,
+    draftWorkflow: null,
+    autoSaveEnabled: true,
+    lastSavedAt: null,
+    conflictVersion: null,
+
     selectedStepId: null,
     selectedStepIds: [],
     nodePositions: {},
@@ -228,6 +253,11 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
       set({
         workflow: null,
         isDirty: false,
+        savedWorkflow: null,
+        draftWorkflow: null,
+        autoSaveEnabled: true,
+        lastSavedAt: null,
+        conflictVersion: null,
         selectedStepId: null,
         selectedStepIds: [],
         nodePositions: {},
@@ -237,6 +267,71 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
         isSaving: false,
         lastError: null,
       }),
+
+    // Draft and saved state management
+    createDraft: () => {
+      const state = get()
+      if (!state.workflow) return
+
+      set({
+        draftWorkflow: { ...state.workflow },
+        savedWorkflow: state.savedWorkflow || { ...state.workflow },
+      })
+    },
+
+    saveDraft: () => {
+      const state = get()
+      if (!state.workflow) return
+
+      set({
+        draftWorkflow: { ...state.workflow },
+        isDirty: true,
+      })
+    },
+
+    loadDraft: () => {
+      const state = get()
+      if (!state.draftWorkflow) return
+
+      set({
+        workflow: { ...state.draftWorkflow },
+        isDirty: true,
+      })
+    },
+
+    discardDraft: () => {
+      const state = get()
+      if (!state.savedWorkflow) return
+
+      set({
+        workflow: { ...state.savedWorkflow },
+        draftWorkflow: null,
+        isDirty: false,
+      })
+    },
+
+    markAsSaved: (workflow) => {
+      set({
+        savedWorkflow: { ...workflow },
+        draftWorkflow: null,
+        isDirty: false,
+        lastSavedAt: new Date().toISOString(),
+      })
+    },
+
+    setAutoSaveEnabled: (enabled) => {
+      set({ autoSaveEnabled: enabled })
+    },
+
+    hasUnsavedChanges: () => {
+      const state = get()
+      return state.isDirty || (state.draftWorkflow !== null && state.savedWorkflow !== null)
+    },
+
+    getLastSavedVersion: () => {
+      const state = get()
+      return state.savedWorkflow
+    },
 
     // Step management - follows agents store patterns
     addStep: (stepData) => {
@@ -718,10 +813,15 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
     },
   }),
   {
-    // Only persist the workflow data, not UI state
+    // Only persist the workflow data and draft/saved state, not UI state
     partialize: (state) => ({
       workflow: state.workflow,
       isDirty: state.isDirty,
+      savedWorkflow: state.savedWorkflow,
+      draftWorkflow: state.draftWorkflow,
+      autoSaveEnabled: state.autoSaveEnabled,
+      lastSavedAt: state.lastSavedAt,
+      conflictVersion: state.conflictVersion,
       // DO NOT persist nodePositions separately - they should come from workflow.positions
     }),
   }

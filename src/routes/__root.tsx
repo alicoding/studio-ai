@@ -7,24 +7,27 @@ import { TooltipProvider } from '../components/ui/tooltip'
 import { DevWrapper } from '../components/DevWrapper'
 import { GlobalScreenshotHandler } from '../components/workspace/GlobalScreenshotHandler'
 import { GlobalChat } from '../components/chat/GlobalChat'
+import { QueryProvider } from '../lib/query/QueryProvider'
 
 function RootComponent() {
   return (
     <ErrorBoundary>
-      <TooltipProvider>
-        <DevWrapper>
-          <div className="flex flex-col h-screen">
-            <Navigation />
-            <div className="flex-1 overflow-hidden">
-              <Outlet />
+      <QueryProvider>
+        <TooltipProvider>
+          <DevWrapper>
+            <div className="flex flex-col h-screen">
+              <Navigation />
+              <div className="flex-1 overflow-hidden">
+                <Outlet />
+              </div>
             </div>
-          </div>
-          <Toaster position="bottom-right" />
-          <GlobalScreenshotHandler />
-          <GlobalChat />
-          <TanStackRouterDevtools />
-        </DevWrapper>
-      </TooltipProvider>
+            <Toaster position="bottom-right" />
+            <GlobalScreenshotHandler />
+            <GlobalChat />
+            <TanStackRouterDevtools />
+          </DevWrapper>
+        </TooltipProvider>
+      </QueryProvider>
     </ErrorBoundary>
   )
 }
