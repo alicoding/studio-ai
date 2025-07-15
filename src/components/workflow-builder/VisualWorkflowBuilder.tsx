@@ -26,6 +26,8 @@ import ReactFlow, {
   MarkerType,
   PanOnScrollMode,
   ReactFlowInstance,
+  OnMove,
+  Viewport,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
@@ -169,6 +171,7 @@ export default function VisualWorkflowBuilder({
     lastError,
     selectedStepIds,
     nodePositions,
+    viewport,
     updateWorkflowMeta,
     addStep,
     updateStep,
@@ -184,12 +187,28 @@ export default function VisualWorkflowBuilder({
     deleteSelectedSteps,
     setSelectedSteps,
     updateNodePosition,
+    updateViewport,
   } = useWorkflowBuilderStore()
 
   const projects = useProjectStore((state) => state.projects)
 
   // React Flow instance for save/restore
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
+
+  // Handle viewport changes and save to store
+  const handleViewportChange: OnMove = useCallback(
+    (_event, newViewport: Viewport) => {
+      updateViewport(newViewport)
+    },
+    [updateViewport]
+  )
+
+  // Restore viewport when ReactFlow instance is ready and we have saved viewport
+  useEffect(() => {
+    if (rfInstance && viewport) {
+      rfInstance.setViewport(viewport)
+    }
+  }, [rfInstance, viewport])
 
   // Load modal state
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false)
@@ -621,8 +640,10 @@ export default function VisualWorkflowBuilder({
           onDrop={onDrop}
           onDragOver={onDragOver}
           onPaneClick={handlePaneClick}
+          onMove={handleViewportChange}
           nodeTypes={nodeTypes}
-          fitView
+          fitView={!viewport}
+          defaultViewport={viewport || undefined}
           attributionPosition="bottom-left"
           className="bg-background"
           tabIndex={0}

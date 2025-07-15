@@ -29,6 +29,9 @@ interface WorkflowBuilderState {
   lastSavedAt: string | null // When workflow was last saved
   conflictVersion: string | null // Version that caused a conflict
 
+  // Saved workflow tracking for update vs create
+  savedWorkflowDatabaseId: string | null // Database UUID of the saved workflow record
+
   // UI state
   selectedStepId: string | null // Currently selected step
   selectedStepIds: string[] // Multiple selected steps for bulk operations
@@ -39,9 +42,13 @@ interface WorkflowBuilderState {
   isSaving: boolean // Save in progress
   lastError: string | null // Last error message
 
+  // Canvas viewport state
+  viewport: { x: number; y: number; zoom: number } | null // Canvas zoom and position
+
   // Core workflow actions - follow existing store patterns
   initWorkflow: (name: string, description?: string, projectId?: string) => void
   loadWorkflow: (workflow: WorkflowDefinition) => void
+  setSavedWorkflowDatabaseId: (id: string | null) => void
   updateWorkflowMeta: (updates: Partial<Pick<WorkflowDefinition, 'name' | 'description'>>) => void
   setDirty: (dirty: boolean) => void
   reset: () => void
@@ -75,6 +82,10 @@ interface WorkflowBuilderState {
   // Node position management
   updateNodePosition: (stepId: string, position: { x: number; y: number }) => void
   getNodePosition: (stepId: string) => { x: number; y: number } | null
+
+  // Canvas viewport management
+  updateViewport: (viewport: { x: number; y: number; zoom: number }) => void
+  getViewport: () => { x: number; y: number; zoom: number } | null
 
   // Validation - follows API patterns
   validateWorkflow: () => Promise<boolean>
@@ -150,6 +161,9 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
     lastSavedAt: null,
     conflictVersion: null,
 
+    // Saved workflow tracking
+    savedWorkflowDatabaseId: null,
+
     selectedStepId: null,
     selectedStepIds: [],
     nodePositions: {},
@@ -158,6 +172,7 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
     isExecuting: false,
     isSaving: false,
     lastError: null,
+    viewport: null,
 
     // Core workflow actions
     initWorkflow: (name, description, projectId) => {
@@ -192,28 +207,28 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
       console.log('[WorkflowBuilder] Workflow positions:', workflow.positions)
       console.log('[WorkflowBuilder] Workflow steps:', workflow.steps)
 
-      // First, clear any persisted state to ensure clean load
+      // Clear any persisted state immediately and aggressively
       console.log('[WorkflowBuilder] Clearing persisted state before loading workflow')
-      // Clear browser storage but don't reset the state yet
       if (typeof window !== 'undefined') {
         const storeName = 'claude-studio-workflow-builder'
+
+        // Clear all storage synchronously
         localStorage.removeItem(storeName)
         sessionStorage.removeItem(storeName)
 
-        // Also clear from unified storage synchronously to prevent race conditions
-        // Use navigator.sendBeacon for synchronous-like behavior
-        const deleteUrl = `/api/storage/item/workflow-builder/${storeName}`
-        if (navigator.sendBeacon) {
-          navigator.sendBeacon(deleteUrl, JSON.stringify({ method: 'DELETE' }))
-        } else {
-          // Fallback to fetch
-          fetch(deleteUrl, { method: 'DELETE' }).catch(() => {})
-        }
+        // Also clear from unified storage (async, but start immediately)
+        fetch(`/api/storage/item/workflow-builder/${storeName}`, { method: 'DELETE' }).catch(() => {
+          // Ignore errors - storage might not exist
+        })
+
+        // Set a flag to indicate we're in the middle of loading a workflow
+        sessionStorage.setItem('workflow-loading', 'true')
       }
 
-      // Force complete state replacement to override any persisted state
-      // IMPORTANT: Use workflow.positions, not any existing nodePositions
+      // Force complete state replacement with loaded workflow data
+      // This completely replaces the state to override any persistence
       set({
+        // Core workflow data - MUST come from loaded workflow
         workflow,
         isDirty: false,
         selectedStepId: null,
@@ -224,9 +239,30 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
         isValidating: false,
         isExecuting: false,
         isSaving: false,
+
+        // Draft and saved state - mark as clean since we just loaded
+        savedWorkflow: workflow,
+        draftWorkflow: null,
+        autoSaveEnabled: true,
+        lastSavedAt: new Date().toISOString(),
+        conflictVersion: null,
+
+        // Clear database ID since this is a fresh load (will be set by route if editing existing)
+        savedWorkflowDatabaseId: null,
       })
 
+      // Clear loading flag after a brief delay to prevent race conditions
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('workflow-loading')
+        }
+      }, 500)
+
       console.log('[WorkflowBuilder] Workflow loaded successfully, steps:', workflow.steps)
+    },
+
+    setSavedWorkflowDatabaseId: (id) => {
+      set({ savedWorkflowDatabaseId: id })
     },
 
     updateWorkflowMeta: (updates) => {
@@ -266,6 +302,7 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
         isExecuting: false,
         isSaving: false,
         lastError: null,
+        viewport: null,
       }),
 
     // Draft and saved state management
@@ -519,6 +556,16 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
       return state.nodePositions[stepId] || null
     },
 
+    // Canvas viewport management
+    updateViewport: (viewport) => {
+      set({ viewport })
+    },
+
+    getViewport: () => {
+      const state = get()
+      return state.viewport
+    },
+
     // Validation - integrates with backend API
     validateWorkflow: async () => {
       const state = get()
@@ -639,11 +686,30 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
 
         console.log('[WorkflowBuilder] Save data being sent:', saveData)
 
-        const response = await ky
-          .post('/api/workflows/saved', {
-            json: saveData,
-          })
-          .json<{ workflow: { id: string; name: string; createdAt: string } }>()
+        let response
+        if (state.savedWorkflowDatabaseId) {
+          // UPDATE existing workflow
+          console.log(
+            '[WorkflowBuilder] Updating existing workflow:',
+            state.savedWorkflowDatabaseId
+          )
+          response = await ky
+            .put(`/api/workflows/saved/${state.savedWorkflowDatabaseId}`, {
+              json: saveData,
+            })
+            .json<{ workflow: { id: string; name: string; createdAt: string } }>()
+        } else {
+          // CREATE new workflow
+          console.log('[WorkflowBuilder] Creating new workflow')
+          response = await ky
+            .post('/api/workflows/saved', {
+              json: saveData,
+            })
+            .json<{ workflow: { id: string; name: string; createdAt: string } }>()
+
+          // Set the database ID for future saves
+          set({ savedWorkflowDatabaseId: response.workflow.id })
+        }
 
         // Update workflow metadata with saved information
         set((state) => ({
@@ -814,15 +880,45 @@ export const useWorkflowBuilderStore = createPersistentStore<WorkflowBuilderStat
   }),
   {
     // Only persist the workflow data and draft/saved state, not UI state
-    partialize: (state) => ({
-      workflow: state.workflow,
-      isDirty: state.isDirty,
-      savedWorkflow: state.savedWorkflow,
-      draftWorkflow: state.draftWorkflow,
-      autoSaveEnabled: state.autoSaveEnabled,
-      lastSavedAt: state.lastSavedAt,
-      conflictVersion: state.conflictVersion,
-      // DO NOT persist nodePositions separately - they should come from workflow.positions
-    }),
+    partialize: (state) => {
+      // Check if we're in the middle of loading a workflow
+      if (typeof window !== 'undefined' && sessionStorage.getItem('workflow-loading')) {
+        // Don't persist anything during workflow loading to prevent rehydration conflicts
+        return {}
+      }
+
+      return {
+        workflow: state.workflow,
+        isDirty: state.isDirty,
+        savedWorkflow: state.savedWorkflow,
+        draftWorkflow: state.draftWorkflow,
+        autoSaveEnabled: state.autoSaveEnabled,
+        lastSavedAt: state.lastSavedAt,
+        conflictVersion: state.conflictVersion,
+        viewport: state.viewport, // Persist canvas zoom and position
+        // DO NOT persist nodePositions separately - they should come from workflow.positions
+      }
+    },
+    // Add custom rehydration logic to respect loading flag
+    onRehydrateStorage:
+      (_state: WorkflowBuilderState) => (hydratedState?: WorkflowBuilderState, error?: unknown) => {
+        if (error) {
+          console.error('[WorkflowBuilder] Rehydration error:', error)
+          return
+        }
+
+        // If we're loading a workflow, skip rehydration
+        if (typeof window !== 'undefined' && sessionStorage.getItem('workflow-loading')) {
+          console.log('[WorkflowBuilder] Skipping rehydration during workflow load')
+          return
+        }
+
+        if (hydratedState) {
+          console.log(
+            '[WorkflowBuilder] Store rehydrated with workflow:',
+            hydratedState.workflow?.name
+          )
+        }
+      },
   }
 )
