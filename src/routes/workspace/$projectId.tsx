@@ -576,7 +576,11 @@ function WorkspacePage(): JSX.Element | null {
       />
 
       {modalOps.isWorkflowBuilderOpen && (
-        <VisualWorkflowBuilder onClose={() => modalOps.closeModal('workflowBuilder')} />
+        <VisualWorkflowBuilder
+          onClose={() => modalOps.closeModal('workflowBuilder')}
+          scope="project"
+          projectId={projectId}
+        />
       )}
 
       <CreateProjectModal

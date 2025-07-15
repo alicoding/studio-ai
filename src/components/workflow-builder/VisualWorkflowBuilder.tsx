@@ -62,6 +62,7 @@ const nodeTypes: NodeTypes = {
 interface VisualWorkflowBuilderProps {
   onClose: () => void
   scope?: 'project' | 'global'
+  projectId?: string
   onSaveSuccess?: (workflowId: string) => void
 }
 
@@ -158,6 +159,7 @@ function stepsToEdges(steps: WorkflowStepDefinition[]): Edge[] {
 export default function VisualWorkflowBuilder({
   onClose,
   scope = 'project',
+  projectId,
   onSaveSuccess,
 }: VisualWorkflowBuilderProps) {
   // Use store state instead of local state
@@ -361,12 +363,20 @@ export default function VisualWorkflowBuilder({
     [updateWorkflowMeta]
   )
 
-  // Get current project context
+  // Get current project context - prioritize passed projectId over workflow metadata
   const currentProject = useMemo(() => {
-    return workflow?.metadata?.projectId
-      ? projects.find((p) => p.id === workflow.metadata.projectId)
-      : null
-  }, [workflow?.metadata?.projectId, projects])
+    const contextProjectId = projectId || workflow?.metadata?.projectId
+    return contextProjectId ? projects.find((p) => p.id === contextProjectId) : null
+  }, [projectId, workflow?.metadata?.projectId, projects])
+
+  // Initialize workflow with proper project context
+  useEffect(() => {
+    if (scope === 'project' && projectId && !workflow) {
+      // Initialize new project workflow with proper context
+      const { initWorkflow } = useWorkflowBuilderStore.getState()
+      initWorkflow('Untitled Workflow', 'Project workflow', projectId)
+    }
+  }, [scope, projectId, workflow])
 
   const onConnect = useCallback(
     (params: Connection | Edge) => {
