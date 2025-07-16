@@ -1,207 +1,87 @@
 # Studio AI
 
-**The Universal AI Agent Orchestration Platform**
+**AI Agent Orchestration Platform with MCP Integration**
 
-Studio AI enables asynchronous communication and collaboration between AI coding agents through the Model Context Protocol (MCP). Orchestrate Claude Code, Gemini CLI, and future AI agents to work together on complex software projects.
+Studio AI enables AI agents to collaborate through the Model Context Protocol (MCP). Currently supports Claude Code with plans for Gemini CLI and other agents.
 
-## 🎯 Core Innovation
+## What It Does
 
-Studio AI is the **first platform** that allows different AI coding agents to:
+Studio AI provides:
 
-- **Communicate asynchronously** through MCP-based message passing
-- **Share context and outputs** between different AI systems (Claude → Gemini → Custom)
-- **Build workflows programmatically** - AI agents can create workflows for other agents
-- **Work autonomously** on scheduled tasks and complex multi-step projects
+- Multi-agent workflow orchestration using LangGraph
+- Real-time agent monitoring via WebSocket
+- Visual workflow builder with React Flow
+- Human-in-the-loop approvals system
+- MCP server for Claude integration
 
-Think of it as **n8n for AI consciousness** - but instead of connecting APIs, you're connecting AI minds.
+## Tech Stack
 
-## 🚀 Quick Start
+- **Frontend**: React 19.1.0, TypeScript 5.8.3, Vite 7, TanStack Router, Zustand
+- **Backend**: Node.js, Express 5.1.0, Socket.io, TypeScript
+- **Database**: SQLite (local development)
+- **AI Integration**: Anthropic Claude SDK 0.56.0, LangGraph 0.3.6
+- **MCP**: Custom MCP server for tool integration
+
+## Quick Start
 
 ```bash
-# Clone and start
 git clone https://github.com/alicoding/studio-ai.git
 cd studio-ai
 npm install
 
-# Configure your AI agents
+# Copy environment file and add your Anthropic API key
 cp .env.example .env
-# Add your API keys (Anthropic, Google, etc.)
 
-# Start the platform
-npm run dev
+# Start development environment
+npm run env:start  # Starts both stable (3456) and dev (3457) servers
+npm run dev        # Frontend on http://localhost:5173
 ```
 
-Access at http://localhost:5173
+## Current Features
 
-## 💡 What Can You Build?
+### Working ✅
 
-### Example: Multi-Agent Code Review
-
-```javascript
-// Claude architect designs, Gemini implements, Claude reviews
-{
-  workflow: [
-    {
-      id: 'design',
-      agent: 'claude_architect',
-      task: 'Design the authentication system',
-    },
-    {
-      id: 'implement',
-      agent: 'gemini_developer',
-      task: 'Implement based on: {design.output}',
-      deps: ['design'],
-    },
-    {
-      id: 'review',
-      agent: 'claude_reviewer',
-      task: 'Review implementation: {implement.output}',
-      deps: ['implement'],
-    },
-  ]
-}
-```
-
-## 🏗️ Current Features (Working Now)
-
-### ✅ Core Platform
-
-- **MCP Integration**: Native control of Claude Code through MCP
-- **Agent Orchestration**: Sequential and parallel task execution
-- **Workflow Builder**: Visual interface for creating agent workflows
-- **Real-time Monitoring**: Split-view workspace for agent collaboration
-- **Project Management**: Create, manage, and organize AI projects
-- **Tool Permissions**: Granular control over agent capabilities
-
-### ✅ Pages & Functionality
-
-#### `/` - Dashboard
-
-- Quick resume for projects and workflows
-- Recent activity tracking
-
-#### `/workspace` - Command Center
-
+- Create and manage AI agent projects
+- Visual workflow builder with drag-and-drop
+- Sequential and parallel task execution
+- Human approval nodes (approval/notification/input)
 - Real-time agent communication monitoring
-- Split/Grid view for multiple agents
-- Direct chat with AI agents
-- Project-specific workflow creation
+- Template variables between workflow steps (`{stepId.output}`)
+- Mock mode for testing without API costs (`USE_MOCK_AI=true`)
+- MCP server integration for Claude
 
-#### `/projects` - Project Hub
+### In Progress 🚧
 
-- Create new projects with CLAUDE.md
-- Git initialization
-- Add agents to projects
-- Basic project management (clone, delete, edit)
+- Loop and Parallel node backends (UI exists)
+- Conditional node execution
+- Workflow persistence improvements
 
-#### `/agents` - Agent Templates
+### Not Implemented ❌
 
-- Create specialized agent roles (Architect, Developer, Tester)
-- Configure system prompts and tool permissions
-- Save reusable agent configurations
+- User authentication (designed for local use)
+- Gemini CLI integration
+- Other AI agent integrations
 
-#### `/teams` - Team Templates
+## Architecture
 
-- Combine agents into reusable teams
-- Pre-configured agent groups for common scenarios
+- **No Authentication**: Designed as a local development tool
+- **SQLite Database**: Stores workflows, approvals, and sessions locally
+- **Dual Server Setup**: Stable (3456) for MCP, Dev (3457) for hot reload
+- **MCP Integration**: Separate MCP server enables Claude to control the platform
 
-#### `/workflows` - Workflow Builder (Beta)
+## Documentation
 
-- Visual workflow creation
-- Basic control flow nodes (Conditional, Loop, Parallel)
-- Human approval nodes
-- Save and load workflow templates
+- [Current Features Detail](./docs/FEATURES.md)
+- [Roadmap](./docs/ROADMAP.md)
+- [Architecture](./docs/ARCHITECTURE.md)
+- [Examples](./examples/)
 
-#### `/settings` - Configuration
+## License
 
-- AI provider configuration
-- MCP server management
-- Hook system for pre/post tool events
+MIT License - see [LICENSE](./LICENSE)
 
-## 🔮 Roadmap (Coming Soon)
+## Status
 
-### Phase 1: Multi-Agent Support (Q1 2025)
+**Alpha** - Core functionality works. Building in public.
 
-- [ ] **Gemini CLI Integration** - Google's coding agent
-- [ ] **Cursor Support** - Popular AI code editor
-- [ ] **Windsurf Integration** - Codeium's agent
-- [ ] **Universal Agent Protocol** - Support any MCP-compatible agent
-
-### Phase 2: Enhanced Platform (Q2 2025)
-
-- [ ] **VSCode Web Integration** - Browse and edit code in workspace
-- [ ] **Advanced Chat UI** - Rich formatting, code highlighting
-- [ ] **Project Templates** - Bootstrap common project types
-- [ ] **Import Existing Projects** - One-click project import
-- [ ] **Workflow Marketplace** - Community nodes and templates
-- [ ] **Agent Marketplace** - Share specialized agent configurations
-
-### Phase 3: Enterprise & Scale (Q3 2025)
-
-- [ ] **Multi-user Collaboration** - Team workspaces
-- [ ] **Approval Delegation** - Complex approval workflows
-- [ ] **Scheduled Workflows** - Cron-like agent automation
-- [ ] **Cloud Deployment** - Managed Studio AI instances
-- [ ] **Advanced Monitoring** - Agent performance analytics
-
-### Phase 4: AI-Native Features (Q4 2025)
-
-- [ ] **Self-Improving Workflows** - AI optimizes its own processes
-- [ ] **Cross-Agent Learning** - Agents learn from each other
-- [ ] **Natural Language Workflows** - Describe workflows in plain English
-- [ ] **Autonomous Project Management** - AI manages entire projects
-
-## 🛠️ Architecture
-
-- **Frontend**: React + TypeScript + Vite
-- **Backend**: Node.js + Express
-- **Database**: SQLite (dev) / PostgreSQL (production)
-- **Real-time**: WebSocket + Server-Sent Events
-- **AI Integration**: MCP (Model Context Protocol)
-- **Workflow Engine**: LangGraph-based orchestration
-
-## 🤝 Contributing
-
-We welcome contributions! Areas where we need help:
-
-- **Bug Fixes**: Workflow builder UI, edge dragging, node positioning
-- **New Nodes**: Webhook, HTTP, Slack, Email, Database nodes
-- **AI Integrations**: Add support for new AI agents
-- **Documentation**: Tutorials, examples, best practices
-- **Community**: Share agents, workflows, and hooks
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
-
-## 📦 Examples
-
-Check out the [examples](./examples/) directory for:
-
-- Multi-agent development workflows
-- Testing automation with AI teams
-- Documentation generation pipelines
-- Code review and approval flows
-
-## 🔒 Security
-
-- **Local First**: Your code and data stay on your infrastructure
-- **API Key Management**: Secure storage of provider credentials
-- **Tool Permissions**: Fine-grained control over agent capabilities
-- **Audit Logs**: Complete tracking of agent actions
-
-## 📄 License
-
-MIT License - see [LICENSE](./LICENSE) for details.
-
-## 🌟 Community
-
-- **GitHub**: [alicoding/studio-ai](https://github.com/alicoding/studio-ai)
-- **Discord**: Coming soon
-- **Documentation**: In progress
-
----
-
-**Built by developers, for AI agents** 🤖
-
-Studio AI is currently in **alpha**. We're building this in public and would love your feedback and contributions.
-
-_Frustrated with copy-pasting between AI tools? So were we. That's why we built Studio AI._
+Built to enable AI agents to work together without human copy-pasting.
