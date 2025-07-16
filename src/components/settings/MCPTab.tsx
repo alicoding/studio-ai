@@ -328,7 +328,7 @@ export function MCPTab() {
                 id="env"
                 {...register('env')}
                 className="w-full min-h-[80px] px-3 py-2 text-sm rounded-md border border-input bg-background"
-                placeholder="KEY=value&#10;ANOTHER_KEY=another_value&#10;CLAUDE_STUDIO_PROJECT_ID={PROJECT_ID}"
+                placeholder="KEY=value&#10;ANOTHER_KEY=another_value&#10;STUDIO_AI_PROJECT_ID={PROJECT_ID}"
               />
               <p className="text-xs text-muted-foreground mt-1">
                 One per line, format: KEY=value. Available template variables:
@@ -344,7 +344,7 @@ export function MCPTab() {
                   <code className="bg-muted px-1">{'{PROJECT_PATH}'}</code> - Project workspace path
                 </div>
                 <div>
-                  <code className="bg-muted px-1">{'{CLAUDE_STUDIO_API}'}</code> - Studio API URL
+                  <code className="bg-muted px-1">{'{STUDIO_AI_API}'}</code> - Studio API URL
                 </div>
               </div>
             </div>

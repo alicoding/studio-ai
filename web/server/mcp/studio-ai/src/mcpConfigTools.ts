@@ -10,7 +10,7 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js'
 import ky from 'ky'
 
-const API_URL = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
+const API_URL = process.env.STUDIO_AI_API || 'http://localhost:3456/api'
 
 // Template variables that can be used in MCP server ENV configuration
 export const TEMPLATE_VARIABLES = {
@@ -20,8 +20,8 @@ export const TEMPLATE_VARIABLES = {
   AGENT_ID: 'Current agent ID',
   AGENT_ROLE: 'Current agent role',
   SESSION_ID: 'Current session ID',
-  CLAUDE_STUDIO_API: 'Studio AI API base URL',
-  CLAUDE_STUDIO_PROJECT_ID: 'Active project ID (legacy compatibility)',
+  STUDIO_AI_API: 'Studio AI API base URL',
+  STUDIO_AI_PROJECT_ID: 'Active project ID (legacy compatibility)',
 }
 
 interface MCPServer {
@@ -123,8 +123,8 @@ add_mcp_server({
   command: "node",
   args: ["/path/to/studio-ai/dist/index.js"],
   env: {
-    "CLAUDE_STUDIO_API": "{CLAUDE_STUDIO_API}",
-    "CLAUDE_STUDIO_PROJECT_ID": "{PROJECT_ID}"
+    "STUDIO_AI_API": "{STUDIO_AI_API}",
+    "STUDIO_AI_PROJECT_ID": "{PROJECT_ID}"
   }
 })
 

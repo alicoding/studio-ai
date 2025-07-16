@@ -10,7 +10,7 @@ import { TextContent } from '@modelcontextprotocol/sdk/types.js'
 import ky from 'ky'
 
 // Get API base URL from environment or default
-const API_BASE = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
+const API_BASE = process.env.STUDIO_AI_API || 'http://localhost:3456/api'
 
 export interface Agent {
   id: string

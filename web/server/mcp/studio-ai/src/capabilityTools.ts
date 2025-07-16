@@ -9,13 +9,13 @@
 import { TextContent } from '@modelcontextprotocol/sdk/types.js'
 
 // Get API base URL from environment or default
-const API_BASE = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
+const API_BASE = process.env.STUDIO_AI_API || 'http://localhost:3456/api'
 
 // Session management - one session per MCP connection
 class SessionManager {
   private currentSessionId: string | null = null
   private lastActivity: Date | null = null
-  
+
   getOrCreateSession(startNew: boolean = false): string | null {
     if (!this.currentSessionId || startNew) {
       // Return null to let API create new session
@@ -25,7 +25,7 @@ class SessionManager {
     }
     return this.currentSessionId
   }
-  
+
   updateSession(newSessionId: string): void {
     this.currentSessionId = newSessionId
     this.lastActivity = new Date()
@@ -111,7 +111,7 @@ export async function handleExecuteCapability(
 
     // Auto-manage session
     const currentSessionId = sessionManager.getOrCreateSession(args.startNewConversation)
-    
+
     // Build request body with proper structure
     const requestBody = {
       capabilityId: capabilityId,
@@ -120,7 +120,7 @@ export async function handleExecuteCapability(
         files: args.includeFiles || [],
         metadata: {},
         projectId: args.projectPath,
-        sessionId: currentSessionId // Pass existing session ID if we have one
+        sessionId: currentSessionId, // Pass existing session ID if we have one
       },
     }
 
@@ -137,7 +137,7 @@ export async function handleExecuteCapability(
     }
 
     const result = (await response.json()) as CapabilityResponse
-    
+
     // Update session manager with the returned session ID
     if (result.sessionId) {
       sessionManager.updateSession(result.sessionId)

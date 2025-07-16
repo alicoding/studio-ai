@@ -72,7 +72,7 @@ Add to Claude's MCP config:
       "command": "node",
       "args": ["/path/to/studio-ai/dist/index.js"],
       "env": {
-        "CLAUDE_STUDIO_API": "http://localhost:3000/api"
+        "STUDIO_AI_API": "http://localhost:3000/api"
       }
     }
   }

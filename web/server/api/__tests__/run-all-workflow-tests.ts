@@ -123,7 +123,7 @@ async function healthCheck(): Promise<boolean> {
 
   try {
     const response = await fetch(
-      `${process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'}/health`
+      `${process.env.STUDIO_AI_API || 'http://localhost:3456/api'}/health`
     )
 
     if (response.ok) {

@@ -33,10 +33,10 @@ interface LaunchClaudeRequest {
  * {
  *   "workingDirectory": "/path/to/project",
  *   "environmentVariables": {
- *     "CLAUDE_STUDIO_PROJECT_ID": "my-project",
- *     "CLAUDE_STUDIO_AGENT_ID": "dev_01",
- *     "CLAUDE_STUDIO_SESSION_ID": "session-123",
- *     "CLAUDE_STUDIO_API": "http://localhost:3456/api"
+ *     "STUDIO_AI_PROJECT_ID": "my-project",
+ *     "STUDIO_AI_AGENT_ID": "dev_01",
+ *     "STUDIO_AI_SESSION_ID": "session-123",
+ *     "STUDIO_AI_API": "http://localhost:3456/api"
  *   },
  *   "mcpConfig": {
  *     "servers": {
@@ -44,8 +44,8 @@ interface LaunchClaudeRequest {
  *         "command": "node",
  *         "args": ["path/to/studio-ai/index.js"],
  *         "env": {
- *           "CLAUDE_STUDIO_PROJECT_ID": "{projectId}",
- *           "CLAUDE_STUDIO_AGENT_ID": "{agentId}"
+ *           "STUDIO_AI_PROJECT_ID": "{projectId}",
+ *           "STUDIO_AI_AGENT_ID": "{agentId}"
  *         }
  *       }
  *     }
@@ -85,20 +85,20 @@ router.post('/launch', async (req: Request, res: Response) => {
                   let processedValue = value
                   processedValue = processedValue.replace(
                     '{projectId}',
-                    environmentVariables.CLAUDE_STUDIO_PROJECT_ID || ''
+                    environmentVariables.STUDIO_AI_PROJECT_ID || ''
                   )
                   processedValue = processedValue.replace(
                     '{agentId}',
-                    environmentVariables.CLAUDE_STUDIO_AGENT_ID || ''
+                    environmentVariables.STUDIO_AI_AGENT_ID || ''
                   )
                   processedValue = processedValue.replace(
                     '{sessionId}',
-                    environmentVariables.CLAUDE_STUDIO_SESSION_ID || ''
+                    environmentVariables.STUDIO_AI_SESSION_ID || ''
                   )
                   processedValue = processedValue.replace('{workspace}', workingDirectory)
                   processedValue = processedValue.replace(
                     '{apiUrl}',
-                    environmentVariables.CLAUDE_STUDIO_API || ''
+                    environmentVariables.STUDIO_AI_API || ''
                   )
 
                   envAcc[key] = processedValue
@@ -186,11 +186,11 @@ router.post('/test-env', async (req: Request, res: Response) => {
     // Create a simple test script that outputs environment variables
     const testScript = `
       console.log('=== Studio AI Environment Variables ===');
-      console.log('CLAUDE_STUDIO_PROJECT_ID:', process.env.CLAUDE_STUDIO_PROJECT_ID);
-      console.log('CLAUDE_STUDIO_AGENT_ID:', process.env.CLAUDE_STUDIO_AGENT_ID);
-      console.log('CLAUDE_STUDIO_SESSION_ID:', process.env.CLAUDE_STUDIO_SESSION_ID);
-      console.log('CLAUDE_STUDIO_WORKSPACE:', process.env.CLAUDE_STUDIO_WORKSPACE);
-      console.log('CLAUDE_STUDIO_API:', process.env.CLAUDE_STUDIO_API);
+      console.log('STUDIO_AI_PROJECT_ID:', process.env.STUDIO_AI_PROJECT_ID);
+      console.log('STUDIO_AI_AGENT_ID:', process.env.STUDIO_AI_AGENT_ID);
+      console.log('STUDIO_AI_SESSION_ID:', process.env.STUDIO_AI_SESSION_ID);
+      console.log('STUDIO_AI_WORKSPACE:', process.env.STUDIO_AI_WORKSPACE);
+      console.log('STUDIO_AI_API:', process.env.STUDIO_AI_API);
       console.log('==========================================');
     `
 

@@ -31,7 +31,7 @@ export interface ToolPermission {
   }
 }
 
-const API_BASE = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
+const API_BASE = process.env.STUDIO_AI_API || 'http://localhost:3456/api'
 
 export interface ToolPermissionPreset {
   name: string

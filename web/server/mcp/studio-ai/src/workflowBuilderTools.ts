@@ -11,7 +11,7 @@ import { TextContent } from '@modelcontextprotocol/sdk/types.js'
 import ky from 'ky'
 
 // API URL for calling workflow endpoints
-const API_URL = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
+const API_URL = process.env.STUDIO_AI_API || 'http://localhost:3456/api'
 
 // Type definitions (copying to avoid complex import paths in MCP build)
 export interface WorkflowDefinition {

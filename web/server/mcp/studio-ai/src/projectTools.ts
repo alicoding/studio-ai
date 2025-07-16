@@ -11,7 +11,7 @@ import { TextContent } from '@modelcontextprotocol/sdk/types.js'
 import ky from 'ky'
 
 // Get API base URL from environment or default
-const API_BASE = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
+const API_BASE = process.env.STUDIO_AI_API || 'http://localhost:3456/api'
 
 // Project configuration interfaces matching Studio AI
 export interface ProjectConfig {
@@ -555,7 +555,7 @@ export async function handleListRoles(args: { projectId: string }): Promise<Text
 export async function handleListProjectAgents(args: { projectId?: string }): Promise<TextContent> {
   try {
     // Use project ID from args or environment context
-    const projectId = args.projectId || process.env.CLAUDE_STUDIO_PROJECT_ID
+    const projectId = args.projectId || process.env.STUDIO_AI_PROJECT_ID
 
     if (!projectId) {
       return {
@@ -565,7 +565,7 @@ export async function handleListProjectAgents(args: { projectId?: string }): Pro
     }
 
     // Get the caller's agent ID if available
-    const callerId = process.env.CLAUDE_STUDIO_AGENT_ID
+    const callerId = process.env.STUDIO_AI_AGENT_ID
 
     // Get project agents from the API
     const response = await ky
@@ -633,7 +633,7 @@ export async function handleAddAgentToProject(args: {
 }): Promise<TextContent> {
   try {
     // Use project ID from args or environment context
-    const projectId = args.projectId || process.env.CLAUDE_STUDIO_PROJECT_ID
+    const projectId = args.projectId || process.env.STUDIO_AI_PROJECT_ID
 
     if (!projectId) {
       return {
@@ -647,7 +647,7 @@ export async function handleAddAgentToProject(args: {
     }
 
     // Get the caller's agent ID if available
-    const callerId = process.env.CLAUDE_STUDIO_AGENT_ID
+    const callerId = process.env.STUDIO_AI_AGENT_ID
 
     // Add agent to project using studio-projects API
     const response = await ky
@@ -696,7 +696,7 @@ export async function handleAddTeamToProject(args: {
 }): Promise<TextContent> {
   try {
     // Use project ID from args or environment context
-    const projectId = args.projectId || process.env.CLAUDE_STUDIO_PROJECT_ID
+    const projectId = args.projectId || process.env.STUDIO_AI_PROJECT_ID
 
     if (!projectId) {
       return {
@@ -710,7 +710,7 @@ export async function handleAddTeamToProject(args: {
     }
 
     // Get the caller's agent ID if available
-    const callerId = process.env.CLAUDE_STUDIO_AGENT_ID
+    const callerId = process.env.STUDIO_AI_AGENT_ID
 
     // First, get the team template
     const teams = await ky
@@ -800,7 +800,7 @@ export async function handleRemoveAgentFromProject(args: {
 }): Promise<TextContent> {
   try {
     // Use project ID from args or environment context
-    const projectId = args.projectId || process.env.CLAUDE_STUDIO_PROJECT_ID
+    const projectId = args.projectId || process.env.STUDIO_AI_PROJECT_ID
 
     if (!projectId) {
       return {
@@ -814,7 +814,7 @@ export async function handleRemoveAgentFromProject(args: {
     }
 
     // Get the caller's agent ID if available
-    const callerId = process.env.CLAUDE_STUDIO_AGENT_ID
+    const callerId = process.env.STUDIO_AI_AGENT_ID
 
     // Remove agent from project using studio-projects API
     const response = await ky

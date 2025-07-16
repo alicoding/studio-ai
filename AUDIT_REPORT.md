@@ -95,7 +95,7 @@ The backend exposes the following API endpoints (all under `/api/`):
 ### Secondary Database: PostgreSQL
 
 - **Purpose**: Workflow checkpointing (LangGraph)
-- **Connection**: `postgresql://claude:development_password@127.0.0.1:5432/claude_studio`
+- **Connection**: `postgresql://claude:development_password@127.0.0.1:5432/studio_ai`
 - **Schema**: `workflow_checkpoints`
 - **Usage**: Optional (controlled by `USE_POSTGRES_SAVER`)
 

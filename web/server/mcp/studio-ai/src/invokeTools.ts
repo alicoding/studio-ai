@@ -73,8 +73,8 @@ interface InvokeRequest {
 
 // InvokeResponse interface removed - using bridge to mention API
 
-const API_URL = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
-const REQUEST_TIMEOUT = parseInt(process.env.CLAUDE_STUDIO_TIMEOUT || '3600000') // 1 hour default
+const API_URL = process.env.STUDIO_AI_API || 'http://localhost:3456/api'
+const REQUEST_TIMEOUT = parseInt(process.env.STUDIO_AI_TIMEOUT || '3600000') // 1 hour default
 
 /**
  * Tool: invoke
@@ -292,7 +292,7 @@ export async function handleInvoke(args: unknown): Promise<{ type: 'text'; text:
       .post(`${API_URL}/invoke`, {
         json: {
           workflow: workflow,
-          projectId: request.projectId || process.env.CLAUDE_STUDIO_PROJECT_ID || 'mcp-context',
+          projectId: request.projectId || process.env.STUDIO_AI_PROJECT_ID || 'mcp-context',
           threadId: request.threadId,
           startNewConversation: request.startNewConversation,
           format: request.format,

@@ -311,7 +311,7 @@ WorkflowOrchestrator.emitWorkflowEvent()
 postgres:
   image: postgres:15-alpine
   environment:
-    POSTGRES_DB: claude_studio
+    POSTGRES_DB: studio_ai
     POSTGRES_USER: claude
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
   ports:
@@ -399,7 +399,7 @@ await checkpointer.setup() // Creates tables
 
 ```bash
 USE_POSTGRES_SAVER=true
-POSTGRES_CONNECTION_STRING=postgresql://claude:password@localhost:5432/claude_studio
+POSTGRES_CONNECTION_STRING=postgresql://claude:password@localhost:5432/studio_ai
 POSTGRES_SCHEMA=workflow_checkpoints
 LOG_FLOWS=true # Enable flow documentation
 ```
