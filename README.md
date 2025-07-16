@@ -14,13 +14,31 @@ Studio AI provides:
 - Human-in-the-loop approvals system
 - MCP server for Claude integration
 
+### Example: AI agents collaborating on code review
+
+```javascript
+{
+  workflow: [
+    { id: 'implement', agent: 'claude_dev', task: 'Add auth to user API' },
+    {
+      id: 'review',
+      agent: 'claude_reviewer',
+      task: 'Review {implement.output}',
+      deps: ['implement'],
+    },
+    { id: 'approve', type: 'human', task: 'Approve changes?', deps: ['review'] },
+  ]
+}
+```
+
 ## Tech Stack
 
-- **Frontend**: React 19.1.0, TypeScript 5.8.3, Vite 7, TanStack Router, Zustand
-- **Backend**: Node.js, Express 5.1.0, Socket.io, TypeScript
-- **Database**: SQLite (local development)
-- **AI Integration**: Anthropic Claude SDK 0.56.0, LangGraph 0.3.6
-- **MCP**: Custom MCP server for tool integration
+**React + Node + SQLite + MCP**
+
+- Frontend: React 19.1.0, TypeScript, Vite
+- Backend: Node.js, Express, Socket.io
+- Database: SQLite (local-first)
+- AI Integration: Claude SDK + LangGraph + MCP
 
 ## Quick Start
 
@@ -58,13 +76,13 @@ npm run dev        # Frontend on http://localhost:5173
 
 ### Not Implemented ❌
 
-- User authentication (designed for local use)
 - Gemini CLI integration
 - Other AI agent integrations
+- Multi-user collaboration
 
 ## Architecture
 
-- **No Authentication**: Designed as a local development tool
+- **Local-First**: Designed as a local development tool
 - **SQLite Database**: Stores workflows, approvals, and sessions locally
 - **Dual Server Setup**: Stable (3456) for MCP, Dev (3457) for hot reload
 - **MCP Integration**: Separate MCP server enables Claude to control the platform
