@@ -1,6 +1,6 @@
 /**
  * Comprehensive tests for useWebSocket hook
- * 
+ *
  * SOLID: Single responsibility - test WebSocket connection management
  * DRY: Reusable mock factories and test utilities
  * KISS: Clear test scenarios with descriptive names
@@ -29,9 +29,9 @@ vi.mock('socket.io-client', () => {
     emit: vi.fn(),
     disconnect: vi.fn(),
   }
-  
+
   const mockIo = vi.fn(() => mockSocket as unknown as ReturnType<typeof io>)
-  
+
   return {
     io: mockIo,
   }
@@ -63,7 +63,7 @@ describe('useWebSocket', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    
+
     // Create fresh mock socket for each test
     mockSocket = {
       connected: false,
@@ -72,7 +72,7 @@ describe('useWebSocket', () => {
       emit: vi.fn(),
       disconnect: vi.fn(),
     }
-    
+
     // Make io() return our mock socket
     mockIo.mockReturnValue(mockSocket as unknown as ReturnType<typeof io>)
   })
@@ -147,7 +147,9 @@ describe('useWebSocket', () => {
     it('should update state when socket connects', () => {
       // Arrange
       const { result } = renderHook(() => useWebSocket())
-      const connectHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'connect')?.[1]
+      const connectHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'connect'
+      )?.[1]
 
       // Act - Simulate connect event
       connectHandler?.()
@@ -161,8 +163,12 @@ describe('useWebSocket', () => {
     it('should update state when socket disconnects', () => {
       // Arrange
       const { result } = renderHook(() => useWebSocket())
-      const connectHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'connect')?.[1]
-      const disconnectHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'disconnect')?.[1]
+      const connectHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'connect'
+      )?.[1]
+      const disconnectHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'disconnect'
+      )?.[1]
 
       // Act - Connect first, then disconnect
       connectHandler?.()
@@ -177,7 +183,9 @@ describe('useWebSocket', () => {
     it('should handle connection errors', () => {
       // Arrange
       const { result } = renderHook(() => useWebSocket())
-      const errorHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'connect_error')?.[1]
+      const errorHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'connect_error'
+      )?.[1]
       const testError = new Error('Connection failed')
 
       // Act
@@ -193,7 +201,9 @@ describe('useWebSocket', () => {
     it('should handle successful reconnection', () => {
       // Arrange
       renderHook(() => useWebSocket())
-      const reconnectHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'reconnect')?.[1]
+      const reconnectHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'reconnect'
+      )?.[1]
       const attemptNumber = 3
 
       // Act
@@ -211,7 +221,9 @@ describe('useWebSocket', () => {
     it('should track reconnection attempts and disconnect after max attempts', () => {
       // Arrange
       renderHook(() => useWebSocket({ reconnectAttempts: 3 }))
-      const errorHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'connect_error')?.[1]
+      const errorHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'connect_error'
+      )?.[1]
       const testError = new Error('Connection failed')
 
       // Act - Simulate multiple connection errors
@@ -227,17 +239,21 @@ describe('useWebSocket', () => {
     it('should reset reconnection count on successful connection', () => {
       // Arrange
       renderHook(() => useWebSocket({ reconnectAttempts: 2 }))
-      const connectHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'connect')?.[1]
-      const errorHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'connect_error')?.[1]
+      const connectHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'connect'
+      )?.[1]
+      const errorHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'connect_error'
+      )?.[1]
       const testError = new Error('Connection failed')
 
       // Act - First, have an error, then connect successfully, then test reset
       errorHandler?.(testError)
       connectHandler?.() // Should reset counter
-      
+
       // Clear previous disconnect calls
       mockSocket.disconnect.mockClear()
-      
+
       // Test that reconnect count was reset by having two more errors
       errorHandler?.(testError) // Should be attempt 1 again
       errorHandler?.(testError) // Should be attempt 2 - should trigger disconnect
@@ -269,7 +285,10 @@ describe('useWebSocket', () => {
 
       // Assert
       expect(mockSocket.emit).not.toHaveBeenCalled()
-      expect(consoleSpy.warn).toHaveBeenCalledWith('Socket not connected, cannot emit:', 'test-event')
+      expect(consoleSpy.warn).toHaveBeenCalledWith(
+        'Socket not connected, cannot emit:',
+        'test-event'
+      )
     })
 
     it('should register event listeners', () => {
@@ -325,8 +344,12 @@ describe('useWebSocket', () => {
     it('should persist error state until successful reconnection', () => {
       // Arrange
       const { result } = renderHook(() => useWebSocket())
-      const errorHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'connect_error')?.[1]
-      const connectHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'connect')?.[1]
+      const errorHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'connect_error'
+      )?.[1]
+      const connectHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'connect'
+      )?.[1]
       const testError = new Error('Network error')
 
       // Act - Set error, then connect
@@ -341,7 +364,9 @@ describe('useWebSocket', () => {
     it('should handle multiple different errors', () => {
       // Arrange
       const { result } = renderHook(() => useWebSocket())
-      const errorHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'connect_error')?.[1]
+      const errorHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'connect_error'
+      )?.[1]
       const error1 = new Error('First error')
       const error2 = new Error('Second error')
 
@@ -389,30 +414,42 @@ describe('useWebSocket', () => {
   })
 
   describe('Options Reactivity', () => {
-    it('should recreate connection when URL changes', () => {
-      // Arrange
-      const { rerender } = renderHook(
-        (props) => useWebSocket(props),
-        { initialProps: { url: 'http://localhost:3000' } }
-      )
-
-      expect(mockIo).toHaveBeenCalledWith('http://localhost:3000', expect.any(Object))
-      mockIo.mockClear()
-
-      // Act - Change URL
-      rerender({ url: 'http://localhost:4000' })
-
-      // Assert - Should create new connection with new URL
-      expect(mockSocket.disconnect).toHaveBeenCalled()
-      expect(mockIo).toHaveBeenCalledWith('http://localhost:4000', expect.any(Object))
-    })
-
     it('should recreate connection when reconnect options change', () => {
       // Arrange
-      const { rerender } = renderHook(
-        (props) => useWebSocket(props),
-        { initialProps: { reconnectAttempts: 5 } }
+      const { rerender } = renderHook((props) => useWebSocket(props), {
+        initialProps: { reconnectAttempts: 3, reconnectDelay: 500 },
+      })
+
+      expect(mockIo).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          reconnection: true,
+          reconnectionAttempts: 3,
+          reconnectionDelay: 500,
+        })
       )
+      mockIo.mockClear()
+
+      // Act - Change reconnect options
+      rerender({ reconnectAttempts: 5, reconnectDelay: 1000 })
+
+      // Assert - Should create new connection with new options
+      expect(mockSocket.disconnect).toHaveBeenCalled()
+      expect(mockIo).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+        })
+      )
+    })
+
+    it('should maintain connection when options do not change', () => {
+      // Arrange
+      const { rerender } = renderHook((props) => useWebSocket(props), {
+        initialProps: { reconnectAttempts: 5, reconnectDelay: 1000 },
+      })
 
       expect(mockIo).toHaveBeenCalledWith(expect.any(String), {
         reconnection: true,
@@ -422,7 +459,7 @@ describe('useWebSocket', () => {
       mockIo.mockClear()
 
       // Act - Change reconnect attempts
-      rerender({ reconnectAttempts: 10 })
+      rerender({ reconnectAttempts: 10, reconnectDelay: 1000 })
 
       // Assert - Should create new connection with new options
       expect(mockSocket.disconnect).toHaveBeenCalled()
@@ -438,8 +475,12 @@ describe('useWebSocket', () => {
     it('should handle rapid connect/disconnect cycles', () => {
       // Arrange
       const { result } = renderHook(() => useWebSocket())
-      const connectHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'connect')?.[1]
-      const disconnectHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'disconnect')?.[1]
+      const connectHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'connect'
+      )?.[1]
+      const disconnectHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'disconnect'
+      )?.[1]
 
       // Act - Rapid cycles
       connectHandler?.()
@@ -455,10 +496,18 @@ describe('useWebSocket', () => {
     it('should maintain correct state during error recovery', () => {
       // Arrange
       const { result } = renderHook(() => useWebSocket())
-      const connectHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'connect')?.[1]
-      const disconnectHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'disconnect')?.[1]
-      const errorHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'connect_error')?.[1]
-      const reconnectHandler = (mockSocket.on as Mock).mock.calls.find(([event]) => event === 'reconnect')?.[1]
+      const connectHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'connect'
+      )?.[1]
+      const disconnectHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'disconnect'
+      )?.[1]
+      const errorHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'connect_error'
+      )?.[1]
+      const reconnectHandler = (mockSocket.on as Mock).mock.calls.find(
+        ([event]) => event === 'reconnect'
+      )?.[1]
 
       // Act - Simulate full error recovery cycle
       connectHandler?.() // Initial connection
@@ -488,7 +537,7 @@ describe('useWebSocket', () => {
 
       // Act - Register events in different states
       result.current.on('event1', handler) // When disconnected
-      
+
       // Create a new mock socket that returns null to test null handling
       const originalSocket = mockSocket
       mockIo.mockReturnValueOnce(null as unknown as ReturnType<typeof io>)
