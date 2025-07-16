@@ -51,7 +51,9 @@ export interface WorkflowStepDefinition {
   maxIterations?: number // Maximum number of iterations
   // Human input fields
   prompt?: string // Prompt for human input
-  approvalRequired?: boolean // Whether approval is required
+  approvalRequired?: boolean // Whether approval is required (legacy)
+  interactionType?: 'approval' | 'notification' | 'input' // Type of human interaction
+  timeoutBehavior?: 'fail' | 'auto-approve' | 'infinite' // Behavior when timeout occurs
   timeoutSeconds?: number // Timeout for human input
   // Parallel fields
   parallelSteps?: string[] // IDs of steps to run in parallel

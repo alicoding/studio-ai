@@ -85,7 +85,9 @@ export const WorkflowStepSchema = z
     maxIterations: z.number().optional(), // Maximum number of iterations
     // Human input fields
     prompt: z.string().optional(), // Prompt for human input
-    approvalRequired: z.boolean().optional(), // Whether approval is required
+    approvalRequired: z.boolean().optional(), // Whether approval is required (legacy)
+    interactionType: z.enum(['approval', 'notification', 'input']).optional(), // Type of human interaction
+    timeoutBehavior: z.enum(['fail', 'auto-approve', 'infinite']).optional(), // Behavior when timeout occurs
     timeoutSeconds: z.number().optional(), // Timeout for human input
     // Parallel fields
     parallelSteps: z.array(z.string()).optional(), // IDs of steps to run in parallel

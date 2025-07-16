@@ -197,20 +197,53 @@ export default function VisualWorkflowBuilder({
   // React Flow instance for save/restore
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
 
-  // Handle viewport changes and save to store
+  // Track if we've done initial viewport setup to prevent loops
+  const [isViewportInitialized, setIsViewportInitialized] = useState(false)
+
+  // Debounce timer ref for viewport updates
+  const viewportTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Handle viewport changes and save to store with debouncing
   const handleViewportChange: OnMove = useCallback(
     (_event, newViewport: Viewport) => {
-      updateViewport(newViewport)
+      // Clear any existing timer
+      if (viewportTimerRef.current) {
+        clearTimeout(viewportTimerRef.current)
+      }
+
+      // Set a new timer to update viewport after user stops moving for 500ms
+      viewportTimerRef.current = setTimeout(() => {
+        updateViewport(newViewport)
+      }, 500)
     },
     [updateViewport]
   )
 
   // Restore viewport when ReactFlow instance is ready and we have saved viewport
   useEffect(() => {
-    if (rfInstance && viewport) {
+    if (rfInstance && viewport && !isViewportInitialized) {
       rfInstance.setViewport(viewport)
+      setIsViewportInitialized(true)
     }
-  }, [rfInstance, viewport])
+  }, [rfInstance, viewport, isViewportInitialized])
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    // Capture refs in effect scope
+    const viewportTimer = viewportTimerRef
+    const nodeTimers = nodePositionTimersRef
+
+    return () => {
+      // Clean up viewport timer
+      if (viewportTimer.current) {
+        clearTimeout(viewportTimer.current)
+      }
+      // Clean up all node position timers
+      Object.values(nodeTimers.current).forEach((timer) => {
+        clearTimeout(timer)
+      })
+    }
+  }, [])
 
   // Load modal state
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false)
@@ -248,6 +281,9 @@ export default function VisualWorkflowBuilder({
   const [displayNodes, setDisplayNodes, onNodesChangeOriginal] = useNodesState(nodes)
   const [displayEdges, setDisplayEdges, onEdgesChange] = useEdgesState(edges)
 
+  // Node position update timers to debounce position changes
+  const nodePositionTimersRef = useRef<Record<string, NodeJS.Timeout>>({})
+
   // Enhanced onNodesChange handler that syncs with store
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -259,9 +295,19 @@ export default function VisualWorkflowBuilder({
         if (change.type === 'remove') {
           removeStep(change.id)
         }
-        // Handle position changes - store them to prevent reset
-        if (change.type === 'position' && change.position) {
-          updateNodePosition(change.id, change.position)
+        // Handle position changes with debouncing - store them to prevent reset
+        if (change.type === 'position' && change.position && change.dragging === false) {
+          // Only update position when dragging ends (dragging === false)
+          // Clear any existing timer for this node
+          if (nodePositionTimersRef.current[change.id]) {
+            clearTimeout(nodePositionTimersRef.current[change.id])
+          }
+
+          // Set a new timer to update position after drag ends
+          nodePositionTimersRef.current[change.id] = setTimeout(() => {
+            updateNodePosition(change.id, change.position!)
+            delete nodePositionTimersRef.current[change.id]
+          }, 100)
         }
       })
 
@@ -369,14 +415,8 @@ export default function VisualWorkflowBuilder({
     return contextProjectId ? projects.find((p) => p.id === contextProjectId) : null
   }, [projectId, workflow?.metadata?.projectId, projects])
 
-  // Initialize workflow with proper project context
-  useEffect(() => {
-    if (scope === 'project' && projectId && !workflow) {
-      // Initialize new project workflow with proper context
-      const { initWorkflow } = useWorkflowBuilderStore.getState()
-      initWorkflow('Untitled Workflow', 'Project workflow', projectId)
-    }
-  }, [scope, projectId, workflow])
+  // Remove automatic initialization - this should be handled by the route wrapper
+  // to prevent conflicts with persistence and rehydration
 
   const onConnect = useCallback(
     (params: Connection | Edge) => {

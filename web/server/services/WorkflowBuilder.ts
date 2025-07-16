@@ -13,36 +13,21 @@ import { ConditionEvaluator } from './ConditionEvaluator'
 import { WorkflowNodeFactory } from './WorkflowNodeFactory'
 import { WorkflowStateManager } from './WorkflowStateManager'
 
-// Extended WorkflowStep type
-interface ExtendedWorkflowStep extends WorkflowStep {
-  type?: 'task' | 'parallel' | 'conditional' | 'loop' | 'human'
-  condition?: string
-  trueBranch?: string
-  falseBranch?: string
-  items?: string[]
-  loopVar?: string
-  maxIterations?: number
-  prompt?: string
-  approvalRequired?: boolean
-  timeoutSeconds?: number
-  parallelSteps?: string[]
+// Type guards - now using WorkflowStep directly since it includes all needed fields
+function isConditionalStep(step: WorkflowStep): boolean {
+  return step.type === 'conditional'
 }
 
-// Type guards
-function isConditionalStep(step: WorkflowStep): step is ExtendedWorkflowStep {
-  return 'type' in step && (step as ExtendedWorkflowStep).type === 'conditional'
+function isLoopStep(step: WorkflowStep): boolean {
+  return step.type === 'loop'
 }
 
-function isLoopStep(step: WorkflowStep): step is ExtendedWorkflowStep {
-  return 'type' in step && (step as ExtendedWorkflowStep).type === 'loop'
+function isParallelStep(step: WorkflowStep): boolean {
+  return step.type === 'parallel'
 }
 
-function isParallelStep(step: WorkflowStep): step is ExtendedWorkflowStep {
-  return 'type' in step && (step as ExtendedWorkflowStep).type === 'parallel'
-}
-
-function isHumanStep(step: WorkflowStep): step is ExtendedWorkflowStep {
-  return 'type' in step && (step as ExtendedWorkflowStep).type === 'human'
+function isHumanStep(step: WorkflowStep): boolean {
+  return step.type === 'human'
 }
 
 // Workflow state schema
@@ -194,7 +179,7 @@ export class WorkflowBuilder {
    * Evaluate conditional step condition
    */
   private evaluateStepCondition(
-    step: ExtendedWorkflowStep,
+    step: WorkflowStep,
     state: typeof WorkflowStateSchema.State
   ): 'true' | 'false' {
     if (!step.condition) {

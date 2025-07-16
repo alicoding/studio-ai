@@ -8,9 +8,16 @@
  */
 
 // Core approval status and decision types
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired' | 'cancelled'
-export type ApprovalDecision = 'approved' | 'rejected'
+export type ApprovalStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'expired'
+  | 'cancelled'
+  | 'acknowledged'
+export type ApprovalDecision = 'approved' | 'rejected' | 'acknowledged'
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical'
+export type InteractionType = 'approval' | 'notification' | 'input'
 export type NotificationChannel = 'websocket' | 'email' | 'slack' | 'sms' | 'webhook' | 'push'
 export type NotificationStatus = 'pending' | 'sent' | 'delivered' | 'failed' | 'bounced'
 
@@ -42,6 +49,7 @@ export interface WorkflowApproval {
   approvalRequired: boolean
   autoApproveAfterTimeout: boolean
   escalationUserId?: string
+  interactionType: InteractionType // Type of human interaction required
 
   // Metadata
   createdAt: string // ISO datetime
@@ -110,6 +118,7 @@ export interface CreateApprovalRequest {
   approvalRequired?: boolean
   autoApproveAfterTimeout?: boolean
   escalationUserId?: string
+  interactionType?: InteractionType // Type of human interaction required
 }
 
 export interface ApprovalDecisionRequest {

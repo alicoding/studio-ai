@@ -13,6 +13,7 @@ import type { Server } from 'socket.io'
 
 export interface WorkflowContext {
   stepOutputs: Record<string, string>
+  stepResults?: Record<string, StepResult> // Added for human input context
   projectId?: string
   threadId: string
   io?: Server

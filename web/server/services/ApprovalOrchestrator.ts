@@ -38,6 +38,7 @@ interface ApprovalRow {
   approval_required: number
   auto_approve_after_timeout: number
   escalation_user_id: string | null
+  interaction_type: string
   created_at: string
   updated_at: string
 }
@@ -101,6 +102,7 @@ export class ApprovalOrchestrator {
       approvalRequired: request.approvalRequired ?? true,
       autoApproveAfterTimeout: request.autoApproveAfterTimeout ?? false,
       escalationUserId: request.escalationUserId,
+      interactionType: request.interactionType || 'approval',
       assignedTo: 'current-user', // Auto-assign to current user in single-user system
       createdAt: now,
       updatedAt: now,
@@ -124,6 +126,7 @@ export class ApprovalOrchestrator {
       'auto_approve_after_timeout',
       'escalation_user_id',
       'assigned_to',
+      'interaction_type',
       'created_at',
       'updated_at',
     ]
@@ -151,6 +154,7 @@ export class ApprovalOrchestrator {
       approval.autoApproveAfterTimeout ? 1 : 0,
       approval.escalationUserId,
       approval.assignedTo,
+      approval.interactionType,
       approval.createdAt,
       approval.updatedAt,
     ]
@@ -212,7 +216,89 @@ export class ApprovalOrchestrator {
   }
 
   /**
-   * Process approval decision and update status
+   * Handle interaction based on type - implements functional differences
+   * SOLID: Single responsibility - interaction type routing
+   */
+  async handleInteraction(
+    approvalId: string,
+    request: ApprovalDecisionRequest
+  ): Promise<ApprovalDecisionRecord> {
+    const approval = await this.getApproval(approvalId)
+    if (!approval) {
+      throw new Error(`Approval ${approvalId} not found`)
+    }
+
+    // Route to appropriate handler based on interaction type
+    switch (approval.interactionType) {
+      case 'approval':
+        return this.handleApprovalInteraction(approvalId, request)
+      case 'notification':
+        return this.handleNotificationInteraction(approvalId, request)
+      case 'input':
+        return this.handleInputInteraction(approvalId, request)
+      default:
+        // Fallback to approval behavior for unknown types
+        return this.handleApprovalInteraction(approvalId, request)
+    }
+  }
+
+  /**
+   * Handle approval interaction - requires explicit approve/reject decision
+   * SOLID: Single responsibility - approval-specific logic
+   */
+  private async handleApprovalInteraction(
+    approvalId: string,
+    request: ApprovalDecisionRequest
+  ): Promise<ApprovalDecisionRecord> {
+    // Approval mode: Only accept 'approved' or 'rejected' decisions
+    if (request.decision !== 'approved' && request.decision !== 'rejected') {
+      throw new Error('Approval interactions require "approved" or "rejected" decision')
+    }
+
+    return this.processDecision(approvalId, request)
+  }
+
+  /**
+   * Handle notification interaction - auto-acknowledge on any interaction
+   * SOLID: Single responsibility - notification-specific logic
+   */
+  private async handleNotificationInteraction(
+    approvalId: string,
+    request: ApprovalDecisionRequest
+  ): Promise<ApprovalDecisionRecord> {
+    // Notification mode: Any interaction acknowledges and continues workflow
+    const acknowledgeRequest: ApprovalDecisionRequest = {
+      ...request,
+      decision: 'acknowledged',
+      comment: request.comment || 'Notification acknowledged',
+    }
+
+    return this.processDecision(approvalId, acknowledgeRequest)
+  }
+
+  /**
+   * Handle input interaction - collects user input and continues
+   * SOLID: Single responsibility - input-specific logic
+   */
+  private async handleInputInteraction(
+    approvalId: string,
+    request: ApprovalDecisionRequest
+  ): Promise<ApprovalDecisionRecord> {
+    // Input mode: Requires comment/reasoning as input data
+    if (!request.comment && !request.reasoning) {
+      throw new Error('Input interactions require comment or reasoning to be provided')
+    }
+
+    const inputRequest: ApprovalDecisionRequest = {
+      ...request,
+      decision: 'acknowledged',
+    }
+
+    return this.processDecision(approvalId, inputRequest)
+  }
+
+  /**
+   * Process approval decision and update status (internal method)
    * SOLID: Single responsibility - decision processing
    */
   async processDecision(
@@ -494,6 +580,8 @@ export class ApprovalOrchestrator {
       approvalRequired: Boolean(row.approval_required),
       autoApproveAfterTimeout: Boolean(row.auto_approve_after_timeout),
       escalationUserId: row.escalation_user_id || undefined,
+      interactionType:
+        (row.interaction_type as 'approval' | 'notification' | 'input') || 'approval',
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }

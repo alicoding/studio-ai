@@ -14,21 +14,9 @@ import type { WorkflowStep, StepResult } from '../schemas/invoke'
 import { ApprovalOrchestrator } from './ApprovalOrchestrator'
 import type { RiskLevel } from '../schemas/approval-types'
 
-// Extended WorkflowStep type with new node fields
-interface ExtendedWorkflowStep extends WorkflowStep {
-  type?: 'task' | 'parallel' | 'conditional' | 'loop' | 'human'
-  // Loop-specific fields
-  items?: string[]
-  loopVar?: string
-  maxIterations?: number
-  // Human input fields
-  prompt?: string
-  approvalRequired?: boolean
-  timeoutSeconds?: number
-  riskLevel?: RiskLevel
-  // Parallel fields
-  parallelSteps?: string[]
-}
+// WorkflowStep from schemas now includes all needed fields, no need to extend
+// Type alias for clarity
+type ExtendedWorkflowStep = WorkflowStep
 
 // LangGraph state schema type
 type WorkflowStateSchema = {
@@ -71,8 +59,11 @@ export class WorkflowNodeFactory {
         }
 
         // Get appropriate executor and execute step
-        const executor = this.executorRegistry.getExecutor(step, context)
-        FlowLogger.log('step-execution', `-> ${executor.constructor.name}.execute(${step.id})`)
+        const executor = this.executorRegistry.getExecutor(step)
+        FlowLogger.log(
+          'step-execution',
+          `-> ${executor.constructor.name}.execute(${step.id || 'unknown'})`
+        )
 
         const stepResult = await executor.execute(step, context)
 
@@ -264,10 +255,9 @@ export class WorkflowNodeFactory {
       const startTime = Date.now()
 
       this.eventEmitter.emit({
-        type: 'human_input_required',
+        type: 'step_start',
         threadId: state.threadId,
         stepId: step.id,
-        prompt: step.prompt || 'Human approval required',
       })
 
       try {
@@ -286,10 +276,9 @@ export class WorkflowNodeFactory {
           }
 
           this.eventEmitter.emit({
-            type: 'human_input_received',
+            type: 'step_complete',
             threadId: state.threadId,
             stepId: step.id,
-            approved: true,
           })
 
           this.eventEmitter.emit({
@@ -307,13 +296,18 @@ export class WorkflowNodeFactory {
         // Production mode - real human approval using new ApprovalOrchestrator
         const approvalOrchestrator = new ApprovalOrchestrator()
 
+        // Determine timeout behavior and settings
+        const timeoutBehavior = step.timeoutBehavior || 'fail'
+        const timeoutSeconds = this.getTimeoutSeconds(step)
+        const interactionType = step.interactionType || 'approval'
+
         // Create approval request
         const approval = await approvalOrchestrator.createApproval({
           threadId: state.threadId,
           stepId: step.id!,
-          projectId: state.projectId,
-          workflowName: state.workflowName,
-          prompt: step.prompt || 'Human approval required to continue',
+          projectId: state.projectId as string,
+          workflowName: 'Human Input Workflow',
+          prompt: step.prompt || this.getDefaultPrompt(interactionType),
           contextData: {
             workflowSteps: Object.entries(state.stepResults || {}).map(([id, result]) => ({
               id,
@@ -326,23 +320,32 @@ export class WorkflowNodeFactory {
             currentStepIndex: Object.keys(state.stepResults || {}).length,
           },
           riskLevel: this.determineRiskLevel(step),
-          timeoutSeconds: step.timeoutSeconds || 3600,
-          approvalRequired: step.approvalRequired ?? true,
-          autoApproveAfterTimeout: false,
+          timeoutSeconds,
+          approvalRequired: interactionType === 'approval',
+          autoApproveAfterTimeout: timeoutBehavior === 'auto-approve',
+          interactionType: interactionType,
         })
 
         // Emit approval request event for UI notification
         this.eventEmitter.emit({
-          type: 'approval_requested',
+          type: 'step_start',
           threadId: state.threadId,
           stepId: step.id,
-          approvalId: approval.id,
-          prompt: approval.prompt,
-          timeoutSeconds: approval.timeoutSeconds,
         })
 
-        // Wait for approval decision with polling
-        const approved = await this.waitForApprovalDecision(approval.id, approval.timeoutSeconds)
+        // Handle different interaction types and timeout behaviors
+        let approved: boolean
+        if (timeoutBehavior === 'infinite') {
+          // Infinite wait - no timeout
+          approved = await this.waitForApprovalDecisionInfinite(approval.id)
+        } else {
+          // Finite timeout with specific behavior
+          approved = await this.waitForApprovalDecision(
+            approval.id,
+            approval.timeoutSeconds,
+            timeoutBehavior
+          )
+        }
 
         const approvalResult: StepResult = {
           id: step.id!,
@@ -353,10 +356,9 @@ export class WorkflowNodeFactory {
         }
 
         this.eventEmitter.emit({
-          type: 'human_input_received',
+          type: 'step_complete',
           threadId: state.threadId,
           stepId: step.id,
-          approved,
         })
 
         this.eventEmitter.emit({
@@ -393,9 +395,6 @@ export class WorkflowNodeFactory {
    * SOLID: Single responsibility - risk assessment logic
    */
   private determineRiskLevel(step: ExtendedWorkflowStep): RiskLevel {
-    // Check for explicit risk level configuration
-    if (step.riskLevel) return step.riskLevel
-
     // Analyze step task content for risk indicators
     const task = step.task?.toLowerCase() || ''
     const prompt = step.prompt?.toLowerCase() || ''
@@ -440,12 +439,81 @@ export class WorkflowNodeFactory {
   }
 
   /**
-   * Wait for approval decision with polling
-   * SOLID: Single responsibility - approval polling logic
+   * Get timeout seconds based on step configuration and behavior
+   * SOLID: Single responsibility - timeout calculation logic
+   */
+  private getTimeoutSeconds(step: ExtendedWorkflowStep): number {
+    // For infinite behavior, return 0 (handled separately)
+    if (step.timeoutBehavior === 'infinite') {
+      return 0
+    }
+
+    // Use configured timeout or default
+    return step.timeoutSeconds || 3600 // 1 hour default
+  }
+
+  /**
+   * Get default prompt based on interaction type
+   * SOLID: Single responsibility - prompt generation logic
+   */
+  private getDefaultPrompt(interactionType: 'approval' | 'notification' | 'input'): string {
+    switch (interactionType) {
+      case 'approval':
+        return 'Human approval required to continue'
+      case 'notification':
+        return 'Please review and acknowledge this step'
+      case 'input':
+        return 'Human input required to continue'
+      default:
+        return 'Human interaction required'
+    }
+  }
+
+  /**
+   * Wait for approval decision with infinite timeout
+   * SOLID: Single responsibility - infinite polling logic
+   */
+  private async waitForApprovalDecisionInfinite(approvalId: string): Promise<boolean> {
+    const approvalOrchestrator = new ApprovalOrchestrator()
+    const pollInterval = 5000 // 5 seconds for infinite wait
+
+    while (true) {
+      try {
+        const approval = await approvalOrchestrator.getApproval(approvalId)
+
+        if (!approval) {
+          throw new Error(`Approval ${approvalId} not found`)
+        }
+
+        if (approval.status === 'approved') {
+          return true
+        }
+
+        if (approval.status === 'rejected') {
+          return false
+        }
+
+        if (approval.status === 'cancelled') {
+          throw new Error(`Approval ${approvalId} was cancelled`)
+        }
+
+        // Still pending, continue polling
+        await new Promise((resolve) => setTimeout(resolve, pollInterval))
+      } catch (error) {
+        console.error(`Error polling approval ${approvalId}:`, error)
+        throw error
+      }
+    }
+  }
+
+  /**
+   * Wait for approval decision with timeout behavior support
+   * SOLID: Single responsibility - finite polling with behavior logic
    */
   private async waitForApprovalDecision(
     approvalId: string,
-    timeoutSeconds: number
+    timeoutSeconds: number,
+    timeoutBehavior: 'fail' | 'auto-approve' = 'fail'
   ): Promise<boolean> {
     const approvalOrchestrator = new ApprovalOrchestrator()
     const pollInterval = 2000 // 2 seconds
@@ -481,7 +549,13 @@ export class WorkflowNodeFactory {
       }
     }
 
-    // Timeout reached
-    throw new Error(`Approval ${approvalId} timed out after ${timeoutSeconds} seconds`)
+    // Timeout reached - apply timeout behavior
+    if (timeoutBehavior === 'auto-approve') {
+      console.log(`Approval ${approvalId} timed out, auto-approving`)
+      return true
+    } else {
+      // Default to fail behavior
+      throw new Error(`Approval ${approvalId} timed out after ${timeoutSeconds} seconds`)
+    }
   }
 }

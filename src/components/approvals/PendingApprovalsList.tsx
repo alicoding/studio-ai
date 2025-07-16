@@ -124,7 +124,7 @@ export const PendingApprovalsList: React.FC<PendingApprovalsListProps> = ({
   const handleApprovalDecision = useCallback(
     async (
       approvalId: string,
-      decision: 'approved' | 'rejected',
+      decision: 'approved' | 'rejected' | 'acknowledged',
       comment?: string,
       reasoning?: string
     ) => {

@@ -32,10 +32,11 @@ const CreateApprovalSchema = z.object({
   approvalRequired: z.boolean().default(true),
   autoApproveAfterTimeout: z.boolean().default(false),
   escalationUserId: z.string().optional(),
+  interactionType: z.enum(['approval', 'notification', 'input']).default('approval'),
 })
 
 const ApprovalDecisionSchema = z.object({
-  decision: z.enum(['approved', 'rejected']),
+  decision: z.enum(['approved', 'rejected', 'acknowledged']),
   comment: z.string().optional(),
   reasoning: z.string().optional(),
   confidenceLevel: z.number().int().min(1).max(5).optional(),
@@ -177,7 +178,7 @@ router.post('/:id/decide', async (req, res) => {
     const { id } = req.params
     const validatedData = ApprovalDecisionSchema.parse(req.body)
 
-    const decision = await approvalOrchestrator.processDecision(
+    const decision = await approvalOrchestrator.handleInteraction(
       id,
       validatedData as ApprovalDecisionRequest
     )
