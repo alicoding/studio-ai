@@ -21,10 +21,12 @@ type ExtendedWorkflowStep = WorkflowStep
 // LangGraph state schema type
 type WorkflowStateSchema = {
   State: {
+    steps: WorkflowStep[]
     stepResults: Record<string, StepResult>
     stepOutputs: Record<string, string>
     sessionIds: Record<string, string>
     threadId: string
+    projectId?: string
     [key: string]: unknown
   }
 }
@@ -191,29 +193,113 @@ export class WorkflowNodeFactory {
       })
 
       try {
-        const parallelSteps = step.parallelSteps || []
+        const parallelStepIds = step.parallelSteps || []
         FlowLogger.log(
           'parallel-execution',
-          `Parallel ${step.id} executing ${parallelSteps.length} steps`
+          `Parallel ${step.id} executing ${parallelStepIds.length} steps`
         )
 
-        // Simulate parallel execution results
+        // Find the actual workflow steps from state
+        const stepsToExecute = parallelStepIds
+          .map((stepId) => state.steps.find((s) => s.id === stepId))
+          .filter((s): s is ExtendedWorkflowStep => !!s)
+
+        if (stepsToExecute.length === 0) {
+          throw new Error(
+            `No valid steps found for parallel execution: ${parallelStepIds.join(', ')}`
+          )
+        }
+
+        // Create workflow context for each parallel step
+        const context: WorkflowContext = {
+          stepResults: state.stepResults || {},
+          stepOutputs: state.stepOutputs || {},
+          sessionIds: state.sessionIds || {},
+          threadId: state.threadId,
+        }
+
+        // Execute all steps in parallel
         const results = await Promise.allSettled(
-          parallelSteps.map(async (stepId) => {
-            return `Parallel step ${stepId} completed`
+          stepsToExecute.map(async (parallelStep) => {
+            // Emit start event for each parallel step
+            this.eventEmitter.emit({
+              type: 'step_start',
+              threadId: state.threadId,
+              stepId: parallelStep.id,
+            })
+
+            // Get appropriate executor and execute step
+            const executor = this.executorRegistry.getExecutor(parallelStep)
+            FlowLogger.log(
+              'parallel-execution',
+              `-> ${executor.constructor.name}.execute(${parallelStep.id || 'unknown'})`
+            )
+
+            const stepResult = await executor.execute(parallelStep, context)
+
+            FlowLogger.log(
+              'parallel-execution',
+              `<- ${executor.constructor.name} completed with status: ${stepResult.status}`
+            )
+
+            // Emit completion event for each parallel step
+            if (stepResult.status === 'success') {
+              this.eventEmitter.emit({
+                type: 'step_complete',
+                threadId: state.threadId,
+                stepId: parallelStep.id,
+                sessionId: stepResult.sessionId || undefined,
+              })
+            }
+
+            return { step: parallelStep, result: stepResult }
           })
         )
 
-        const successfulResults = results
-          .filter(
-            (result): result is PromiseFulfilledResult<string> => result.status === 'fulfilled'
-          )
-          .map((result) => result.value)
+        // Collect results and update state
+        const newStepResults = { ...state.stepResults }
+        const newStepOutputs = { ...state.stepOutputs }
+        const newSessionIds = { ...state.sessionIds }
+        const successfulSteps: string[] = []
+        const failedSteps: string[] = []
 
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            const { step: parallelStep, result: stepResult } = result.value
+            newStepResults[parallelStep.id!] = stepResult
+            newStepOutputs[parallelStep.id!] = stepResult.response
+            if (stepResult.sessionId) {
+              newSessionIds[parallelStep.id!] = stepResult.sessionId
+            }
+            if (stepResult.status === 'success') {
+              successfulSteps.push(parallelStep.id!)
+            } else {
+              failedSteps.push(parallelStep.id!)
+            }
+          } else {
+            // Handle rejected promises
+            const stepId = stepsToExecute[results.indexOf(result)]?.id
+            if (stepId) {
+              failedSteps.push(stepId)
+              newStepResults[stepId] = {
+                id: stepId,
+                status: 'failed',
+                response: `Parallel step failed: ${result.reason}`,
+                sessionId: '',
+                duration: Date.now() - startTime,
+              }
+            }
+          }
+        })
+
+        // Determine overall status - if any step failed, the parallel node is considered failed
+        const overallStatus: StepResult['status'] = failedSteps.length === 0 ? 'success' : 'failed'
+
+        // Create parallel node result
         const parallelResult: StepResult = {
           id: step.id!,
-          status: 'success',
-          response: `Parallel execution completed: ${successfulResults.join(', ')}`,
+          status: overallStatus,
+          response: `Parallel execution completed: ${successfulSteps.length} succeeded, ${failedSteps.length} failed`,
           sessionId: '',
           duration: Date.now() - startTime,
         }
@@ -225,8 +311,10 @@ export class WorkflowNodeFactory {
         })
 
         return {
-          stepResults: { ...state.stepResults, [step.id!]: parallelResult },
-          stepOutputs: { ...state.stepOutputs, [step.id!]: parallelResult.response },
+          stepResults: { ...newStepResults, [step.id!]: parallelResult },
+          stepOutputs: { ...newStepOutputs, [step.id!]: parallelResult.response },
+          sessionIds: newSessionIds,
+          ...(overallStatus === 'failed' ? { status: 'failed' as const } : {}),
         }
       } catch (error) {
         console.error(`Parallel ${step.id} error:`, error)
