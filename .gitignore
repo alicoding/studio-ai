@@ -58,12 +58,12 @@ test-*.js
 debug-*.js
 
 # Local configuration (not the app config)
-.claude-studio-local/
+.studio-ai-local/
 
-# Database files (should be in ~/.claude-studio/)
-.claude-studio/*.db
-.claude-studio/*.db-shm
-.claude-studio/*.db-wal
+# Database files (should be in ~/.studio-ai/)
+.studio-ai/*.db
+.studio-ai/*.db-shm
+.studio-ai/*.db-wal
 
 # Test reports and artifacts
 playwright-report/

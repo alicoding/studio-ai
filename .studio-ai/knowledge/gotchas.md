@@ -78,12 +78,14 @@ See also: [architecture.md](./architecture.md#cross-server-communication-archite
 ### Problem: Agent Conflicts in Parallel Tasks
 
 **Symptoms:**
+
 - Workflow fails at execution time rather than validation
 - Same agent assigned to multiple parallel tasks
 - "Agent busy" errors during workflow execution
 
 **Root Cause:**
 Using specific agentId for parallel tasks causes conflicts:
+
 ```javascript
 // ❌ WRONG - Causes conflict
 { id: "task1", agentId: "dev_01", task: "..." },
@@ -93,6 +95,7 @@ Using specific agentId for parallel tasks causes conflicts:
 **Solutions:**
 
 1. **Use roles for parallel tasks:**
+
 ```javascript
 // ✅ CORRECT - System assigns different developers
 { id: "task1", role: "developer", task: "..." },
@@ -100,6 +103,7 @@ Using specific agentId for parallel tasks causes conflicts:
 ```
 
 2. **Use different specific agents:**
+
 ```javascript
 // ✅ CORRECT - Different agents
 { id: "task1", agentId: "dev_01", task: "..." },
@@ -109,20 +113,22 @@ Using specific agentId for parallel tasks causes conflicts:
 ### Future Enhancement Needed: Pre-flight Validation
 
 The invoke system should validate workflows before execution:
+
 - Count required agents per role
-- Check agent availability  
+- Check agent availability
 - Detect agent ID conflicts
 - Provide auto-provisioning options
 
 ### Workaround Until Fixed
 
 Always use role-based assignment for parallel workflows:
+
 ```javascript
 // Safe pattern for parallel execution
 workflow: [
-  { role: "orchestrator", task: "analyze requirements" },
-  { role: "developer", task: "create tests A" },
-  { role: "developer", task: "create tests B" },  // Different developer
-  { role: "reviewer", task: "review all tests", deps: ["task_a", "task_b"] }
+  { role: 'orchestrator', task: 'analyze requirements' },
+  { role: 'developer', task: 'create tests A' },
+  { role: 'developer', task: 'create tests B' }, // Different developer
+  { role: 'reviewer', task: 'review all tests', deps: ['task_a', 'task_b'] },
 ]
 ```

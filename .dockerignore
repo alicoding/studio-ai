@@ -57,7 +57,7 @@ temp/
 *.sqlite3
 
 # Environment specific
-.claude-studio/
+.studio-ai/
 data/
 logs/
 

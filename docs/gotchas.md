@@ -33,7 +33,7 @@
 
 ### Database & Migrations
 
-- **SQLite Location**: `~/.claude-studio/studio.db` (not local `.claude-studio/`)
+- **SQLite Location**: `~/.studio-ai/studio.db` (not local `.studio-ai/`)
 - **Migration Errors**: Manually add migration records to fix "NOT NULL constraint failed"
 - **Pattern**: Check migration table before running new migrations
 
@@ -93,10 +93,10 @@ npm rebuild better-sqlite3  # Fix NODE_MODULE_VERSION mismatches
 
 ```bash
 # Check table structure
-sqlite3 ~/.claude-studio/studio.db "PRAGMA table_info(table_name);"
+sqlite3 ~/.studio-ai/studio.db "PRAGMA table_info(table_name);"
 
 # Manually add missing migration
-sqlite3 ~/.claude-studio/studio.db "INSERT INTO migrations (name, filename) VALUES ('migration_name.ts', 'migration_name.ts');"
+sqlite3 ~/.studio-ai/studio.db "INSERT INTO migrations (name, filename) VALUES ('migration_name.ts', 'migration_name.ts');"
 ```
 
 ### WebSocket Connection Errors

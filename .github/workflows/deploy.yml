@@ -84,7 +84,7 @@ jobs:
               deployment_id: deployment.data.id,
               state: 'success',
               environment_url: environment === 'production' 
-                ? 'https://claude-studio.example.com'
-                : 'https://staging.claude-studio.example.com',
+                ? 'https://studio-ai.example.com'
+                : 'https://staging.studio-ai.example.com',
               description: 'Deployment completed successfully'
             });

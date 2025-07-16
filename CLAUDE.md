@@ -251,7 +251,7 @@ npm run env:restart:dev # Restart only dev server
 # Dev server: http://localhost:3457 (hot reload enabled for development)
 
 # IMPORTANT: The UI is currently configured to use the DEV server (port 3457)
-# Check .claude-studio/dev-server.log for debugging, not stable-server.log
+# Check .studio-ai/dev-server.log for debugging, not stable-server.log
 ```
 
 ### Testing

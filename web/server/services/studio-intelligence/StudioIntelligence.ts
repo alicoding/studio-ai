@@ -1,16 +1,14 @@
 /**
- * StudioIntelligence - Built-in behaviors that make Studio smart
+ * StudioIntelligence - Hook management for Claude Code integration
  *
- * KISS: Direct integration with Claude Code hooks
- * DRY: Single place for all built-in intelligence
- * SOLID: Each behavior is a simple method
+ * KISS: Simple hook installation and management
+ * DRY: Single place for all hook configuration
+ * SOLID: Focused on hook functionality only
  */
 
-import { ProjectDetector, ProjectConfig } from './ProjectDetector'
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'fs'
 import { join, dirname } from 'path'
 import { homedir } from 'os'
-// import { execSync } from 'child_process'
 
 interface ClaudeHook {
   type: 'command'
@@ -30,11 +28,10 @@ interface ClaudeSettings {
     Stop?: ClaudeHookGroup[]
   }
   // Other Claude settings preserved
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export class StudioIntelligence {
-  private projectDetector = new ProjectDetector()
   private claudeSettingsPath = join(homedir(), '.claude', 'settings.json')
   private studioScriptsPath = join(homedir(), '.claude-studio', 'scripts')
 
@@ -76,16 +73,6 @@ export class StudioIntelligence {
     } else {
       console.log('📌 Existing hooks found, preserving user configuration')
     }
-  }
-
-  /**
-   * Initialize Studio Intelligence for a specific project
-   * This adds project-specific hooks based on detected configuration
-   * @deprecated Use ensureDefaultHooks() instead - Studio Intelligence is now system-wide defaults
-   */
-  async initializeForProject(_projectPath: string): Promise<void> {
-    // For backward compatibility, just ensure defaults exist
-    await this.ensureDefaultHooks()
   }
 
   /**
@@ -136,70 +123,6 @@ export class StudioIntelligence {
         installed: new Date().toISOString(),
       },
     }
-  }
-
-  /**
-   * Generate Claude Code hooks based on project configuration
-   * @deprecated Use getDefaultHooks() instead
-   */
-  private generateHooksForProject(config: ProjectConfig, projectPath: string): ClaudeSettings {
-    const hooks: ClaudeSettings = {
-      hooks: {
-        PostToolUse: [],
-        PreToolUse: [],
-        Stop: [],
-      },
-    }
-
-    // TypeScript checking hook
-    if (config.hasTypeScript) {
-      hooks.hooks!.PostToolUse!.push({
-        matcher: 'Write|Edit|MultiEdit',
-        hooks: [
-          {
-            type: 'command',
-            command: `node "${join(this.studioScriptsPath, 'check-typescript.js')}" "${projectPath}"`,
-          },
-        ],
-      })
-    }
-
-    // ESLint checking hook
-    if (config.hasESLint) {
-      hooks.hooks!.PostToolUse!.push({
-        matcher: 'Write|Edit|MultiEdit',
-        hooks: [
-          {
-            type: 'command',
-            command: `node "${join(this.studioScriptsPath, 'check-eslint.js')}" "${projectPath}"`,
-          },
-        ],
-      })
-    }
-
-    // File lock checking (always enabled)
-    hooks.hooks!.PreToolUse!.push({
-      matcher: 'Write|Edit|MultiEdit',
-      hooks: [
-        {
-          type: 'command',
-          command: `node "${join(this.studioScriptsPath, 'check-file-lock.js')}"`,
-        },
-      ],
-    })
-
-    // @mention routing (always enabled)
-    hooks.hooks!.Stop!.push({
-      matcher: '*',
-      hooks: [
-        {
-          type: 'command',
-          command: `node "${join(this.studioScriptsPath, 'check-mentions.js')}"`,
-        },
-      ],
-    })
-
-    return hooks
   }
 
   /**
@@ -298,95 +221,6 @@ try {
 }
 `
     writeFileSync(join(this.studioScriptsPath, 'check-typescript.js'), tsScript, { mode: 0o755 })
-
-    // ESLint checker script - intelligent detection
-    const eslintScript = `#!/usr/bin/env node
-// Studio Intelligence: ESLint Checker
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-
-const projectPath = process.env.PROJECT_PATH || process.cwd();
-const file = process.env.FILE_PATH;
-
-if (!file || !file.match(/\.(js|jsx|ts|tsx)$/)) {
-  process.exit(0);
-}
-
-// Check if project uses ESLint
-const hasESLint = fs.existsSync(path.join(projectPath, '.eslintrc.js')) ||
-                  fs.existsSync(path.join(projectPath, '.eslintrc.json')) ||
-                  fs.existsSync(path.join(projectPath, '.eslintrc.yml'));
-                  
-if (!hasESLint) {
-  process.exit(0);
-}
-
-try {
-  const output = execSync(\`npx eslint "\${file}"\`, {
-    cwd: projectPath,
-    encoding: 'utf-8',
-    stdio: 'pipe'
-  });
-} catch (error) {
-  if (error.stdout) {
-    const output = error.stdout.toString();
-    const errorCount = (output.match(/\d+ errors?/g) || [])[0];
-    if (errorCount) {
-      console.error(\`ESLint: \${errorCount}\`);
-    }
-  }
-}
-`
-    writeFileSync(join(this.studioScriptsPath, 'check-eslint.js'), eslintScript, { mode: 0o755 })
-
-    // Keep existing file lock and mention scripts
-    await this.createHookScripts({ hasTypeScript: true, hasESLint: true } as ProjectConfig, '')
-  }
-
-  /**
-   * Create the actual hook scripts
-   * @deprecated Use createDefaultHookScripts() instead
-   */
-  private async createHookScripts(config: ProjectConfig, _projectPath: string): Promise<void> {
-    // TypeScript checker script
-    if (config.hasTypeScript) {
-      const tsScript = `#!/usr/bin/env node
-// Studio Intelligence: TypeScript Checker
-const { execSync } = require('child_process');
-const path = require('path');
-
-const projectPath = process.argv[2] || process.cwd();
-const file = process.env.FILE_PATH;
-
-try {
-  // Run TypeScript check
-  const cmd = '${config.typeCheckCommand || 'npx tsc --noEmit'}';
-  const output = execSync(cmd, { 
-    cwd: projectPath,
-    encoding: 'utf-8',
-    stdio: 'pipe'
-  });
-  
-  // Parse errors and warnings
-  const lines = output.split('\\n');
-  const errors = lines.filter(line => line.includes('error TS'));
-  
-  if (errors.length > 0) {
-    console.error(\`TypeScript: \${errors.length} errors found\`);
-    // In future, we'll update agent card here
-  }
-} catch (error) {
-  // TypeScript errors return non-zero exit code
-  const output = error.stdout || error.message;
-  const errorCount = (output.match(/error TS/g) || []).length;
-  if (errorCount > 0) {
-    console.error(\`TypeScript: \${errorCount} errors found\`);
-  }
-}
-`
-      writeFileSync(join(this.studioScriptsPath, 'check-typescript.js'), tsScript, { mode: 0o755 })
-    }
 
     // File lock checker script
     const lockScript = `#!/usr/bin/env node
