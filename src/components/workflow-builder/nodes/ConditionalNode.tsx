@@ -64,64 +64,69 @@ function ConditionalNode({ data, selected, id }: NodeProps<ConditionalNodeData>)
         {/* Connection Handles */}
         <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-amber-500" />
 
-        {/* Diamond Shape */}
+        {/* Rectangular Shape with Cut Corners for Diamond Hint */}
         <div
           className={`
-            w-48 h-32 bg-card border-2 border-amber-500 
+            relative w-64 h-24 bg-card border-2 border-amber-500 
             ${selected ? 'ring-2 ring-primary' : ''} 
-            rotate-45 relative shadow-lg
-            transition-all duration-200 hover:shadow-xl
+            shadow-lg transition-all duration-200 hover:shadow-xl
+            rounded-lg overflow-hidden
           `}
         >
-          {/* Content Container (counter-rotated) */}
-          <div className="absolute inset-2 -rotate-45 flex flex-col items-center justify-center p-2">
-            <div className="flex items-center gap-1 mb-1">
+          {/* Diamond Corner Cuts */}
+          <div className="absolute top-0 left-0 w-4 h-4 bg-background transform rotate-45 -translate-x-2 -translate-y-2 border-r-2 border-b-2 border-amber-500" />
+          <div className="absolute top-0 right-0 w-4 h-4 bg-background transform rotate-45 translate-x-2 -translate-y-2 border-l-2 border-b-2 border-amber-500" />
+          <div className="absolute bottom-0 left-0 w-4 h-4 bg-background transform rotate-45 -translate-x-2 translate-y-2 border-r-2 border-t-2 border-amber-500" />
+          <div className="absolute bottom-0 right-0 w-4 h-4 bg-background transform rotate-45 translate-x-2 translate-y-2 border-l-2 border-t-2 border-amber-500" />
+
+          {/* Content Container */}
+          <div className="flex flex-col items-center justify-center h-full p-3">
+            <div className="flex items-center gap-2 mb-2">
               <GitBranch className="w-4 h-4 text-amber-600" />
-              <span className="text-xs font-medium text-foreground">Conditional</span>
+              <span className="text-sm font-medium text-foreground">Conditional</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-auto p-1 h-6 w-6"
+                onClick={() => setIsBuilderOpen(true)}
+                data-testid="node-settings"
+              >
+                <Edit className="w-3 h-3" />
+              </Button>
             </div>
 
-            {/* Condition display/edit */}
+            {/* Condition display */}
             <div
-              className="text-xs text-center cursor-pointer hover:text-foreground text-muted-foreground max-w-full px-1"
+              className="text-xs text-center cursor-pointer hover:text-foreground text-muted-foreground w-full px-2 py-1 bg-muted/30 rounded"
               onClick={() => setIsBuilderOpen(true)}
               data-testid="condition-display"
             >
               <div className="line-clamp-2">{conditionText}</div>
             </div>
-
-            <Button
-              size="sm"
-              variant="ghost"
-              className="absolute top-0 right-0 p-1 h-4 w-4"
-              onClick={() => setIsBuilderOpen(true)}
-              data-testid="node-settings"
-            >
-              <Edit className="w-2 h-2" />
-            </Button>
           </div>
         </div>
 
-        {/* Output Handles */}
+        {/* Output Handles with Better Positioning */}
         <Handle
           type="source"
           position={Position.Right}
           id="true"
           className="w-3 h-3 !bg-green-500"
-          style={{ top: '50%', right: '-6px' }}
+          style={{ top: '35%', right: '-6px' }}
         />
         <Handle
           type="source"
           position={Position.Left}
           id="false"
           className="w-3 h-3 !bg-red-500"
-          style={{ top: '50%', left: '-6px' }}
+          style={{ top: '35%', left: '-6px' }}
         />
 
-        {/* Branch Labels */}
-        <div className="absolute -right-8 top-1/2 transform -translate-y-1/2 text-xs text-green-600 font-medium">
+        {/* Branch Labels with Background */}
+        <div className="absolute -right-12 top-[35%] transform -translate-y-1/2 text-xs text-green-600 font-medium bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded">
           True
         </div>
-        <div className="absolute -left-8 top-1/2 transform -translate-y-1/2 text-xs text-red-600 font-medium">
+        <div className="absolute -left-14 top-[35%] transform -translate-y-1/2 text-xs text-red-600 font-medium bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">
           False
         </div>
       </div>
