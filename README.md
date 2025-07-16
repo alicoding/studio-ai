@@ -1,205 +1,207 @@
 # Studio AI
 
-**The Extensible AI Development Platform**
+**The Universal AI Agent Orchestration Platform**
 
-Studio AI is an open-source, visual workflow platform for building complex AI applications. Like n8n for automation, Studio AI provides an extensible node-based interface for AI development with multi-agent orchestration, community extensions, and support for multiple AI providers.
+Studio AI enables asynchronous communication and collaboration between AI coding agents through the Model Context Protocol (MCP). Orchestrate Claude Code, Gemini CLI, and future AI agents to work together on complex software projects.
 
-## 🎯 What is Studio AI?
+## 🎯 Core Innovation
 
-Studio AI transforms AI development from scattered scripts to **visual, reusable workflows**:
+Studio AI is the **first platform** that allows different AI coding agents to:
 
-- **Visual AI Workflows**: Drag-and-drop interface for complex AI agent coordination
-- **Multi-Provider Support**: Claude, GPT, Gemini, and community AI models
-- **Extensible Node System**: Community-driven marketplace for custom AI nodes
-- **Production Ready**: Docker deployment, PostgreSQL persistence, real-time monitoring
-- **MCP Integration**: Model Context Protocol discovery and management
+- **Communicate asynchronously** through MCP-based message passing
+- **Share context and outputs** between different AI systems (Claude → Gemini → Custom)
+- **Build workflows programmatically** - AI agents can create workflows for other agents
+- **Work autonomously** on scheduled tasks and complex multi-step projects
 
-## 🏗️ Core Features
+Think of it as **n8n for AI consciousness** - but instead of connecting APIs, you're connecting AI minds.
 
-### 🎛️ Visual Workflow Builder
+## 🚀 Quick Start
 
-Build sophisticated AI workflows with our n8n-inspired interface:
+```bash
+# Clone and start
+git clone https://github.com/alicoding/studio-ai.git
+cd studio-ai
+npm install
 
+# Configure your AI agents
+cp .env.example .env
+# Add your API keys (Anthropic, Google, etc.)
+
+# Start the platform
+npm run dev
 ```
-[Data Input] → [AI Analysis] → [Decision Logic] → [Multi-Agent Review] → [Output]
-    ↓              ↓              ↓                ↓               ↓
-  Any Format   GPT/Claude     Conditional      Team Agents    Structured Results
-```
 
-### 🤖 Multi-Agent Orchestration
+Access at http://localhost:5173
 
-Coordinate specialized AI agents working together:
+## 💡 What Can You Build?
+
+### Example: Multi-Agent Code Review
 
 ```javascript
-// Example: Automated code review workflow
+// Claude architect designs, Gemini implements, Claude reviews
 {
   workflow: [
-    { id: 'analyze', node: 'ai-analyzer', provider: 'claude', task: 'Analyze code quality' },
     {
-      id: 'security',
-      node: 'security-scan',
-      provider: 'gpt-4',
-      task: 'Security audit',
-      deps: ['analyze'],
+      id: 'design',
+      agent: 'claude_architect',
+      task: 'Design the authentication system',
+    },
+    {
+      id: 'implement',
+      agent: 'gemini_developer',
+      task: 'Implement based on: {design.output}',
+      deps: ['design'],
     },
     {
       id: 'review',
-      node: 'team-review',
-      agents: ['senior-dev', 'security-expert'],
-      deps: ['security'],
+      agent: 'claude_reviewer',
+      task: 'Review implementation: {implement.output}',
+      deps: ['implement'],
     },
   ]
 }
 ```
 
-### 🧩 Extensible Node System
+## 🏗️ Current Features (Working Now)
 
-**Built-in Nodes:**
+### ✅ Core Platform
 
-- **AI Providers**: Claude, GPT, Gemini, Local models
-- **Control Flow**: Conditional logic, loops, parallel execution
-- **Data Processing**: Transform, filter, aggregate
-- **Integrations**: APIs, databases, file systems
-- **Human-in-Loop**: Approval gates, manual review
+- **MCP Integration**: Native control of Claude Code through MCP
+- **Agent Orchestration**: Sequential and parallel task execution
+- **Workflow Builder**: Visual interface for creating agent workflows
+- **Real-time Monitoring**: Split-view workspace for agent collaboration
+- **Project Management**: Create, manage, and organize AI projects
+- **Tool Permissions**: Granular control over agent capabilities
 
-**Community Nodes:**
+### ✅ Pages & Functionality
 
-- Custom AI model integrations
-- Specialized domain agents (legal, medical, finance)
-- Industry-specific workflows
-- Advanced processing nodes
+#### `/` - Dashboard
 
-### 🌐 Community Marketplace
+- Quick resume for projects and workflows
+- Recent activity tracking
 
-- **Agent Templates**: Pre-configured specialist agents
-- **Workflow Templates**: Complete solutions for common use cases
-- **Custom Nodes**: Community-built extensions
-- **MCP Servers**: Discoverable tool integrations
+#### `/workspace` - Command Center
 
-## 🚀 Quick Start
+- Real-time agent communication monitoring
+- Split/Grid view for multiple agents
+- Direct chat with AI agents
+- Project-specific workflow creation
 
-### Docker Deployment (Recommended)
+#### `/projects` - Project Hub
 
-```bash
-# Clone and start
-git clone https://github.com/studio-ai/studio-ai.git
-cd studio-ai
-docker-compose up -d
+- Create new projects with CLAUDE.md
+- Git initialization
+- Add agents to projects
+- Basic project management (clone, delete, edit)
 
-# Access at http://localhost:3000
-```
+#### `/agents` - Agent Templates
 
-### Local Development
+- Create specialized agent roles (Architect, Developer, Tester)
+- Configure system prompts and tool permissions
+- Save reusable agent configurations
 
-```bash
-# Install dependencies
-npm install
+#### `/teams` - Team Templates
 
-# Set up environment
-cp .env.example .env
-# Add your API keys (Claude, OpenAI, Gemini)
+- Combine agents into reusable teams
+- Pre-configured agent groups for common scenarios
 
-# Start development servers
-npm run dev
-```
+#### `/workflows` - Workflow Builder (Beta)
 
-## 🎨 Use Cases
+- Visual workflow creation
+- Basic control flow nodes (Conditional, Loop, Parallel)
+- Human approval nodes
+- Save and load workflow templates
 
-### Code Development Workflows
+#### `/settings` - Configuration
 
-- Automated code review with multiple AI perspectives
-- Documentation generation and maintenance
-- Test suite creation and execution
-- Security auditing and compliance checking
+- AI provider configuration
+- MCP server management
+- Hook system for pre/post tool events
 
-### Content & Research
+## 🔮 Roadmap (Coming Soon)
 
-- Multi-source research compilation
-- Content creation with fact-checking
-- Translation and localization workflows
-- Data analysis and reporting
+### Phase 1: Multi-Agent Support (Q1 2025)
 
-### Business Process Automation
+- [ ] **Gemini CLI Integration** - Google's coding agent
+- [ ] **Cursor Support** - Popular AI code editor
+- [ ] **Windsurf Integration** - Codeium's agent
+- [ ] **Universal Agent Protocol** - Support any MCP-compatible agent
 
-- Document processing and approval chains
-- Customer support escalation workflows
-- Compliance monitoring and reporting
-- Decision support systems
+### Phase 2: Enhanced Platform (Q2 2025)
 
-## 🏛️ Architecture
+- [ ] **VSCode Web Integration** - Browse and edit code in workspace
+- [ ] **Advanced Chat UI** - Rich formatting, code highlighting
+- [ ] **Project Templates** - Bootstrap common project types
+- [ ] **Import Existing Projects** - One-click project import
+- [ ] **Workflow Marketplace** - Community nodes and templates
+- [ ] **Agent Marketplace** - Share specialized agent configurations
 
-Studio AI is built on a **microservices architecture** with:
+### Phase 3: Enterprise & Scale (Q3 2025)
 
-- **Frontend**: React + TypeScript visual workflow builder
-- **Backend**: Node.js + Express API server
-- **Database**: PostgreSQL (production) / SQLite (development)
+- [ ] **Multi-user Collaboration** - Team workspaces
+- [ ] **Approval Delegation** - Complex approval workflows
+- [ ] **Scheduled Workflows** - Cron-like agent automation
+- [ ] **Cloud Deployment** - Managed Studio AI instances
+- [ ] **Advanced Monitoring** - Agent performance analytics
+
+### Phase 4: AI-Native Features (Q4 2025)
+
+- [ ] **Self-Improving Workflows** - AI optimizes its own processes
+- [ ] **Cross-Agent Learning** - Agents learn from each other
+- [ ] **Natural Language Workflows** - Describe workflows in plain English
+- [ ] **Autonomous Project Management** - AI manages entire projects
+
+## 🛠️ Architecture
+
+- **Frontend**: React + TypeScript + Vite
+- **Backend**: Node.js + Express
+- **Database**: SQLite (dev) / PostgreSQL (production)
 - **Real-time**: WebSocket + Server-Sent Events
-- **AI Integration**: Multi-provider abstraction layer
-- **Extensions**: MCP-based plugin system
-
-## 🛣️ Roadmap
-
-### Phase 1: Core Platform ✅
-
-- [x] Visual workflow builder
-- [x] Multi-agent orchestration
-- [x] Claude integration
-- [x] Docker deployment
-
-### Phase 2: Multi-Provider & Extensions 🚧
-
-- [ ] OpenAI GPT integration
-- [ ] Google Gemini support
-- [ ] Community node marketplace
-- [ ] Advanced streaming chat interface
-- [ ] MCP server discovery
-
-### Phase 3: Enterprise & Scale 📋
-
-- [ ] Enterprise authentication
-- [ ] Advanced monitoring & analytics
-- [ ] Multi-tenant deployment
-- [ ] Performance optimization
-- [ ] Advanced workflow templates
-
-### Phase 4: AI-Native Features 🔮
-
-- [ ] Self-improving workflows
-- [ ] Natural language workflow creation
-- [ ] Intelligent agent routing
-- [ ] Automated optimization suggestions
+- **AI Integration**: MCP (Model Context Protocol)
+- **Workflow Engine**: LangGraph-based orchestration
 
 ## 🤝 Contributing
 
-Studio AI is community-driven. We welcome:
+We welcome contributions! Areas where we need help:
 
-- **Node Developers**: Build custom AI integrations
-- **Workflow Designers**: Create reusable templates
-- **Core Contributors**: Platform features and improvements
-- **Community Builders**: Documentation, tutorials, examples
+- **Bug Fixes**: Workflow builder UI, edge dragging, node positioning
+- **New Nodes**: Webhook, HTTP, Slack, Email, Database nodes
+- **AI Integrations**: Add support for new AI agents
+- **Documentation**: Tutorials, examples, best practices
+- **Community**: Share agents, workflows, and hooks
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
-## 🔒 Security & Privacy
+## 📦 Examples
 
-- **Open Source**: Full transparency with Apache 2.0 license
-- **Local Deployment**: Keep sensitive data on your infrastructure
-- **Configurable Privacy**: Choose which AI providers to use
-- **Audit Trail**: Complete workflow execution logging
+Check out the [examples](./examples/) directory for:
 
-## 🌟 Community
+- Multi-agent development workflows
+- Testing automation with AI teams
+- Documentation generation pipelines
+- Code review and approval flows
 
-- **GitHub**: [studio-ai/studio-ai](https://github.com/studio-ai/studio-ai)
-- **Discord**: [Join our community](https://discord.gg/studio-ai)
-- **Documentation**: [docs.studio-ai.dev](https://docs.studio-ai.dev)
-- **Marketplace**: [marketplace.studio-ai.dev](https://marketplace.studio-ai.dev)
+## 🔒 Security
+
+- **Local First**: Your code and data stay on your infrastructure
+- **API Key Management**: Secure storage of provider credentials
+- **Tool Permissions**: Fine-grained control over agent capabilities
+- **Audit Logs**: Complete tracking of agent actions
 
 ## 📄 License
 
-Apache 2.0 - see [LICENSE](./LICENSE) for details.
+MIT License - see [LICENSE](./LICENSE) for details.
+
+## 🌟 Community
+
+- **GitHub**: [alicoding/studio-ai](https://github.com/alicoding/studio-ai)
+- **Discord**: Coming soon
+- **Documentation**: In progress
 
 ---
 
-**Ready to build the future of AI development?** 🚀
+**Built by developers, for AI agents** 🤖
 
-[Get Started](./docs/installation.md) | [Examples](./examples/) | [API Reference](./docs/api/) | [Community](https://discord.gg/studio-ai)
+Studio AI is currently in **alpha**. We're building this in public and would love your feedback and contributions.
+
+_Frustrated with copy-pasting between AI tools? So were we. That's why we built Studio AI._

@@ -76,3 +76,5 @@ src/routeTree.gen.ts
 
 # MCP stable build directory
 .mcp-stable/
+.studio-ai/dev-server.pid
+.studio-ai/stable-server.pid

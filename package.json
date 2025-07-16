@@ -42,7 +42,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "description": "",
   "lint-staged": {
     "*.{ts,tsx}": [
