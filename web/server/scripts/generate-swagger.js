@@ -21,11 +21,11 @@ const swaggerAutoGenInstance = swaggerAutogen({ openapi: '3.0.0' })
 
 const doc = {
   info: {
-    title: 'Claude Studio API',
+    title: 'Studio AI API',
     description: `
-# Claude Studio API Documentation
+# Studio AI API Documentation
 
-This is the comprehensive API documentation for Claude Studio - an autonomous software engineering system.
+This is the comprehensive API documentation for Studio AI - an autonomous software engineering system.
 
 ## Key Features
 
@@ -68,7 +68,7 @@ API calls are rate-limited to prevent abuse. See response headers for current li
     `,
     version: '1.0.0',
     contact: {
-      name: 'Claude Studio',
+      name: 'Studio AI',
       url: 'https://github.com/alicoding/studio-ai',
     },
   },

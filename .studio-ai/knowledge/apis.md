@@ -1,4 +1,4 @@
-# Claude Studio APIs
+# Studio AI APIs
 
 ## Table of Contents
 

@@ -1,6 +1,6 @@
 /**
- * MCP Server Handler - Thin Bridge to Claude Studio APIs
- * 
+ * MCP Server Handler - Thin Bridge to Studio AI APIs
+ *
  * KISS: Just translates MCP calls to API calls
  * DRY: Reuses existing backend functionality (KY, AbortSignal)
  * Library-First: Uses existing APIs instead of reimplementing
@@ -16,7 +16,7 @@ export interface ToolCallArgs {
   input: string
   context?: {
     projectId?: string
-    targetProjectId?: string  // For cross-project routing
+    targetProjectId?: string // For cross-project routing
     sessionId?: string
     files?: string[]
     metadata?: Record<string, unknown>
@@ -63,28 +63,28 @@ const api = ky.create({
   prefixUrl: API_BASE,
   timeout: 60000,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 })
 
 /**
- * Handle MCP tool calls by routing to appropriate Claude Studio API
+ * Handle MCP tool calls by routing to appropriate Studio AI API
  */
 export async function handleToolCall(args: ToolCallArgs): Promise<TextContent> {
   try {
     switch (args.type) {
       case 'mention':
         return await handleMention(args)
-      
+
       case 'command':
         return await handleCommand(args)
-      
+
       case 'chat':
         return await handleChat(args)
-      
+
       case 'batch':
         return await handleBatch(args)
-      
+
       default:
         throw new Error(`Unknown operation type: ${args.type}`)
     }
@@ -92,7 +92,7 @@ export async function handleToolCall(args: ToolCallArgs): Promise<TextContent> {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return {
       type: 'text',
-      text: `Error: ${message}`
+      text: `Error: ${message}`,
     }
   }
 }
@@ -106,16 +106,16 @@ async function handleMention(args: ToolCallArgs): Promise<TextContent> {
   if (!mentionMatch) {
     throw new Error('Invalid mention format. Use: @target message')
   }
-  
+
   const [, target] = mentionMatch
-  
+
   // Build request with orchestration parameters
   const requestBody: Record<string, unknown> = {
     message: args.input,
     fromAgentId: args.context?.metadata?.agentId || 'claude',
-    projectId: args.context?.projectId || 'default'
+    projectId: args.context?.projectId || 'default',
   }
-  
+
   // Add orchestration parameters if provided
   if (args.context?.targetProjectId) {
     requestBody.targetProjectId = args.context.targetProjectId
@@ -126,32 +126,34 @@ async function handleMention(args: ToolCallArgs): Promise<TextContent> {
   if (args.timeout !== undefined) {
     requestBody.timeout = args.timeout
   }
-  
+
   // Call existing mention API using KY with optional cancellation
-  const result = await api.post('messages/mention', {
-    json: requestBody,
-    signal: args.signal
-  }).json<{
-    responses?: Record<string, unknown>
-    targets?: string[]
-    wait?: boolean
-  }>()
-  
+  const result = await api
+    .post('messages/mention', {
+      json: requestBody,
+      signal: args.signal,
+    })
+    .json<{
+      responses?: Record<string, unknown>
+      targets?: string[]
+      wait?: boolean
+    }>()
+
   // Format response based on wait mode
   if (args.wait && result.responses) {
     const responses = Object.entries(result.responses)
       .map(([agent, resp]) => `**@${agent}**: ${JSON.stringify(resp)}`)
       .join('\n\n')
-    
+
     return {
       type: 'text',
-      text: `Responses received:\n\n${responses}`
+      text: `Responses received:\n\n${responses}`,
     }
   }
-  
+
   return {
     type: 'text',
-    text: `Message sent to @${target}${args.wait ? ' (wait mode)' : ''}`
+    text: `Message sent to @${target}${args.wait ? ' (wait mode)' : ''}`,
   }
 }
 
@@ -160,17 +162,19 @@ async function handleMention(args: ToolCallArgs): Promise<TextContent> {
  */
 async function handleCommand(args: ToolCallArgs): Promise<TextContent> {
   const capabilityId = args.capability || 'search'
-  
+
   // Execute through AI endpoint (uses LangGraph orchestration) using KY
-  const result = await api.post('ai/execute', {
-    json: {
-      capabilityId,
-      input: args.input,
-      context: args.context
-    },
-    signal: args.signal
-  }).json<AIExecuteResponse>()
-  
+  const result = await api
+    .post('ai/execute', {
+      json: {
+        capabilityId,
+        input: args.input,
+        context: args.context,
+      },
+      signal: args.signal,
+    })
+    .json<AIExecuteResponse>()
+
   // Format response with metadata
   let responseText = result.content
   if (result.metadata) {
@@ -183,10 +187,10 @@ async function handleCommand(args: ToolCallArgs): Promise<TextContent> {
     }
     if (meta.turnCount) responseText += `\n• Turn: ${meta.turnCount}`
   }
-  
+
   return {
     type: 'text',
-    text: responseText
+    text: responseText,
   }
 }
 
@@ -197,45 +201,50 @@ async function handleBatch(args: ToolCallArgs): Promise<TextContent> {
   if (!args.messages || args.messages.length === 0) {
     throw new Error('Batch operation requires messages array')
   }
-  
+
   // Build batch request
   const batchRequest: Record<string, unknown> = {
     messages: args.messages,
     fromAgentId: args.context?.metadata?.agentId || 'claude',
     projectId: args.context?.projectId || 'default',
-    waitStrategy: args.waitStrategy || 'all'
+    waitStrategy: args.waitStrategy || 'all',
   }
-  
+
   // Add optional parameters
   if (args.timeout !== undefined) {
     batchRequest.timeout = args.timeout
   }
-  
+
   // Call batch API using KY
-  const result = await api.post('messages/batch', {
-    json: batchRequest,
-    signal: args.signal
-  }).json<{
-    batchId?: string
-    results?: Record<string, {
-      id: string
-      status: string
-      response?: unknown
-      error?: string
-      duration: number
-    }>
-    summary?: {
-      total: number
-      successful: number
-      failed: number
-      timedOut: number
-      duration: number
-    }
-  }>()
-  
+  const result = await api
+    .post('messages/batch', {
+      json: batchRequest,
+      signal: args.signal,
+    })
+    .json<{
+      batchId?: string
+      results?: Record<
+        string,
+        {
+          id: string
+          status: string
+          response?: unknown
+          error?: string
+          duration: number
+        }
+      >
+      summary?: {
+        total: number
+        successful: number
+        failed: number
+        timedOut: number
+        duration: number
+      }
+    }>()
+
   // Format batch results
   let responseText = `Batch operation completed\n\n`
-  
+
   if (result.summary) {
     responseText += `**Summary:**\n`
     responseText += `• Total: ${result.summary.total}\n`
@@ -244,7 +253,7 @@ async function handleBatch(args: ToolCallArgs): Promise<TextContent> {
     responseText += `• Timed out: ${result.summary.timedOut}\n`
     responseText += `• Duration: ${result.summary.duration}ms\n\n`
   }
-  
+
   if (result.results) {
     responseText += `**Results:**\n`
     for (const [msgId, msgResult] of Object.entries(result.results)) {
@@ -258,10 +267,10 @@ async function handleBatch(args: ToolCallArgs): Promise<TextContent> {
       responseText += `Duration: ${msgResult.duration}ms\n`
     }
   }
-  
+
   return {
     type: 'text',
-    text: responseText
+    text: responseText,
   }
 }
 
@@ -270,17 +279,19 @@ async function handleBatch(args: ToolCallArgs): Promise<TextContent> {
  */
 async function handleChat(args: ToolCallArgs): Promise<TextContent> {
   const capabilityId = args.capability || 'general-chat'
-  
+
   // Execute through AI endpoint (uses LangGraph orchestration) using KY
-  const result = await api.post('ai/execute', {
-    json: {
-      capabilityId,
-      input: args.input,
-      context: args.context
-    },
-    signal: args.signal
-  }).json<AIExecuteResponse>()
-  
+  const result = await api
+    .post('ai/execute', {
+      json: {
+        capabilityId,
+        input: args.input,
+        context: args.context,
+      },
+      signal: args.signal,
+    })
+    .json<AIExecuteResponse>()
+
   // Format response with metadata
   let responseText = result.content
   if (result.metadata) {
@@ -293,9 +304,9 @@ async function handleChat(args: ToolCallArgs): Promise<TextContent> {
     }
     if (meta.turnCount) responseText += `\n• Turn: ${meta.turnCount}`
   }
-  
+
   return {
     type: 'text',
-    text: responseText
+    text: responseText,
   }
 }

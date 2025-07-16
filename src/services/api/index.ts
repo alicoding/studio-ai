@@ -1,22 +1,22 @@
 /**
- * Claude Studio API Client - Centralized HTTP Client System
- * 
+ * Studio AI API Client - Centralized HTTP Client System
+ *
  * SOLID: Well-separated concerns across different provider types
  * DRY: Reusable HTTP client logic across all providers
  * KISS: Simple, intuitive API for common operations
  * Library-First: Built on ky, ready for future provider extensions
- * 
+ *
  * Usage Examples:
- * 
+ *
  * // Current Studio API (immediate replacement for existing fetch calls)
  * import { studioApi } from '@/services/api'
  * const agents = await studioApi.agents.getAll()
- * 
+ *
  * // Future LLM providers (ready for next iteration)
  * import { apiFactory } from '@/services/api'
  * const openaiClient = apiFactory.createLLMClient('openai')
  * const response = await openaiClient.chat([{ role: 'user', content: 'Hello' }])
- * 
+ *
  * // Custom providers
  * const customClient = apiFactory.createGenericClient({
  *   name: 'custom',
@@ -29,7 +29,7 @@
 export type {
   ProviderConfig,
   ApiProvider,
-  LLMProvider, 
+  LLMProvider,
   StudioProvider,
   ApiRequest,
   ApiResponse,
@@ -44,7 +44,7 @@ export type {
   ClientFactory,
   Agent,
   Team,
-  Project
+  Project,
 } from './types'
 
 // Base classes and services
@@ -59,16 +59,22 @@ export { apiFactory, studioApi } from './ClientFactory'
 // Import for legacy helpers and development utilities
 import { apiFactory, studioApi } from './ClientFactory'
 import { ApiConfigService } from './ConfigService'
-import type { ProviderConfig, CreateAgentData, UpdateAgentData, CreateTeamData, UpdateTeamData } from './types'
+import type {
+  ProviderConfig,
+  CreateAgentData,
+  UpdateAgentData,
+  CreateTeamData,
+  UpdateTeamData,
+} from './types'
 
 /**
  * Migration helper - provides backwards compatibility
- * 
+ *
  * This allows existing code to migrate gradually:
- * 
+ *
  * OLD:
  * import { agentsApi } from '@/services/api/agents'
- * 
+ *
  * NEW:
  * import { studioApi } from '@/services/api'
  * studioApi.agents.getAll() // same interface
@@ -78,7 +84,7 @@ export const legacyAgentsApi = {
   get: (id: string) => studioApi.agents.get(id),
   create: (data: CreateAgentData) => studioApi.agents.create(data),
   update: (id: string, data: UpdateAgentData) => studioApi.agents.update(id, data),
-  delete: (id: string) => studioApi.agents.delete(id)
+  delete: (id: string) => studioApi.agents.delete(id),
 }
 
 export const legacyTeamsApi = {
@@ -88,7 +94,7 @@ export const legacyTeamsApi = {
   delete: (id: string) => studioApi.teams.delete(id),
   clone: (id: string, name?: string) => studioApi.teams.clone(id, name),
   spawn: (teamId: string, projectId: string) => studioApi.teams.spawn(teamId, projectId),
-  import: (team: CreateTeamData) => studioApi.teams.import(team)
+  import: (team: CreateTeamData) => studioApi.teams.import(team),
 }
 
 /**
@@ -99,51 +105,67 @@ export const apiConfig = {
    * Configure OpenAI provider for user chat tabs
    */
   setupOpenAI: (apiKey: string, baseUrl?: string) => {
-    apiFactory.configureProvider('openai', {
-      name: 'openai',
-      baseUrl: baseUrl || 'https://api.openai.com/v1',
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 60000
-    }, apiKey)
+    apiFactory.configureProvider(
+      'openai',
+      {
+        name: 'openai',
+        baseUrl: baseUrl || 'https://api.openai.com/v1',
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 60000,
+      },
+      apiKey
+    )
   },
 
   /**
    * Configure custom OpenAI-compatible provider
    */
   setupCustomOpenAI: (name: string, baseUrl: string, apiKey: string) => {
-    apiFactory.configureProvider(name, {
+    apiFactory.configureProvider(
       name,
-      baseUrl,
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 60000
-    }, apiKey)
+      {
+        name,
+        baseUrl,
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 60000,
+      },
+      apiKey
+    )
   },
 
   /**
    * Configure Anthropic provider
    */
   setupAnthropic: (apiKey: string) => {
-    apiFactory.configureProvider('anthropic', {
-      name: 'anthropic',
-      baseUrl: 'https://api.anthropic.com',
-      headers: {
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01'
+    apiFactory.configureProvider(
+      'anthropic',
+      {
+        name: 'anthropic',
+        baseUrl: 'https://api.anthropic.com',
+        headers: {
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01',
+        },
+        timeout: 60000,
       },
-      timeout: 60000
-    }, apiKey)
+      apiKey
+    )
   },
 
   /**
    * Configure OpenRouter provider
    */
   setupOpenRouter: (apiKey: string) => {
-    apiFactory.configureProvider('openrouter', {
-      name: 'openrouter', 
-      baseUrl: 'https://openrouter.ai/api/v1',
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 60000
-    }, apiKey)
+    apiFactory.configureProvider(
+      'openrouter',
+      {
+        name: 'openrouter',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 60000,
+      },
+      apiKey
+    )
   },
 
   /**
@@ -154,7 +176,7 @@ export const apiConfig = {
       name: 'ollama',
       baseUrl: `${baseUrl}/api`,
       headers: { 'Content-Type': 'application/json' },
-      timeout: 120000 // Longer timeout for local inference
+      timeout: 120000, // Longer timeout for local inference
     })
   },
 
@@ -176,7 +198,7 @@ export const apiConfig = {
   /**
    * Remove provider
    */
-  removeProvider: (name: string) => apiFactory.removeProvider(name)
+  removeProvider: (name: string) => apiFactory.removeProvider(name),
 }
 
 /**
@@ -201,5 +223,6 @@ export const apiDev = {
   /**
    * Import configurations (for restore)
    */
-  importConfig: (configs: Record<string, ProviderConfig>) => ApiConfigService.getInstance().importConfig(configs)
+  importConfig: (configs: Record<string, ProviderConfig>) =>
+    ApiConfigService.getInstance().importConfig(configs),
 }

@@ -1,7 +1,7 @@
 /**
- * Studio API Provider - Claude Studio's Internal API
+ * Studio API Provider - Studio AI's Internal API
  *
- * SOLID: Single Responsibility - Claude Studio API operations only
+ * SOLID: Single Responsibility - Studio AI API operations only
  * DRY: Reuses BaseApiClient for HTTP operations
  * KISS: Simple wrapper around existing API endpoints
  * Library-First: Built on ky via BaseApiClient
@@ -231,7 +231,6 @@ export class StudioApiProvider extends BaseApiClient implements StudioProvider {
         hook,
       }),
   }
-
 
   /**
    * Diagnostics operations

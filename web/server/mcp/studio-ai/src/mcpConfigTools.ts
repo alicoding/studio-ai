@@ -20,7 +20,7 @@ export const TEMPLATE_VARIABLES = {
   AGENT_ID: 'Current agent ID',
   AGENT_ROLE: 'Current agent role',
   SESSION_ID: 'Current session ID',
-  CLAUDE_STUDIO_API: 'Claude Studio API base URL',
+  CLAUDE_STUDIO_API: 'Studio AI API base URL',
   CLAUDE_STUDIO_PROJECT_ID: 'Active project ID (legacy compatibility)',
 }
 
@@ -47,7 +47,7 @@ interface MCPServerInput {
  */
 export const listMCPServersTool: Tool = {
   name: 'list_mcp_servers',
-  description: `List all configured MCP servers in Claude Studio.
+  description: `List all configured MCP servers in Studio AI.
 
 Shows server configurations including:
 • Name and command
@@ -115,7 +115,7 @@ ${Object.entries(TEMPLATE_VARIABLES)
  */
 export const addMCPServerTool: Tool = {
   name: 'add_mcp_server',
-  description: `Add a new MCP server configuration to Claude Studio.
+  description: `Add a new MCP server configuration to Studio AI.
 
 Example for studio-ai server:
 add_mcp_server({
@@ -273,7 +273,7 @@ export async function handleUpdateMCPServer(
  */
 export const deleteMCPServerTool: Tool = {
   name: 'delete_mcp_server',
-  description: 'Delete an MCP server configuration from Claude Studio.',
+  description: 'Delete an MCP server configuration from Studio AI.',
   inputSchema: {
     type: 'object',
     required: ['id'],

@@ -65,7 +65,7 @@ function LandingPage() {
       <ConnectionStatusBanner />
       <div className="container mx-auto py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Claude Studio</h1>
+          <h1 className="text-3xl font-bold mb-2">Studio AI</h1>
           <p className="text-muted-foreground">Manage your AI projects and workflows</p>
         </div>
 

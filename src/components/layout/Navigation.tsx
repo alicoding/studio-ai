@@ -23,7 +23,7 @@ export function Navigation() {
 
   return (
     <nav className="flex items-center justify-between bg-card border-b border-border px-6 h-14">
-      <div className="text-xl font-semibold text-primary">Claude Studio</div>
+      <div className="text-xl font-semibold text-primary">Studio AI</div>
       <div className="flex gap-6">
         <Link
           to={workspaceUrl}

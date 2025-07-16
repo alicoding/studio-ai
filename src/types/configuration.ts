@@ -1,6 +1,6 @@
 /**
- * Configuration Types for Claude Studio
- * 
+ * Configuration Types for Studio AI
+ *
  * Hierarchical configuration system:
  * System > Project > Team > Agent
  * More specific configurations override broader ones
@@ -78,35 +78,35 @@ export class ConfigResolver {
       mcpServers: [],
       systemPrompt: '',
       maxTokens: agent.maxTokens || system?.defaultMaxTokens || 200000,
-      environmentVariables: {}
+      environmentVariables: {},
     }
 
     // Apply tools hierarchy (most specific wins)
     const toolSet = new Set<string>()
-    
+
     // Start with system defaults
-    system?.defaultTools?.forEach(t => toolSet.add(t))
-    
+    system?.defaultTools?.forEach((t) => toolSet.add(t))
+
     // Add team tools
-    team?.sharedTools?.forEach(t => toolSet.add(t))
-    
+    team?.sharedTools?.forEach((t) => toolSet.add(t))
+
     // Agent tools are explicit (not additive)
     if (agent.tools.length > 0) {
       toolSet.clear()
-      agent.tools.forEach(t => toolSet.add(t))
+      agent.tools.forEach((t) => toolSet.add(t))
     }
-    
+
     // Remove project-disabled tools
-    project?.disabledTools?.forEach(t => toolSet.delete(t))
-    
+    project?.disabledTools?.forEach((t) => toolSet.delete(t))
+
     resolved.tools = Array.from(toolSet)
 
     // Apply MCP servers (additive)
     const mcpSet = new Set<string>()
-    system?.globalMcpServers?.forEach(s => mcpSet.add(s))
-    project?.mcpServers?.forEach(s => mcpSet.add(s))
-    team?.sharedMcpServers?.forEach(s => mcpSet.add(s))
-    agent.mcpServers?.forEach(s => mcpSet.add(s))
+    system?.globalMcpServers?.forEach((s) => mcpSet.add(s))
+    project?.mcpServers?.forEach((s) => mcpSet.add(s))
+    team?.sharedMcpServers?.forEach((s) => mcpSet.add(s))
+    agent.mcpServers?.forEach((s) => mcpSet.add(s))
     resolved.mcpServers = Array.from(mcpSet)
 
     // Build system prompt (concatenate prefixes)

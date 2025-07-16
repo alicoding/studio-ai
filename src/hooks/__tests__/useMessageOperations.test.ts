@@ -120,7 +120,7 @@ describe('useMessageOperations - Project Path Bug', () => {
     expect(mockSendClaudeMessage).toHaveBeenCalledWith('Test message', {
       projectId: 'project-123',
       agentId: 'developer_01',
-      projectPath: '~/projects/bns-ai', // Should use the project path, not Claude Studio path
+      projectPath: '~/projects/bns-ai', // Should use the project path, not Studio AI path
       role: 'dev',
       sessionId: 'session-123',
     })
@@ -176,14 +176,14 @@ describe('useMessageOperations - Project Path Bug', () => {
     })
   })
 
-  it('should NOT send Claude Studio path when messaging agents', async () => {
+  it('should NOT send Studio AI path when messaging agents', async () => {
     const { result } = renderHook(() => useMessageOperations())
 
     // Wrong project data (simulating the bug)
     const wrongProject = {
       id: 'project-123',
       name: 'bns-ai',
-      path: '/Users/ali/claude-swarm/claude-team/studio-ai', // WRONG - Claude Studio path
+      path: '/Users/ali/claude-swarm/claude-team/studio-ai', // WRONG - Studio AI path
       createdAt: new Date().toISOString(),
       sessionCount: 0,
       status: 'active' as const,
@@ -209,7 +209,7 @@ describe('useMessageOperations - Project Path Bug', () => {
       await result.current.sendMessage('Test message', mockAgents, wrongProject)
     })
 
-    // This test documents the bug - it should NOT send Claude Studio path
+    // This test documents the bug - it should NOT send Studio AI path
     const call = mockSendClaudeMessage.mock.calls[0]
     const options = call[1]
 

@@ -1,6 +1,6 @@
-# Playwright E2E Tests for Claude Studio
+# Playwright E2E Tests for Studio AI
 
-This directory contains comprehensive end-to-end tests for Claude Studio, with a focus on conditional workflow functionality.
+This directory contains comprehensive end-to-end tests for Studio AI, with a focus on conditional workflow functionality.
 
 ## Test Structure
 

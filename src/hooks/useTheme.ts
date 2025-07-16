@@ -1,5 +1,5 @@
 /**
- * Theme hooks for Claude Studio
+ * Theme hooks for Studio AI
  *
  * SOLID: Single responsibility - theme-related hooks only
  * DRY: Centralized theme logic used across components

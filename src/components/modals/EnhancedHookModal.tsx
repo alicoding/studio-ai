@@ -33,58 +33,104 @@ interface EnhancedHookModalProps {
   defaultScope?: HookScope
 }
 
-const CLAUDE_CODE_EVENTS: Array<{ 
+const CLAUDE_CODE_EVENTS: Array<{
   value: ClaudeCodeEvent
   label: string
   description: string
   supportsMatcher: boolean
 }> = [
-  { value: 'PreToolUse', label: 'Pre Tool Use', description: 'Before any tool execution', supportsMatcher: true },
-  { value: 'PostToolUse', label: 'Post Tool Use', description: 'After tool completion', supportsMatcher: true },
-  { value: 'Notification', label: 'Notification', description: 'During notifications', supportsMatcher: true },
-  { value: 'Stop', label: 'Stop', description: 'When Claude Code finishes', supportsMatcher: false },
+  {
+    value: 'PreToolUse',
+    label: 'Pre Tool Use',
+    description: 'Before any tool execution',
+    supportsMatcher: true,
+  },
+  {
+    value: 'PostToolUse',
+    label: 'Post Tool Use',
+    description: 'After tool completion',
+    supportsMatcher: true,
+  },
+  {
+    value: 'Notification',
+    label: 'Notification',
+    description: 'During notifications',
+    supportsMatcher: true,
+  },
+  {
+    value: 'Stop',
+    label: 'Stop',
+    description: 'When Claude Code finishes',
+    supportsMatcher: false,
+  },
 ]
 
 // Helper to get event config
 const getEventConfig = (event: HookEvent) => {
-  const claudeEvent = CLAUDE_CODE_EVENTS.find(e => e.value === event)
-  const studioEvent = STUDIO_EVENTS.find(e => e.value === event)
+  const claudeEvent = CLAUDE_CODE_EVENTS.find((e) => e.value === event)
+  const studioEvent = STUDIO_EVENTS.find((e) => e.value === event)
   return claudeEvent || studioEvent || { supportsMatcher: true }
 }
 
 // These are conceptual - not supported by Claude Code's native system
-const STUDIO_EVENTS: Array<{ value: StudioEvent; label: string; description: string; supportsMatcher: boolean }> = [
-  { value: 'AgentMessage', label: 'Agent Message', description: '(Conceptual) When agents communicate', supportsMatcher: true },
+const STUDIO_EVENTS: Array<{
+  value: StudioEvent
+  label: string
+  description: string
+  supportsMatcher: boolean
+}> = [
+  {
+    value: 'AgentMessage',
+    label: 'Agent Message',
+    description: '(Conceptual) When agents communicate',
+    supportsMatcher: true,
+  },
   {
     value: 'TypeCheckFailed',
     label: 'Type Check Failed',
     description: '(Conceptual) TypeScript errors detected',
-    supportsMatcher: true
+    supportsMatcher: true,
   },
-  { value: 'LintError', label: 'Lint Error', description: '(Conceptual) ESLint/other linting errors', supportsMatcher: true },
+  {
+    value: 'LintError',
+    label: 'Lint Error',
+    description: '(Conceptual) ESLint/other linting errors',
+    supportsMatcher: true,
+  },
   {
     value: 'FileConflict',
     label: 'File Conflict',
     description: '(Conceptual) Multiple agents editing same file',
-    supportsMatcher: true
+    supportsMatcher: true,
   },
   {
     value: 'ToolValidation',
     label: 'Tool Validation',
     description: '(Conceptual) Before tool execution validation',
-    supportsMatcher: true
+    supportsMatcher: true,
   },
   {
     value: 'SessionCompaction',
     label: 'Session Compaction',
     description: '(Conceptual) When session needs compaction',
-    supportsMatcher: false
+    supportsMatcher: false,
   },
-  { value: 'AgentHandoff', label: 'Agent Handoff', description: '(Conceptual) Switching between agents', supportsMatcher: true },
+  {
+    value: 'AgentHandoff',
+    label: 'Agent Handoff',
+    description: '(Conceptual) Switching between agents',
+    supportsMatcher: true,
+  },
 ]
 
 const HOOK_TYPES = [
-  { value: 'command', label: 'Command', icon: Terminal, description: 'Execute shell commands (Only supported type)', disabled: false },
+  {
+    value: 'command',
+    label: 'Command',
+    icon: Terminal,
+    description: 'Execute shell commands (Only supported type)',
+    disabled: false,
+  },
   {
     value: 'validation',
     label: 'Validation',
@@ -92,8 +138,20 @@ const HOOK_TYPES = [
     description: '(Conceptual) Validate before actions',
     disabled: true,
   },
-  { value: 'notification', label: 'Notification', icon: Bell, description: '(Conceptual) Send notifications', disabled: true },
-  { value: 'studio', label: 'Studio Action', icon: Zap, description: '(Conceptual) Trigger studio actions', disabled: true },
+  {
+    value: 'notification',
+    label: 'Notification',
+    icon: Bell,
+    description: '(Conceptual) Send notifications',
+    disabled: true,
+  },
+  {
+    value: 'studio',
+    label: 'Studio Action',
+    icon: Zap,
+    description: '(Conceptual) Trigger studio actions',
+    disabled: true,
+  },
 ] as const
 
 export function EnhancedHookModal({
@@ -238,7 +296,7 @@ export function EnhancedHookModal({
     const baseHook = {
       id: hook?.id || `hook-${Date.now()}`,
       event: formData.event,
-      matcher: eventConfig.supportsMatcher ? (formData.matcher || '*') : '*',
+      matcher: eventConfig.supportsMatcher ? formData.matcher || '*' : '*',
       scope: formData.scope,
       enabled: formData.enabled,
       description: formData.description,
@@ -331,14 +389,15 @@ export function EnhancedHookModal({
                 <div
                   key={value}
                   className={`p-3 rounded-lg border-2 transition-colors ${
-                    disabled 
-                      ? 'opacity-50 cursor-not-allowed border-border' 
+                    disabled
+                      ? 'opacity-50 cursor-not-allowed border-border'
                       : formData.type === value
-                      ? 'border-primary bg-primary/10 cursor-pointer'
-                      : 'border-border hover:border-muted-foreground/50 cursor-pointer'
+                        ? 'border-primary bg-primary/10 cursor-pointer'
+                        : 'border-border hover:border-muted-foreground/50 cursor-pointer'
                   }`}
                   onClick={() =>
-                    !disabled && setFormData((prev) => ({
+                    !disabled &&
+                    setFormData((prev) => ({
                       ...prev,
                       type: value as 'command' | 'validation' | 'notification' | 'studio',
                     }))
@@ -373,7 +432,7 @@ export function EnhancedHookModal({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              {formData.scope === 'studio' && 'Applies to Claude Studio operations'}
+              {formData.scope === 'studio' && 'Applies to Studio AI operations'}
               {formData.scope === 'project' && 'Applies to specific projects'}
               {formData.scope === 'system' && 'Applies globally to all Claude Code operations'}
             </p>
@@ -387,11 +446,11 @@ export function EnhancedHookModal({
               onValueChange={(value) => {
                 const event = value as HookEvent
                 const eventConfig = getEventConfig(event)
-                setFormData((prev) => ({ 
-                  ...prev, 
+                setFormData((prev) => ({
+                  ...prev,
                   event,
                   // Clear matcher if event doesn't support it
-                  matcher: eventConfig.supportsMatcher ? prev.matcher : undefined
+                  matcher: eventConfig.supportsMatcher ? prev.matcher : undefined,
                 }))
               }}
             >
@@ -410,7 +469,7 @@ export function EnhancedHookModal({
                     </div>
                   </SelectItem>
                 ))}
-                
+
                 {/* Show Studio Intelligence examples as info text, not selectable items */}
                 {formData.type === 'command' && (
                   <>
@@ -420,14 +479,23 @@ export function EnhancedHookModal({
                         Studio Intelligence Examples:
                       </div>
                       <div className="text-xs text-muted-foreground space-y-1">
-                        <div>• <strong>TypeScript/Lint Checks</strong> → Use PostToolUse event with Write|Edit|MultiEdit matcher</div>
-                        <div>• <strong>File Lock Warnings</strong> → Use PreToolUse event with Write|Edit|MultiEdit matcher</div>
-                        <div>• <strong>Session Summary/Logging</strong> → Use Stop event (runs before response ends)</div>
+                        <div>
+                          • <strong>TypeScript/Lint Checks</strong> → Use PostToolUse event with
+                          Write|Edit|MultiEdit matcher
+                        </div>
+                        <div>
+                          • <strong>File Lock Warnings</strong> → Use PreToolUse event with
+                          Write|Edit|MultiEdit matcher
+                        </div>
+                        <div>
+                          • <strong>Session Summary/Logging</strong> → Use Stop event (runs before
+                          response ends)
+                        </div>
                       </div>
                     </div>
                   </>
                 )}
-                
+
                 {/* Show conceptual events as disabled */}
                 {formData.type !== 'command' && (
                   <>
@@ -464,12 +532,22 @@ export function EnhancedHookModal({
                       <div className="space-y-2">
                         <p>Pattern to match Claude Code tool names:</p>
                         <ul className="text-xs space-y-1">
-                          <li>• <code>Write</code> - Single tool</li>
-                          <li>• <code>Write|Edit|MultiEdit</code> - Multiple tools</li>
-                          <li>• <code>Web.*</code> - Regex pattern</li>
-                          <li>• <code>*</code> - All tools</li>
+                          <li>
+                            • <code>Write</code> - Single tool
+                          </li>
+                          <li>
+                            • <code>Write|Edit|MultiEdit</code> - Multiple tools
+                          </li>
+                          <li>
+                            • <code>Web.*</code> - Regex pattern
+                          </li>
+                          <li>
+                            • <code>*</code> - All tools
+                          </li>
                         </ul>
-                        <p className="text-xs mt-2">Common tools: Task, Bash, Read, Write, Edit, MultiEdit, WebSearch, etc.</p>
+                        <p className="text-xs mt-2">
+                          Common tools: Task, Bash, Read, Write, Edit, MultiEdit, WebSearch, etc.
+                        </p>
                       </div>
                     </TooltipContent>
                   </Tooltip>

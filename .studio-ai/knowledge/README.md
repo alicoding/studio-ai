@@ -1,6 +1,6 @@
-# Claude Studio Knowledge Base
+# Studio AI Knowledge Base
 
-This is a living documentation maintained by the Knowledge Facilitator agent. It provides instant, accurate answers about the Claude Studio codebase.
+This is a living documentation maintained by the Knowledge Facilitator agent. It provides instant, accurate answers about the Studio AI codebase.
 
 ## Quick Links
 

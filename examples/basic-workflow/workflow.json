@@ -9,7 +9,7 @@
     "task": "Create a simple 'Hello World' function in JavaScript with proper documentation and example usage"
   },
   "metadata": {
-    "author": "Claude Studio Examples",
+    "author": "Studio AI Examples",
     "category": "Getting Started",
     "tags": ["basic", "single-agent", "javascript", "hello-world"],
     "estimatedDuration": "1-2 minutes",

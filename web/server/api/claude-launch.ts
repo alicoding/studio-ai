@@ -185,7 +185,7 @@ router.post('/test-env', async (req: Request, res: Response) => {
 
     // Create a simple test script that outputs environment variables
     const testScript = `
-      console.log('=== Claude Studio Environment Variables ===');
+      console.log('=== Studio AI Environment Variables ===');
       console.log('CLAUDE_STUDIO_PROJECT_ID:', process.env.CLAUDE_STUDIO_PROJECT_ID);
       console.log('CLAUDE_STUDIO_AGENT_ID:', process.env.CLAUDE_STUDIO_AGENT_ID);
       console.log('CLAUDE_STUDIO_SESSION_ID:', process.env.CLAUDE_STUDIO_SESSION_ID);

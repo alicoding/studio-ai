@@ -347,7 +347,7 @@ export async function handleInvoke(args: unknown): Promise<{ type: 'text'; text:
  */
 export const getRolesTool: Tool = {
   name: 'get_roles',
-  description: `Get all available agent roles from your Claude Studio configuration.
+  description: `Get all available agent roles from your Studio AI configuration.
 
 WHAT IT DOES:
 • Lists all roles currently configured in your agents

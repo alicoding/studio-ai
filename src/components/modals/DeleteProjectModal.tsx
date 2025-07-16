@@ -41,7 +41,7 @@ export function DeleteProjectModal({
         <div className="bg-muted/50 rounded-lg p-4 space-y-2">
           <h4 className="font-medium text-sm">This will:</h4>
           <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• Remove the project from Claude Studio</li>
+            <li>• Remove the project from Studio AI</li>
             <li>• NOT delete the actual files on disk</li>
             <li>• NOT affect Claude Code session history</li>
           </ul>

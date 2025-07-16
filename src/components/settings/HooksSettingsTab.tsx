@@ -278,14 +278,18 @@ export function HooksSettingsTab({
         <CardHeader>
           <CardTitle>Multi-tier Hook System</CardTitle>
           <CardDescription>
-            Configure hooks for Claude Studio coordination, project-specific rules, and system-wide
+            Configure hooks for Studio AI coordination, project-specific rules, and system-wide
             policies
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <SecurityNotice />
 
-          <Tabs defaultValue="studio" className="space-y-4" onValueChange={(value) => setCurrentTab(value as HookScope)}>
+          <Tabs
+            defaultValue="studio"
+            className="space-y-4"
+            onValueChange={(value) => setCurrentTab(value as HookScope)}
+          >
             <div className="flex items-center justify-between">
               <TabsList>
                 <TabsTrigger value="studio" className="flex items-center gap-2">

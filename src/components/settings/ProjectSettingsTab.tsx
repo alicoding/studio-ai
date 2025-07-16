@@ -33,7 +33,7 @@ export function ProjectSettingsTab() {
         const stubProjects: Project[] = [
           {
             id: 'studio-ai',
-            name: 'Claude Studio',
+            name: 'Studio AI',
             path: process.cwd(),
           },
         ]

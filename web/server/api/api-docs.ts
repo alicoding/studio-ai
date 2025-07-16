@@ -26,7 +26,7 @@ function getSwaggerSpec() {
     return {
       openapi: '3.0.0',
       info: {
-        title: 'Claude Studio API',
+        title: 'Studio AI API',
         version: '1.0.0',
         description:
           'Swagger documentation not yet generated. Run `npm run docs:generate` to create documentation.',
@@ -43,7 +43,7 @@ function getSwaggerSpec() {
     return {
       openapi: '3.0.0',
       info: {
-        title: 'Claude Studio API',
+        title: 'Studio AI API',
         version: '1.0.0',
         description: 'Error loading API documentation',
       },
@@ -81,7 +81,7 @@ const swaggerOptions = {
       border: 1px solid #e5e7eb;
     }
   `,
-  customSiteTitle: 'Claude Studio API Documentation',
+  customSiteTitle: 'Studio AI API Documentation',
   customfavIcon: '/favicon.ico',
 }
 
@@ -106,7 +106,7 @@ router.get('/redoc', (req, res) => {
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Claude Studio API - ReDoc</title>
+        <title>Studio AI API - ReDoc</title>
         <meta charset="utf-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">

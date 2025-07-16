@@ -22,7 +22,7 @@ export interface Agent {
   status?: string
 }
 
-// Agent configuration interfaces matching Claude Studio
+// Agent configuration interfaces matching Studio AI
 export interface AgentConfig {
   id: string
   name: string

@@ -1,6 +1,6 @@
 /**
  * API Client Factory - Creates and manages API providers
- * 
+ *
  * SOLID: Single Responsibility - Client creation and management
  * DRY: Centralized provider instantiation
  * KISS: Simple factory pattern with caching
@@ -10,24 +10,24 @@
 import { BaseApiClient } from './BaseApiClient'
 import { StudioApiProvider } from './StudioApiProvider'
 import { ApiConfigService } from './ConfigService'
-import type { 
+import type {
   ClientFactory as IClientFactory,
-  ApiProvider, 
-  StudioProvider, 
+  ApiProvider,
+  StudioProvider,
   LLMProvider,
-  ProviderConfig 
+  ProviderConfig,
 } from './types'
 
 export class ApiClientFactory implements IClientFactory {
   private static instance: ApiClientFactory | null = null
   private configService: ApiConfigService
-  
+
   // Provider cache for performance and consistency
   private providerCache = new Map<string, ApiProvider>()
 
   private constructor() {
     this.configService = ApiConfigService.getInstance()
-    
+
     // Initialize default configurations
     this.configService.initializeDefaults()
   }
@@ -43,18 +43,18 @@ export class ApiClientFactory implements IClientFactory {
   }
 
   /**
-   * Create Studio API client (current Claude Studio)
+   * Create Studio API client (current Studio AI)
    */
   createStudioClient(): StudioProvider {
     const cacheKey = 'studio'
-    
+
     if (this.providerCache.has(cacheKey)) {
       return this.providerCache.get(cacheKey) as StudioProvider
     }
 
     const provider = new StudioApiProvider()
     this.providerCache.set(cacheKey, provider)
-    
+
     return provider
   }
 
@@ -63,7 +63,7 @@ export class ApiClientFactory implements IClientFactory {
    */
   createLLMClient(providerName: string): LLMProvider {
     const cacheKey = `llm-${providerName}`
-    
+
     if (this.providerCache.has(cacheKey)) {
       return this.providerCache.get(cacheKey) as LLMProvider
     }
@@ -110,7 +110,7 @@ export class ApiClientFactory implements IClientFactory {
    */
   createGenericClient(config: ProviderConfig): ApiProvider {
     const cacheKey = `generic-${config.name}`
-    
+
     if (this.providerCache.has(cacheKey)) {
       const cached = this.providerCache.get(cacheKey)!
       cached.updateConfig(config) // Update with new config
@@ -119,7 +119,7 @@ export class ApiClientFactory implements IClientFactory {
 
     const provider = new BaseApiClient(config)
     this.providerCache.set(cacheKey, provider)
-    
+
     return provider
   }
 
@@ -149,11 +149,11 @@ export class ApiClientFactory implements IClientFactory {
    */
   configureProvider(name: string, config: ProviderConfig, apiKey?: string): void {
     this.configService.setProviderConfig(name, config)
-    
+
     if (apiKey) {
       this.configService.setApiKey(name, apiKey)
     }
-    
+
     // Clear cache to force recreation with new config
     this.clearProviderCache(name)
   }
@@ -171,7 +171,7 @@ export class ApiClientFactory implements IClientFactory {
    */
   clearProviderCache(name: string): void {
     const keys = [`studio`, `llm-${name}`, `generic-${name}`]
-    keys.forEach(key => this.providerCache.delete(key))
+    keys.forEach((key) => this.providerCache.delete(key))
   }
 
   /**
@@ -182,7 +182,7 @@ export class ApiClientFactory implements IClientFactory {
   }
 
   // Future LLM provider implementations (placeholders for now)
-  
+
   private createOpenAIProvider(_config: ProviderConfig): LLMProvider {
     // TODO: Implement OpenAI-specific provider
     // This will extend BaseApiClient with OpenAI chat completion API

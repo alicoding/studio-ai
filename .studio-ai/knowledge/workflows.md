@@ -2,7 +2,7 @@
 
 ## Overview
 
-Claude Studio's workflow system enables orchestrated multi-agent execution with real-time progress tracking, automatic retry, and seamless resume capabilities. Built on LangGraph with PostgreSQL persistence and SSE streaming.
+Studio AI's workflow system enables orchestrated multi-agent execution with real-time progress tracking, automatic retry, and seamless resume capabilities. Built on LangGraph with PostgreSQL persistence and SSE streaming.
 
 ## Core Architecture
 

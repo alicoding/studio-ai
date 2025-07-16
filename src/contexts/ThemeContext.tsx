@@ -1,5 +1,5 @@
 /**
- * Theme Context Provider for Claude Studio
+ * Theme Context Provider for Studio AI
  *
  * SOLID: Single responsibility - theme state management
  * DRY: Centralized theme logic used across all components

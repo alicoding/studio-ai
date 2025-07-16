@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Claude Studio Environment Manager
+# Studio AI Environment Manager
 # Manages stable and development API servers
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

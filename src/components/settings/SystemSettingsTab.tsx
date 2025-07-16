@@ -234,7 +234,7 @@ export function SystemSettingsTab({
               </Label>
             </div>
             <p className="text-xs text-muted-foreground ml-6">
-              Help improve Claude Studio by sharing anonymous usage data
+              Help improve Studio AI by sharing anonymous usage data
             </p>
           </div>
 
@@ -258,8 +258,8 @@ export function SystemSettingsTab({
           <div className="text-center space-y-2">
             <p className="text-sm font-medium">Multi-Platform Support</p>
             <p className="text-xs text-muted-foreground">
-              Claude Studio is designed to work across web, desktop, and mobile platforms.
-              Additional platform-specific features will be available as we expand support.
+              Studio AI is designed to work across web, desktop, and mobile platforms. Additional
+              platform-specific features will be available as we expand support.
             </p>
           </div>
         </CardContent>

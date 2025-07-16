@@ -2,7 +2,7 @@
 
 **Loop-based data transformation with variable substitution**
 
-This example demonstrates how to use Claude Studio's loop nodes to process multiple data items with variable substitution, showing real iterative execution rather than mock responses.
+This example demonstrates how to use Studio AI's loop nodes to process multiple data items with variable substitution, showing real iterative execution rather than mock responses.
 
 ## 🎯 What You'll Learn
 
@@ -36,7 +36,7 @@ graph TD
 
 ### Option 1: Import via UI
 
-1. Open Claude Studio workflow builder
+1. Open Studio AI workflow builder
 2. Import `workflow.json` from this directory
 3. Observe the loop node configuration
 4. Execute and watch 3 iterations

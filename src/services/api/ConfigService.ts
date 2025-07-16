@@ -1,6 +1,6 @@
 /**
  * API Configuration Service
- * 
+ *
  * SOLID: Single Responsibility - Configuration management only
  * DRY: Centralized config for all providers
  * KISS: Simple get/set interface with persistence
@@ -13,11 +13,11 @@ import type { ClientStorage } from '../../lib/storage/client'
 
 export class ApiConfigService implements ApiConfigStore {
   private static instance: ApiConfigService | null = null
-  
+
   // Storage instances
   private configStorage: ClientStorage
   private keysStorage: ClientStorage
-  
+
   // In-memory cache for performance
   private configCache: Record<string, ProviderConfig> = {}
   private keysCache: Record<string, string> = {}
@@ -26,15 +26,15 @@ export class ApiConfigService implements ApiConfigStore {
     // Create storage instances for configs and keys
     this.configStorage = createClientStorage({
       namespace: 'api-config',
-      type: 'config'
+      type: 'config',
     })
-    
+
     this.keysStorage = createClientStorage({
       namespace: 'api-keys',
       type: 'secret',
-      encrypt: true // Always encrypt API keys
+      encrypt: true, // Always encrypt API keys
     })
-    
+
     // Load data on initialization - happens in background
     this.loadFromStorage()
   }
@@ -114,15 +114,15 @@ export class ApiConfigService implements ApiConfigStore {
    * Initialize default configurations for known providers
    */
   async initializeDefaults(): Promise<void> {
-    // Claude Studio API (current system)
+    // Studio AI API (current system)
     if (!this.getProviderConfig('studio')) {
       await this.setProviderConfig('studio', {
         name: 'studio',
         baseUrl: '/api', // Relative URL for same-origin requests
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        timeout: 30000
+        timeout: 30000,
       })
     }
 
@@ -132,29 +132,29 @@ export class ApiConfigService implements ApiConfigStore {
         name: 'openai',
         baseUrl: 'https://api.openai.com/v1',
         headers: { 'Content-Type': 'application/json' },
-        timeout: 60000
+        timeout: 60000,
       },
       {
         name: 'anthropic',
         baseUrl: 'https://api.anthropic.com',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01'
+          'anthropic-version': '2023-06-01',
         },
-        timeout: 60000
+        timeout: 60000,
       },
       {
         name: 'openrouter',
         baseUrl: 'https://openrouter.ai/api/v1',
         headers: { 'Content-Type': 'application/json' },
-        timeout: 60000
+        timeout: 60000,
       },
       {
         name: 'gemini',
         baseUrl: 'https://generativelanguage.googleapis.com/v1',
         headers: { 'Content-Type': 'application/json' },
-        timeout: 60000
-      }
+        timeout: 60000,
+      },
     ]
 
     // Only set if not already configured (don't overwrite user settings)
@@ -192,7 +192,7 @@ export class ApiConfigService implements ApiConfigStore {
    * Get list of ready providers (configured with API keys)
    */
   getReadyProviders(): string[] {
-    return this.getAvailableProviders().filter(name => this.isProviderReady(name))
+    return this.getAvailableProviders().filter((name) => this.isProviderReady(name))
   }
 
   /**
@@ -273,13 +273,13 @@ export class ApiConfigService implements ApiConfigStore {
    */
   exportConfig(): Record<string, Omit<ProviderConfig, 'apiKey'>> {
     const exported: Record<string, Omit<ProviderConfig, 'apiKey'>> = {}
-    
+
     Object.entries(this.configCache).forEach(([name, config]) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { apiKey, ...configWithoutKey } = config
       exported[name] = configWithoutKey
     })
-    
+
     return exported
   }
 

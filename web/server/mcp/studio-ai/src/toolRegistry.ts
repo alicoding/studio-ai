@@ -23,7 +23,7 @@ export class ToolRegistry {
     // Agent Management Tools
     this.register({
       name: 'list_agents',
-      description: 'List all available agents in the Claude Studio system',
+      description: 'List all available agents in the Studio AI system',
       inputSchema: {
         type: 'object',
         properties: {},
@@ -159,7 +159,7 @@ export class ToolRegistry {
     // Project Management Tools
     this.register({
       name: 'list_projects',
-      description: 'List all projects in Claude Studio',
+      description: 'List all projects in Studio AI',
       inputSchema: {
         type: 'object',
         properties: {},

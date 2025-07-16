@@ -1,6 +1,6 @@
 # Basic Workflow Example
 
-**Single-agent task execution demonstrating the fundamentals of Claude Studio**
+**Single-agent task execution demonstrating the fundamentals of Studio AI**
 
 This example shows the simplest possible workflow: asking a single developer agent to create a "Hello World" function. Perfect for understanding the basics before moving to multi-agent workflows.
 
@@ -30,7 +30,7 @@ graph LR
 
 ### Option 1: Import via UI
 
-1. Open Claude Studio at http://localhost:5173
+1. Open Studio AI at http://localhost:5173
 2. Navigate to Workflow Builder
 3. Click "Import Workflow"
 4. Select `workflow.json` from this directory
@@ -39,7 +39,7 @@ graph LR
 ### Option 2: Run via MCP API
 
 ```bash
-# Ensure Claude Studio is running
+# Ensure Studio AI is running
 npm run dev
 
 # Execute the workflow

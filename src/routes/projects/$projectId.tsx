@@ -122,7 +122,7 @@ function ProjectDetailsPage() {
       return
     }
 
-    const confirmMessage = `Are you sure you want to delete "${project.name}"?\n\nThis will:\n- Remove the project from Claude Studio\n- NOT delete the actual files on disk\n- NOT affect Claude Code session history\n\nThis action cannot be undone.`
+    const confirmMessage = `Are you sure you want to delete "${project.name}"?\n\nThis will:\n- Remove the project from Studio AI\n- NOT delete the actual files on disk\n- NOT affect Claude Code session history\n\nThis action cannot be undone.`
 
     if (confirm(confirmMessage)) {
       console.log('Project deleted:', project.id)
@@ -427,7 +427,7 @@ function ProjectDetailsPage() {
               >
                 <div className="text-2xl mb-2">🗑️</div>
                 <h4 className="font-semibold mb-1 text-destructive">Delete Project</h4>
-                <p className="text-sm text-muted-foreground">Remove from Claude Studio only</p>
+                <p className="text-sm text-muted-foreground">Remove from Studio AI only</p>
               </button>
             )}
           </div>

@@ -21,7 +21,7 @@ export interface ProjectMetadata {
 }
 
 /**
- * Service to manage Claude Studio project metadata using unified storage
+ * Service to manage Studio AI project metadata using unified storage
  * SOLID: Single responsibility for metadata persistence
  */
 export class StudioProjectMetadata {
@@ -58,11 +58,9 @@ export class StudioProjectMetadata {
     try {
       // Get all keys from storage
       const keys = await this.storage.keys()
-      
+
       // Fetch all metadata in parallel
-      const metadata = await Promise.all(
-        keys.map(key => this.storage.get<ProjectMetadata>(key))
-      )
+      const metadata = await Promise.all(keys.map((key) => this.storage.get<ProjectMetadata>(key)))
 
       return metadata.filter(Boolean) as ProjectMetadata[]
     } catch {

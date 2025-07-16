@@ -1,4 +1,4 @@
-# Claude Studio Gotchas & Known Issues
+# Studio AI Gotchas & Known Issues
 
 ## Table of Contents
 

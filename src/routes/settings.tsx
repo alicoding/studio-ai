@@ -54,7 +54,7 @@ const SettingsPage = memo(() => {
   return (
     <PageLayout
       title="Settings"
-      description="Configure Claude Studio at system, project, team, and agent levels"
+      description="Configure Studio AI at system, project, team, and agent levels"
     >
       <Tabs value={activeTab} className="space-y-4" onValueChange={handleTabChange}>
         <TabsList className="flex flex-wrap gap-1 h-auto p-1 bg-muted/50">

@@ -102,7 +102,7 @@ The `playwright-report/index.html` contains generated React code and is **2.9MB*
 1. Remove the identified stale files
 2. Update .gitignore to prevent future compiled file commits
 3. Complete the empty example directories
-4. Do final search for remaining "Claude Studio" references
+4. Do final search for remaining "Studio AI" references
 5. Test Docker build to ensure no missing dependencies
 
 ## ⚠️ BEFORE REMOVING

@@ -1,4 +1,4 @@
-# Claude Studio Architecture
+# Studio AI Architecture
 
 ## Table of Contents
 
@@ -10,7 +10,7 @@
 
 ### Overview
 
-Claude Studio runs two servers:
+Studio AI runs two servers:
 
 - **Stable Server (3456)**: For MCP tools and production use
 - **Dev Server (3457)**: Hot reload enabled for development

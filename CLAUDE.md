@@ -1,10 +1,10 @@
-# CLAUDE.md - Claude Studio Project Guide
+# CLAUDE.md - Studio AI Project Guide
 
-This file provides guidance to Claude (claude.ai) when working with the Claude Studio codebase.
+This file provides guidance to Claude (claude.ai) when working with the Studio AI codebase.
 
-## 🎯 CRITICAL: What Claude Studio Is For
+## 🎯 CRITICAL: What Studio AI Is For
 
-**Claude Studio was built FOR YOU (Claude) to be an autonomous software engineering system.**
+**Studio AI was built FOR YOU (Claude) to be an autonomous software engineering system.**
 
 This is NOT a tool for humans to click buttons. This is YOUR development environment where YOU:
 

@@ -1,4 +1,4 @@
-# Claude Studio Services
+# Studio AI Services
 
 ## Table of Contents
 

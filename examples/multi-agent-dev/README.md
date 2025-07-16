@@ -36,7 +36,7 @@ graph TD
 
 ### Option 1: Import via UI
 
-1. Open Claude Studio at http://localhost:5173
+1. Open Studio AI at http://localhost:5173
 2. Navigate to Workflow Builder
 3. Click "Import Workflow"
 4. Select `workflow.json` from this directory

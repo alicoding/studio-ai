@@ -92,7 +92,7 @@ export function EnhancedDeleteProjectModal({
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center gap-2 font-medium">
                     <Database className="h-4 w-4" />
-                    Remove from Claude Studio
+                    Remove from Studio AI
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Remove project from the Studio interface only. Your workspace files remain
@@ -164,7 +164,7 @@ export function EnhancedDeleteProjectModal({
                     <ul className="list-disc list-inside text-sm space-y-1 mt-2">
                       <li>Files will be moved to your system trash/recycle bin</li>
                       <li>You can recover files from trash if needed</li>
-                      <li>This action cannot be undone from Claude Studio</li>
+                      <li>This action cannot be undone from Studio AI</li>
                     </ul>
                   </div>
                 </AlertDescription>

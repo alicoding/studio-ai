@@ -1,7 +1,7 @@
 {
   "name": "studio-ai-mcp",
   "version": "1.0.0",
-  "description": "Configurable AI MCP server for Claude Studio",
+  "description": "Configurable AI MCP server for Studio AI",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

@@ -1,4 +1,4 @@
-# Claude Studio Gotchas
+# Studio AI Gotchas
 
 ## Current Critical Issues (2025-07-16)
 

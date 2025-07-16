@@ -3,7 +3,7 @@
 # Setup Branch Protection Script
 # This script helps configure branch protection rules on GitHub
 
-echo "🔒 Claude Studio Branch Protection Setup"
+echo "🔒 Studio AI Branch Protection Setup"
 echo "======================================="
 echo ""
 echo "This script will guide you through setting up branch protection rules."

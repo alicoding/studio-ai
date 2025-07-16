@@ -1,6 +1,6 @@
-# Claude Studio Examples
+# Studio AI Examples
 
-This directory contains working examples of Claude Studio workflows demonstrating various patterns and use cases.
+This directory contains working examples of Studio AI workflows demonstrating various patterns and use cases.
 
 ## 🚀 Getting Started
 
@@ -56,7 +56,7 @@ Each example includes:
 
 ### Import via UI
 
-1. Open Claude Studio at http://localhost:5173
+1. Open Studio AI at http://localhost:5173
 2. Go to Workflow Builder
 3. Click "Import Workflow"
 4. Select the `workflow.json` file from any example
@@ -177,7 +177,7 @@ After exploring examples:
 
 - Build your own custom workflows
 - Create agent teams for your specific use cases
-- Integrate Claude Studio into your development process
+- Integrate Studio AI into your development process
 - Share your patterns with the community
 
 Happy orchestrating! 🎼

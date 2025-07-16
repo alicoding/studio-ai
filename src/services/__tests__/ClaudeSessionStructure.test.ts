@@ -22,7 +22,7 @@ interface SessionAnalysis {
   messageCount: number
 }
 
-// Real session data from Claude Studio project
+// Real session data from Studio AI project
 const CLAUDE_STUDIO_DIR = path.join(
   os.homedir(),
   '.claude/projects/-Users-ali-claude-swarm-claude-team-studio-ai'
@@ -338,7 +338,7 @@ describe('Claude Session Structure Analysis', () => {
         console.log(`Group ${key.slice(0, 8)}: ${group.length} sessions`)
       }
 
-      // For Claude Studio, we expect 1 group since they're all related
+      // For Studio AI, we expect 1 group since they're all related
       expect(groups.size).toBeLessThanOrEqual(2)
     })
   })

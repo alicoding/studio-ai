@@ -1,4 +1,4 @@
-# Contributing to Claude Studio
+# Contributing to Studio AI
 
 ## Development Workflow
 

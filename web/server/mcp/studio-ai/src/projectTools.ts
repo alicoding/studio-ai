@@ -13,7 +13,7 @@ import ky from 'ky'
 // Get API base URL from environment or default
 const API_BASE = process.env.CLAUDE_STUDIO_API || 'http://localhost:3456/api'
 
-// Project configuration interfaces matching Claude Studio
+// Project configuration interfaces matching Studio AI
 export interface ProjectConfig {
   id: string
   name: string
@@ -318,7 +318,7 @@ export async function handleDeleteProject(args: {
       type: 'text',
       text: args.deleteWorkspace
         ? `Successfully deleted project ${projectName} (${args.id}) and moved workspace to trash`
-        : `Successfully deleted project ${projectName} (${args.id}) from Claude Studio`,
+        : `Successfully deleted project ${projectName} (${args.id}) from Studio AI`,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'

@@ -150,7 +150,7 @@ export function EditProjectModal({ isOpen, onClose, project, onSave }: EditProje
                   rows={4}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Personal notes about this project (only stored in Claude Studio)
+                  Personal notes about this project (only stored in Studio AI)
                 </p>
               </div>
             </form>

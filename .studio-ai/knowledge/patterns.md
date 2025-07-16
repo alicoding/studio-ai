@@ -1,4 +1,4 @@
-# Claude Studio Patterns
+# Studio AI Patterns
 
 ## Table of Contents
 

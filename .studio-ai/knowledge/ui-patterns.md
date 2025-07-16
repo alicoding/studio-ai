@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines React patterns for building real-time workflow visualization UI, based on existing Claude Studio patterns for WebSocket/SSE communication, state management, and component composition.
+This document outlines React patterns for building real-time workflow visualization UI, based on existing Studio AI patterns for WebSocket/SSE communication, state management, and component composition.
 
 ## Real-Time Communication Patterns
 
@@ -881,4 +881,4 @@ describe('WorkflowMonitor', () => {
 - Minimal state management
 - Straightforward event handling
 
-This architecture provides a solid foundation for implementing n8n-style workflow visualization with real-time updates, following Claude Studio's established patterns and principles.
+This architecture provides a solid foundation for implementing n8n-style workflow visualization with real-time updates, following Studio AI's established patterns and principles.

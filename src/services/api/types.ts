@@ -274,7 +274,6 @@ export interface SearchResult {
   metadata?: Record<string, unknown>
 }
 
-
 export interface SessionInfo {
   id: string
   projectId: string
@@ -354,7 +353,6 @@ export interface SettingsData {
   preferences?: Record<string, unknown>
 }
 
-
 export interface SearchIndexData {
   projectPath: string
   force?: boolean
@@ -398,7 +396,7 @@ export interface SpawnTeamResponse {
   }>
 }
 
-// Claude Studio API specific types (current system)
+// Studio AI API specific types (current system)
 export interface StudioProvider extends ApiProvider {
   // Agent operations
   agents: {
@@ -475,7 +473,6 @@ export interface StudioProvider extends ApiProvider {
     updateHooks(hooks: Record<string, HookConfig>): Promise<Hook[]>
     testHook(hook: HookConfig): Promise<{ success: boolean; output?: string; error?: string }>
   }
-
 
   // Diagnostics operations
   diagnostics: {

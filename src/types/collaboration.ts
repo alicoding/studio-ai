@@ -1,5 +1,5 @@
 /**
- * Collaboration mode types for Claude Studio
+ * Collaboration mode types for Studio AI
  * Defines how humans and AI agents work together
  */
 
@@ -30,7 +30,7 @@ export const defaultSettings: Record<CollaborationMode, CollaborationSettings> =
     hotReload: false,
     draftMode: false,
     showDiff: false,
-    branchStrategy: 'feature'
+    branchStrategy: 'feature',
   },
   guided: {
     mode: 'guided',
@@ -43,7 +43,7 @@ export const defaultSettings: Record<CollaborationMode, CollaborationSettings> =
     draftMode: false,
     showDiff: true,
     branchStrategy: 'feature',
-    previewPort: 5174
+    previewPort: 5174,
   },
   review: {
     mode: 'review',
@@ -55,8 +55,8 @@ export const defaultSettings: Record<CollaborationMode, CollaborationSettings> =
     hotReload: false,
     draftMode: true,
     showDiff: true,
-    branchStrategy: 'feature'
-  }
+    branchStrategy: 'feature',
+  },
 }
 
 export interface ModeCapabilities {
@@ -73,20 +73,20 @@ export const modeInfo: Record<CollaborationMode, ModeCapabilities> = {
     title: 'Autonomous',
     description: 'AI team works independently',
     bestFor: ['Tests', 'Documentation', 'Refactoring', 'Bug fixes'],
-    color: 'text-purple-600'
+    color: 'text-purple-600',
   },
   guided: {
     icon: '🤝',
     title: 'Guided',
     description: 'You steer, AI codes',
     bestFor: ['Features', 'Exploration', 'Learning', 'Prototyping'],
-    color: 'text-blue-600'
+    color: 'text-blue-600',
   },
   review: {
     icon: '🔍',
     title: 'Review',
     description: 'Full control with AI assistance',
     bestFor: ['Critical code', 'Security', 'Production', 'Teaching'],
-    color: 'text-green-600'
-  }
+    color: 'text-green-600',
+  },
 }

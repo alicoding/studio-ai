@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Claude Studio Stable MCP Server Runner
+# Studio AI Stable MCP Server Runner
 # This script builds and runs a stable MCP server instance that won't be affected by hot reload
 
 set -e
@@ -16,7 +16,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MCP_DIR="$PROJECT_ROOT/web/server/mcp/studio-ai"
 STABLE_BUILD_DIR="$PROJECT_ROOT/.mcp-stable"
 
-echo -e "${GREEN}Claude Studio Stable MCP Server${NC}"
+echo -e "${GREEN}Studio AI Stable MCP Server${NC}"
 echo "================================"
 
 # Parse command line arguments
