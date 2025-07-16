@@ -34,7 +34,7 @@ export function ProjectSettingsTab() {
           {
             id: 'claude-studio',
             name: 'Claude Studio',
-            path: '/Users/ali/claude-swarm/claude-team/claude-studio',
+            path: process.cwd(),
           },
         ]
         setProjects(stubProjects)

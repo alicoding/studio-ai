@@ -1,0 +1,54 @@
+{
+  "name": "Data Processing with Loops",
+  "description": "Loop-based data transformation demonstrating variable substitution and iterative execution",
+  "version": "1.0.0",
+  "workflow": [
+    {
+      "id": "process-files",
+      "type": "loop",
+      "task": "Process multiple data files with validation and transformation",
+      "items": ["users.csv", "orders.json", "products.xml"],
+      "loopVar": "file",
+      "maxIterations": 3,
+      "loopSteps": ["validate", "transform"]
+    },
+    {
+      "id": "validate",
+      "type": "task",
+      "role": "developer",
+      "task": "Validate the data format and structure of {file}. Check for proper format, required fields, and data integrity."
+    },
+    {
+      "id": "transform",
+      "type": "task",
+      "role": "developer",
+      "task": "Transform {file} into standardized JSON format. Handle format conversion and data normalization."
+    },
+    {
+      "id": "summary",
+      "type": "task",
+      "role": "developer",
+      "task": "Create a summary report of all processed files and their transformation results",
+      "deps": ["process-files"]
+    }
+  ],
+  "metadata": {
+    "author": "Claude Studio Examples",
+    "category": "Data Processing",
+    "tags": ["loops", "data-processing", "variable-substitution", "iterative", "etl"],
+    "estimatedDuration": "3-5 minutes",
+    "complexity": "intermediate",
+    "requirements": {
+      "agents": ["developer"],
+      "apiCalls": 7,
+      "mockSupported": true,
+      "features": ["loops", "variable-substitution", "dependencies"]
+    },
+    "learningObjectives": [
+      "Loop node configuration",
+      "Variable substitution in tasks",
+      "Iterative data processing",
+      "Error handling in loops"
+    ]
+  }
+}

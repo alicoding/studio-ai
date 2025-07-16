@@ -1,0 +1,46 @@
+{
+  "name": "Multi-Agent Software Development",
+  "description": "Collaborative development workflow with architect, developer, and tester agents",
+  "version": "1.0.0",
+  "workflow": [
+    {
+      "id": "design",
+      "type": "task",
+      "role": "architect",
+      "task": "Design a REST API for a simple task management system. Include endpoints, data models, authentication strategy, and architectural decisions."
+    },
+    {
+      "id": "implement",
+      "type": "task",
+      "role": "developer",
+      "task": "Implement the REST API design from the architect: {design.output}. Create a complete, working implementation with proper error handling.",
+      "deps": ["design"]
+    },
+    {
+      "id": "test",
+      "type": "task",
+      "role": "tester",
+      "task": "Create comprehensive tests for this implementation: {implement.output}. Include unit tests, integration tests, and API endpoint tests.",
+      "deps": ["implement"]
+    }
+  ],
+  "metadata": {
+    "author": "Claude Studio Examples",
+    "category": "Multi-Agent",
+    "tags": ["multi-agent", "software-development", "rest-api", "testing", "architecture"],
+    "estimatedDuration": "5-10 minutes",
+    "complexity": "intermediate",
+    "requirements": {
+      "agents": ["architect", "developer", "tester"],
+      "apiCalls": 3,
+      "mockSupported": true,
+      "features": ["dependencies", "template-variables", "sequential-execution"]
+    },
+    "learningObjectives": [
+      "Multi-agent coordination",
+      "Template variable passing",
+      "Sequential workflow execution",
+      "Agent role specialization"
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "Basic Hello World Workflow",
+  "description": "Simple single-agent workflow demonstrating basic task execution",
+  "version": "1.0.0",
+  "workflow": {
+    "id": "hello-world",
+    "type": "task",
+    "role": "developer",
+    "task": "Create a simple 'Hello World' function in JavaScript with proper documentation and example usage"
+  },
+  "metadata": {
+    "author": "Claude Studio Examples",
+    "category": "Getting Started",
+    "tags": ["basic", "single-agent", "javascript", "hello-world"],
+    "estimatedDuration": "1-2 minutes",
+    "complexity": "beginner",
+    "requirements": {
+      "agents": ["developer"],
+      "apiCalls": 1,
+      "mockSupported": true
+    }
+  }
+}

@@ -1,6 +1,45 @@
 # Claude Studio
 
-A multi-agent AI team system for software development, featuring a web-based UI for managing AI agents, teams, and projects.
+**The AI Operating System for Autonomous Software Development**
+
+Claude Studio is an open-source platform where AI agents autonomously orchestrate software development workflows. Unlike traditional tools designed for humans, Claude Studio is built **for AI agents** to collaborate, iterate, and build software independently.
+
+## 🎯 What Makes Claude Studio Different
+
+- **AI-First Architecture**: Designed for AI agents to orchestrate themselves, not for humans to click buttons
+- **True Multi-Agent Workflows**: Specialized agents (architect, developer, tester, reviewer) working together
+- **Production-Ready**: PostgreSQL persistence, WebSocket monitoring, structured approvals
+- **Visual & Programmatic**: Both visual workflow builder and MCP API control
+- **Open Source**: Apache 2.0 licensed with community-driven development
+
+## 🏗️ Core Capabilities
+
+### Multi-Agent Orchestration
+
+```bash
+# AI agents coordinate autonomously
+invoke({
+  workflow: [
+    { id: 'design', role: 'architect', task: 'Design system architecture' },
+    { id: 'implement', role: 'developer', task: 'Build {design.output}', deps: ['design'] },
+    { id: 'test', role: 'tester', task: 'Test {implement.output}', deps: ['implement'] }
+  ]
+})
+```
+
+### Advanced Control Flow
+
+- **Loop Nodes**: Iterate over data with variable substitution
+- **Conditional Nodes**: n8n-style visual condition builder
+- **Parallel Execution**: Run multiple agents simultaneously
+- **Human Approval**: Structured approval workflows when needed
+
+### Production Infrastructure
+
+- **Workflow Persistence**: Resume interrupted workflows
+- **Real-time Monitoring**: WebSocket updates and progress tracking
+- **Agent Management**: Role-based permissions and tool access
+- **Session Management**: Stateful conversations across workflow steps
 
 ## 🛠️ CI/CD Setup
 
