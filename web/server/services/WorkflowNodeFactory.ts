@@ -127,10 +127,30 @@ export class WorkflowNodeFactory {
         const items = step.items || []
         const loopVar = step.loopVar || 'item'
         const maxIterations = step.maxIterations || items.length
+        const loopStepIds = step.loopSteps || []
 
-        const results: string[] = []
+        FlowLogger.log(
+          'loop-execution',
+          `Loop ${step.id} starting with ${items.length} items, executing ${loopStepIds.length} steps per iteration`
+        )
+
+        // Find the actual workflow steps to execute for each iteration
+        const stepsToExecute = loopStepIds
+          .map((stepId: string) => state.steps.find((s) => s.id === stepId))
+          .filter((s): s is ExtendedWorkflowStep => !!s)
+
+        if (stepsToExecute.length === 0 && loopStepIds.length > 0) {
+          throw new Error(`No valid steps found for loop execution: ${loopStepIds.join(', ')}`)
+        }
+
         const actualIterations = Math.min(maxIterations, items.length)
+        const allIterationResults: Array<{
+          item: string
+          index: number
+          results: Record<string, StepResult>
+        }> = []
 
+        // Execute loop iterations
         for (let i = 0; i < actualIterations; i++) {
           const item = items[i]
           FlowLogger.log(
@@ -138,17 +158,112 @@ export class WorkflowNodeFactory {
             `Loop ${step.id} iteration ${i + 1}/${actualIterations}: ${loopVar}=${item}`
           )
 
-          // Create iteration result
-          results.push(`Processed ${loopVar}=${item}`)
+          // Emit iteration start event
+          this.eventEmitter.emit({
+            type: 'step_start',
+            threadId: state.threadId,
+            stepId: `${step.id}_iteration_${i + 1}`,
+          })
+
+          const currentIterationResults: Record<string, StepResult> = {}
+
+          // Execute each step in the loop with variable substitution
+          for (const loopStep of stepsToExecute) {
+            // Create a copy of the step with variable substitution
+            const substitutedStep = this.substituteLoopVariable(loopStep, loopVar, item)
+
+            // Create workflow context for this iteration
+            const context: WorkflowContext = {
+              stepResults: { ...state.stepResults, ...currentIterationResults },
+              stepOutputs: state.stepOutputs || {},
+              sessionIds: state.sessionIds || {},
+              threadId: state.threadId,
+            }
+
+            // Get appropriate executor and execute step
+            const executor = this.executorRegistry.getExecutor(substitutedStep)
+            FlowLogger.log(
+              'loop-execution',
+              `-> ${executor.constructor.name}.execute(${substitutedStep.id || 'unknown'}) with ${loopVar}=${item}`
+            )
+
+            try {
+              const stepResult = await executor.execute(substitutedStep, context)
+              currentIterationResults[loopStep.id!] = stepResult
+
+              FlowLogger.log(
+                'loop-execution',
+                `<- ${executor.constructor.name} completed with status: ${stepResult.status}`
+              )
+            } catch (stepError) {
+              FlowLogger.log(
+                'loop-execution',
+                `Step ${loopStep.id} failed in iteration ${i + 1}: ${stepError}`
+              )
+
+              currentIterationResults[loopStep.id!] = {
+                id: loopStep.id!,
+                status: 'failed',
+                response: `Step failed: ${stepError instanceof Error ? stepError.message : 'Unknown error'}`,
+                sessionId: '',
+                duration: Date.now() - startTime,
+              }
+            }
+          }
+
+          // Store iteration results
+          allIterationResults.push({
+            item,
+            index: i,
+            results: currentIterationResults,
+          })
+
+          // Emit iteration complete event
+          this.eventEmitter.emit({
+            type: 'step_complete',
+            threadId: state.threadId,
+            stepId: `${step.id}_iteration_${i + 1}`,
+          })
         }
+
+        // Aggregate results
+        const allSuccessful = allIterationResults.every((iteration) =>
+          Object.values(iteration.results).every((result) => result.status === 'success')
+        )
+
+        const summary = allIterationResults
+          .map((iteration, idx) => {
+            const stepStatuses = Object.entries(iteration.results)
+              .map(([stepId, result]) => `${stepId}: ${result.status}`)
+              .join(', ')
+            return `Iteration ${idx + 1} (${loopVar}=${iteration.item}): ${stepStatuses}`
+          })
+          .join('; ')
 
         const loopResult: StepResult = {
           id: step.id!,
-          status: 'success',
-          response: `Loop completed: ${results.join(', ')}`,
+          status: allSuccessful ? 'success' : 'failed',
+          response: `Loop completed ${actualIterations} iterations: ${summary}`,
           sessionId: '',
           duration: Date.now() - startTime,
         }
+
+        // Update state with all iteration results
+        const newStepResults = { ...state.stepResults }
+        const newStepOutputs = { ...state.stepOutputs }
+
+        // Store individual iteration results
+        allIterationResults.forEach((iteration, _idx) => {
+          Object.entries(iteration.results).forEach(([stepId, result]) => {
+            const iterationStepId = `${stepId}_${loopVar}_${iteration.item}`
+            newStepResults[iterationStepId] = result
+            newStepOutputs[iterationStepId] = result.response
+          })
+        })
+
+        // Store overall loop result
+        newStepResults[step.id!] = loopResult
+        newStepOutputs[step.id!] = loopResult.response
 
         this.eventEmitter.emit({
           type: 'step_complete',
@@ -157,8 +272,9 @@ export class WorkflowNodeFactory {
         })
 
         return {
-          stepResults: { ...state.stepResults, [step.id!]: loopResult },
-          stepOutputs: { ...state.stepOutputs, [step.id!]: loopResult.response },
+          stepResults: newStepResults,
+          stepOutputs: newStepOutputs,
+          ...(loopResult.status === 'failed' ? { status: 'failed' as const } : {}),
         }
       } catch (error) {
         console.error(`Loop ${step.id} error:`, error)
@@ -177,6 +293,38 @@ export class WorkflowNodeFactory {
         }
       }
     }
+  }
+
+  /**
+   * Substitute loop variable in step configuration
+   */
+  private substituteLoopVariable(
+    step: ExtendedWorkflowStep,
+    loopVar: string,
+    value: string
+  ): ExtendedWorkflowStep {
+    // Create a deep copy of the step
+    const substituted = JSON.parse(JSON.stringify(step))
+
+    // Replace {loopVar} with actual value in relevant fields
+    const varPattern = new RegExp(`\\{${loopVar}\\}`, 'g')
+
+    if (substituted.task) {
+      substituted.task = substituted.task.replace(varPattern, value)
+    }
+
+    if (substituted.prompt) {
+      substituted.prompt = substituted.prompt.replace(varPattern, value)
+    }
+
+    if (substituted.description) {
+      substituted.description = substituted.description.replace(varPattern, value)
+    }
+
+    // Update the step ID to make it unique per iteration
+    substituted.id = `${step.id}_${loopVar}_${value}`
+
+    return substituted
   }
 
   /**

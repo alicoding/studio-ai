@@ -83,6 +83,7 @@ export const WorkflowStepSchema = z
     items: z.array(z.string()).optional(), // Array of items to loop over
     loopVar: z.string().optional(), // Variable name for current item (default: 'item')
     maxIterations: z.number().optional(), // Maximum number of iterations
+    loopSteps: z.array(z.string()).optional(), // IDs of steps to execute for each iteration
     // Human input fields
     prompt: z.string().optional(), // Prompt for human input
     approvalRequired: z.boolean().optional(), // Whether approval is required (legacy)

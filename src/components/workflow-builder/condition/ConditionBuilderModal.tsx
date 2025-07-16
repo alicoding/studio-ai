@@ -193,8 +193,8 @@ function ConditionBuilderModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl h-[85vh] flex flex-col overflow-hidden">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center justify-between">
             <span>{title}</span>
             <Button variant="ghost" size="sm" onClick={handleCancel}>
@@ -203,9 +203,9 @@ function ConditionBuilderModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 overflow-hidden">
           <Tabs defaultValue="builder" className="h-full flex flex-col">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsList className="grid w-full grid-cols-2 mb-4 flex-shrink-0">
               <TabsTrigger value="builder" className="flex items-center gap-2">
                 <Code className="w-4 h-4" />
                 Builder
@@ -216,7 +216,7 @@ function ConditionBuilderModal({
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="builder" className="flex-1 min-h-0">
+            <TabsContent value="builder" className="flex-1 overflow-hidden">
               <ScrollArea className="h-full pr-4">
                 <div className="space-y-4">
                   {/* Validation status */}
@@ -276,30 +276,30 @@ function ConditionBuilderModal({
               </ScrollArea>
             </TabsContent>
 
-            <TabsContent value="preview" className="flex-1 min-h-0">
-              <div className="h-full space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Readable Condition</h3>
-                  <div className="p-4 bg-muted rounded-lg">
-                    <code className="text-sm">{readableCondition || 'No condition defined'}</code>
+            <TabsContent value="preview" className="flex-1 overflow-hidden">
+              <ScrollArea className="h-full pr-4">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium mb-2">Readable Condition</h3>
+                    <div className="p-4 bg-muted rounded-lg">
+                      <code className="text-sm">{readableCondition || 'No condition defined'}</code>
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <h3 className="text-sm font-medium mb-2">JSON Structure</h3>
-                  <ScrollArea className="h-64">
+                  <div>
+                    <h3 className="text-sm font-medium mb-2">JSON Structure</h3>
                     <pre className="text-xs p-4 bg-muted rounded-lg overflow-auto">
                       {JSON.stringify(condition, null, 2)}
                     </pre>
-                  </ScrollArea>
+                  </div>
                 </div>
-              </div>
+              </ScrollArea>
             </TabsContent>
           </Tabs>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-4 border-t">
+        <div className="flex items-center justify-between pt-4 border-t flex-shrink-0">
           <div className="text-sm text-muted-foreground">
             {condition.rootGroup.rules.length} rule
             {condition.rootGroup.rules.length !== 1 ? 's' : ''}
