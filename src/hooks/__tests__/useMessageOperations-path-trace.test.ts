@@ -132,7 +132,7 @@ describe('useMessageOperations - Path Tracing', () => {
     console.log('4. projectPath sent:', callArgs[1].projectPath)
 
     expect(callArgs[1].projectPath).toBe('~/projects/bns-ai')
-    expect(callArgs[1].projectPath).not.toContain('claude-studio')
+    expect(callArgs[1].projectPath).not.toContain('studio-ai')
   })
 
   it('should trace what happens when activeProject is undefined', async () => {

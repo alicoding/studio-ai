@@ -32,7 +32,7 @@ export function ProjectSettingsTab() {
         // TODO: Replace with actual Studio projects API
         const stubProjects: Project[] = [
           {
-            id: 'claude-studio',
+            id: 'studio-ai',
             name: 'Claude Studio',
             path: process.cwd(),
           },

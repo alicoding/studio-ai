@@ -56,13 +56,6 @@ interface UseSettingsReturn {
   detectClaudePath: () => Promise<void>
   detectedPaths: string[]
   detectingPath: boolean
-
-  // Studio Intelligence
-  initializeStudioIntelligence: (projectPath: string) => Promise<void>
-  studioIntelligenceStatus: {
-    initialized: boolean
-    activeHooks: string[]
-  }
 }
 
 const DEFAULT_CONFIG: SystemConfig = {
@@ -93,10 +86,6 @@ export function useSettings(): UseSettingsReturn {
   const [saving, setSaving] = useState(false)
   const [detectedPaths, setDetectedPaths] = useState<string[]>([])
   const [detectingPath, setDetectingPath] = useState(false)
-  const [studioIntelligenceStatus, setStudioIntelligenceStatus] = useState({
-    initialized: false,
-    activeHooks: [] as string[],
-  })
 
   const updateSystemConfig = useCallback((updates: Partial<SystemConfig>) => {
     setSystemConfig((prev) => ({ ...prev, ...updates }))
@@ -142,7 +131,7 @@ export function useSettings(): UseSettingsReturn {
                   hookConfig.hooks.forEach((hook) => {
                     if (hook.type === 'command') {
                       // Determine source and scope
-                      const isStudioHook = hook.command?.includes('.claude-studio/scripts')
+                      const isStudioHook = hook.command?.includes('.studio-ai/scripts')
                       let scope: 'system' | 'project' | 'studio' = 'system'
                       let source = location
 
@@ -223,20 +212,6 @@ export function useSettings(): UseSettingsReturn {
           timestamp: Date.now()
         }
 
-        // Check Studio Intelligence status
-        const studioHooks = allHooks.filter((h) => h.source === 'Studio Intelligence')
-        if (studioHooks.length > 0) {
-          // Get status from API
-          fetch('/api/studio-intelligence/status')
-            .then((res) => res.json())
-            .then((status) => {
-              setStudioIntelligenceStatus({
-                initialized: status.hooksConfigured,
-                activeHooks: status.activeHooks,
-              })
-            })
-            .catch((err) => console.error('Failed to get Studio Intelligence status:', err))
-        }
       }
       setLoading(false)
     } catch (error) {
@@ -379,34 +354,6 @@ export function useSettings(): UseSettingsReturn {
     setHooks((prev) => prev.filter((h) => h.id !== hookId))
   }, [])
 
-  const initializeStudioIntelligence = useCallback(async () => {
-    try {
-      // Studio Intelligence is now initialized on startup
-      // This method just checks the status
-      const response = await fetch('/api/studio-intelligence/status')
-
-      if (!response.ok) {
-        throw new Error('Failed to get status')
-      }
-
-      const status = await response.json()
-
-      // Update status
-      setStudioIntelligenceStatus({
-        initialized: status.hooksConfigured,
-        activeHooks: status.activeHooks,
-      })
-
-      if (status.hooksConfigured) {
-        toast.info('Studio Intelligence is active with smart defaults')
-      } else {
-        toast.warning('Studio Intelligence hooks not found. Restart Studio to install defaults.')
-      }
-    } catch (error) {
-      console.error('Failed to check Studio Intelligence status:', error)
-      toast.error('Failed to check Studio Intelligence status')
-    }
-  }, [])
 
   // Load settings on mount only if not cached
   useEffect(() => {
@@ -437,9 +384,5 @@ export function useSettings(): UseSettingsReturn {
     detectClaudePath,
     detectedPaths,
     detectingPath,
-
-    // Studio Intelligence
-    initializeStudioIntelligence,
-    studioIntelligenceStatus,
   }
 }

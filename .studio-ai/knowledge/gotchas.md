@@ -18,8 +18,8 @@ Messages not appearing in workspace UI despite activity being tracked in /projec
 
 **Example:**
 
-- Active sessions in: `~/.claude/projects/-Users-ali-claude-swarm-claude-team-claude-studio/`
-- But searching in: `~/.claude/projects/-private-Users-ali-claude-swarm-claude-team-claude-studio/`
+- Active sessions in: `~/.claude/projects/-Users-ali-claude-swarm-claude-team-studio-ai/`
+- But searching in: `~/.claude/projects/-private-Users-ali-claude-swarm-claude-team-studio-ai/`
 
 ### Solution
 

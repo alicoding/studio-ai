@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const DB_PATH = path.join(process.env.HOME || '', '.claude-studio', 'studio.db')
+const DB_PATH = path.join(process.env.HOME || '', '.studio-ai', 'studio.db')
 
 function runMigrations() {
   console.log('Running database migrations...')

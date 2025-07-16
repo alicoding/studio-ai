@@ -18,7 +18,7 @@ export function createUnifiedStorageAdapter<T>(): PersistStorage<T> {
   return {
     getItem: async (name: string): Promise<StorageValue<T> | null> => {
       try {
-        // Extract namespace from the store name (e.g., "claude-studio-projects")
+        // Extract namespace from the store name (e.g., "studio-ai-projects")
         const parts = name.split('-')
         const namespace = parts.slice(2).join('-') || 'default'
         
@@ -79,7 +79,7 @@ export function createUnifiedStorageAdapter<T>(): PersistStorage<T> {
  * and needs to be migrated to unified storage
  */
 export async function migrateZustandStore(storeName: string) {
-  const localStorageKey = `claude-studio-${storeName}`
+  const localStorageKey = `studio-ai-${storeName}`
   const localData = localStorage.getItem(localStorageKey)
   
   if (!localData) return false

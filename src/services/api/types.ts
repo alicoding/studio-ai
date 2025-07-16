@@ -274,15 +274,6 @@ export interface SearchResult {
   metadata?: Record<string, unknown>
 }
 
-export interface IntelligenceAnalysis {
-  suggestions: string[]
-  issues: Array<{
-    type: 'error' | 'warning' | 'info'
-    message: string
-    location?: string
-  }>
-  improvements: string[]
-}
 
 export interface SessionInfo {
   id: string
@@ -363,15 +354,6 @@ export interface SettingsData {
   preferences?: Record<string, unknown>
 }
 
-export interface AnalyzeData {
-  content: string
-  context?: Record<string, unknown>
-}
-
-export interface SuggestData {
-  query: string
-  context?: Record<string, unknown>
-}
 
 export interface SearchIndexData {
   projectPath: string
@@ -494,17 +476,6 @@ export interface StudioProvider extends ApiProvider {
     testHook(hook: HookConfig): Promise<{ success: boolean; output?: string; error?: string }>
   }
 
-  // Studio Intelligence operations
-  intelligence: {
-    analyze(data: {
-      content: string
-      context?: Record<string, unknown>
-    }): Promise<IntelligenceAnalysis>
-    suggest(data: {
-      query: string
-      context?: Record<string, unknown>
-    }): Promise<{ suggestions: string[] }>
-  }
 
   // Diagnostics operations
   diagnostics: {

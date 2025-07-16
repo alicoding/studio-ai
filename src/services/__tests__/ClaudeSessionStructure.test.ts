@@ -25,7 +25,7 @@ interface SessionAnalysis {
 // Real session data from Claude Studio project
 const CLAUDE_STUDIO_DIR = path.join(
   os.homedir(),
-  '.claude/projects/-Users-ali-claude-swarm-claude-team-claude-studio'
+  '.claude/projects/-Users-ali-claude-swarm-claude-team-studio-ai'
 )
 
 // Session IDs from the actual project

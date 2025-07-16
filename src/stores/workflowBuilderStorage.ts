@@ -124,7 +124,7 @@ export function createContextAwareStorage<T>(): PersistStorage<T> {
  */
 export async function clearWorkflowBuilderStorage(scope: 'global' | 'project', projectId?: string) {
   const baseStorage = createUnifiedStorageAdapter()
-  const baseKey = 'claude-studio-workflow-builder'
+  const baseKey = 'studio-ai-workflow-builder'
 
   const contextKey =
     scope === 'project' && projectId ? `${baseKey}-project-${projectId}` : `${baseKey}-global`

@@ -197,8 +197,8 @@
 
 - [x] Initialize project structure
   ```bash
-  mkdir -p claude-studio/{src,web,config,tests}
-  cd claude-studio
+  mkdir -p studio-ai/{src,web,config,tests}
+  cd studio-ai
   npm init -y
   ```
 - [x] Install web dependencies first

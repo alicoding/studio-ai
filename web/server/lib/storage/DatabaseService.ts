@@ -13,7 +13,7 @@ import os from 'os'
 import fs from 'fs'
 
 // Database configuration
-const STORAGE_DIR = path.join(os.homedir(), '.claude-studio')
+const STORAGE_DIR = path.join(os.homedir(), '.studio-ai')
 const DB_PATH = path.join(STORAGE_DIR, 'studio.db')
 
 export class DatabaseService {

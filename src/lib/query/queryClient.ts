@@ -52,7 +52,7 @@ const persister = createSyncStoragePersister({
     setItem: (key: string, value: string) => localStorage.setItem(key, value),
     removeItem: (key: string) => localStorage.removeItem(key),
   },
-  key: 'claude-studio-query-cache',
+  key: 'studio-ai-query-cache',
   serialize: JSON.stringify,
   deserialize: JSON.parse,
 })

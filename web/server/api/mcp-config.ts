@@ -51,7 +51,7 @@ router.get('/generate', async (req, res) => {
     }
     
     // Write to temporary file
-    const tempDir = path.join(os.tmpdir(), 'claude-studio-mcp')
+    const tempDir = path.join(os.tmpdir(), 'studio-ai-mcp')
     await fs.mkdir(tempDir, { recursive: true })
     
     const configPath = path.join(tempDir, 'mcp-config.json')

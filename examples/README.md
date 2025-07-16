@@ -169,7 +169,7 @@ examples/your-example/
 
 - Check the main [documentation](../docs/)
 - Review [troubleshooting guide](../docs/troubleshooting.md)
-- Ask in [GitHub Discussions](https://github.com/anthropics/claude-studio/discussions)
+- Ask in [GitHub Discussions](https://github.com/anthropics/studio-ai/discussions)
 
 ## 🚀 Next Steps
 

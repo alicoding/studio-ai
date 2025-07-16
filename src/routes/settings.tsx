@@ -42,7 +42,6 @@ const SettingsPage = memo(() => {
     addHook,
     updateHook,
     removeHook,
-    studioIntelligenceStatus,
   } = useSettings()
 
   const handleTabChange = useCallback(
@@ -130,7 +129,6 @@ const SettingsPage = memo(() => {
             onRemoveHook={removeHook}
             onSave={saveSystemSettings}
             saving={saving}
-            studioIntelligenceStatus={studioIntelligenceStatus}
           />
         </TabsContent>
 

@@ -205,5 +205,5 @@
 ## Related Documentation
 
 - `docs/gotchas.md` - Known issues and workarounds
-- `.claude-studio/knowledge/workflows.md` - Workflow system architecture
-- `.claude-studio/knowledge/ui-patterns.md` - UI development patterns
+- `.studio-ai/knowledge/workflows.md` - Workflow system architecture
+- `.studio-ai/knowledge/ui-patterns.md` - UI development patterns

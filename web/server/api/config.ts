@@ -52,7 +52,7 @@ router.get('/export', async (req, res) => {
   try {
     const exportData = await configService.exportConfig()
     res.setHeader('Content-Type', 'application/json')
-    res.setHeader('Content-Disposition', 'attachment; filename="claude-studio-config.json"')
+    res.setHeader('Content-Disposition', 'attachment; filename="studio-ai-config.json"')
     res.send(exportData)
   } catch (error) {
     console.error('Failed to export config:', error)

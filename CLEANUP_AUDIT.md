@@ -75,7 +75,7 @@ The `playwright-report/index.html` contains generated React code and is **2.9MB*
 ### 3. Package Name Still References Claude
 
 - `package.json` updated to "studio-ai" ✅
-- Need to check for remaining "claude-studio" references in other files
+- Need to check for remaining "studio-ai" references in other files
 
 ## 📋 RECOMMENDATIONS
 
@@ -91,7 +91,7 @@ The `playwright-report/index.html` contains generated React code and is **2.9MB*
 
 1. **Consolidate test directories** - Decide on structure
 2. **Review documentation** - Remove duplicates
-3. **Complete remaining renames** - Search for "claude-studio" references
+3. **Complete remaining renames** - Search for "studio-ai" references
 
 ### Low Priority:
 

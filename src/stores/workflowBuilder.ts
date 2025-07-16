@@ -216,7 +216,7 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>()(
           // Clear any persisted state immediately and aggressively
           console.log('[WorkflowBuilder] Clearing persisted state before loading workflow')
           if (typeof window !== 'undefined') {
-            const storeName = 'claude-studio-workflow-builder'
+            const storeName = 'studio-ai-workflow-builder'
 
             // Clear all storage synchronously
             localStorage.removeItem(storeName)
@@ -861,7 +861,7 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>()(
           // Clear the browser-persisted state for this store
           if (typeof window !== 'undefined') {
             // Clear from localStorage or whatever storage adapter is being used
-            const storeName = 'claude-studio-workflow-builder'
+            const storeName = 'studio-ai-workflow-builder'
             localStorage.removeItem(storeName)
             sessionStorage.removeItem(storeName)
 
@@ -889,7 +889,7 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>()(
         },
       }),
       {
-        name: 'claude-studio-workflow-builder',
+        name: 'studio-ai-workflow-builder',
         version: 1,
         storage: createContextAwareStorage(),
         // Only persist the workflow data and draft/saved state, not UI state

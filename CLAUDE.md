@@ -264,7 +264,7 @@ npm run test:api # Test API endpoints
 ## Project Structure
 
 ```
-claude-studio/
+studio-ai/
 ├── src/                    # Frontend React application
 │   ├── components/        # React components
 │   ├── hooks/            # Custom React hooks

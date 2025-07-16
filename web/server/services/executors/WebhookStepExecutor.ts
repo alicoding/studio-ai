@@ -163,7 +163,7 @@ export class WebhookStepExecutor implements StepExecutor {
       method,
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'Claude-Studio-Webhook/1.0',
+        'User-Agent': 'studio-ai-Webhook/1.0',
         'X-Workflow-Executor': 'webhook',
         ...headers
       },
@@ -240,7 +240,7 @@ export class WebhookStepExecutor implements StepExecutor {
     headers: {
       'Authorization': 'Bearer ${API_TOKEN}',
       'X-API-Version': 'v1',
-      'X-Source': 'claude-studio'
+      'X-Source': 'studio-ai'
     }
   },
   deps: ['data-processing']

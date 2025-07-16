@@ -46,7 +46,7 @@ Multiple files directly access localStorage without abstraction:
 ```typescript
 // src/services/storage/StorageService.ts
 export class StorageService {
-  private prefix = 'claude-studio:'
+  private prefix = 'studio-ai:'
 
   get<T>(key: string, defaultValue?: T): T | null {
     try {
@@ -95,7 +95,7 @@ export const useAgentStore = create<AgentState>()(
         // ... existing implementation
       }),
       {
-        name: 'claude-studio-agents',
+        name: 'studio-ai-agents',
         partialize: (state) => ({
           // Only persist what's necessary
           agents: state.agents,
@@ -199,7 +199,7 @@ export const useAgentStore = create<AgentState>()(
 
 ```typescript
 interface StorageSchema {
-  'claude-studio-agents': {
+  'studio-ai-agents': {
     state: {
       agents: Agent[]
       selectedAgentId: string | null
@@ -207,7 +207,7 @@ interface StorageSchema {
     }
     version: number
   }
-  'claude-studio-projects': {
+  'studio-ai-projects': {
     state: {
       projects: Project[]
       activeProjectId: string | null
@@ -215,14 +215,14 @@ interface StorageSchema {
     }
     version: number
   }
-  'claude-studio-diagnostics': {
+  'studio-ai-diagnostics': {
     state: {
       isMonitoring: boolean
       lastUpdate: Date | null
     }
     version: number
   }
-  'claude-studio-collapsible': {
+  'studio-ai-collapsible': {
     state: Record<string, boolean>
     version: number
   }

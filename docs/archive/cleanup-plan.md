@@ -144,7 +144,7 @@ export const useSettingsStore = create(
       // ... store implementation
     }),
     {
-      name: 'claude-studio-settings',
+      name: 'studio-ai-settings',
     }
   )
 )

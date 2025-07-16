@@ -47,8 +47,8 @@ Clean rebuild of the AI agent team system, fixing critical issues while preservi
 - Files:
   - `/tmp/claude-agents/registry.json` - Process registry ❌ NOT IMPLEMENTED
   - `~/.claude/agent-sessions.json` - Session tracking ✅ CLAUDE NATIVE
-  - `~/.claude-studio/projects/{project-id}/` - Project data ✅ IMPLEMENTED
-  - `~/.claude-studio/teams/` - Team templates ✅ IMPLEMENTED
+  - `~/.studio-ai/projects/{project-id}/` - Project data ✅ IMPLEMENTED
+  - `~/.studio-ai/teams/` - Team templates ✅ IMPLEMENTED
 
 ### 4. UI/UX Design ✅ MOSTLY IMPLEMENTED
 
@@ -115,7 +115,7 @@ Clean rebuild of the AI agent team system, fixing critical issues while preservi
 ### ❌ NOT STARTED: Phase 1: Core Libraries
 
 ```
-claude-studio/
+studio-ai/
 ├── lib/
 │   ├── process/          # Process lifecycle management
 │   │   ├── ProcessManager.ts      # Spawn, monitor, cleanup processes

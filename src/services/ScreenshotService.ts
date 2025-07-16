@@ -313,7 +313,7 @@ export class ScreenshotService {
       }
 
       // Prepare filename
-      const filename = `claude-studio-inspector-${Date.now()}.png`
+      const filename = `studio-ai-inspector-${Date.now()}.png`
       let screenshotPath = `~/Downloads/${filename}`
       
       try {

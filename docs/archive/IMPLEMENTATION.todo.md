@@ -409,12 +409,12 @@ ls web/server/mcp/
 // Claude Desktop config location: ~/Library/Application Support/Claude/claude_desktop_config.json
 {
   "mcpServers": {
-    "claude-studio-search": {
+    "studio-ai-search": {
       "command": "node",
-      "args": ["/path/to/claude-studio/web/server/mcp/semantic-search/dist/index.js"],
+      "args": ["/path/to/studio-ai/web/server/mcp/semantic-search/dist/index.js"],
       "env": {
         "ELECTRONHUB_API_KEY": "${ELECTRONHUB_API_KEY}",
-        "CLAUDE_STUDIO_INDICES": "${HOME}/.claude-studio/indices"
+        "CLAUDE_STUDIO_INDICES": "${HOME}/.studio-ai/indices"
       }
     }
   }

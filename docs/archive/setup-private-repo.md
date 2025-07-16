@@ -3,7 +3,7 @@
 ## 1. Create Private Repository on GitHub
 
 1. Go to https://github.com/new
-2. Repository name: `claude-studio`
+2. Repository name: `studio-ai`
 3. Description: "AI-powered collaborative development environment"
 4. **Select: Private** ✓
 5. Do NOT initialize with README (we already have code)
@@ -15,7 +15,7 @@ After creating the repo, run these commands:
 
 ```bash
 # Add the remote
-git remote add origin git@github.com:alicoding/claude-studio.git
+git remote add origin git@github.com:alicoding/studio-ai.git
 
 # Push the develop branch
 git push -u origin develop

@@ -5,11 +5,11 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-STABLE_PID_FILE="$PROJECT_ROOT/.claude-studio/stable-server.pid"
-DEV_PID_FILE="$PROJECT_ROOT/.claude-studio/dev-server.pid"
+STABLE_PID_FILE="$PROJECT_ROOT/.studio-ai/stable-server.pid"
+DEV_PID_FILE="$PROJECT_ROOT/.studio-ai/dev-server.pid"
 
-# Ensure .claude-studio directory exists
-mkdir -p "$PROJECT_ROOT/.claude-studio"
+# Ensure .studio-ai directory exists
+mkdir -p "$PROJECT_ROOT/.studio-ai"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -61,7 +61,7 @@ start_stable() {
     if [ -f .env ]; then
         export $(grep -v '^#' .env | xargs)
     fi
-    NODE_ENV=production PORT=3456 nohup tsx web/server/app.ts > "$PROJECT_ROOT/.claude-studio/stable-server.log" 2>&1 &
+    NODE_ENV=production PORT=3456 nohup tsx web/server/app.ts > "$PROJECT_ROOT/.studio-ai/stable-server.log" 2>&1 &
     local pid=$!
     echo $pid > "$STABLE_PID_FILE"
     
@@ -92,7 +92,7 @@ start_dev() {
     if [ -f .env ]; then
         export $(grep -v '^#' .env | xargs)
     fi
-    NODE_ENV=development PORT=3457 nohup tsx watch web/server/app.ts > "$PROJECT_ROOT/.claude-studio/dev-server.log" 2>&1 &
+    NODE_ENV=development PORT=3457 nohup tsx watch web/server/app.ts > "$PROJECT_ROOT/.studio-ai/dev-server.log" 2>&1 &
     local pid=$!
     echo $pid > "$DEV_PID_FILE"
     
@@ -191,11 +191,11 @@ show_logs() {
     
     case $env in
         stable)
-            log_file="$PROJECT_ROOT/.claude-studio/stable-server.log"
+            log_file="$PROJECT_ROOT/.studio-ai/stable-server.log"
             echo -e "${BLUE}=== Stable Server Logs ===${NC}"
             ;;
         dev)
-            log_file="$PROJECT_ROOT/.claude-studio/dev-server.log"
+            log_file="$PROJECT_ROOT/.studio-ai/dev-server.log"
             echo -e "${BLUE}=== Development Server Logs ===${NC}"
             ;;
     esac

@@ -183,7 +183,7 @@ describe('useMessageOperations - Project Path Bug', () => {
     const wrongProject = {
       id: 'project-123',
       name: 'bns-ai',
-      path: '/Users/ali/claude-swarm/claude-team/claude-studio', // WRONG - Claude Studio path
+      path: '/Users/ali/claude-swarm/claude-team/studio-ai', // WRONG - Claude Studio path
       createdAt: new Date().toISOString(),
       sessionCount: 0,
       status: 'active' as const,
@@ -214,10 +214,10 @@ describe('useMessageOperations - Project Path Bug', () => {
     const options = call[1]
 
     // Document the bug
-    expect(options.projectPath).toBe('/Users/ali/claude-swarm/claude-team/claude-studio')
+    expect(options.projectPath).toBe('/Users/ali/claude-swarm/claude-team/studio-ai')
 
     // This is what it SHOULD be (uncomment when fixed):
-    // expect(options.projectPath).not.toBe('/Users/ali/claude-swarm/claude-team/claude-studio')
+    // expect(options.projectPath).not.toBe('/Users/ali/claude-swarm/claude-team/studio-ai')
     // expect(options.projectPath).toBe('~/projects/bns-ai')
   })
 })

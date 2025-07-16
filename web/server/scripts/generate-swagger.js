@@ -69,7 +69,7 @@ API calls are rate-limited to prevent abuse. See response headers for current li
     version: '1.0.0',
     contact: {
       name: 'Claude Studio',
-      url: 'https://github.com/anthropics/claude-studio',
+      url: 'https://github.com/alicoding/studio-ai',
     },
   },
   servers: [

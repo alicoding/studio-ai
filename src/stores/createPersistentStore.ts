@@ -28,7 +28,7 @@ export function createPersistentStore<T>(
   stateCreator: StateCreator<T>,
   persistConfig?: Partial<PersistConfig<T>>
 ) {
-  const storeName = `claude-studio-${name}`
+  const storeName = `studio-ai-${name}`
 
   // Migrate existing localStorage data if needed
   migrateZustandStore(name)

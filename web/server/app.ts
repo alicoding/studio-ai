@@ -14,7 +14,6 @@ import teamsRouter from './api/teams'
 import messagesRouter from './api/messages'
 import systemRouter from './api/system'
 import settingsRouter from './api/settings'
-import studioIntelligenceRouter from './api/studio-intelligence'
 import screenshotRouter from './api/screenshot'
 import aiRouter from './api/ai'
 import langchainRouter from './api/langchain'
@@ -55,9 +54,6 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason)
   // Don't exit the process - let it continue running
 })
-
-// Import Studio Intelligence
-import { StudioIntelligence } from './services/studio-intelligence/StudioIntelligence'
 
 // Import Project Diagnostics
 
@@ -170,7 +166,6 @@ app.use('/api/system', systemRouter)
 app.use('/api/settings', settingsRouter)
 app.use('/api/settings/mcp', settingsMcpRouter)
 app.use('/api/mcp-config', mcpConfigRouter)
-app.use('/api/studio-intelligence', studioIntelligenceRouter)
 app.use('/api/screenshot', screenshotRouter)
 app.use('/api/ai', aiRouter)
 app.use('/api/langchain', langchainRouter)
@@ -217,17 +212,6 @@ if (!isDevServer) {
   })
 }
 
-// Initialize Studio Intelligence System
-async function initializeStudioIntelligence() {
-  try {
-    console.log('🎯 Initializing Studio Intelligence...')
-    const studioIntelligence = new StudioIntelligence()
-    await studioIntelligence.ensureDefaultHooks()
-    console.log('✅ Studio Intelligence initialized')
-  } catch (error) {
-    console.error('Failed to initialize Studio Intelligence:', error)
-  }
-}
 
 // Start server - conditional based on server type
 const PORT = process.env.PORT || 3456
@@ -241,9 +225,6 @@ async function startServer() {
 
   monitor.start()
   console.log('🔍 Workflow monitoring started for auto-resume')
-
-  // Initialize Studio Intelligence (smart defaults)
-  await initializeStudioIntelligence()
 
   // Discover available tools from Claude SDK
   const { ToolDiscoveryService } = await import('./services/ToolDiscoveryService.js')

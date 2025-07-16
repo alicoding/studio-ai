@@ -13,7 +13,7 @@ import * as os from 'os'
 import * as fs from 'fs'
 
 // Database configuration
-const STORAGE_DIR = path.join(os.homedir(), '.claude-studio')
+const STORAGE_DIR = path.join(os.homedir(), '.studio-ai')
 const DB_PATH = path.join(STORAGE_DIR, 'studio.db')
 const MIGRATIONS_PATH = path.join(STORAGE_DIR, 'migrations')
 

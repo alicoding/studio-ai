@@ -6,7 +6,7 @@
  * More specific configurations override broader ones
  */
 
-// System-wide configuration (stored in ~/claude-studio/config.json)
+// System-wide configuration (stored in ~/studio-ai/config.json)
 export interface SystemConfig {
   defaultModel?: string
   defaultTools?: string[]

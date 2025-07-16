@@ -36,10 +36,6 @@ interface HooksSettingsTabProps {
   onRemoveHook: (hookId: string) => void
   onSave?: () => void
   saving?: boolean
-  studioIntelligenceStatus?: {
-    initialized: boolean
-    activeHooks: string[]
-  }
 }
 
 interface SecurityNoticeProps {}
@@ -123,12 +119,7 @@ function HookCard({ hook, onEdit, onRemove }: HookCardProps) {
               <Badge variant="secondary">{hook.matcher}</Badge>
             )}
             {!hook.enabled && <Badge variant="outline">Disabled</Badge>}
-            {hook.source === 'Studio Intelligence' && (
-              <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white">
-                Built-in
-              </Badge>
-            )}
-            {hook.source && hook.source !== 'Studio Intelligence' && (
+            {hook.source && (
               <Badge variant="outline" className="text-xs">
                 {hook.source}
               </Badge>
@@ -146,16 +137,12 @@ function HookCard({ hook, onEdit, onRemove }: HookCardProps) {
         </div>
 
         <div className="flex items-center gap-2 ml-4">
-          {hook.source !== 'Studio Intelligence' && (
-            <>
-              <Button variant="ghost" size="sm" onClick={() => onEdit(hook)}>
-                <Edit2 className="w-4 h-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => onRemove(hook.id)}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </>
-          )}
+          <Button variant="ghost" size="sm" onClick={() => onEdit(hook)}>
+            <Edit2 className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => onRemove(hook.id)}>
+            <Trash2 className="w-4 h-4" />
+          </Button>
         </div>
       </div>
     </div>
@@ -244,7 +231,6 @@ export function HooksSettingsTab({
   onRemoveHook,
   onSave,
   saving = false,
-  studioIntelligenceStatus,
 }: HooksSettingsTabProps) {
   const [editingHook, setEditingHook] = useState<Hook | null>(null)
   const [showHookModal, setShowHookModal] = useState(false)
@@ -298,25 +284,6 @@ export function HooksSettingsTab({
         </CardHeader>
         <CardContent className="space-y-6">
           <SecurityNotice />
-
-          {studioIntelligenceStatus && (
-            <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg dark:from-purple-900/20 dark:to-pink-900/20 dark:border-purple-800">
-              <div className="flex items-start gap-2">
-                <Zap className="w-5 h-5 text-purple-600 dark:text-purple-400 mt-0.5 flex-shrink-0" />
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-purple-800 dark:text-purple-200">
-                    Studio Intelligence{' '}
-                    {studioIntelligenceStatus.initialized ? 'Active' : 'Available'}
-                  </p>
-                  <p className="text-sm text-purple-700 dark:text-purple-300">
-                    {studioIntelligenceStatus.initialized
-                      ? `${studioIntelligenceStatus.activeHooks.length} built-in behaviors active: ${studioIntelligenceStatus.activeHooks.join(', ')}`
-                      : 'Initialize Studio Intelligence from a project to enable TypeScript checking, file locks, and @mention routing'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
 
           <Tabs defaultValue="studio" className="space-y-4" onValueChange={(value) => setCurrentTab(value as HookScope)}>
             <div className="flex items-center justify-between">

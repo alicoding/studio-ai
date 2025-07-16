@@ -21,7 +21,6 @@ import type {
   ProcessStats,
   HealthStatus,
   Hook,
-  IntelligenceAnalysis,
   DiagnosticInfo,
   Screenshot,
   AgentRole,
@@ -40,8 +39,6 @@ import type {
   SystemMessageData,
   SettingsData,
   HookConfig,
-  AnalyzeData,
-  SuggestData,
   SearchIndexData,
   SearchQueryOptions,
   SearchResponse,
@@ -235,16 +232,6 @@ export class StudioApiProvider extends BaseApiClient implements StudioProvider {
       }),
   }
 
-  /**
-   * Studio Intelligence operations
-   */
-  readonly intelligence = {
-    analyze: (data: AnalyzeData) =>
-      this.post<IntelligenceAnalysis>('studio-intelligence/analyze', data),
-
-    suggest: (data: SuggestData) =>
-      this.post<{ suggestions: string[] }>('studio-intelligence/suggest', data),
-  }
 
   /**
    * Diagnostics operations

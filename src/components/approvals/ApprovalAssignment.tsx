@@ -21,7 +21,7 @@ import type { EnrichedApproval } from '../../hooks/useApprovals'
 const CURRENT_USER = {
   id: 'current-user',
   name: 'You',
-  email: 'user@claude-studio.ai',
+  email: 'user@studio-ai.ai',
   role: 'Administrator',
 }
 
