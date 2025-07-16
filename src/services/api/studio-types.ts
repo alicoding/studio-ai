@@ -31,7 +31,6 @@ export type {
   SearchQueryOptions,
   SearchResponse,
   SearchStatsResponse,
-  DiagnosticData,
   ScreenshotData,
   SpawnTeamResponse,
   
@@ -44,7 +43,6 @@ export type {
   AgentRoleAssignment,
   ProcessStats,
   HealthStatus,
-  DiagnosticInfo,
   Screenshot,
   SessionInfo,
   PaginatedResponse,

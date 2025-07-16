@@ -55,8 +55,6 @@ process.on('unhandledRejection', (reason, promise) => {
   // Don't exit the process - let it continue running
 })
 
-// Import Project Diagnostics
-
 // Load environment variables
 dotenv.config()
 

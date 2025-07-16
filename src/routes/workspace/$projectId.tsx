@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useParams, Outlet } from '@tanstack/react-router'
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import type { JSX } from 'react'
 import { toast } from 'sonner'
 import { DeleteAgentModal } from '../../components/modals/DeleteAgentModal'
@@ -34,8 +34,6 @@ import { useApprovalEvents } from '../../hooks/useApprovalEvents'
 import { CanvasContent } from '../../components/workspace/CanvasContent'
 import { CreateProjectModal } from '../../components/projects/CreateProjectModal'
 import { ConnectionStatusBanner } from '../../components/ui/ConnectionStatusBanner'
-import { ErrorMonitor } from '../../services/ErrorMonitor'
-import { useDiagnosticsStore } from '../../stores/diagnostics'
 import VisualWorkflowBuilder from '../../components/workflow-builder/VisualWorkflowBuilder'
 import HumanApprovalModal from '../../components/workflow/HumanApprovalModal'
 
@@ -97,28 +95,6 @@ function WorkspacePage(): JSX.Element | null {
     }
   }, [workspaceLoading, projects, currentProject, navigate])
 
-  // Initialize diagnostic monitoring globally on app start (singleton pattern)
-  const diagnosticsInitialized = useRef(false)
-  useEffect(() => {
-    if (!diagnosticsInitialized.current) {
-      diagnosticsInitialized.current = true
-      console.log('[WorkspacePage] Initializing global diagnostic monitoring')
-      const monitor = ErrorMonitor.getInstance()
-      const { setDiagnostics, setMonitoring } = useDiagnosticsStore.getState()
-
-      // Set up listeners if not already connected
-      if (!monitor.isConnected) {
-        monitor.onDiagnosticsUpdated(({ source, diagnostics }) => {
-          console.log(
-            `[WorkspacePage] Global diagnostic update: ${diagnostics.length} for ${source}`
-          )
-          setDiagnostics(source, diagnostics)
-        })
-
-        setMonitoring(true) // We're monitoring as soon as connected
-      }
-    }
-  }, [])
 
   // Get current project agents from workspace data with memoization
   const currentProjectAgents = useMemo(

@@ -28,12 +28,10 @@ export async function createTestApp(): Promise<TestApp> {
   // Import and mount routes
   const storageRouter = (await import('../api/storage')).default
   const messagesRouter = (await import('../api/messages')).default
-  const diagnosticsRouter = (await import('../api/diagnostics')).default
   const messagesBatchRouter = (await import('../api/messages-batch')).default
   
   app.use('/api/storage', storageRouter)
   app.use('/api/messages', messagesRouter)
-  app.use('/api/diagnostics', diagnosticsRouter)
   app.use('/api/messages', messagesBatchRouter)
   
   // Create server

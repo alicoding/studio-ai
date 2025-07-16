@@ -21,7 +21,6 @@ import type {
   ProcessStats,
   HealthStatus,
   Hook,
-  DiagnosticInfo,
   Screenshot,
   AgentRole,
   SearchIndexStats,
@@ -44,7 +43,6 @@ import type {
   SearchResponse,
   SearchStatsResponse,
   AgentRoleAssignment,
-  DiagnosticData,
   ScreenshotData,
 } from './studio-types'
 
@@ -230,15 +228,6 @@ export class StudioApiProvider extends BaseApiClient implements StudioProvider {
       this.post<{ success: boolean; output?: string; error?: string }>('settings/hooks/test', {
         hook,
       }),
-  }
-
-  /**
-   * Diagnostics operations
-   */
-  readonly diagnostics = {
-    get: () => this.get<DiagnosticInfo>('diagnostics'),
-
-    check: (data: DiagnosticData) => this.post<DiagnosticInfo>('diagnostics/check', data),
   }
 
   /**

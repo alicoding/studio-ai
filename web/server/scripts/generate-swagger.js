@@ -121,7 +121,7 @@ API calls are rate-limited to prevent abuse. See response headers for current li
     {
       name: 'System & Health',
       description:
-        '⚙️ System health checks, settings, storage, and API documentation. Server status and diagnostics.',
+        '⚙️ System health checks, settings, storage, and API documentation. Server status.',
     },
     {
       name: 'Data & Storage',

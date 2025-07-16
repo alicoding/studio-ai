@@ -163,7 +163,6 @@ export function StorageManagement() {
             <li>• Agent configurations and selections</li>
             <li>• Project preferences and active states</li>
             <li>• UI layout preferences (sidebar, view modes)</li>
-            <li>• Diagnostic monitoring status</li>
             <li>• Workspace collapsible states</li>
           </ul>
         </CardContent>

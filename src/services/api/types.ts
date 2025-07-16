@@ -220,22 +220,6 @@ export interface Hook {
   config?: HookConfig
 }
 
-export interface DiagnosticInfo {
-  projectPath: string
-  errors: Array<{
-    type: string
-    message: string
-    file?: string
-    line?: number
-  }>
-  warnings: Array<{
-    type: string
-    message: string
-    file?: string
-  }>
-  suggestions: string[]
-}
-
 export interface Screenshot {
   id: string
   projectId: string
@@ -375,10 +359,6 @@ export interface SearchStatsResponse {
   stats: SearchIndexStats
 }
 
-export interface DiagnosticData {
-  projectPath: string
-}
-
 export interface ScreenshotData {
   projectId: string
   agentId: string
@@ -472,12 +452,6 @@ export interface StudioProvider extends ApiProvider {
     getHooks(): Promise<Hook[]>
     updateHooks(hooks: Record<string, HookConfig>): Promise<Hook[]>
     testHook(hook: HookConfig): Promise<{ success: boolean; output?: string; error?: string }>
-  }
-
-  // Diagnostics operations
-  diagnostics: {
-    get(): Promise<DiagnosticInfo>
-    check(data: { projectPath: string }): Promise<DiagnosticInfo>
   }
 
   // Screenshot operations
