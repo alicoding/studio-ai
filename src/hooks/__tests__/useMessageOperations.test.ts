@@ -88,8 +88,8 @@ describe('useMessageOperations - Project Path Bug', () => {
     // Mock project data with correct workspace path
     const mockProject = {
       id: 'project-123',
-      name: 'bns-ai',
-      path: '~/projects/bns-ai', // This should be the workspace path
+      name: 'projectName',
+      path: '~/projects/name', // This should be the workspace path
       createdAt: new Date().toISOString(),
       sessionCount: 0,
       status: 'active' as const,
@@ -120,7 +120,7 @@ describe('useMessageOperations - Project Path Bug', () => {
     expect(mockSendClaudeMessage).toHaveBeenCalledWith('Test message', {
       projectId: 'project-123',
       agentId: 'developer_01',
-      projectPath: '~/projects/bns-ai', // Should use the project path, not Studio AI path
+      projectPath: '~/projects/name', // Should use the project path, not Studio AI path
       role: 'dev',
       sessionId: 'session-123',
     })
@@ -132,8 +132,8 @@ describe('useMessageOperations - Project Path Bug', () => {
     // This simulates the actual workspace data format
     const workspaceProject = {
       id: 'project-123',
-      name: 'bns-ai',
-      workspacePath: '~/projects/bns-ai', // Workspace uses workspacePath
+      name: 'projectName',
+      workspacePath: '~/projects/name', // Workspace uses workspacePath
       description: 'Test project',
     }
 
@@ -170,7 +170,7 @@ describe('useMessageOperations - Project Path Bug', () => {
     expect(mockSendClaudeMessage).toHaveBeenCalledWith('Test message', {
       projectId: 'project-123',
       agentId: 'developer_01',
-      projectPath: '~/projects/bns-ai', // Should use the mapped path
+      projectPath: '~/projects/name', // Should use the mapped path
       role: 'dev',
       sessionId: 'session-123',
     })
@@ -182,8 +182,8 @@ describe('useMessageOperations - Project Path Bug', () => {
     // Wrong project data (simulating the bug)
     const wrongProject = {
       id: 'project-123',
-      name: 'bns-ai',
-      path: '/Users/ali/claude-swarm/claude-team/studio-ai', // WRONG - Studio AI path
+      name: 'projectName',
+      path: '/Users/name/studio-ai', // WRONG - Studio AI path
       createdAt: new Date().toISOString(),
       sessionCount: 0,
       status: 'active' as const,
@@ -214,10 +214,10 @@ describe('useMessageOperations - Project Path Bug', () => {
     const options = call[1]
 
     // Document the bug
-    expect(options.projectPath).toBe('/Users/ali/claude-swarm/claude-team/studio-ai')
+    expect(options.projectPath).toBe('/Users/name/studio-ai')
 
     // This is what it SHOULD be (uncomment when fixed):
-    // expect(options.projectPath).not.toBe('/Users/ali/claude-swarm/claude-team/studio-ai')
-    // expect(options.projectPath).toBe('~/projects/bns-ai')
+    // expect(options.projectPath).not.toBe('/Users/name/studio-ai')
+    // expect(options.projectPath).toBe('~/projects/name')
   })
 })

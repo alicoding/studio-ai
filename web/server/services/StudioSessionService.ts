@@ -84,7 +84,7 @@ export class StudioSessionService {
 
     // Convert the full path to Claude SDK's directory naming convention
     // Claude SDK replaces all / with - to create directory names
-    // e.g., /Volumes/AliDev/projects/bns-ai → -Volumes-AliDev-projects-bns-ai
+    // e.g., /Volumes/Name/projects/name → -Volumes-AliDev-projects-name
     const projectName = expandedPath.replace(/\//g, '-')
 
     console.log(`[StudioSessionService] Converting path "${workspacePath}" → "${projectName}"`)

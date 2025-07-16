@@ -88,8 +88,8 @@ describe('useMessageOperations - Path Tracing', () => {
     // Simulate the exact scenario from the main route
     const workspaceProject = {
       id: 'project-123',
-      name: 'bns-ai',
-      workspacePath: '~/projects/bns-ai', // This is what we get from workspace API
+      name: 'projectName',
+      workspacePath: '~/projects/name', // This is what we get from workspace API
     }
 
     // Convert to store project format (exactly like in index.tsx)
@@ -131,7 +131,7 @@ describe('useMessageOperations - Path Tracing', () => {
     console.log('3. sendClaudeMessage called with:', callArgs)
     console.log('4. projectPath sent:', callArgs[1].projectPath)
 
-    expect(callArgs[1].projectPath).toBe('~/projects/bns-ai')
+    expect(callArgs[1].projectPath).toBe('~/projects/name')
     expect(callArgs[1].projectPath).not.toContain('studio-ai')
   })
 
@@ -166,8 +166,8 @@ describe('useMessageOperations - Path Tracing', () => {
     // This simulates the exact data structure from the UI
     const activeProject = {
       id: 'project-123',
-      name: 'bns-ai',
-      path: '~/projects/bns-ai', // Already converted from workspacePath
+      name: 'projectName',
+      path: '~/projects/name', // Already converted from workspacePath
       createdAt: new Date().toISOString(),
       sessionCount: 0,
       status: 'active' as const,
@@ -201,7 +201,7 @@ describe('useMessageOperations - Path Tracing', () => {
     expect(options).toEqual({
       projectId: 'project-123',
       agentId: 'developer_01',
-      projectPath: '~/projects/bns-ai',
+      projectPath: '~/projects/name',
       role: 'dev',
       sessionId: 'session-123',
     })
