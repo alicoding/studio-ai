@@ -1,0 +1,108 @@
+{
+  "name": "Code Deployment Approval Workflow",
+  "description": "Human-in-the-loop workflow with conditional approval gates for high-risk deployments",
+  "version": "1.0.0",
+  "workflow": [
+    {
+      "id": "analyze",
+      "type": "task",
+      "role": "developer",
+      "task": "Analyze the provided code changes for complexity, risk factors, and potential impact. Consider: database changes, authentication modifications, security implications, and deployment complexity. Return a detailed analysis with risk classification."
+    },
+    {
+      "id": "security-scan",
+      "type": "task",
+      "role": "developer",
+      "task": "Perform comprehensive security analysis on {analyze.output}. Identify potential vulnerabilities, security risks, and compliance concerns. Focus on: data exposure, authentication bypass, injection attacks, and configuration security.",
+      "deps": ["analyze"]
+    },
+    {
+      "id": "risk-assessment",
+      "type": "conditional",
+      "task": "Evaluate deployment risk level",
+      "condition": {
+        "version": "2.0",
+        "rootGroup": {
+          "id": "main",
+          "combinator": "OR",
+          "rules": [
+            {
+              "id": "complexity-check",
+              "leftValue": { "stepId": "analyze", "field": "output" },
+              "operation": "contains",
+              "rightValue": { "type": "string", "value": "high complexity" },
+              "dataType": "string"
+            },
+            {
+              "id": "security-check",
+              "leftValue": { "stepId": "security-scan", "field": "output" },
+              "operation": "contains",
+              "rightValue": { "type": "string", "value": "vulnerability" },
+              "dataType": "string"
+            },
+            {
+              "id": "database-check",
+              "leftValue": { "stepId": "analyze", "field": "output" },
+              "operation": "contains",
+              "rightValue": { "type": "string", "value": "database" },
+              "dataType": "string"
+            }
+          ]
+        }
+      },
+      "trueBranch": "human-approval",
+      "falseBranch": "auto-deploy",
+      "deps": ["security-scan"]
+    },
+    {
+      "id": "human-approval",
+      "type": "task",
+      "role": "reviewer",
+      "task": "HUMAN APPROVAL REQUIRED: Review the analysis results and security scan findings. Based on: {analyze.output} and {security-scan.output}, make an approval decision. Respond with either 'APPROVED: reason' or 'REJECTED: reason'."
+    },
+    {
+      "id": "auto-deploy",
+      "type": "task",
+      "role": "developer",
+      "task": "Execute automated deployment with standard monitoring. The risk assessment determined this is a low-risk change based on: {analyze.output}"
+    },
+    {
+      "id": "manual-deploy",
+      "type": "task",
+      "role": "developer",
+      "task": "Execute high-risk deployment with enhanced monitoring and rollback readiness. Approval decision: {human-approval.output}. Implement additional safeguards and monitoring.",
+      "deps": ["human-approval"]
+    },
+    {
+      "id": "audit-log",
+      "type": "task",
+      "role": "developer",
+      "task": "Create comprehensive audit log entry documenting: workflow execution, risk assessment results, approval decisions (if any), and deployment outcome. Include timestamps and decision rationale."
+    }
+  ],
+  "metadata": {
+    "author": "Studio AI Examples",
+    "category": "Human-in-Loop",
+    "tags": ["approval", "conditional", "human-input", "risk-assessment", "deployment"],
+    "estimatedDuration": "5-15 minutes",
+    "complexity": "intermediate",
+    "requirements": {
+      "agents": ["developer", "reviewer"],
+      "apiCalls": 6,
+      "mockSupported": true,
+      "humanInteraction": true
+    },
+    "riskFactors": [
+      "database migration",
+      "authentication changes",
+      "security configuration",
+      "payment processing",
+      "user data handling"
+    ],
+    "approvalCriteria": {
+      "timeout": 900,
+      "escalation": true,
+      "auditRequired": true
+    }
+  }
+}

@@ -1,0 +1,188 @@
+{
+  "name": "Comprehensive Testing Automation Workflow",
+  "description": "Multi-stage testing pipeline with quality gates and conditional deployment",
+  "version": "1.0.0",
+  "workflow": [
+    {
+      "id": "analyze-changes",
+      "type": "task",
+      "role": "developer",
+      "task": "Analyze the code changes and determine which test suites are needed. Consider: file types changed, modules affected, risk level, and testing requirements. Return a structured analysis with recommended test strategy."
+    },
+    {
+      "id": "unit-tests-frontend",
+      "type": "task",
+      "role": "developer",
+      "task": "Run frontend unit tests. Execute test suite and report: number of tests run, passed, failed, coverage percentage, and any critical failures. Based on changes: {analyze-changes.output}",
+      "deps": ["analyze-changes"]
+    },
+    {
+      "id": "unit-tests-backend",
+      "type": "task",
+      "role": "developer",
+      "task": "Run backend unit tests. Execute test suite and report: number of tests run, passed, failed, coverage percentage, and any critical failures. Based on changes: {analyze-changes.output}",
+      "deps": ["analyze-changes"]
+    },
+    {
+      "id": "integration-tests",
+      "type": "task",
+      "role": "developer",
+      "task": "Run integration tests based on the analysis: {analyze-changes.output}. Focus on API endpoints, database interactions, and service integrations. Report test results with pass/fail status.",
+      "deps": ["unit-tests-frontend", "unit-tests-backend"]
+    },
+    {
+      "id": "security-scan",
+      "type": "task",
+      "role": "developer",
+      "task": "Perform security testing and vulnerability scanning. Check for: authentication issues, authorization flaws, input validation, SQL injection, XSS vulnerabilities. Report security scan results.",
+      "deps": ["analyze-changes"]
+    },
+    {
+      "id": "quality-gate",
+      "type": "conditional",
+      "task": "Evaluate overall test results for quality gate",
+      "condition": {
+        "version": "2.0",
+        "rootGroup": {
+          "id": "quality-check",
+          "combinator": "AND",
+          "rules": [
+            {
+              "id": "frontend-pass",
+              "leftValue": { "stepId": "unit-tests-frontend", "field": "output" },
+              "operation": "contains",
+              "rightValue": { "type": "string", "value": "PASS" },
+              "dataType": "string"
+            },
+            {
+              "id": "backend-pass",
+              "leftValue": { "stepId": "unit-tests-backend", "field": "output" },
+              "operation": "contains",
+              "rightValue": { "type": "string", "value": "PASS" },
+              "dataType": "string"
+            },
+            {
+              "id": "integration-pass",
+              "leftValue": { "stepId": "integration-tests", "field": "output" },
+              "operation": "contains",
+              "rightValue": { "type": "string", "value": "PASS" },
+              "dataType": "string"
+            },
+            {
+              "id": "security-pass",
+              "leftValue": { "stepId": "security-scan", "field": "output" },
+              "operation": "not_contains",
+              "rightValue": { "type": "string", "value": "CRITICAL" },
+              "dataType": "string"
+            }
+          ]
+        }
+      },
+      "trueBranch": "performance-tests",
+      "falseBranch": "generate-failure-report",
+      "deps": ["integration-tests", "security-scan"]
+    },
+    {
+      "id": "performance-tests",
+      "type": "task",
+      "role": "developer",
+      "task": "Run performance and load tests. Test key endpoints for: response time, throughput, resource usage, and scalability. Report performance metrics and identify any bottlenecks."
+    },
+    {
+      "id": "e2e-tests",
+      "type": "task",
+      "role": "tester",
+      "task": "Execute end-to-end user journey tests. Validate critical user flows, UI functionality, and business processes. Report E2E test results with user scenario coverage.",
+      "deps": ["performance-tests"]
+    },
+    {
+      "id": "deployment-decision",
+      "type": "conditional",
+      "task": "Make deployment decision based on all test results",
+      "condition": {
+        "version": "2.0",
+        "rootGroup": {
+          "id": "deployment-check",
+          "combinator": "AND",
+          "rules": [
+            {
+              "id": "performance-ok",
+              "leftValue": { "stepId": "performance-tests", "field": "output" },
+              "operation": "not_contains",
+              "rightValue": { "type": "string", "value": "FAIL" },
+              "dataType": "string"
+            },
+            {
+              "id": "e2e-pass",
+              "leftValue": { "stepId": "e2e-tests", "field": "output" },
+              "operation": "contains",
+              "rightValue": { "type": "string", "value": "PASS" },
+              "dataType": "string"
+            }
+          ]
+        }
+      },
+      "trueBranch": "approve-deployment",
+      "falseBranch": "block-deployment",
+      "deps": ["e2e-tests"]
+    },
+    {
+      "id": "generate-failure-report",
+      "type": "task",
+      "role": "developer",
+      "task": "Generate comprehensive failure report. Include: failed test details, error messages, affected components, recommended fixes, and team notifications. Compile data from all previous test steps."
+    },
+    {
+      "id": "approve-deployment",
+      "type": "task",
+      "role": "developer",
+      "task": "DEPLOYMENT APPROVED: All tests passed successfully. Generate deployment summary with: test coverage metrics, performance benchmarks, security clearance, and deployment recommendations."
+    },
+    {
+      "id": "block-deployment",
+      "type": "task",
+      "role": "developer",
+      "task": "DEPLOYMENT BLOCKED: Critical tests failed. Generate blocking report with: failure analysis, risk assessment, required fixes, and estimated resolution time. Include results from: {performance-tests.output} and {e2e-tests.output}"
+    },
+    {
+      "id": "test-summary",
+      "type": "task",
+      "role": "developer",
+      "task": "Create final test execution summary. Include: total test count, pass/fail rates, coverage metrics, performance results, security scan results, deployment decision, and recommendations for next steps."
+    }
+  ],
+  "metadata": {
+    "author": "Studio AI Examples",
+    "category": "Quality Assurance",
+    "tags": ["testing", "automation", "quality-gates", "performance", "security", "e2e"],
+    "estimatedDuration": "5-10 minutes",
+    "complexity": "advanced",
+    "requirements": {
+      "agents": ["developer", "tester"],
+      "apiCalls": 12,
+      "mockSupported": true,
+      "parallelExecution": true
+    },
+    "testSuites": [
+      "unit-tests-frontend",
+      "unit-tests-backend",
+      "integration-tests",
+      "security-scan",
+      "performance-tests",
+      "e2e-tests"
+    ],
+    "qualityGates": {
+      "unitTestCoverage": 80,
+      "integrationTestPass": 100,
+      "securityScanPass": true,
+      "performanceThreshold": 2000,
+      "e2eTestPass": 100
+    },
+    "deploymentCriteria": {
+      "allTestsPass": true,
+      "performanceAcceptable": true,
+      "securityCleared": true,
+      "coverageThreshold": 80
+    }
+  }
+}

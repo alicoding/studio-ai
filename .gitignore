@@ -34,9 +34,20 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 
+# Compiled TypeScript files (should not be committed)
+*.d.ts
+*.d.ts.map
+*.js.map
+web/server/**/*.js
+web/server/**/*.d.ts
+!web/server/scripts/*.js
+
 # Temporary files
 *.tmp
 *.temp
+*.backup
+*.bak
+*.old
 
 # Session data
 ~/.claude/
@@ -53,6 +64,11 @@ debug-*.js
 .claude-studio/*.db
 .claude-studio/*.db-shm
 .claude-studio/*.db-wal
+
+# Test reports and artifacts
+playwright-report/
+test-results/
+coverage/
 
 # Auto-generated files
 src/routeTree.gen.ts

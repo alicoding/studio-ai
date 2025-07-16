@@ -34,7 +34,7 @@ Edit `.env` and add your API keys:
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 
 # Required: Generate with: openssl rand -hex 32
-CLAUDE_STUDIO_ENCRYPTION_KEY=your_32_character_hex_encryption_key_here
+STUDIO_AI_ENCRYPTION_KEY=your_32_character_hex_encryption_key_here
 
 # Optional: For enhanced AI features
 ELECTRONHUB_API_KEY=your_electronhub_api_key_here
@@ -88,7 +88,7 @@ NODE_ENV=production
 USE_MOCK_AI=false
 
 # Security
-CLAUDE_STUDIO_ENCRYPTION_KEY=<secure-32-char-hex-key>
+STUDIO_AI_ENCRYPTION_KEY=<secure-32-char-hex-key>
 
 # Database
 USE_POSTGRES_SAVER=true
@@ -173,7 +173,7 @@ WS_PORT=3456
 
 ### Common Issues
 
-**1. "CLAUDE_STUDIO_ENCRYPTION_KEY is required"**
+**1. "STUDIO_AI_ENCRYPTION_KEY is required"**
 
 ```bash
 # Generate a secure key

@@ -1,0 +1,235 @@
+name: 🧩 Community Node Proposal
+description: Propose a new community node for the Studio AI marketplace
+title: "[Node] "
+labels: ["community-node", "enhancement", "marketplace"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Propose a new node for the Studio AI community marketplace! 
+        
+        Community nodes extend Studio AI's capabilities and can be shared with the entire community.
+
+  - type: input
+    id: node-name
+    attributes:
+      label: Node Name
+      description: What should this node be called?
+      placeholder: "e.g., 'PDF Generator', 'Slack Notifier', 'Image Classifier'"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: node-category
+    attributes:
+      label: Node Category
+      description: Which category best fits this node?
+      options:
+        - AI Providers (Claude, GPT, Gemini, etc.)
+        - Data Processing (Transform, Filter, Aggregate)
+        - Integrations (APIs, Databases, Services)
+        - Communication (Email, Slack, Discord, etc.)
+        - File Operations (Read, Write, Convert)
+        - Security (Encryption, Authentication, Scanning)
+        - Monitoring (Logging, Metrics, Alerts)
+        - Human-in-Loop (Approval, Input, Review)
+        - Utilities (Date/Time, Math, Validation)
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Node Description
+      description: What does this node do? Be specific about its functionality.
+      placeholder: |
+        Describe the node's functionality:
+        - What problem does it solve?
+        - What inputs does it accept?
+        - What outputs does it produce?
+        - Any special capabilities or features?
+    validations:
+      required: true
+
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Input Parameters
+      description: What inputs does this node accept?
+      placeholder: |
+        List the node inputs:
+        - Parameter name: type - description
+        - apiKey: string - API key for the service
+        - message: string - Message content to process
+        - options: object - Configuration options
+    validations:
+      required: true
+
+  - type: textarea
+    id: outputs
+    attributes:
+      label: Output Format
+      description: What does this node output?
+      placeholder: |
+        Describe the output format:
+        - success: boolean - Whether operation succeeded
+        - data: object - Processed data result
+        - error: string - Error message if failed
+        - metadata: object - Additional information
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use Cases
+      description: Provide examples of how this node would be used in workflows
+      placeholder: |
+        Example workflows:
+        1. Content Generation: AI Writer → PDF Generator → Email Sender
+        2. Data Processing: CSV Reader → Data Validator → Database Insert
+        3. Notification: Error Detector → Slack Notifier → Team Alert
+    validations:
+      required: true
+
+  - type: textarea
+    id: api-dependencies
+    attributes:
+      label: API Dependencies
+      description: What external APIs or services does this node require?
+      placeholder: |
+        List any dependencies:
+        - Service name: purpose
+        - Authentication requirements
+        - Rate limits or quotas
+        - Free tier availability
+    validations:
+      required: false
+
+  - type: textarea
+    id: config-example
+    attributes:
+      label: Configuration Example
+      description: Show an example of how this node would be configured
+      placeholder: |
+        ```json
+        {
+          "id": "pdf-generator",
+          "type": "pdf-generator",
+          "config": {
+            "template": "invoice",
+            "format": "A4",
+            "options": {
+              "margin": "1in",
+              "footer": true
+            }
+          },
+          "inputs": {
+            "data": "{previous-step.output}",
+            "filename": "invoice-{timestamp}.pdf"
+          }
+        }
+        ```
+      render: json
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: implementation
+    attributes:
+      label: Implementation
+      description: How can this node be implemented?
+      options:
+        - label: I can implement this node myself
+        - label: I know the required APIs/services well
+        - label: I have example code or prototypes
+        - label: I need help with implementation
+        - label: This should be a core Studio AI feature instead
+
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: Implementation Complexity
+      description: How complex would this node be to implement?
+      options:
+        - Simple - Basic API wrapper or data transformation
+        - Medium - Multiple API calls or complex logic
+        - Complex - Advanced processing or AI integration
+        - Very Complex - Requires significant infrastructure
+    validations:
+      required: true
+
+  - type: textarea
+    id: similar-tools
+    attributes:
+      label: Similar Tools/Nodes
+      description: Are there similar nodes in other platforms (n8n, Zapier, etc.)?
+      placeholder: |
+        Reference similar implementations:
+        - Platform: Node name - How it works
+        - Any improvements you'd make to existing approaches
+        - Unique features your proposal would have
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: node-features
+    attributes:
+      label: Node Features
+      description: What features should this node support?
+      options:
+        - label: Error handling and retry logic
+        - label: Rate limiting and throttling
+        - label: Batch processing capabilities
+        - label: Streaming/real-time processing
+        - label: Caching for performance
+        - label: Configuration validation
+        - label: Test mode/dry run
+        - label: Detailed logging and debugging
+
+  - type: textarea
+    id: testing
+    attributes:
+      label: Testing Approach
+      description: How would this node be tested?
+      placeholder: |
+        Testing considerations:
+        - Unit tests for core functionality
+        - Integration tests with external APIs
+        - Mock services for development
+        - Test data requirements
+        - Performance benchmarks
+    validations:
+      required: false
+
+  - type: textarea
+    id: documentation
+    attributes:
+      label: Documentation Needs
+      description: What documentation would users need?
+      placeholder: |
+        Documentation requirements:
+        - Setup and configuration guide
+        - API key/authentication setup
+        - Common use case examples
+        - Troubleshooting guide
+        - Performance considerations
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information about this node proposal
+      placeholder: |
+        Additional information:
+        - Community demand or interest
+        - Business value or impact
+        - Timeline considerations
+        - Maintenance requirements
+    validations:
+      required: false

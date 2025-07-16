@@ -1,0 +1,168 @@
+name: ✨ Feature Request
+description: Suggest a new feature or enhancement for Studio AI
+title: "[Feature] "
+labels: ["enhancement", "needs-discussion"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Your ideas help shape the future of Studio AI.
+        
+        **Before submitting:** Please search existing issues and discussions to see if this has been proposed before.
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm you've completed these steps
+      options:
+        - label: I have searched existing issues and discussions
+          required: true
+        - label: This is not a bug report (use the bug template instead)
+          required: true
+        - label: I have considered if this could be implemented as a community node/extension
+          required: false
+
+  - type: dropdown
+    id: feature-type
+    attributes:
+      label: Feature Category
+      description: What type of feature is this?
+      options:
+        - New Node Type
+        - AI Provider Integration
+        - Workflow Builder Enhancement
+        - API Enhancement
+        - Documentation
+        - Community/Marketplace
+        - Performance Improvement
+        - Developer Experience
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What's the current limitation?
+      placeholder: |
+        Describe the problem or limitation you're experiencing:
+        - What are you trying to accomplish?
+        - What's difficult or impossible with the current version?
+        - How does this impact your workflow?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe your proposed solution in detail
+      placeholder: |
+        Describe your ideal solution:
+        - How would this feature work?
+        - What would the user interface look like?
+        - How would users interact with it?
+        - Any specific technical approaches you have in mind?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What alternative solutions have you considered?
+      placeholder: |
+        Describe alternative approaches:
+        - Other ways to solve this problem
+        - Why those alternatives aren't sufficient
+        - How your proposed solution is better
+    validations:
+      required: false
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use Cases
+      description: Provide specific examples of how this feature would be used
+      placeholder: |
+        Example use cases:
+        1. A user wants to...
+        2. A developer needs to...
+        3. An organization could...
+        
+        Include any specific workflows or scenarios where this would be valuable.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority Level
+      description: How important is this feature to you?
+      options:
+        - Critical - Blocks my workflow
+        - High - Significantly improves my workflow
+        - Medium - Nice to have improvement
+        - Low - Minor convenience
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: implementation
+    attributes:
+      label: Implementation Interest
+      description: Are you interested in helping implement this feature?
+      options:
+        - label: I would like to implement this feature myself
+        - label: I can help with design/specification
+        - label: I can help with testing
+        - label: I can help with documentation
+        - label: I would sponsor/fund development of this feature
+
+  - type: textarea
+    id: technical-details
+    attributes:
+      label: Technical Considerations
+      description: Any technical details, constraints, or implementation ideas
+      placeholder: |
+        Technical considerations:
+        - Performance implications
+        - Security considerations
+        - Compatibility requirements
+        - Dependencies needed
+        - Breaking changes
+    validations:
+      required: false
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Mockups/Examples
+      description: Any mockups, diagrams, or examples that illustrate your idea
+      placeholder: |
+        Include:
+        - Screenshots of similar features
+        - Mockups or wireframes
+        - Code examples
+        - Configuration examples
+        - Links to similar implementations
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context, links, or information about the feature request
+      placeholder: |
+        Additional information:
+        - Related issues or discussions
+        - Similar features in other tools
+        - Community feedback you've received
+        - Timeline considerations
+    validations:
+      required: false

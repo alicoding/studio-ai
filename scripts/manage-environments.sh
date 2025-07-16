@@ -57,6 +57,10 @@ start_stable() {
     fi
     
     cd "$PROJECT_ROOT"
+    # Load .env file if it exists
+    if [ -f .env ]; then
+        export $(grep -v '^#' .env | xargs)
+    fi
     NODE_ENV=production PORT=3456 nohup tsx web/server/app.ts > "$PROJECT_ROOT/.claude-studio/stable-server.log" 2>&1 &
     local pid=$!
     echo $pid > "$STABLE_PID_FILE"
@@ -84,6 +88,10 @@ start_dev() {
     fi
     
     cd "$PROJECT_ROOT"
+    # Load .env file if it exists
+    if [ -f .env ]; then
+        export $(grep -v '^#' .env | xargs)
+    fi
     NODE_ENV=development PORT=3457 nohup tsx watch web/server/app.ts > "$PROJECT_ROOT/.claude-studio/dev-server.log" 2>&1 &
     local pid=$!
     echo $pid > "$DEV_PID_FILE"

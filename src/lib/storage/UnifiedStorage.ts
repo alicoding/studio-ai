@@ -20,9 +20,9 @@ import type {
 import * as crypto from 'crypto'
 
 // Encryption key management (required for production)
-const ENCRYPTION_KEY = process.env.CLAUDE_STUDIO_ENCRYPTION_KEY
+const ENCRYPTION_KEY = process.env.STUDIO_AI_ENCRYPTION_KEY
 if (!ENCRYPTION_KEY) {
-  throw new Error('CLAUDE_STUDIO_ENCRYPTION_KEY environment variable is required')
+  throw new Error('STUDIO_AI_ENCRYPTION_KEY environment variable is required')
 }
 
 // Type assertion since we've checked for existence above

@@ -12,16 +12,6 @@ import path from 'path'
 import os from 'os'
 import fs from 'fs'
 
-// SQLite pragma result types
-interface ColumnInfo {
-  cid: number
-  name: string
-  type: string
-  notnull: number
-  dflt_value: string | null
-  pk: number
-}
-
 // Database configuration
 const STORAGE_DIR = path.join(os.homedir(), '.claude-studio')
 const DB_PATH = path.join(STORAGE_DIR, 'studio.db')
@@ -77,25 +67,17 @@ export class DatabaseService {
       this.db.exec(`
         CREATE TABLE migrations (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          filename TEXT UNIQUE NOT NULL,
+          name TEXT NOT NULL UNIQUE,
           applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `)
-    } else {
-      // Check if filename column exists, add it if missing
-      const columns = this.db.pragma('table_info(migrations)') as ColumnInfo[]
-      const hasFilenameColumn = columns.some((col: ColumnInfo) => col.name === 'filename')
-
-      if (!hasFilenameColumn) {
-        this.db.exec('ALTER TABLE migrations ADD COLUMN filename TEXT')
-      }
     }
 
     // Run the approval system migration directly
     const approvalMigrationName = '007_create_workflow_approvals.ts'
     const appliedMigrations = this.db
-      .prepare('SELECT filename FROM migrations WHERE filename = ?')
-      .get(approvalMigrationName) as { filename: string } | undefined
+      .prepare('SELECT name FROM migrations WHERE name = ?')
+      .get(approvalMigrationName) as { name: string } | undefined
 
     if (!appliedMigrations) {
       console.log(`Running migration: ${approvalMigrationName}`)
@@ -105,7 +87,7 @@ export class DatabaseService {
         this.createApprovalTables()
 
         // Record migration as applied
-        this.db.prepare('INSERT INTO migrations (filename) VALUES (?)').run(approvalMigrationName)
+        this.db.prepare('INSERT INTO migrations (name) VALUES (?)').run(approvalMigrationName)
 
         console.log(`✅ Migration ${approvalMigrationName} applied successfully`)
       } catch (error) {
@@ -116,8 +98,8 @@ export class DatabaseService {
     // Run the assigned_to field migration
     const assignedToMigrationName = '008_add_assigned_to_field.ts'
     const assignedToApplied = this.db
-      .prepare('SELECT filename FROM migrations WHERE filename = ?')
-      .get(assignedToMigrationName) as { filename: string } | undefined
+      .prepare('SELECT name FROM migrations WHERE name = ?')
+      .get(assignedToMigrationName) as { name: string } | undefined
 
     if (!assignedToApplied) {
       console.log(`Running migration: ${assignedToMigrationName}`)
@@ -127,7 +109,7 @@ export class DatabaseService {
         this.addAssignedToField()
 
         // Record migration as applied
-        this.db.prepare('INSERT INTO migrations (filename) VALUES (?)').run(assignedToMigrationName)
+        this.db.prepare('INSERT INTO migrations (name) VALUES (?)').run(assignedToMigrationName)
 
         console.log(`✅ Migration ${assignedToMigrationName} applied successfully`)
       } catch (error) {
