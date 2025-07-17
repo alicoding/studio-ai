@@ -28,6 +28,13 @@ interface ToolPermission {
   enabled: boolean
 }
 
+export interface MCPServerConfig {
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+  cwd?: string
+}
+
 export interface AgentConfig {
   systemPrompt?: string
   tools?: string[] | ToolPermission[]
@@ -36,6 +43,7 @@ export interface AgentConfig {
   maxTokens?: number
   maxTurns?: number
   verbose?: boolean
+  mcpServers?: Record<string, MCPServerConfig>
 }
 
 export class ClaudeAgent {
@@ -164,6 +172,7 @@ export class ClaudeAgent {
         disallowedTools, // Pass disallowed tools if any restrictions
         model: this.mapToValidModel(this.config?.model), // Use valid Claude Code model name
         customSystemPrompt: this.config?.systemPrompt, // Pass agent's system prompt
+        mcpServers: this.config?.mcpServers, // Enable MCP server access for agents
         // Not supported by SDK: verbose, temperature, maxTokens, outputFormat
       }
 

@@ -1,4 +1,4 @@
-import { ClaudeAgent, type Role, type AgentConfig } from './claude-agent.js'
+import { ClaudeAgent, type Role, type AgentConfig, type MCPServerConfig } from './claude-agent.js'
 import { SessionService } from './SessionService.js'
 import type { Server } from 'socket.io'
 
@@ -33,12 +33,16 @@ export class ClaudeService {
           console.log(`[SYSTEM PROMPT DEBUG] Loading config for configId: ${agentId}`)
           console.log(`[SYSTEM PROMPT DEBUG] Stored config:`, storedConfig)
           if (storedConfig) {
+            // Get default MCP server configuration
+            const defaultMcpServers = await this.getDefaultMcpServers()
+
             config = {
               systemPrompt: storedConfig.systemPrompt,
               tools: storedConfig.tools,
               model: storedConfig.model,
               maxTokens: storedConfig.maxTokens,
               temperature: storedConfig.temperature,
+              mcpServers: defaultMcpServers,
             }
             console.log(`[SYSTEM PROMPT DEBUG] Final config with system prompt:`, config)
           }
@@ -126,5 +130,41 @@ export class ClaudeService {
     const agentKey = `${projectId}:${agentId}`
     const agent = this.agents.get(agentKey)
     return agent ? agent.getInfo() : null
+  }
+
+  // Get default MCP server configuration for agents
+  private async getDefaultMcpServers(): Promise<Record<string, MCPServerConfig>> {
+    // Load the default MCP configuration that Studio AI provides
+    try {
+      const path = await import('path')
+      const fs = await import('fs/promises')
+      const configPath = path.join(process.cwd(), 'web/server/mcp/studio-ai/claude-mcp-config.json')
+
+      const configData = await fs.readFile(configPath, 'utf-8')
+      const config = JSON.parse(configData)
+
+      // Convert the configuration format to match MCPServerConfig
+      const mcpServers: Record<string, MCPServerConfig> = {}
+
+      if (config.mcpServers) {
+        for (const [name, serverConfig] of Object.entries(config.mcpServers)) {
+          const server = serverConfig as Record<string, unknown>
+          mcpServers[name] = {
+            command: String(server.command || 'node'),
+            args: Array.isArray(server.args) ? server.args.map(String) : [],
+            env:
+              server.env && typeof server.env === 'object'
+                ? (server.env as Record<string, string>)
+                : {},
+            cwd: typeof server.cwd === 'string' ? server.cwd : undefined,
+          }
+        }
+      }
+
+      return mcpServers
+    } catch (error) {
+      console.warn('Failed to load MCP configuration, using empty config:', error)
+      return {}
+    }
   }
 }
