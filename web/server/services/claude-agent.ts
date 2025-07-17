@@ -8,9 +8,10 @@ import {
   type Options,
 } from '@anthropic-ai/claude-code'
 
-// Extend Options type to include MCP configuration that's missing from SDK types
+// Extend Options type to include MCP configuration and sessionId that may be missing from SDK types
 interface ExtendedOptions extends Options {
   mcpServers?: Record<string, MCPServerConfig>
+  sessionId?: string // New session ID parameter for maintaining conversation continuity
 }
 import type { Server } from 'socket.io'
 import { detectAbortError, AbortError } from '../utils/errorUtils'
@@ -172,7 +173,7 @@ export class ClaudeAgent {
       const queryOptions: ExtendedOptions = {
         maxTurns: this.config?.maxTurns || 500, // Use configured maxTurns or default to 500
         cwd: expandedProjectPath, // MUST pass project path - no fallback!
-        resume: currentSessionId || undefined, // Use session from SessionService
+        sessionId: currentSessionId || undefined, // Use new sessionId parameter for conversation continuity
         allowedTools, // Pass allowed tools if any restrictions
         disallowedTools, // Pass disallowed tools if any restrictions
         model: this.mapToValidModel(this.config?.model), // Use valid Claude Code model name
