@@ -143,6 +143,72 @@ mcp__studio -
 
 Must commit the work before writing the "Summary" at the end of the task.
 
+### GitHub Issue Workflow (MANDATORY)
+
+**CRITICAL**: Every task MUST have a GitHub issue before implementation begins.
+
+#### 1. **Task Discovery Process**
+
+When a bug or feature is identified:
+
+1. Use `Task()` to research and understand the issue completely
+2. Document findings with technical details, impact assessment, and solution approach
+3. Create comprehensive GitHub issue with all context
+4. Update TodoWrite with GitHub issue number reference
+
+#### 2. **GitHub Issue Requirements**
+
+Every issue MUST include:
+
+- **Clear Title**: Descriptive with prefix (🐛 BUG, ✨ FEAT, 💣 TECH DEBT, 📚 DOC)
+- **Description**: What and why
+- **Technical Details**: Specific files, functions, line numbers
+- **Impact Assessment**: Who/what is affected
+- **Reproduction Steps**: For bugs
+- **Acceptance Criteria**: Clear checklist of completion requirements
+- **Dependencies**: Link related issues with #number
+- **Labels**: Apply appropriate labels (see Label System below)
+
+#### 3. **Label System**
+
+Use these labels for organization:
+
+- **Core Architecture**: `provider-system`, `workflow-engine`, `agent-management`, `ui-framework`, `integration`
+- **Feature Groups**: `multi-provider`, `workflow-builder`, `chat-interface`
+- **Impact Levels**: `breaking-change`, `backward-compatible`, `prerequisite`
+- **Type**: `bug`, `enhancement`, `documentation`
+
+#### 4. **Workflow Efficiency Tracking**
+
+For multi-agent workflows:
+
+- **Measure Context Discovery Time**: Track how long agents spend finding information
+- **Document Redundant Work**: Note when agents repeat searches/analysis
+- **Record Total Time**: End-to-end completion metrics
+- **Optimize Based on Data**: Use findings to improve future workflows
+
+#### 5. **Implementation Process**
+
+1. Create GitHub issue with full context
+2. Link dependencies to other issues
+3. Update TodoWrite with issue reference
+4. Begin implementation following the issue's technical approach
+5. Reference issue number in commits: `fix: solve problem (#123)`
+6. Update issue with progress comments
+7. Close issue with PR reference
+
+Example commit message:
+
+```
+fix: add workflow abort functionality (#6)
+
+- Implement POST /api/workflow-abort/{threadId} endpoint
+- Add graceful workflow termination
+- Update UI with abort controls
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+```
+
 ### Feature Planning System
 
 **MANDATORY**: For any complex feature development (>2 days work), create a comprehensive plan:
