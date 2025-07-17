@@ -32,19 +32,28 @@ export class ClaudeService {
           const storedConfig = await configService.getConfig(agentId)
           console.log(`[SYSTEM PROMPT DEBUG] Loading config for configId: ${agentId}`)
           console.log(`[SYSTEM PROMPT DEBUG] Stored config:`, storedConfig)
-          if (storedConfig) {
-            // Get default MCP server configuration
-            const defaultMcpServers = await this.getDefaultMcpServers()
 
+          // Always load MCP servers, even if no stored config
+          const defaultMcpServers = await this.getDefaultMcpServers()
+          const mcpConfig = { mcpServers: defaultMcpServers }
+          console.log(`[MCP DEBUG] Loaded MCP config:`, mcpConfig)
+
+          if (storedConfig) {
             config = {
               systemPrompt: storedConfig.systemPrompt,
               tools: storedConfig.tools,
               model: storedConfig.model,
               maxTokens: storedConfig.maxTokens,
               temperature: storedConfig.temperature,
-              mcpServers: defaultMcpServers,
+              mcpConfig: mcpConfig,
             }
             console.log(`[SYSTEM PROMPT DEBUG] Final config with system prompt:`, config)
+          } else {
+            // No stored config, but still provide MCP servers
+            config = {
+              mcpConfig: mcpConfig,
+            }
+            console.log(`[MCP DEBUG] No stored config, using default with MCP config:`, config)
           }
         } catch (error) {
           console.error('Failed to load agent configuration:', error)
