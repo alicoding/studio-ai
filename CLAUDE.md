@@ -187,15 +187,44 @@ For multi-agent workflows:
 - **Record Total Time**: End-to-end completion metrics
 - **Optimize Based on Data**: Use findings to improve future workflows
 
-#### 5. **Implementation Process**
+#### 5. **GitHub Projects Integration**
 
-1. Create GitHub issue with full context
-2. Link dependencies to other issues
-3. Update TodoWrite with issue reference
-4. Begin implementation following the issue's technical approach
-5. Reference issue number in commits: `fix: solve problem (#123)`
-6. Update issue with progress comments
-7. Close issue with PR reference
+**Project Board**: https://github.com/users/alicoding/projects/3
+
+**CRITICAL**: Use GitHub Projects for issue discovery and prioritization:
+
+```bash
+# Quick issue discovery commands for Claude:
+gh project item-list 3 --owner alicoding  # List all project issues
+gh project view 3 --owner alicoding       # View project overview
+gh issue list --state open --limit 10     # Quick issue scan
+```
+
+**Project Organization:**
+
+- **Board View**: Kanban workflow (To Do → In Progress → Review → Done)
+- **Custom Fields**: Priority, Effort, Component, Sprint (set via GitHub UI)
+- **Automated Workflows**: Auto-move issues based on status changes
+- **Views**: Filter by priority, component, or current sprint
+
+**Issue Discovery Process:**
+
+1. Check project board for current priorities
+2. Use `gh project item-list` for quick scanning
+3. Focus on issues marked as `status-ready` or `priority-critical`
+4. Update project status when starting work on issues
+
+#### 6. **Implementation Process**
+
+1. Check GitHub Projects board for prioritized issues
+2. Create GitHub issue with full context (if not exists)
+3. Add issue to GitHub Projects board
+4. Link dependencies to other issues
+5. Update TodoWrite with issue reference
+6. Begin implementation following the issue's technical approach
+7. Reference issue number in commits: `fix: solve problem (#123)`
+8. Update issue with progress comments
+9. Close issue with PR reference
 
 Example commit message:
 
