@@ -7,6 +7,11 @@ import {
   type SDKAssistantMessage,
   type Options,
 } from '@anthropic-ai/claude-code'
+
+// Extend Options type to include MCP configuration that's missing from SDK types
+interface ExtendedOptions extends Options {
+  mcpConfig?: { mcpServers: Record<string, MCPServerConfig> }
+}
 import type { Server } from 'socket.io'
 import { detectAbortError, AbortError } from '../utils/errorUtils'
 import { eventSystem } from './EventSystem'
@@ -164,7 +169,7 @@ export class ClaudeAgent {
       const disallowedTools = await this.getToolRestrictions('disallowed')
 
       // Build query options from agent configuration
-      const queryOptions: Options = {
+      const queryOptions: ExtendedOptions = {
         maxTurns: this.config?.maxTurns || 500, // Use configured maxTurns or default to 500
         cwd: expandedProjectPath, // MUST pass project path - no fallback!
         resume: currentSessionId || undefined, // Use session from SessionService
@@ -172,7 +177,7 @@ export class ClaudeAgent {
         disallowedTools, // Pass disallowed tools if any restrictions
         model: this.mapToValidModel(this.config?.model), // Use valid Claude Code model name
         customSystemPrompt: this.config?.systemPrompt, // Pass agent's system prompt
-        mcpServers: this.config?.mcpConfig?.mcpServers, // Enable MCP server access for agents
+        mcpConfig: this.config?.mcpConfig, // Enable MCP server access for agents
         // Not supported by SDK: verbose, temperature, maxTokens, outputFormat
       }
 
