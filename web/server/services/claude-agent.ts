@@ -10,7 +10,7 @@ import {
 
 // Extend Options type to include MCP configuration that's missing from SDK types
 interface ExtendedOptions extends Options {
-  mcpConfig?: string
+  mcpServers?: Record<string, MCPServerConfig>
 }
 import type { Server } from 'socket.io'
 import { detectAbortError, AbortError } from '../utils/errorUtils'
@@ -48,7 +48,7 @@ export interface AgentConfig {
   maxTokens?: number
   maxTurns?: number
   verbose?: boolean
-  mcpConfig?: string
+  mcpServers?: Record<string, MCPServerConfig>
 }
 
 export class ClaudeAgent {
@@ -177,7 +177,7 @@ export class ClaudeAgent {
         disallowedTools, // Pass disallowed tools if any restrictions
         model: this.mapToValidModel(this.config?.model), // Use valid Claude Code model name
         customSystemPrompt: this.config?.systemPrompt, // Pass agent's system prompt
-        mcpConfig: this.config?.mcpConfig, // Enable MCP server access for agents
+        mcpServers: this.config?.mcpServers, // Enable MCP server access for agents
         // Not supported by SDK: verbose, temperature, maxTokens, outputFormat
       }
 
