@@ -49,6 +49,10 @@ export class WorkflowOrchestrator {
   private workflowBuilder: WorkflowBuilder
   private abortControllers = new Map<string, AbortController>()
 
+  // Static registry to track all active workflows across all orchestrator instances
+  private static activeWorkflows = new Map<string, Promise<InvokeResponse>>()
+  private static workflowAbortControllers = new Map<string, AbortController>()
+
   constructor(io?: Server, workflowEvents?: EventEmitter) {
     this.io = io
     this.workflowEvents = workflowEvents
@@ -102,15 +106,50 @@ export class WorkflowOrchestrator {
    */
   setAbortController(threadId: string, abortController: AbortController): void {
     this.abortControllers.set(threadId, abortController)
+    // Also register in static map for global abort access
+    WorkflowOrchestrator.workflowAbortControllers.set(threadId, abortController)
   }
 
   /**
    * Check if workflow should be aborted
    */
   private checkAbortSignal(threadId: string): void {
-    const abortController = this.abortControllers.get(threadId)
+    const abortController =
+      this.abortControllers.get(threadId) ||
+      WorkflowOrchestrator.workflowAbortControllers.get(threadId)
     if (abortController?.signal.aborted) {
       throw new Error('Workflow aborted by user')
+    }
+  }
+
+  /**
+   * Static method to check if a workflow is active
+   */
+  static isWorkflowActive(threadId: string): boolean {
+    return WorkflowOrchestrator.activeWorkflows.has(threadId)
+  }
+
+  /**
+   * Static method to abort a workflow by threadId
+   */
+  static async abortWorkflow(threadId: string): Promise<void> {
+    const abortController = WorkflowOrchestrator.workflowAbortControllers.get(threadId)
+    if (!abortController) {
+      throw new Error(`No active workflow found with threadId: ${threadId}`)
+    }
+
+    // Signal abort to the workflow
+    abortController.abort()
+
+    // Wait for the workflow to finish aborting
+    const workflowPromise = WorkflowOrchestrator.activeWorkflows.get(threadId)
+    if (workflowPromise) {
+      try {
+        await workflowPromise
+      } catch (_error) {
+        // Expected - workflow should throw abort error
+        console.log(`[WorkflowOrchestrator] Workflow ${threadId} aborted successfully`)
+      }
     }
   }
 
@@ -167,6 +206,16 @@ export class WorkflowOrchestrator {
     // Generate or use threadId as the workflow session identifier
     const threadId = request.threadId || uuidv4()
 
+    // Create abort controller for this workflow if not already set
+    if (
+      !this.abortControllers.has(threadId) &&
+      !WorkflowOrchestrator.workflowAbortControllers.has(threadId)
+    ) {
+      const abortController = new AbortController()
+      this.setAbortController(threadId, abortController)
+      console.log(`[WorkflowOrchestrator] Created abort controller for workflow ${threadId}`)
+    }
+
     // Register workflow for monitoring
     const monitor = WorkflowMonitor.getInstance()
     monitor.registerWorkflow(threadId, request)
@@ -220,102 +269,117 @@ export class WorkflowOrchestrator {
       startNewConversation: request.startNewConversation || false,
     }
 
-    try {
-      // Initialize status tracking
-      await updateWorkflowStatus(threadId, {
-        status: 'running',
-        sessionIds: {},
-        currentStep: normalizedSteps[0]?.id,
-      })
+    // Create and register the execution promise in static registry for abort tracking
+    const executionPromise = (async (): Promise<InvokeResponse> => {
+      try {
+        // Initialize status tracking
+        await updateWorkflowStatus(threadId, {
+          status: 'running',
+          sessionIds: {},
+          currentStep: normalizedSteps[0]?.id,
+        })
 
-      // Check abort signal before starting
-      this.checkAbortSignal(threadId)
+        // Check abort signal before starting
+        this.checkAbortSignal(threadId)
 
-      // Execute workflow
-      const finalState = await workflow.invoke(initialState, {
-        configurable: { thread_id: threadId },
-      })
+        // Execute workflow
+        const finalState = await workflow.invoke(initialState, {
+          configurable: { thread_id: threadId },
+        })
 
-      // Update final status with completed step information
-      const finalStatus = this.stateManager.determineOverallStatus(finalState.stepResults)
+        // Update final status with completed step information
+        const finalStatus = this.stateManager.determineOverallStatus(finalState.stepResults)
 
-      // Build updated steps array with final statuses
-      const updatedSteps = this.stateManager.buildUpdatedSteps(
-        normalizedSteps,
-        finalState.stepResults
-      )
+        // Build updated steps array with final statuses
+        const updatedSteps = this.stateManager.buildUpdatedSteps(
+          normalizedSteps,
+          finalState.stepResults
+        )
 
-      await updateWorkflowStatus(threadId, {
-        status: finalStatus === 'completed' ? 'completed' : 'failed',
-        sessionIds: finalState.sessionIds,
-        steps: updatedSteps,
-      })
+        await updateWorkflowStatus(threadId, {
+          status: finalStatus === 'completed' ? 'completed' : 'failed',
+          sessionIds: finalState.sessionIds,
+          steps: updatedSteps,
+        })
 
-      // Emit workflow complete event
-      this.emitWorkflowEvent({
-        type: 'workflow_complete',
-        threadId,
-        status: finalStatus,
-      })
+        // Emit workflow complete event
+        this.emitWorkflowEvent({
+          type: 'workflow_complete',
+          threadId,
+          status: finalStatus,
+        })
 
-      // Remove from monitoring
-      monitor.removeWorkflow(threadId)
+        // Remove from monitoring
+        monitor.removeWorkflow(threadId)
 
-      // Update project last activity if projectId is provided
-      if (request.projectId) {
-        try {
-          console.log(
-            `[WorkflowOrchestrator] Updating last activity for project: ${request.projectId}`
-          )
-          await this.projectService.updateLastActivity(request.projectId)
-          console.log(
-            `[WorkflowOrchestrator] Successfully updated last activity for project: ${request.projectId}`
-          )
-        } catch (error) {
-          console.error('Failed to update project last activity:', error)
-          // Don't fail the workflow for this
+        // Update project last activity if projectId is provided
+        if (request.projectId) {
+          try {
+            console.log(
+              `[WorkflowOrchestrator] Updating last activity for project: ${request.projectId}`
+            )
+            await this.projectService.updateLastActivity(request.projectId)
+            console.log(
+              `[WorkflowOrchestrator] Successfully updated last activity for project: ${request.projectId}`
+            )
+          } catch (error) {
+            console.error('Failed to update project last activity:', error)
+            // Don't fail the workflow for this
+          }
         }
+
+        // Build response
+        const response: InvokeResponse = {
+          threadId,
+          sessionIds: finalState.sessionIds,
+          results: finalState.stepOutputs,
+          status: finalStatus,
+          summary: this.stateManager.buildSummary(finalState.stepResults, Date.now() - startTime),
+        }
+
+        // Format if requested
+        if (request.format === 'text') {
+          return this.stateManager.formatTextResponse(response)
+        }
+
+        return response
+      } catch (error) {
+        console.error('Workflow execution error:', error)
+
+        // Update status on error/abort
+        const abortInfo = detectAbortError(error)
+        await updateWorkflowStatus(threadId, {
+          status: abortInfo.isAbort ? 'aborted' : 'failed',
+        })
+
+        // Emit workflow failed event with last step info for recovery
+        // Find the last step that was attempted
+        const lastStep = normalizedSteps[normalizedSteps.length - 1]?.id || 'unknown'
+
+        this.emitWorkflowEvent({
+          type: 'workflow_failed',
+          threadId,
+          lastStep,
+        })
+
+        // Remove from monitoring on failure
+        monitor.removeWorkflow(threadId)
+
+        throw error
+      } finally {
+        // Clean up from static registry when workflow completes
+        WorkflowOrchestrator.activeWorkflows.delete(threadId)
+        WorkflowOrchestrator.workflowAbortControllers.delete(threadId)
+        this.abortControllers.delete(threadId)
       }
+    })()
 
-      // Build response
-      const response: InvokeResponse = {
-        threadId,
-        sessionIds: finalState.sessionIds,
-        results: finalState.stepOutputs,
-        status: finalStatus,
-        summary: this.stateManager.buildSummary(finalState.stepResults, Date.now() - startTime),
-      }
+    // Register the execution promise for abort tracking
+    WorkflowOrchestrator.activeWorkflows.set(threadId, executionPromise)
+    console.log(`[WorkflowOrchestrator] Registered workflow ${threadId} for abort tracking`)
 
-      // Format if requested
-      if (request.format === 'text') {
-        return this.stateManager.formatTextResponse(response)
-      }
-
-      return response
-    } catch (error) {
-      console.error('Workflow execution error:', error)
-
-      // Update status on error/abort
-      const abortInfo = detectAbortError(error)
-      await updateWorkflowStatus(threadId, {
-        status: abortInfo.isAbort ? 'aborted' : 'failed',
-      })
-
-      // Emit workflow failed event with last step info for recovery
-      // Find the last step that was attempted
-      const lastStep = normalizedSteps[normalizedSteps.length - 1]?.id || 'unknown'
-
-      this.emitWorkflowEvent({
-        type: 'workflow_failed',
-        threadId,
-        lastStep,
-      })
-
-      // Remove from monitoring on failure
-      monitor.removeWorkflow(threadId)
-
-      throw error
-    }
+    // Return the promise result
+    return await executionPromise
   }
 
   /**

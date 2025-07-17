@@ -300,20 +300,19 @@ router.post('/abort/:threadId', async (req: Request, res: Response) => {
   const { threadId } = req.params
 
   try {
-    // Import WorkflowExecutor to check if workflow is active
-    const { WorkflowExecutor } = await import('../services/WorkflowExecutor')
-    const executor = WorkflowExecutor.getInstance()
+    // Import WorkflowOrchestrator to check if workflow is active and abort it
+    const { WorkflowOrchestrator } = await import('../services/WorkflowOrchestrator')
 
     // Check if workflow is currently active
-    if (!executor.isActive(threadId)) {
+    if (!WorkflowOrchestrator.isWorkflowActive(threadId)) {
       return res.status(404).json({
         error: 'Workflow not found or not currently running',
         threadId,
       })
     }
 
-    // Abort the workflow by calling the abort method
-    await executor.abortWorkflow(threadId)
+    // Abort the workflow by calling the static abort method
+    await WorkflowOrchestrator.abortWorkflow(threadId)
 
     // Update workflow status in database
     const registry = WorkflowRegistry.getInstance()
