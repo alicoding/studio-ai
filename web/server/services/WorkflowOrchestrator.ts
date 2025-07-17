@@ -214,6 +214,8 @@ export class WorkflowOrchestrator {
       const abortController = new AbortController()
       this.setAbortController(threadId, abortController)
       console.log(`[WorkflowOrchestrator] Created abort controller for workflow ${threadId}`)
+    } else {
+      console.log(`[WorkflowOrchestrator] Using existing abort controller for workflow ${threadId}`)
     }
 
     // Register workflow for monitoring
