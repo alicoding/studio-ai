@@ -10,7 +10,7 @@ import {
 
 // Extend Options type to include MCP configuration that's missing from SDK types
 interface ExtendedOptions extends Options {
-  mcpConfig?: { mcpServers: Record<string, MCPServerConfig> }
+  mcpConfig?: string
 }
 import type { Server } from 'socket.io'
 import { detectAbortError, AbortError } from '../utils/errorUtils'
@@ -48,7 +48,7 @@ export interface AgentConfig {
   maxTokens?: number
   maxTurns?: number
   verbose?: boolean
-  mcpConfig?: { mcpServers: Record<string, MCPServerConfig> }
+  mcpConfig?: string
 }
 
 export class ClaudeAgent {

@@ -1,4 +1,4 @@
-import { ClaudeAgent, type Role, type AgentConfig, type MCPServerConfig } from './claude-agent.js'
+import { ClaudeAgent, type Role, type AgentConfig } from './claude-agent.js'
 import { SessionService } from './SessionService.js'
 import type { Server } from 'socket.io'
 
@@ -33,10 +33,9 @@ export class ClaudeService {
           console.log(`[SYSTEM PROMPT DEBUG] Loading config for configId: ${agentId}`)
           console.log(`[SYSTEM PROMPT DEBUG] Stored config:`, storedConfig)
 
-          // Always load MCP servers, even if no stored config
-          const defaultMcpServers = await this.getDefaultMcpServers()
-          const mcpConfig = { mcpServers: defaultMcpServers }
-          console.log(`[MCP DEBUG] Loaded MCP config:`, mcpConfig)
+          // Always load MCP config file path, even if no stored config
+          const mcpConfigPath = await this.getDefaultMcpConfigPath()
+          console.log(`[MCP DEBUG] Loaded MCP config path:`, mcpConfigPath)
 
           if (storedConfig) {
             config = {
@@ -45,13 +44,13 @@ export class ClaudeService {
               model: storedConfig.model,
               maxTokens: storedConfig.maxTokens,
               temperature: storedConfig.temperature,
-              mcpConfig: mcpConfig,
+              mcpConfig: mcpConfigPath,
             }
             console.log(`[SYSTEM PROMPT DEBUG] Final config with system prompt:`, config)
           } else {
             // No stored config, but still provide MCP servers
             config = {
-              mcpConfig: mcpConfig,
+              mcpConfig: mcpConfigPath,
             }
             console.log(`[MCP DEBUG] No stored config, using default with MCP config:`, config)
           }
@@ -142,38 +141,21 @@ export class ClaudeService {
   }
 
   // Get default MCP server configuration for agents
-  private async getDefaultMcpServers(): Promise<Record<string, MCPServerConfig>> {
-    // Load the default MCP configuration that Studio AI provides
+  // Get default MCP configuration file path for agents
+  private async getDefaultMcpConfigPath(): Promise<string> {
+    // Return the path to the default MCP configuration file
     try {
       const path = await import('path')
       const fs = await import('fs/promises')
       const configPath = path.join(process.cwd(), 'web/server/mcp/studio-ai/claude-mcp-config.json')
 
-      const configData = await fs.readFile(configPath, 'utf-8')
-      const config = JSON.parse(configData)
+      // Check if the file exists
+      await fs.access(configPath)
 
-      // Convert the configuration format to match MCPServerConfig
-      const mcpServers: Record<string, MCPServerConfig> = {}
-
-      if (config.mcpServers) {
-        for (const [name, serverConfig] of Object.entries(config.mcpServers)) {
-          const server = serverConfig as Record<string, unknown>
-          mcpServers[name] = {
-            command: String(server.command || 'node'),
-            args: Array.isArray(server.args) ? server.args.map(String) : [],
-            env:
-              server.env && typeof server.env === 'object'
-                ? (server.env as Record<string, string>)
-                : {},
-            cwd: typeof server.cwd === 'string' ? server.cwd : undefined,
-          }
-        }
-      }
-
-      return mcpServers
+      return configPath
     } catch (error) {
-      console.warn('Failed to load MCP configuration, using empty config:', error)
-      return {}
+      console.warn('Failed to find MCP configuration file:', error)
+      return ''
     }
   }
 }
