@@ -6,7 +6,7 @@
  * KISS: Simple list interface with modal for details
  */
 
-import { Activity, Trash2 } from 'lucide-react'
+import { Activity, Trash2, Square } from 'lucide-react'
 import { useState, useMemo, useRef } from 'react'
 import { useWorkflowStore } from '../../stores/workflows'
 import type { WorkflowInfo } from '../../stores/workflows'
@@ -20,7 +20,8 @@ const WorkflowItem: React.FC<{
   isHighlighted: boolean
   onClick: (e: React.MouseEvent) => void
   onDelete: (e: React.MouseEvent) => void
-}> = ({ workflow, isSelected, isHighlighted, onClick, onDelete }) => {
+  onAbort?: (e: React.MouseEvent) => void
+}> = ({ workflow, isSelected, isHighlighted, onClick, onDelete, onAbort }) => {
   return (
     <div
       className={`w-full border-b border-border last:border-b-0 ${
@@ -63,6 +64,17 @@ const WorkflowItem: React.FC<{
             <span>{workflow.steps.length} steps</span>
           </div>
         </button>
+
+        {/* Abort button - only show for running workflows */}
+        {workflow.status === 'running' && onAbort && (
+          <button
+            onClick={onAbort}
+            className="flex items-center justify-center w-6 h-6 rounded hover:bg-orange-500/10 text-orange-500 hover:text-orange-600 transition-colors"
+            title="Abort workflow"
+          >
+            <Square className="w-3 h-3" />
+          </button>
+        )}
 
         {/* Delete button */}
         <button
@@ -167,6 +179,31 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
     }
   }
 
+  const handleAbortWorkflow = async (workflow: WorkflowInfo, e: React.MouseEvent) => {
+    e.stopPropagation()
+
+    if (workflow.status !== 'running') {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/invoke-status/abort/${workflow.threadId}`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        alert(`Failed to abort workflow: ${error.error}`)
+        return
+      }
+
+      console.log(`Successfully requested abort for workflow ${workflow.threadId}`)
+    } catch (error) {
+      console.error('Error aborting workflow:', error)
+      alert('Failed to abort workflow. Please try again.')
+    }
+  }
+
   const handleDeleteWorkflow = async (workflow: WorkflowInfo, e: React.MouseEvent) => {
     e.stopPropagation()
 
@@ -267,6 +304,7 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
                   isHighlighted={workflow.threadId === selectedWorkflowId}
                   onClick={(e) => handleWorkflowClick(workflow, e)}
                   onDelete={(e) => handleDeleteWorkflow(workflow, e)}
+                  onAbort={(e) => handleAbortWorkflow(workflow, e)}
                 />
               ))}
             </>
@@ -286,6 +324,7 @@ export function WorkflowList({ className = '' }: WorkflowListProps) {
                   isHighlighted={workflow.threadId === selectedWorkflowId}
                   onClick={(e) => handleWorkflowClick(workflow, e)}
                   onDelete={(e) => handleDeleteWorkflow(workflow, e)}
+                  onAbort={(e) => handleAbortWorkflow(workflow, e)}
                 />
               ))}
             </>

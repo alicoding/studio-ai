@@ -21,6 +21,7 @@ interface WorkflowEvent {
     | 'step_failed'
     | 'workflow_complete'
     | 'workflow_failed'
+    | 'workflow_aborted'
     | 'graph_update'
   threadId: string
   stepId?: string
@@ -152,9 +153,18 @@ router.get('/events', (req: Request, res: Response) => {
           status: data.type.replace('step_', ''),
         })}\n\n`
       )
-    } else if (data.type === 'workflow_complete' || data.type === 'workflow_failed') {
-      // Map 'complete' to 'completed' to match WorkflowInfo interface
-      const status = data.type === 'workflow_complete' ? 'completed' : 'failed'
+    } else if (
+      data.type === 'workflow_complete' ||
+      data.type === 'workflow_failed' ||
+      data.type === 'workflow_aborted'
+    ) {
+      // Map event types to status strings to match WorkflowInfo interface
+      const status =
+        data.type === 'workflow_complete'
+          ? 'completed'
+          : data.type === 'workflow_failed'
+            ? 'failed'
+            : 'aborted'
       res.write(
         `event: workflow_status\ndata: ${JSON.stringify({
           ...data,
@@ -278,6 +288,74 @@ router.delete('/workflows', async (req: Request, res: Response) => {
     console.error('[Bulk Delete API] Error deleting workflows:', error)
     res.status(500).json({
       error: 'Failed to delete workflows',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    })
+  }
+})
+
+/**
+ * Abort workflow execution
+ */
+router.post('/abort/:threadId', async (req: Request, res: Response) => {
+  const { threadId } = req.params
+
+  try {
+    // Import WorkflowExecutor to check if workflow is active
+    const { WorkflowExecutor } = await import('../services/WorkflowExecutor')
+    const executor = WorkflowExecutor.getInstance()
+
+    // Check if workflow is currently active
+    if (!executor.isActive(threadId)) {
+      return res.status(404).json({
+        error: 'Workflow not found or not currently running',
+        threadId,
+      })
+    }
+
+    // Abort the workflow by calling the abort method
+    await executor.abortWorkflow(threadId)
+
+    // Update workflow status in database
+    const registry = WorkflowRegistry.getInstance()
+    await registry.updateWorkflow(threadId, {
+      status: 'aborted',
+      lastUpdate: new Date().toISOString(),
+    })
+
+    // Emit workflow aborted event via SSE
+    const workflowEvents = req.app.get('workflowEvents')
+    if (workflowEvents) {
+      workflowEvents.emit('workflow:update', {
+        type: 'workflow_aborted',
+        threadId,
+        status: 'aborted',
+        timestamp: new Date().toISOString(),
+      })
+    }
+
+    // Also emit via WebSocket if available
+    const io = req.app.get('io')
+    if (io) {
+      io.emit('workflow:aborted', {
+        threadId,
+        status: 'aborted',
+        timestamp: new Date().toISOString(),
+      })
+    }
+
+    console.log(`[Abort API] Successfully aborted workflow ${threadId}`)
+
+    res.json({
+      success: true,
+      threadId,
+      status: 'aborted',
+      message: 'Workflow aborted successfully',
+    })
+  } catch (error) {
+    console.error(`[Abort API] Error aborting workflow ${threadId}:`, error)
+    res.status(500).json({
+      error: 'Failed to abort workflow',
+      threadId,
       details: error instanceof Error ? error.message : 'Unknown error',
     })
   }

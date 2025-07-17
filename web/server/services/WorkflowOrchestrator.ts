@@ -21,13 +21,14 @@ import type { Server } from 'socket.io'
 import { EventEmitter } from 'events'
 import { WorkflowMonitor } from './WorkflowMonitor'
 import { StepExecutorRegistry, MockStepExecutor, ClaudeStepExecutor } from './executors'
+import type { StepExecutor } from './executors/StepExecutor'
 import { WorkflowValidator } from './WorkflowValidator'
 import { WorkflowEventEmitter } from './WorkflowEventEmitter'
-import { WorkflowStateManager } from './WorkflowStateManager'
+import { WorkflowStateManager, type WorkflowState } from './WorkflowStateManager'
 import { WorkflowGraphGenerator } from './WorkflowGraphGenerator'
 import { ConditionEvaluator } from './ConditionEvaluator'
 import { WorkflowNodeFactory } from './WorkflowNodeFactory'
-import { WorkflowBuilder } from './WorkflowBuilder'
+import { WorkflowBuilder, WorkflowStateSchema } from './WorkflowBuilder'
 import type { ConditionContext } from '../schemas/workflow-builder'
 
 export class WorkflowOrchestrator {
@@ -46,6 +47,7 @@ export class WorkflowOrchestrator {
   private conditionEvaluator = ConditionEvaluator.getInstance()
   private nodeFactory: WorkflowNodeFactory
   private workflowBuilder: WorkflowBuilder
+  private abortControllers = new Map<string, AbortController>()
 
   constructor(io?: Server, workflowEvents?: EventEmitter) {
     this.io = io
@@ -75,7 +77,7 @@ export class WorkflowOrchestrator {
 
     // Register Mock executor (for testing without AI costs)
     const mockExecutor = new MockStepExecutor()
-    this.executorRegistry.register(mockExecutor)
+    this.executorRegistry.register(mockExecutor as unknown as StepExecutor)
 
     console.log(
       `[WorkflowOrchestrator] Initialized ${this.executorRegistry.getExecutorCount()} executors: ${this.executorRegistry.getAvailableExecutorTypes().join(', ')}`
@@ -93,6 +95,23 @@ export class WorkflowOrchestrator {
       this.checkpointer = await getCheckpointer()
     }
     return this.checkpointer
+  }
+
+  /**
+   * Set abort controller for a workflow
+   */
+  setAbortController(threadId: string, abortController: AbortController): void {
+    this.abortControllers.set(threadId, abortController)
+  }
+
+  /**
+   * Check if workflow should be aborted
+   */
+  private checkAbortSignal(threadId: string): void {
+    const abortController = this.abortControllers.get(threadId)
+    if (abortController?.signal.aborted) {
+      throw new Error('Workflow aborted by user')
+    }
   }
 
   /**
@@ -208,6 +227,9 @@ export class WorkflowOrchestrator {
         sessionIds: {},
         currentStep: normalizedSteps[0]?.id,
       })
+
+      // Check abort signal before starting
+      this.checkAbortSignal(threadId)
 
       // Execute workflow
       const finalState = await workflow.invoke(initialState, {

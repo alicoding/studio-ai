@@ -14,6 +14,7 @@ import { EventEmitter } from 'events'
 export class WorkflowExecutor {
   private static instance: WorkflowExecutor
   private activeWorkflows = new Map<string, Promise<InvokeResponse>>()
+  private abortControllers = new Map<string, AbortController>()
   private io?: Server
   private workflowEvents?: EventEmitter
 
@@ -42,15 +43,47 @@ export class WorkflowExecutor {
       throw new Error('Socket.io not initialized')
     }
 
+    // Create abort controller for this workflow
+    const abortController = new AbortController()
+    this.abortControllers.set(request.threadId, abortController)
+
     const orchestrator = new WorkflowOrchestrator(this.io, this.workflowEvents)
+
+    // Set the abort controller on the orchestrator
+    orchestrator.setAbortController(request.threadId, abortController)
 
     // Store the promise to keep it alive
     const executionPromise = orchestrator.execute(request).finally(() => {
       // Clean up when done
       this.activeWorkflows.delete(request.threadId)
+      this.abortControllers.delete(request.threadId)
     })
 
     this.activeWorkflows.set(request.threadId, executionPromise)
+  }
+
+  /**
+   * Abort a running workflow
+   */
+  async abortWorkflow(threadId: string): Promise<void> {
+    const abortController = this.abortControllers.get(threadId)
+    if (!abortController) {
+      throw new Error(`No active workflow found with threadId: ${threadId}`)
+    }
+
+    // Signal abort to the workflow
+    abortController.abort()
+
+    // Wait for the workflow to finish aborting
+    const workflowPromise = this.activeWorkflows.get(threadId)
+    if (workflowPromise) {
+      try {
+        await workflowPromise
+      } catch (_error) {
+        // Expected - workflow should throw abort error
+        console.log(`[WorkflowExecutor] Workflow ${threadId} aborted successfully`)
+      }
+    }
   }
 
   /**
