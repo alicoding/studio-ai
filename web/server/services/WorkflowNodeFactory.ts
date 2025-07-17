@@ -58,6 +58,7 @@ export class WorkflowNodeFactory {
           stepOutputs: state.stepOutputs || {},
           sessionIds: state.sessionIds || {},
           threadId: state.threadId,
+          projectId: state.projectId,
         }
 
         // Get appropriate executor and execute step
@@ -178,6 +179,7 @@ export class WorkflowNodeFactory {
               stepOutputs: state.stepOutputs || {},
               sessionIds: state.sessionIds || {},
               threadId: state.threadId,
+              projectId: state.projectId,
             }
 
             // Get appropriate executor and execute step
@@ -364,6 +366,7 @@ export class WorkflowNodeFactory {
           stepOutputs: state.stepOutputs || {},
           sessionIds: state.sessionIds || {},
           threadId: state.threadId,
+          projectId: state.projectId,
         }
 
         // Execute all steps in parallel

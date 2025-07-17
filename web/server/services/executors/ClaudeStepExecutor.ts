@@ -8,8 +8,8 @@
  * Library-First: Uses established ClaudeService infrastructure
  */
 
-import type { StepExecutor, WorkflowContext, ExecutorWorkflowStep } from './StepExecutor'
-import type { StepResult } from '../../schemas/invoke'
+import type { StepExecutor, WorkflowContext } from './StepExecutor'
+import type { StepResult, WorkflowStep } from '../../schemas/invoke'
 import { ClaudeService } from '../ClaudeService'
 import { SimpleOperator } from '../SimpleOperator'
 import { UnifiedAgentConfigService, type AgentConfig } from '../UnifiedAgentConfigService'
@@ -27,11 +27,21 @@ export class ClaudeStepExecutor implements StepExecutor {
     private projectService: StudioProjectService
   ) {}
 
-  canHandle(step: ExecutorWorkflowStep): boolean {
-    return step.type === 'claude' || (!step.type && Boolean(step.role || step.agentId))
+  canHandle(step: WorkflowStep): boolean {
+    // Handle 'task' type with role/agentId (default from schema)
+    if (step.type === 'task' && Boolean(step.role || step.agentId)) return true
+
+    // Handle undefined type with role/agentId (backward compatibility)
+    if (!step.type && Boolean(step.role || step.agentId)) return true
+
+    // Check if step has an extended type property for 'claude' (ExecutorWorkflowStep)
+    // Use type guard to safely check for extended types
+    if ('type' in step && (step as Record<string, unknown>).type === 'claude') return true
+
+    return false
   }
 
-  async execute(step: ExecutorWorkflowStep, context: WorkflowContext): Promise<StepResult> {
+  async execute(step: WorkflowStep, context: WorkflowContext): Promise<StepResult> {
     const startTime = Date.now()
 
     // Update monitor with step start event
@@ -149,6 +159,10 @@ export class ClaudeStepExecutor implements StepExecutor {
         }
       }
 
+      // Debug log the context
+      console.log(`[ClaudeStepExecutor] Context projectId: ${context.projectId}`)
+      console.log(`[ClaudeStepExecutor] Project path: ${projectPath}`)
+
       // Send message via ClaudeService using the appropriate agent ID
       // For UI compatibility, use shortId for session creation but pass agentConfigId for agent loading
       const sessionAgentId = agentShortId || agentInstanceId! // Use short ID for sessions, config ID as fallback
@@ -204,13 +218,75 @@ export class ClaudeStepExecutor implements StepExecutor {
       FlowLogger.log('step-execution', `<- ClaudeService response received`)
 
       // Check status with operator - pass context for accurate evaluation
-      FlowLogger.log('step-execution', `-> SimpleOperator.checkStatus()`)
-      const analysis = await this.operator.checkStatus(result.response, {
-        role: agentRole || step.role || 'agent', // Use the agent's role for context
-        task: resolvedTask,
-        roleSystemPrompt: globalAgentConfig?.systemPrompt || undefined,
-      })
-      FlowLogger.log('step-execution', `<- Operator analysis: ${analysis.status}`)
+      let analysis: { status: 'success' | 'failed' | 'blocked'; reasoning?: string }
+
+      try {
+        FlowLogger.log('step-execution', `-> SimpleOperator.checkStatus()`)
+        const operatorResult = await this.operator.checkStatus(result.response, {
+          role: agentRole || step.role || 'agent', // Use the agent's role for context
+          task: resolvedTask,
+          roleSystemPrompt: globalAgentConfig?.systemPrompt || undefined,
+        })
+
+        // Check if operator failed due to missing configuration
+        if (
+          operatorResult.status === 'failed' &&
+          operatorResult.reason?.includes('Operator configuration required')
+        ) {
+          throw new Error('Operator not configured')
+        }
+
+        analysis = operatorResult
+        FlowLogger.log('step-execution', `<- Operator analysis: ${analysis.status}`)
+      } catch (error) {
+        // If operator is not configured or fails, use simple heuristics
+        console.warn(
+          '[ClaudeStepExecutor] SimpleOperator not available, using fallback analysis:',
+          error
+        )
+
+        // Basic success detection based on response content
+        const response = result.response.toLowerCase()
+        let status: 'success' | 'failed' | 'blocked' = 'success'
+        let reasoning = 'Operator not configured - using basic heuristics'
+
+        // Check for blockage indicators first (more specific)
+        if (
+          response.includes('permission denied') ||
+          response.includes('access denied') ||
+          response.includes('blocked') ||
+          response.includes('forbidden')
+        ) {
+          status = 'blocked'
+          reasoning = 'Response indicates permission/access issues'
+        }
+        // Then check for failure indicators
+        else if (
+          response.includes('error:') ||
+          response.includes('failed') ||
+          response.includes('unable to') ||
+          response.includes('could not')
+        ) {
+          status = 'failed'
+          reasoning = 'Response contains error indicators'
+        }
+        // Check for explicit success indicators
+        else if (
+          response.includes('successfully') ||
+          response.includes('completed') ||
+          response.includes('done') ||
+          response.includes('finished')
+        ) {
+          status = 'success'
+          reasoning = 'Response indicates successful completion'
+        }
+
+        analysis = { status, reasoning }
+        FlowLogger.log(
+          'step-execution',
+          `<- Fallback analysis: ${analysis.status} (${analysis.reasoning})`
+        )
+      }
 
       // Build step result
       const stepResult: StepResult = {
