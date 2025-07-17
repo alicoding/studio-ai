@@ -438,7 +438,10 @@ export class ClaudeAgent {
    */
   private async getToolRestrictions(type: 'allowed' | 'disallowed'): Promise<string[] | undefined> {
     if (!this.config?.tools || !Array.isArray(this.config.tools)) {
-      console.log(`[TOOLS DEBUG] No tools configured for agent ${this.agent.id}`)
+      console.log(
+        `[TOOLS DEBUG] No tools configured for agent ${this.agent.id}, using default access`
+      )
+      // When no config, allow all tools (no restrictions) - this is the safe default
       return undefined
     }
 

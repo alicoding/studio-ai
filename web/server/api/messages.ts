@@ -67,13 +67,30 @@ router.post('/', async (req: Request, res: Response) => {
     let agentConfig = undefined
     try {
       const { ServerAgentConfigService } = await import('../services/ServerAgentConfigService')
+      const { StudioProjectService } = await import('../services/StudioProjectService')
       const configService = ServerAgentConfigService.getInstance()
+      const projectService = new StudioProjectService()
 
-      // Handle both legacy agentIds and new instance IDs
-      const configId =
-        agentId.includes('-') && agentId.split('-').length > 3
-          ? agentId.split('-').slice(0, -2).join('-') // Extract original config ID from instance ID
-          : agentId
+      let configId = agentId
+
+      // If agentId looks like a short ID (e.g., developer_01), resolve to config ID
+      if (!agentId.includes('-') || agentId.split('-').length <= 2) {
+        console.log(
+          `[MESSAGES API] Resolving short ID ${agentId} to config ID for project ${projectId}`
+        )
+        try {
+          const projectAgents = await projectService.getProjectAgentsWithShortIds(projectId)
+          const projectAgent = projectAgents.find((agent) => agent.shortId === agentId)
+          if (projectAgent) {
+            configId = projectAgent.agentConfigId
+            console.log(`[MESSAGES API] Resolved ${agentId} → ${configId}`)
+          } else {
+            console.log(`[MESSAGES API] Short ID ${agentId} not found in project ${projectId}`)
+          }
+        } catch (error) {
+          console.error(`[MESSAGES API] Failed to resolve short ID ${agentId}:`, error)
+        }
+      }
 
       const storedConfig = await configService.getAgent(configId)
       if (storedConfig) {
@@ -84,6 +101,9 @@ router.post('/', async (req: Request, res: Response) => {
           maxTokens: storedConfig.maxTokens,
           temperature: storedConfig.temperature,
         }
+        console.log(`[MESSAGES API] Loaded agent config for ${configId}:`, agentConfig)
+      } else {
+        console.log(`[MESSAGES API] No stored config found for ${configId}`)
       }
     } catch (error) {
       console.error('Failed to load agent configuration:', error)
