@@ -133,6 +133,12 @@ export class ClaudeService {
     }
   }
 
+  // Get existing agent without creating new one - for abort operations
+  getExistingAgent(projectId: string, agentId: string) {
+    const agentKey = `${projectId}:${agentId}`
+    return this.agents.get(agentKey)
+  }
+
   // Get agent info - updated to use project+agent key
   getAgentInfo(projectId: string, agentId: string) {
     const agentKey = `${projectId}:${agentId}`

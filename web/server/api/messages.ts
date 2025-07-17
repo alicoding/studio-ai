@@ -477,9 +477,14 @@ router.post('/abort', async (req: Request, res: Response) => {
 
     console.log(`[API] Abort request received for agent ${agentId} in project ${projectId}`)
 
-    // Get the agent and abort its current operation
-    const agent = await claudeService.getOrCreateAgent(projectId, agentId)
-    console.log(`[API] Got agent instance, calling abort()`)
+    // Get existing agent (don't create new one) and abort its current operation
+    const agent = claudeService.getExistingAgent(projectId, agentId)
+    if (!agent) {
+      console.log(`[API] No active agent found for ${agentId} in project ${projectId}`)
+      return res.status(404).json({ error: 'No active agent found to abort' })
+    }
+
+    console.log(`[API] Got existing agent instance, calling abort()`)
     agent.abort()
 
     // Get socket.io instance to emit abort notification

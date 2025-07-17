@@ -429,7 +429,15 @@ router.post('/:id/abort', async (req: Request, res: Response) => {
     const { ClaudeService } = await import('../services/ClaudeService')
     const claudeService = new ClaudeService()
 
-    // Remove/abort the agent to prevent any final messages
+    // Get existing agent and abort it
+    const agent = claudeService.getExistingAgent(projectId, agentId)
+    if (!agent) {
+      console.log(`No active agent found for ${agentId} in project ${projectId}`)
+      return res.status(404).json({ error: 'No active agent found to abort' })
+    }
+
+    // Abort the agent and remove from tracking
+    agent.abort()
     await claudeService.removeAgent(projectId, agentId)
 
     res.json({
