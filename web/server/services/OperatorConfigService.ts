@@ -14,8 +14,8 @@ export interface OperatorConfig {
   systemPrompt: string
   temperature: number
   maxTokens: number
-  apiKey?: string // Optional, defaults to ELECTRONHUB_API_KEY
-  baseURL?: string // Optional, defaults to ElectronHub URL
+  apiKey?: string // Optional, defaults to OPENAI_API_KEY
+  baseURL?: string // Optional, defaults to OpenAI-compatible API URL
 }
 
 // Operator must be configured via database - no hardcoded defaults

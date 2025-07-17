@@ -52,12 +52,11 @@ npm run build
 Add to your `.env` file:
 
 ```env
-# For ElectronHub (supports multiple models)
-ELECTRONHUB_API_KEY=your-key
-ELECTRONHUB_API_URL=https://api.electronhub.ai/v1
-
-# Or direct provider keys
+# For OpenAI-compatible APIs (OpenAI, ElectronHub, etc.)
 OPENAI_API_KEY=your-key
+OPENAI_API_BASE_URL=https://api.openai.com/v1
+
+# Or direct provider keys (if not using OpenAI-compatible endpoint)
 ANTHROPIC_API_KEY=your-key
 ```
 

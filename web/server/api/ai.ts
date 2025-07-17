@@ -176,18 +176,21 @@ router.delete('/capabilities/:id', async (req: Request, res: Response) => {
 // GET /api/ai/models - Fetch available models from provider
 router.get('/models', async (req: Request, res: Response) => {
   try {
-    // Get ElectronHub configuration from environment
-    const apiKey = process.env.ELECTRONHUB_API_KEY
-    const apiUrl = process.env.ELECTRONHUB_API_URL || 'https://api.electronhub.ai/v1'
+    // Get OpenAI-compatible API configuration from environment
+    const apiKey = process.env.OPENAI_API_KEY || process.env.ELECTRONHUB_API_KEY
+    const apiUrl =
+      process.env.OPENAI_API_BASE_URL ||
+      process.env.ELECTRONHUB_API_URL ||
+      'https://api.openai.com/v1'
 
     if (!apiKey) {
       return res.status(500).json({
         error:
-          'ElectronHub API key not configured. Please set ELECTRONHUB_API_KEY in your environment.',
+          'OpenAI-compatible API key not configured. Please set OPENAI_API_KEY in your environment.',
       })
     }
 
-    // Fetch models from ElectronHub using ky (Library-First)
+    // Fetch models from OpenAI-compatible API using ky (Library-First)
     const data = await ky
       .get(`${apiUrl}/models`, {
         headers: {

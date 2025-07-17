@@ -125,7 +125,7 @@ export class WorkflowGraphGenerator {
           data: {
             task: 'Evaluate output: SUCCESS/BLOCKED/FAILED',
             status: this.getOperatorStatus(stepResult),
-            agentId: 'ElectronHub AI',
+            agentId: 'AI Operator',
             role: 'evaluation',
             output: stepResult
               ? `Status: ${this.getOperatorEvaluationResult(stepResult)}`

@@ -1,6 +1,6 @@
 /**
  * Simple Operator Service - Telephone switchboard style routing
- * 
+ *
  * SOLID: Single responsibility - status detection only
  * KISS: Simple pattern matching, no deep analysis
  * DRY: Reusable for all workflow steps
@@ -23,18 +23,24 @@ export class SimpleOperator {
 
     // Load configuration from database
     const config = await this.configService.getConfig()
-    
+
     // Use config API key or fall back to environment variables
-    const apiKey = config.apiKey || 
-                   process.env.ELECTRONHUB_API_KEY || 
-                   process.env.VITE_ELECTRONHUB_API_KEY
-    
-    const baseURL = config.baseURL || 
-                    process.env.ELECTRONHUB_API_URL || 
-                    'https://api.electronhub.ai/v1'
+    const apiKey =
+      config.apiKey ||
+      process.env.OPENAI_API_KEY ||
+      process.env.ELECTRONHUB_API_KEY ||
+      process.env.VITE_ELECTRONHUB_API_KEY
+
+    const baseURL =
+      config.baseURL ||
+      process.env.OPENAI_API_BASE_URL ||
+      process.env.ELECTRONHUB_API_URL ||
+      'https://api.openai.com/v1'
 
     if (!apiKey) {
-      throw new Error('ElectronHub API key not configured for operator')
+      throw new Error(
+        'OpenAI-compatible API key not configured for operator. Please set OPENAI_API_KEY in your environment.'
+      )
     }
 
     // Create model with configuration from database
@@ -43,7 +49,7 @@ export class SimpleOperator {
       temperature: config.temperature,
       maxTokens: config.maxTokens,
       openAIApiKey: apiKey,
-      configuration: { baseURL }
+      configuration: { baseURL },
     })
 
     this.systemPrompt = config.systemPrompt
@@ -54,7 +60,7 @@ export class SimpleOperator {
    * Check agent output status - context-aware based on role and task
    */
   async checkStatus(
-    agentOutput: string, 
+    agentOutput: string,
     context?: {
       role?: string
       task?: string
@@ -78,7 +84,7 @@ export class SimpleOperator {
 
       const messages = [
         new SystemMessage(contextAwarePrompt),
-        new HumanMessage(`Agent output: ${agentOutput}`)
+        new HumanMessage(`Agent output: ${agentOutput}`),
       ]
 
       const response = await this.model.invoke(messages)
@@ -90,15 +96,14 @@ export class SimpleOperator {
         return { status: 'failed', reason: 'Invalid operator response' }
       }
 
-      return { 
-        status: status as 'success' | 'blocked' | 'failed' 
+      return {
+        status: status as 'success' | 'blocked' | 'failed',
       }
-
     } catch (error) {
       console.error('Operator error:', error)
-      return { 
-        status: 'failed', 
-        reason: error instanceof Error ? error.message : 'Operator check failed' 
+      return {
+        status: 'failed',
+        reason: error instanceof Error ? error.message : 'Operator check failed',
       }
     }
   }
@@ -144,7 +149,7 @@ Respond with ONLY: SUCCESS, BLOCKED, or FAILED`
         /unable to .+ because (.+)/i,
         /missing (.+)/i,
         /need (.+) to proceed/i,
-        /blocked by (.+)/i
+        /blocked by (.+)/i,
       ]
 
       for (const pattern of patterns) {

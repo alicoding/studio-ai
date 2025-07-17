@@ -248,11 +248,19 @@ export class LangGraphOrchestrator {
   private async genericAgent(
     state: typeof StateSchema.State
   ): Promise<Partial<typeof StateSchema.State>> {
-    const apiKey = process.env.ELECTRONHUB_API_KEY || process.env.VITE_ELECTRONHUB_API_KEY
-    const baseURL = process.env.ELECTRONHUB_API_URL || 'https://api.electronhub.ai/v1'
+    const apiKey =
+      process.env.OPENAI_API_KEY ||
+      process.env.ELECTRONHUB_API_KEY ||
+      process.env.VITE_ELECTRONHUB_API_KEY
+    const baseURL =
+      process.env.OPENAI_API_BASE_URL ||
+      process.env.ELECTRONHUB_API_URL ||
+      'https://api.openai.com/v1'
 
     if (!apiKey) {
-      throw new Error('ElectronHub API key not configured')
+      throw new Error(
+        'OpenAI-compatible API key not configured. Please set OPENAI_API_KEY in your environment.'
+      )
     }
 
     // Get capability configuration from settings
