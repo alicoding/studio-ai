@@ -25,6 +25,7 @@ import mcpConfigRouter from './api/mcp-config'
 import invokeRouter from './api/invoke'
 import invokeStatusRouter from './api/invoke-status'
 import workflowGraphRouter from './api/workflow-graph'
+import workflowStateRouter from './api/workflow-state'
 import operatorRouter from './api/operator'
 import sessionSearchRouter from './api/session-search'
 import claudeProjectsRouter from './api/claude-projects.js'
@@ -159,6 +160,7 @@ app.use('/api/messages', messagesRouter)
 app.use('/api/invoke', invokeRouter)
 app.use('/api/invoke-status', invokeStatusRouter)
 app.use('/api/workflow-graph', workflowGraphRouter)
+app.use('/api/workflow-state', workflowStateRouter)
 app.use('/api/operator', operatorRouter)
 app.use('/api/system', systemRouter)
 app.use('/api/settings', settingsRouter)
@@ -209,7 +211,6 @@ if (!isDevServer) {
     res.status(404).json({ error: 'Not found' })
   })
 }
-
 
 // Start server - conditional based on server type
 const PORT = process.env.PORT || 3456
