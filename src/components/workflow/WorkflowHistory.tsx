@@ -120,7 +120,8 @@ export const WorkflowHistory: React.FC<WorkflowHistoryProps> = ({
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | undefined) => {
+    if (!status) return 'border-gray-500 bg-gray-50' // Default for undefined status
     switch (status.toLowerCase()) {
       case 'completed':
         return 'border-green-500 bg-green-50'
@@ -128,6 +129,12 @@ export const WorkflowHistory: React.FC<WorkflowHistoryProps> = ({
         return 'border-red-500 bg-red-50'
       case 'pending':
         return 'border-yellow-500 bg-yellow-50'
+      case 'running':
+        return 'border-blue-500 bg-blue-50'
+      case 'paused':
+        return 'border-orange-500 bg-orange-50'
+      case 'aborted':
+        return 'border-gray-500 bg-gray-50'
       default:
         return 'border-gray-500 bg-gray-50'
     }

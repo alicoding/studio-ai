@@ -595,19 +595,91 @@ export class WorkflowOrchestrator {
             console.log(
               `[WorkflowOrchestrator] Updating status from '${currentStatus}' to '${newStatus}' for workflow ${threadId}`
             )
-            await updateWorkflowStatus(threadId, {
-              status: newStatus,
-            })
+            // Get current state to extract step results for proper status updates
+            try {
+              // Rebuild workflow to access LangGraph state
+              const checkpointer = await this.getCheckpointer()
+              const langGraphWorkflow = await this.workflowBuilder.buildWorkflow(
+                normalizedSteps,
+                checkpointer
+              )
+              const currentState = await langGraphWorkflow.getState({
+                configurable: { thread_id: threadId },
+              })
+
+              if (currentState && currentState.values && currentState.values.stepResults) {
+                const updatedSteps = this.stateManager.buildUpdatedSteps(
+                  normalizedSteps,
+                  currentState.values.stepResults
+                )
+
+                await updateWorkflowStatus(threadId, {
+                  status: newStatus,
+                  steps: updatedSteps,
+                  sessionIds: currentState.values.sessionIds || {},
+                })
+              } else {
+                console.warn(
+                  `[WorkflowOrchestrator] No step results found in current state for ${threadId}, updating workflow status only`
+                )
+                await updateWorkflowStatus(threadId, {
+                  status: newStatus,
+                })
+              }
+            } catch (stateExtractionError) {
+              console.warn(
+                `[WorkflowOrchestrator] Could not extract step results for ${threadId}, updating workflow status only:`,
+                stateExtractionError
+              )
+              await updateWorkflowStatus(threadId, {
+                status: newStatus,
+              })
+            }
           }
         } catch (statusCheckError) {
           console.error(
             `[WorkflowOrchestrator] Error checking workflow status: ${statusCheckError}`
           )
-          // Fallback to original logic
+          // Fallback to original logic with step status updates
           const abortInfo = detectAbortError(error)
-          await updateWorkflowStatus(threadId, {
-            status: abortInfo.isAbort ? 'aborted' : 'failed',
-          })
+          const fallbackStatus = abortInfo.isAbort ? 'aborted' : 'failed'
+
+          // Try to get step results for fallback error path too
+          try {
+            const checkpointer = await this.getCheckpointer()
+            const langGraphWorkflow = await this.workflowBuilder.buildWorkflow(
+              normalizedSteps,
+              checkpointer
+            )
+            const currentState = await langGraphWorkflow.getState({
+              configurable: { thread_id: threadId },
+            })
+
+            if (currentState && currentState.values && currentState.values.stepResults) {
+              const updatedSteps = this.stateManager.buildUpdatedSteps(
+                normalizedSteps,
+                currentState.values.stepResults
+              )
+
+              await updateWorkflowStatus(threadId, {
+                status: fallbackStatus,
+                steps: updatedSteps,
+                sessionIds: currentState.values.sessionIds || {},
+              })
+            } else {
+              await updateWorkflowStatus(threadId, {
+                status: fallbackStatus,
+              })
+            }
+          } catch (fallbackStateError) {
+            console.warn(
+              `[WorkflowOrchestrator] Fallback state extraction failed for ${threadId}:`,
+              fallbackStateError
+            )
+            await updateWorkflowStatus(threadId, {
+              status: fallbackStatus,
+            })
+          }
         }
 
         // Emit workflow failed event with last step info for recovery
