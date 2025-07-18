@@ -338,6 +338,56 @@ router.post('/resume/:threadId/:checkpointId', async (req: Request, res: Respons
 })
 
 /**
+ * Pause active workflow execution
+ * Uses WorkflowOrchestrator's pauseWorkflow method
+ */
+router.post('/pause/:threadId', async (req: Request, res: Response) => {
+  const { threadId } = req.params
+
+  try {
+    // Validate request body
+    const parseResult = GetStateRequestSchema.safeParse(req.body)
+    if (!parseResult.success) {
+      return res.status(400).json({
+        error: 'Invalid request body',
+        details: parseResult.error.issues,
+      })
+    }
+
+    const { steps } = parseResult.data
+    const reason = req.body.reason as string | undefined
+
+    // Initialize WorkflowOrchestrator to pause the workflow
+    const { WorkflowOrchestrator } = await import('../services/WorkflowOrchestrator')
+    const orchestrator = new WorkflowOrchestrator()
+
+    // Pause workflow using orchestrator's native pause capabilities
+    const pauseResult = await orchestrator.pauseWorkflow(threadId, steps as WorkflowStep[], reason)
+
+    if (!pauseResult.success) {
+      return res.status(400).json({
+        error: pauseResult.error,
+        threadId,
+        paused: pauseResult.paused,
+      })
+    }
+
+    res.json({
+      threadId,
+      paused: pauseResult.paused,
+      message: 'Workflow paused successfully',
+    })
+  } catch (error) {
+    console.error(`[WorkflowState API] Error pausing workflow for thread ${threadId}:`, error)
+    res.status(500).json({
+      error: 'Failed to pause workflow',
+      threadId,
+      details: error instanceof Error ? error.message : 'Unknown error',
+    })
+  }
+})
+
+/**
  * Factory function to create LangGraphStateService with required dependencies only
  * Following SOLID and DRY principles by creating only what's needed
  */

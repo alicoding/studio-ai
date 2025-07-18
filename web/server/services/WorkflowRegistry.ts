@@ -13,7 +13,7 @@ import type { Pool } from 'pg'
 export interface WorkflowMetadata {
   threadId: string
   savedWorkflowId?: string // Link to saved workflow definition
-  status: 'running' | 'completed' | 'failed' | 'aborted'
+  status: 'running' | 'completed' | 'failed' | 'aborted' | 'paused'
   projectId?: string
   projectName?: string
   startedBy?: string

@@ -456,4 +456,63 @@ describe('Workflow State API - LangGraph Integration', () => {
       }
     })
   })
+
+  describe('POST /api/workflow-state/pause/:threadId', () => {
+    test('should require steps in request body', async () => {
+      const response = await request(app).post(`/api/workflow-state/pause/${testThreadId}`).send({})
+
+      expect(response.status).toBe(400)
+      expect(response.body).toHaveProperty('error', 'Invalid request body')
+    })
+
+    test('should handle pause for non-active workflow', async () => {
+      const response = await request(app)
+        .post(`/api/workflow-state/pause/${testThreadId}`)
+        .send({ steps: testWorkflowSteps })
+
+      // Should return error for non-active workflow
+      expect(response.status).toBe(400)
+      expect(response.body).toHaveProperty('error')
+      expect(response.body).toHaveProperty('threadId', testThreadId)
+      expect(response.body).toHaveProperty('paused', false)
+    })
+
+    test('should accept optional reason parameter', async () => {
+      const response = await request(app).post(`/api/workflow-state/pause/${testThreadId}`).send({
+        steps: testWorkflowSteps,
+        reason: 'Manual pause for review',
+      })
+
+      // Should process request without validation errors
+      expect(response.status).not.toBe(500) // No server errors
+      expect(response.body).toHaveProperty('threadId', testThreadId)
+    })
+
+    test('should validate step schema for pause', async () => {
+      const invalidSteps = [
+        {
+          // Missing required task field
+          id: 'test',
+          role: 'developer',
+        },
+      ]
+
+      const response = await request(app)
+        .post(`/api/workflow-state/pause/${testThreadId}`)
+        .send({ steps: invalidSteps })
+
+      expect(response.status).toBe(400)
+      expect(response.body).toHaveProperty('error', 'Invalid request body')
+    })
+
+    test('should handle pause without reason parameter', async () => {
+      const response = await request(app)
+        .post(`/api/workflow-state/pause/${testThreadId}`)
+        .send({ steps: testWorkflowSteps })
+
+      // Should handle request without reason
+      expect(response.status).not.toBe(500) // No server errors
+      expect(response.body).toHaveProperty('threadId', testThreadId)
+    })
+  })
 })

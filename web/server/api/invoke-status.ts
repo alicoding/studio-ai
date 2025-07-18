@@ -22,6 +22,7 @@ interface WorkflowEvent {
     | 'workflow_complete'
     | 'workflow_failed'
     | 'workflow_aborted'
+    | 'workflow_paused'
     | 'graph_update'
   threadId: string
   stepId?: string
@@ -163,7 +164,8 @@ router.get('/events', (req: Request, res: Response) => {
     } else if (
       data.type === 'workflow_complete' ||
       data.type === 'workflow_failed' ||
-      data.type === 'workflow_aborted'
+      data.type === 'workflow_aborted' ||
+      data.type === 'workflow_paused'
     ) {
       // Map event types to status strings to match WorkflowInfo interface
       const status =
@@ -171,7 +173,9 @@ router.get('/events', (req: Request, res: Response) => {
           ? 'completed'
           : data.type === 'workflow_failed'
             ? 'failed'
-            : 'aborted'
+            : data.type === 'workflow_aborted'
+              ? 'aborted'
+              : 'paused'
       res.write(
         `event: workflow_status\ndata: ${JSON.stringify({
           ...data,
@@ -374,7 +378,7 @@ export async function updateWorkflowStatus(
   threadId: string,
   update: Partial<{
     sessionIds: Record<string, string>
-    status: 'running' | 'completed' | 'aborted' | 'failed'
+    status: 'running' | 'completed' | 'aborted' | 'failed' | 'paused'
     currentStep: string
     startedBy: string
     invocation: string

@@ -1,6 +1,6 @@
 /**
  * Workflow Event Emitter - Handles workflow event broadcasting
- * 
+ *
  * SOLID: Single responsibility - only emits workflow events
  * DRY: Centralized event emission logic
  * KISS: Simple event patterns with consistent structure
@@ -18,6 +18,7 @@ export interface WorkflowEvent {
     | 'step_failed'
     | 'workflow_complete'
     | 'workflow_failed'
+    | 'workflow_paused'
     | 'graph_update'
   threadId: string
   stepId?: string

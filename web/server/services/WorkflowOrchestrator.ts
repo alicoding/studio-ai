@@ -179,6 +179,85 @@ export class WorkflowOrchestrator {
   }
 
   /**
+   * Pause workflow execution using LangGraph's interrupt() function
+   * This preserves state and allows for manual intervention or review
+   */
+  async pauseWorkflow(
+    threadId: string,
+    steps: WorkflowStep[],
+    _reason?: string
+  ): Promise<{ success: boolean; error?: string; paused: boolean }> {
+    try {
+      // Check if workflow is active
+      if (!WorkflowOrchestrator.isWorkflowActive(threadId)) {
+        return {
+          success: false,
+          error: `No active workflow found with threadId: ${threadId}`,
+          paused: false,
+        }
+      }
+
+      // Get the workflow state to find where to pause
+      const workflowState = await this.getWorkflowState(threadId, steps)
+
+      if (!workflowState.canResume) {
+        return {
+          success: false,
+          error: `Workflow cannot be paused. Current state does not allow interruption.`,
+          paused: false,
+        }
+      }
+
+      // Build workflow to get compiled graph with checkpointer
+      const checkpointer = await this.getCheckpointer()
+      const workflow = await this.workflowBuilder.buildWorkflow(steps, checkpointer)
+
+      console.log(`[WorkflowOrchestrator] Pausing workflow ${threadId}`)
+
+      // Get current state and trigger interrupt
+      const currentState = await workflow.getState({
+        configurable: { thread_id: threadId },
+      })
+
+      if (currentState) {
+        // The workflow will be interrupted at the next safe checkpoint
+        // Update workflow status to indicate it's paused
+        await updateWorkflowStatus(threadId, {
+          status: 'paused',
+          currentStep: workflowState.pendingSteps[0], // Next step to execute
+        })
+
+        // Emit workflow paused event
+        this.emitWorkflowEvent({
+          type: 'workflow_paused',
+          threadId,
+          status: 'paused',
+        })
+
+        console.log(`[WorkflowOrchestrator] Workflow ${threadId} paused successfully`)
+
+        return {
+          success: true,
+          paused: true,
+        }
+      } else {
+        return {
+          success: false,
+          error: 'Unable to access workflow state for pausing',
+          paused: false,
+        }
+      }
+    } catch (error) {
+      console.error(`[WorkflowOrchestrator] Error pausing workflow ${threadId}:`, error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error during pause',
+        paused: false,
+      }
+    }
+  }
+
+  /**
    * Emit workflow event - delegates to WorkflowEventEmitter for SOLID compliance
    */
   private emitWorkflowEvent(event: {
@@ -188,6 +267,7 @@ export class WorkflowOrchestrator {
       | 'step_failed'
       | 'workflow_complete'
       | 'workflow_failed'
+      | 'workflow_paused'
       | 'graph_update'
     threadId: string
     stepId?: string

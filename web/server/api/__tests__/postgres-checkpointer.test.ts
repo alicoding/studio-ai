@@ -6,7 +6,7 @@
  * KISS: Simple test structure
  */
 
-import { describe, test, expect, beforeEach, afterEach } from '@jest/globals'
+import { describe, test, expect, beforeEach, afterEach } from 'vitest'
 import { getCheckpointer, resetCheckpointer } from '../../services/database/checkpointer'
 import { closePostgresPool } from '../../services/database/postgres'
 

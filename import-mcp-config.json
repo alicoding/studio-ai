@@ -15,6 +15,10 @@
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
     },
+    "langgraph/guides Docs": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://langchain-ai.gitmcp.io/langgraph/guides/"]
+    },
     "Context7": {
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp@latest"]
