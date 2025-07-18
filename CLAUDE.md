@@ -433,6 +433,8 @@ invoke({
 - ✅ **UI Visibility**: All workflow messages appear in Studio UI
 - ✅ **Session Management**: Proper session linking and resume capability
 - ✅ **Error Handling**: Graceful failure with session preservation
+- ✅ **Workflow Abort**: Event-driven abort system terminates Claude Code SDK processes
+- ✅ **Status Management**: Proper workflow status determination (completed/failed/aborted)
 
 ## Mock Infrastructure (Phase 2 - Test Infrastructure)
 
@@ -487,6 +489,152 @@ invoke({
 - `web/server/services/executors/MockStepExecutor.ts` - Core implementation
 - `web/server/services/executors/StepExecutorRegistry.ts` - Environment routing
 - `web/server/services/executors/README.md` - Full documentation
+
+## Workflow Abort System (PRODUCTION-READY) ✅
+
+**✅ COMPLETED (Issue #6)**: Event-driven workflow abort system that actually terminates Claude Code SDK processes.
+
+### Architecture
+
+**Event-Driven Pattern**: Uses publish/subscribe for immediate agent termination without polling or blocking.
+
+```typescript
+// AbortEventSystem - Singleton EventEmitter
+const abortSystem = AbortEventSystem.getInstance()
+
+// Publishers (WorkflowOrchestrator)
+abortSystem.publishWorkflowAbort(threadId, projectId) // Non-blocking event publish
+
+// Subscribers (ClaudeService agents)
+abortSystem.subscribeToAborts((event) => {
+  if (AbortEventSystem.shouldAbortAgent(event, agentId, projectId)) {
+    agent.abort() // Terminate Claude Code SDK process
+  }
+})
+```
+
+### Key Components
+
+- **AbortEventSystem**: `web/server/services/AbortEventSystem.ts` - Central event management
+- **Agent Subscription**: Each agent auto-subscribes to abort events on creation
+- **Workflow Publishing**: WorkflowOrchestrator publishes abort events immediately
+- **Status Handling**: WorkflowStateManager properly detects aborted vs failed workflows
+
+### API Endpoints
+
+```bash
+# Abort active workflow
+POST /api/invoke-status/abort/{threadId}
+Response: {"success": true, "status": "aborted", "message": "Workflow aborted successfully"}
+```
+
+### Performance Metrics
+
+**Before Fix:**
+
+- ❌ 120-second sleep completed fully (~120+ seconds)
+- ❌ Status: "failed" (incorrect)
+- ❌ Agent continued despite "abort" signal
+
+**After Fix:**
+
+- ✅ 120-second sleep terminated in ~6.8 seconds
+- ✅ Status: "aborted" (correct)
+- ✅ Agent returns "Query was aborted by user"
+
+### Usage Patterns
+
+```bash
+# Start workflow
+curl -X POST /api/invoke '{"workflow": {"task": "bash sleep 120"}, "threadId": "test-123"}'
+
+# Abort after 5 seconds
+sleep 5 && curl -X POST /api/invoke-status/abort/test-123
+# Result: Workflow terminates in ~1.7 seconds after abort signal
+```
+
+### Implementation Status
+
+- ✅ **Event System**: AbortEventSystem with publish/subscribe pattern
+- ✅ **Agent Integration**: Automatic subscription on agent creation
+- ✅ **Workflow Integration**: Non-blocking abort publishing
+- ✅ **Status Detection**: Proper aborted/failed distinction
+- ✅ **Type Safety**: Full TypeScript support with 'aborted' status
+- ✅ **Testing**: Verified with multiple abort scenarios
+- ✅ **Production Ready**: Committed (e287327) and deployed
+
+## Dogfooding Readiness Criteria 🚀
+
+**CRITICAL**: Define when Studio AI is ready for autonomous Claude usage (dogfooding).
+
+### Phase 1: Core Workflow Reliability ✅ COMPLETE
+
+- ✅ **Workflow Execution**: Multi-agent workflows work reliably
+- ✅ **Workflow Abort**: Event-driven abort terminates processes properly
+- ✅ **Agent Management**: Project-scoped agents with proper isolation
+- ✅ **Session Management**: Stable session handling without infinite loops
+- ✅ **Data Isolation**: Cross-project data bleeding prevented
+- ✅ **Error Handling**: Graceful failure with proper status reporting
+
+### Phase 2: User Control & Recovery 🚧 IN PROGRESS
+
+**Target**: Issue #17 (Real-time Execution Controls) + Issue #22 (Resume/Retry)
+
+- ⚠️ **Real-time Monitoring**: Execute button keeps modal open with live progress
+- ⚠️ **Visual Feedback**: n8n-style node indicators showing execution state
+- ⚠️ **Resume/Retry**: Aborted and failed workflows can be resumed/retried
+- ⚠️ **Step-level Control**: Individual step retry with task modification
+
+### Phase 3: Production Stability 🔄 PLANNED
+
+**Target**: Multi-Provider + Advanced Features
+
+- ⚠️ **Multi-Provider Support**: Gemini, Amp integration for provider diversity
+- ⚠️ **Cross-Provider Workflows**: Mixed-provider agent collaboration
+- ⚠️ **Advanced Resume**: Resume with updated agent configurations
+- ⚠️ **Global Process Control**: System-wide process management
+
+### Dogfooding Decision Matrix
+
+**✅ READY FOR BASIC DOGFOODING**: Phase 1 complete - Core workflows are reliable
+
+**Minimal Viable Dogfooding Criteria:**
+
+1. ✅ Workflows execute reliably end-to-end
+2. ✅ Abort functionality prevents runaway processes
+3. ✅ Project isolation prevents data bleeding
+4. ✅ Error states are recoverable (manual restart)
+
+**Enhanced Dogfooding Criteria (Phase 2):**
+
+1. ⚠️ Real-time execution monitoring in workflow builder
+2. ⚠️ Resume/retry functionality for failed workflows
+3. ⚠️ Visual feedback for long-running operations
+
+**Production Dogfooding Criteria (Phase 3):**
+
+1. ⚠️ Multiple AI provider support for redundancy
+2. ⚠️ Advanced workflow recovery and modification
+3. ⚠️ System-wide process control and monitoring
+
+### Current Recommendation
+
+**🟢 GREEN LIGHT**: Studio AI is ready for **basic autonomous Claude usage** with the following constraints:
+
+**Safe Use Cases:**
+
+- ✅ Multi-step development workflows (design → implement → test → review)
+- ✅ Code analysis and improvement tasks
+- ✅ Documentation generation workflows
+- ✅ Controlled automation with abort capability
+
+**Caution Areas:**
+
+- ⚠️ Long-running workflows (>30 min) - require manual monitoring
+- ⚠️ Complex error recovery - may need manual restart
+- ⚠️ Resource-intensive operations - monitor system resources
+
+**Next Milestone**: Complete Phase 2 (Issues #17, #22) for enhanced dogfooding experience.
 
 ## Recent Fixes & Improvements
 
