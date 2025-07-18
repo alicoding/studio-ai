@@ -10,7 +10,7 @@
 
 import ky from 'ky'
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3457/api'
+const API_BASE = `${window.location.origin}/api`
 
 // Types for workflow step definition
 export interface WorkflowStep {
