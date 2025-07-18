@@ -224,7 +224,8 @@ gh issue list --state open --limit 10     # Quick issue scan
 6. Begin implementation following the issue's technical approach
 7. Reference issue number in commits: `fix: solve problem (#123)`
 8. Update issue with progress comments
-9. Close issue with PR reference
+9. **NEVER CLOSE ISSUES UNTIL FULLY VERIFIED BY USER** - User must test and approve before closing
+10. Close issue only after user confirmation that acceptance criteria are met
 
 Example commit message:
 

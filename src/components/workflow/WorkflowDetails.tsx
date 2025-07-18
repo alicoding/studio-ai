@@ -12,6 +12,7 @@ import { useWorkflowStore } from '../../stores/workflows'
 import { useProjectStore } from '../../stores/projects'
 import { WorkflowGraph } from './WorkflowGraph'
 import { WorkflowStepList } from './WorkflowStepList'
+import { WorkflowHistory } from './WorkflowHistory'
 import { useWorkflowGraph } from '../../hooks/useWorkflowGraph'
 import { WorkflowStateService } from '../../services/workflowStateService'
 import {
@@ -355,6 +356,17 @@ curl -s "http://localhost:3457/api/workflow-graph/${debugInfo.threadId}" | jq
                 {aborting ? 'Aborting...' : 'Abort Workflow'}
               </button>
             )}
+            {/* History Button - Show checkpoint history */}
+            <WorkflowHistory
+              threadId={workflow.threadId}
+              workflowSteps={workflow.steps.map((step) => ({
+                id: step.id,
+                role: step.role,
+                agentId: step.agentId,
+                task: step.task,
+                deps: step.dependencies || [],
+              }))}
+            />
             {/* View Toggle */}
             <div className="flex items-center border border-border rounded-lg p-1">
               <button
