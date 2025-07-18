@@ -38,8 +38,8 @@ export interface StepExecutor {
  * Extended WorkflowStep with executor type
  * Backward compatible with existing WorkflowStep
  */
-export interface ExecutorWorkflowStep extends WorkflowStep {
-  type?: 'claude' | 'mock' | 'operator' | 'javascript' | 'webhook'
+export interface ExecutorWorkflowStep extends Omit<WorkflowStep, 'type'> {
+  type?: 'claude' | 'mock' | 'operator' | 'javascript' | 'webhook' | 'ai_evaluation'
   config?: {
     // AI-specific
     model?: string
@@ -59,5 +59,10 @@ export interface ExecutorWorkflowStep extends WorkflowStep {
     url?: string
     method?: string
     headers?: Record<string, string>
+
+    // AI Evaluation-specific
+    provider?: 'openai' | 'anthropic' | 'azure' | 'google'
+    evaluationModel?: string
+    evaluationSystemPrompt?: string
   }
 }

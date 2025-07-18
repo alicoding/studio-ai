@@ -11,7 +11,6 @@
 import type { StepExecutor, WorkflowContext } from './StepExecutor'
 import type { StepResult, WorkflowStep } from '../../schemas/invoke'
 import { ClaudeService } from '../ClaudeService'
-import { SimpleOperator } from '../SimpleOperator'
 import { UnifiedAgentConfigService, type AgentConfig } from '../UnifiedAgentConfigService'
 import { StudioProjectService } from '../StudioProjectService'
 import { detectAbortError, AbortError } from '../../utils/errorUtils'
@@ -22,7 +21,6 @@ import { FlowLogger } from '../../utils/FlowLogger'
 export class ClaudeStepExecutor implements StepExecutor {
   constructor(
     private claudeService: ClaudeService,
-    private operator: SimpleOperator,
     private agentConfigService: UnifiedAgentConfigService,
     private projectService: StudioProjectService
   ) {}
@@ -97,8 +95,6 @@ export class ClaudeStepExecutor implements StepExecutor {
       // Try to get project agents first
       let agentInstanceId: string | null = null
       let agentShortId: string | null = null
-      let agentRole: string | null = null
-      let globalAgentConfig: { id: string; role?: string; systemPrompt?: string } | null = null
 
       if (context.projectId) {
         try {
@@ -113,7 +109,6 @@ export class ClaudeStepExecutor implements StepExecutor {
             if (projectAgent) {
               agentInstanceId = projectAgent.agentConfigId
               agentShortId = projectAgent.shortId
-              agentRole = projectAgent.role
               console.log(
                 `[ClaudeStepExecutor] Using project agent by ID: ${projectAgent.shortId} (config: ${agentInstanceId})`
               )
@@ -130,7 +125,6 @@ export class ClaudeStepExecutor implements StepExecutor {
             if (projectAgent) {
               agentInstanceId = projectAgent.agentConfigId
               agentShortId = projectAgent.shortId
-              agentRole = projectAgent.role
               console.log(
                 `[ClaudeStepExecutor] Using project agent by role: ${step.role} -> ${projectAgent.shortId} (config: ${agentInstanceId})`
               )
@@ -152,22 +146,12 @@ export class ClaudeStepExecutor implements StepExecutor {
           const config = configs.find((c) => c.id === step.agentId)
           if (config) {
             agentInstanceId = config.id
-            globalAgentConfig = {
-              id: config.id,
-              role: config.role,
-              systemPrompt: config.systemPrompt,
-            }
           }
         } else if (step.role) {
           // Find by role
           const config = configs.find((c) => c.role?.toLowerCase() === step.role!.toLowerCase())
           if (config) {
             agentInstanceId = config.id
-            globalAgentConfig = {
-              id: config.id,
-              role: config.role,
-              systemPrompt: config.systemPrompt,
-            }
           }
         }
 
@@ -254,81 +238,16 @@ export class ClaudeStepExecutor implements StepExecutor {
       const result = await Promise.race([messagePromise, timeoutPromise])
       FlowLogger.log('step-execution', `<- ClaudeService response received`)
 
-      // Check status with operator - pass context for accurate evaluation
-      let analysis: { status: 'success' | 'failed' | 'blocked'; reasoning?: string }
+      // Simple success status - evaluation now handled by explicit AI evaluation steps
+      FlowLogger.log(
+        'step-execution',
+        `<- ClaudeStepExecutor: returning success (evaluation extracted to optional AI evaluation steps)`
+      )
 
-      try {
-        FlowLogger.log('step-execution', `-> SimpleOperator.checkStatus()`)
-        const operatorResult = await this.operator.checkStatus(result.response, {
-          role: agentRole || step.role || 'agent', // Use the agent's role for context
-          task: resolvedTask,
-          roleSystemPrompt: globalAgentConfig?.systemPrompt || undefined,
-        })
-
-        // Check if operator failed due to missing configuration
-        if (
-          operatorResult.status === 'failed' &&
-          operatorResult.reason?.includes('Operator configuration required')
-        ) {
-          throw new Error('Operator not configured')
-        }
-
-        analysis = operatorResult
-        FlowLogger.log('step-execution', `<- Operator analysis: ${analysis.status}`)
-      } catch (error) {
-        // If operator is not configured or fails, use simple heuristics
-        console.warn(
-          '[ClaudeStepExecutor] SimpleOperator not available, using fallback analysis:',
-          error
-        )
-
-        // Basic success detection based on response content
-        const response = result.response.toLowerCase()
-        let status: 'success' | 'failed' | 'blocked' = 'success'
-        let reasoning = 'Operator not configured - using basic heuristics'
-
-        // Check for blockage indicators first (more specific)
-        if (
-          response.includes('permission denied') ||
-          response.includes('access denied') ||
-          response.includes('blocked') ||
-          response.includes('forbidden')
-        ) {
-          status = 'blocked'
-          reasoning = 'Response indicates permission/access issues'
-        }
-        // Then check for failure indicators
-        else if (
-          response.includes('error:') ||
-          response.includes('failed') ||
-          response.includes('unable to') ||
-          response.includes('could not')
-        ) {
-          status = 'failed'
-          reasoning = 'Response contains error indicators'
-        }
-        // Check for explicit success indicators
-        else if (
-          response.includes('successfully') ||
-          response.includes('completed') ||
-          response.includes('done') ||
-          response.includes('finished')
-        ) {
-          status = 'success'
-          reasoning = 'Response indicates successful completion'
-        }
-
-        analysis = { status, reasoning }
-        FlowLogger.log(
-          'step-execution',
-          `<- Fallback analysis: ${analysis.status} (${analysis.reasoning})`
-        )
-      }
-
-      // Build step result
+      // Build step result - always success (evaluation now optional via AI evaluation steps)
       const stepResult: StepResult = {
         id: step.id!,
-        status: analysis.status,
+        status: 'success',
         response: result.response,
         sessionId: result.sessionId || '',
         duration: Date.now() - startTime,
@@ -344,14 +263,11 @@ export class ClaudeStepExecutor implements StepExecutor {
         })
       }
 
-      if (analysis.status === 'success') {
-        FlowLogger.log('step-execution', `Step ${step.id} SUCCESS`)
-        // Update monitor on step completion
-        monitor.updateHeartbeat(context.threadId, step.id!)
-        FlowLogger.log('step-execution', `-> WorkflowMonitor.updateHeartbeat(${step.id})`)
-      } else {
-        FlowLogger.log('step-execution', `Step ${step.id} FAILED - status: ${analysis.status}`)
-      }
+      // Always success - evaluation moved to optional AI evaluation steps
+      FlowLogger.log('step-execution', `Step ${step.id} SUCCESS`)
+      // Update monitor on step completion
+      monitor.updateHeartbeat(context.threadId, step.id!)
+      FlowLogger.log('step-execution', `-> WorkflowMonitor.updateHeartbeat(${step.id})`)
 
       return stepResult
     } catch (error) {

@@ -44,7 +44,7 @@ export class StepExecutorRegistry {
     }
 
     // Find matching executor
-    const executor = this.executors.find((e) => e.canHandle(execStep))
+    const executor = this.executors.find((e) => e.canHandle(execStep as WorkflowStep))
 
     if (!executor) {
       const availableTypes = this.getAvailableExecutorTypes()
@@ -64,13 +64,13 @@ export class StepExecutorRegistry {
 
     // Test each type to see what executors can handle
     // Check in the order MockStep (mock), ClaudeStep (claude), then others
-    const testTypes = ['mock', 'claude', 'operator', 'javascript', 'webhook']
+    const testTypes = ['mock', 'claude', 'operator', 'javascript', 'webhook', 'ai_evaluation']
 
     testTypes.forEach((type) => {
-      const testStep: ExecutorWorkflowStep = {
+      const testStep: WorkflowStep = {
         id: 'test',
         task: 'test',
-        type: type as ExecutorWorkflowStep['type'],
+        type: type as WorkflowStep['type'],
       }
 
       if (this.executors.some((e) => e.canHandle(testStep))) {

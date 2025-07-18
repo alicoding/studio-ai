@@ -74,7 +74,10 @@ export const WorkflowStepSchema = z
     sessionId: z.string().optional(), // Resume specific session
     deps: z.array(z.string()).optional(), // Dependencies on other steps
     // Step type
-    type: z.enum(['task', 'conditional', 'parallel', 'loop', 'human']).optional().default('task'),
+    type: z
+      .enum(['task', 'conditional', 'parallel', 'loop', 'human', 'ai_evaluation'])
+      .optional()
+      .default('task'),
     // Conditional step fields
     condition: WorkflowConditionSchema.optional(), // Structured condition or legacy JavaScript expression
     trueBranch: z.string().optional(), // Step ID to execute if condition is true
@@ -92,16 +95,20 @@ export const WorkflowStepSchema = z
     timeoutSeconds: z.number().optional(), // Timeout for human input
     // Parallel fields
     parallelSteps: z.array(z.string()).optional(), // IDs of steps to run in parallel
+    // AI Evaluation fields (like n8n AI node)
+    provider: z.enum(['openai', 'anthropic', 'azure', 'google']).optional(), // AI provider for evaluation
+    model: z.string().optional(), // Model name (e.g., 'gpt-4', 'claude-3-sonnet')
+    systemPrompt: z.string().optional(), // Custom evaluation prompt
   })
   .refine(
     (data) => {
       // Some node types don't require agents
-      const noAgentTypes = ['conditional', 'loop', 'parallel', 'human']
+      const noAgentTypes = ['conditional', 'loop', 'parallel', 'human', 'ai_evaluation']
       return data.role || data.agentId || noAgentTypes.includes(data.type || 'task')
     },
     {
       message:
-        "Either 'role' or 'agentId' must be provided (except for conditional, loop, parallel, and human steps)",
+        "Either 'role' or 'agentId' must be provided (except for conditional, loop, parallel, human, and ai_evaluation steps)",
     }
   )
   .refine(
@@ -151,6 +158,18 @@ export const WorkflowStepSchema = z
     },
     {
       message: 'Human input steps must have a prompt',
+    }
+  )
+  .refine(
+    (data) => {
+      // AI evaluation steps must have a provider
+      if (data.type === 'ai_evaluation') {
+        return data.provider && data.provider.length > 0
+      }
+      return true
+    },
+    {
+      message: 'AI evaluation steps must have a provider (openai, anthropic, azure, or google)',
     }
   )
 

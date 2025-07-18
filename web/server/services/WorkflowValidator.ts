@@ -28,18 +28,24 @@ export class WorkflowValidator {
     }
 
     for (const step of steps) {
-      // Must specify either agentId or role
-      if (!step.agentId && !step.role) {
+      // Some node types don't require agents (matches schema validation)
+      const noAgentTypes = ['conditional', 'loop', 'parallel', 'human', 'ai_evaluation']
+      const requiresAgent = !noAgentTypes.includes(step.type || 'task')
+
+      // Must specify either agentId or role for steps that require agents
+      if (requiresAgent && !step.agentId && !step.role) {
         throw new Error(
-          'Agent configuration validation failed: Must specify either agentId or role for each step'
+          `Agent configuration validation failed: Must specify either agentId or role for step type '${step.type || 'task'}'`
         )
       }
 
-      // Validate agent exists
-      if (step.agentId) {
-        await this.validateAgentId(step, projectId)
-      } else if (step.role) {
-        await this.validateRole(step, projectId)
+      // Validate agent exists (only for steps that require agents)
+      if (requiresAgent) {
+        if (step.agentId) {
+          await this.validateAgentId(step, projectId)
+        } else if (step.role) {
+          await this.validateRole(step, projectId)
+        }
       }
     }
   }

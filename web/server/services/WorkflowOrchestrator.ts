@@ -21,7 +21,12 @@ import type { WorkflowGraph } from '../schemas/workflow-graph'
 import type { Server } from 'socket.io'
 import { EventEmitter } from 'events'
 import { WorkflowMonitor } from './WorkflowMonitor'
-import { StepExecutorRegistry, MockStepExecutor, ClaudeStepExecutor } from './executors'
+import {
+  StepExecutorRegistry,
+  MockStepExecutor,
+  ClaudeStepExecutor,
+  AIEvaluationStepExecutor,
+} from './executors'
 import type { StepExecutor } from './executors/StepExecutor'
 import { WorkflowValidator } from './WorkflowValidator'
 import { WorkflowEventEmitter } from './WorkflowEventEmitter'
@@ -74,7 +79,6 @@ export class WorkflowOrchestrator {
     // Register Claude executor (wraps existing Claude logic)
     const claudeExecutor = new ClaudeStepExecutor(
       this.claudeService,
-      this.operator,
       this.agentConfigService,
       this.projectService
     )
@@ -83,6 +87,10 @@ export class WorkflowOrchestrator {
     // Register Mock executor (for testing without AI costs)
     const mockExecutor = new MockStepExecutor()
     this.executorRegistry.register(mockExecutor as unknown as StepExecutor)
+
+    // Register AI Evaluation executor (LangChain multi-provider evaluation)
+    const aiEvaluationExecutor = new AIEvaluationStepExecutor()
+    this.executorRegistry.register(aiEvaluationExecutor)
 
     console.log(
       `[WorkflowOrchestrator] Initialized ${this.executorRegistry.getExecutorCount()} executors: ${this.executorRegistry.getAvailableExecutorTypes().join(', ')}`
