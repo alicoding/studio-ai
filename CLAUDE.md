@@ -143,6 +143,58 @@ mcp__studio -
 
 Must commit the work before writing the "Summary" at the end of the task.
 
+### Summary Requirements (MANDATORY)
+
+**CRITICAL**: Every task completion summary MUST include comprehensive testing instructions.
+
+**Required Summary Format:**
+
+1. **Features Implemented**: List all completed features with bullet points
+2. **Architecture Highlights**: SOLID/DRY/KISS principles followed
+3. **Testing Steps**: Detailed step-by-step instructions for user verification
+4. **Files Modified**: List of all files changed with brief descriptions
+5. **Acceptance Criteria**: Clear checklist for user to verify functionality
+
+**Testing Steps Template:**
+
+```markdown
+## 🧪 Testing Steps
+
+### Prerequisites
+
+- Start development server: `npm run dev`
+- Navigate to: http://localhost:3457
+- Ensure workflow data is available
+
+### Test Scenario 1: [Feature Name]
+
+1. **Setup**: [Initial conditions]
+2. **Action**: [User action to perform]
+3. **Expected**: [Expected result]
+4. **Verification**: [How to confirm success]
+
+### Test Scenario 2: [Feature Name]
+
+1. **Setup**: [Initial conditions]
+2. **Action**: [User action to perform]
+3. **Expected**: [Expected result]
+4. **Verification**: [How to confirm success]
+
+### Edge Cases
+
+- Test with empty data
+- Test with error conditions
+- Test with large datasets
+- Test responsive behavior
+```
+
+**User Verification Requirement:**
+
+- Never mark tasks as complete without providing testing steps
+- User must be able to verify all functionality works as expected
+- Include both happy path and error scenarios
+- Provide clear success/failure criteria
+
 ### GitHub Issue Workflow (MANDATORY)
 
 **CRITICAL**: Every task MUST have a GitHub issue before implementation begins.
