@@ -490,184 +490,56 @@ invoke({
 - `web/server/services/executors/StepExecutorRegistry.ts` - Environment routing
 - `web/server/services/executors/README.md` - Full documentation
 
-## Workflow Abort System (PRODUCTION-READY) ✅
+## Workflow Instructions
 
-**✅ COMPLETED (Issue #6)**: Event-driven workflow abort system that actually terminates Claude Code SDK processes.
+### Workflow Abort (MANDATORY)
 
-### Architecture
+**CRITICAL**: Workflows can be aborted using the event-driven abort system.
 
-**Event-Driven Pattern**: Uses publish/subscribe for immediate agent termination without polling or blocking.
+**When to Abort Workflows:**
 
-```typescript
-// AbortEventSystem - Singleton EventEmitter
-const abortSystem = AbortEventSystem.getInstance()
+- User requests workflow termination
+- Workflow running longer than expected (>30 minutes)
+- System resource constraints detected
+- Error states requiring immediate termination
 
-// Publishers (WorkflowOrchestrator)
-abortSystem.publishWorkflowAbort(threadId, projectId) // Non-blocking event publish
-
-// Subscribers (ClaudeService agents)
-abortSystem.subscribeToAborts((event) => {
-  if (AbortEventSystem.shouldAbortAgent(event, agentId, projectId)) {
-    agent.abort() // Terminate Claude Code SDK process
-  }
-})
-```
-
-### Key Components
-
-- **AbortEventSystem**: `web/server/services/AbortEventSystem.ts` - Central event management
-- **Agent Subscription**: Each agent auto-subscribes to abort events on creation
-- **Workflow Publishing**: WorkflowOrchestrator publishes abort events immediately
-- **Status Handling**: WorkflowStateManager properly detects aborted vs failed workflows
-
-### API Endpoints
+**How to Abort:**
 
 ```bash
-# Abort active workflow
-POST /api/invoke-status/abort/{threadId}
-Response: {"success": true, "status": "aborted", "message": "Workflow aborted successfully"}
+# Abort active workflow by threadId
+curl -X POST /api/invoke-status/abort/{threadId}
 ```
 
-### Performance Metrics
+**Expected Behavior:**
 
-**Before Fix:**
+- Workflow terminates within ~2 seconds of abort request
+- Status changes to "aborted" (not "failed")
+- All running Claude Code SDK processes terminate immediately
+- Agent returns "Query was aborted by user"
 
-- ❌ 120-second sleep completed fully (~120+ seconds)
-- ❌ Status: "failed" (incorrect)
-- ❌ Agent continued despite "abort" signal
+### Dogfooding Usage Instructions
 
-**After Fix:**
+**MANDATORY**: Studio AI is ready for basic autonomous Claude usage with constraints.
 
-- ✅ 120-second sleep terminated in ~6.8 seconds
-- ✅ Status: "aborted" (correct)
-- ✅ Agent returns "Query was aborted by user"
-
-### Usage Patterns
-
-```bash
-# Start workflow
-curl -X POST /api/invoke '{"workflow": {"task": "bash sleep 120"}, "threadId": "test-123"}'
-
-# Abort after 5 seconds
-sleep 5 && curl -X POST /api/invoke-status/abort/test-123
-# Result: Workflow terminates in ~1.7 seconds after abort signal
-```
-
-### Implementation Status
-
-- ✅ **Event System**: AbortEventSystem with publish/subscribe pattern
-- ✅ **Agent Integration**: Automatic subscription on agent creation
-- ✅ **Workflow Integration**: Non-blocking abort publishing
-- ✅ **Status Detection**: Proper aborted/failed distinction
-- ✅ **Type Safety**: Full TypeScript support with 'aborted' status
-- ✅ **Testing**: Verified with multiple abort scenarios
-- ✅ **Production Ready**: Committed (e287327) and deployed
-
-## Dogfooding Readiness Criteria 🚀
-
-**CRITICAL**: Define when Studio AI is ready for autonomous Claude usage (dogfooding).
-
-### Phase 1: Core Workflow Reliability ✅ COMPLETE
-
-- ✅ **Workflow Execution**: Multi-agent workflows work reliably
-- ✅ **Workflow Abort**: Event-driven abort terminates processes properly
-- ✅ **Agent Management**: Project-scoped agents with proper isolation
-- ✅ **Session Management**: Stable session handling without infinite loops
-- ✅ **Data Isolation**: Cross-project data bleeding prevented
-- ✅ **Error Handling**: Graceful failure with proper status reporting
-
-### Phase 2: User Control & Recovery 🚧 IN PROGRESS
-
-**Target**: Issue #17 (Real-time Execution Controls) + Issue #22 (Resume/Retry)
-
-- ⚠️ **Real-time Monitoring**: Execute button keeps modal open with live progress
-- ⚠️ **Visual Feedback**: n8n-style node indicators showing execution state
-- ⚠️ **Resume/Retry**: Aborted and failed workflows can be resumed/retried
-- ⚠️ **Step-level Control**: Individual step retry with task modification
-
-### Phase 3: Production Stability 🔄 PLANNED
-
-**Target**: Multi-Provider + Advanced Features
-
-- ⚠️ **Multi-Provider Support**: Gemini, Amp integration for provider diversity
-- ⚠️ **Cross-Provider Workflows**: Mixed-provider agent collaboration
-- ⚠️ **Advanced Resume**: Resume with updated agent configurations
-- ⚠️ **Global Process Control**: System-wide process management
-
-### Dogfooding Decision Matrix
-
-**✅ READY FOR BASIC DOGFOODING**: Phase 1 complete - Core workflows are reliable
-
-**Minimal Viable Dogfooding Criteria:**
-
-1. ✅ Workflows execute reliably end-to-end
-2. ✅ Abort functionality prevents runaway processes
-3. ✅ Project isolation prevents data bleeding
-4. ✅ Error states are recoverable (manual restart)
-
-**Enhanced Dogfooding Criteria (Phase 2):**
-
-1. ⚠️ Real-time execution monitoring in workflow builder
-2. ⚠️ Resume/retry functionality for failed workflows
-3. ⚠️ Visual feedback for long-running operations
-
-**Production Dogfooding Criteria (Phase 3):**
-
-1. ⚠️ Multiple AI provider support for redundancy
-2. ⚠️ Advanced workflow recovery and modification
-3. ⚠️ System-wide process control and monitoring
-
-### Current Recommendation
-
-**🟢 GREEN LIGHT**: Studio AI is ready for **basic autonomous Claude usage** with the following constraints:
-
-**Safe Use Cases:**
+**YOU SHOULD autonomously use Studio AI for:**
 
 - ✅ Multi-step development workflows (design → implement → test → review)
 - ✅ Code analysis and improvement tasks
 - ✅ Documentation generation workflows
 - ✅ Controlled automation with abort capability
 
-**Caution Areas:**
+**YOU MUST exercise caution with:**
 
-- ⚠️ Long-running workflows (>30 min) - require manual monitoring
-- ⚠️ Complex error recovery - may need manual restart
+- ⚠️ Long-running workflows (>30 min) - monitor progress and abort if needed
+- ⚠️ Complex error recovery - may require manual restart
 - ⚠️ Resource-intensive operations - monitor system resources
 
-**Next Milestone**: Complete Phase 2 (Issues #17, #22) for enhanced dogfooding experience.
+**Required Workflow Patterns:**
 
-## Recent Fixes & Improvements
-
-### Session Linking & UI Visibility
-
-- **Fixed**: WorkflowOrchestrator now uses agent short IDs instead of config IDs for session creation
-- **Result**: Workflow messages now appear properly in Studio UI
-- **File**: `web/server/services/WorkflowOrchestrator.ts`
-
-### Agent Configuration Resolution
-
-- **Fixed**: Updated WorkflowOrchestrator and ClaudeService to use UnifiedAgentConfigService
-- **Fixed**: Proper agent config loading with full agentConfigId support
-- **Result**: Agents load correctly in workflows with proper configurations
-- **Files**: `WorkflowOrchestrator.ts`, `ClaudeService.ts`
-
-### WebSocket Connection
-
-- **Fixed**: Frontend WebSocket connection to use `window.location.origin` instead of hardcoded port
-- **Result**: Proper real-time communication between frontend and backend
-- **File**: `src/hooks/useWebSocket.ts`
-
-### Token Display Accuracy
-
-- **Fixed**: Agent token counts now reset to 0 when no active session exists
-- **Result**: No more stale token data like "236 / 200K tokens" for inactive agents
-- **Files**: `src/routes/index.tsx`, `src/components/projects/AgentCard.tsx`
-
-### Template Variable System
-
-- **Verified**: `.output` template variables work correctly in multi-step workflows
-- **Tested**: Complex dependencies with `{stepId.output}` syntax
-- **Evidence**: Logs show successful template resolution and content injection
+1. Always set threadId for resume capability: `threadId: 'workflow-123'`
+2. Use proper error handling with graceful failure
+3. Monitor workflow progress and abort if necessary
+4. Implement proper project isolation (never mix projects)
 
 ## Important Notes
 
@@ -680,70 +552,34 @@ sleep 5 && curl -X POST /api/invoke-status/abort/test-123
 - **Server restart required** when changing API schemas or core services
 - **REQUIRED**: Update @docs/gotchas.md with key learnings before task completion
 
-### Claude SDK Session Management
+### Claude SDK Session Management (MANDATORY)
 
-**CRITICAL**: Claude SDK creates NEW session IDs on each turn/checkpoint, not resuming existing ones.
+**CRITICAL**: Claude SDK creates NEW session IDs on each turn/checkpoint.
 
-**Pattern**:
+**YOU MUST understand**: Backend uses dynamic session IDs, frontend uses stable agent instance IDs (`developer_01`).
 
-- SessionService stores: `aa966796-307e-46fa-968a-654c669594db` (old)
-- Claude SDK creates: `8552d46a-033f-4fae-94ac-c26eccba3261` (new)
-- **Race Condition**: WebSocket emits with new session, REST API uses old session
+### WebSocket Message Routing (MANDATORY)
 
-**Key Insight**: Claude SDK session IDs are purely backend - frontend only uses agent instance IDs (`developer_01`). The backend must immediately update SessionService when Claude SDK creates new sessions to prevent REST/WebSocket inconsistency.
+**CRITICAL**: All WebSocket messages MUST include `projectId` for proper routing.
 
-### WebSocket Message Routing Pattern (MANDATORY)
-
-**CRITICAL**: All WebSocket messages MUST include `projectId` for proper message routing and filtering.
-
-**Pattern**:
+**YOU MUST always use**:
 
 ```typescript
 // ✅ CORRECT: Always include projectId
 await eventSystem.emitNewMessage(sessionId, message, projectId)
 
-// ❌ WRONG: Missing projectId causes message filtering failures
+// ❌ WRONG: Missing projectId causes filtering failures
 await eventSystem.emitNewMessage(sessionId, message)
 ```
 
-**Frontend Filtering Logic**:
+### Conditional Workflows (AVAILABLE)
 
-```typescript
-// Frontend checks BOTH sessionId AND projectId
-if (data.sessionId === webSocketSessionId && data.projectId === projectId) {
-  // Process message
-}
-```
+**YOU CAN use conditional workflows** with these nodes:
 
-**Why This Matters**: Without `projectId`, frontend message filtering fails and messages don't appear in UI despite being emitted correctly.
+- ConditionalNode: Evaluates JavaScript expressions with template variables
+- TrueBranch/FalseBranch: Routes based on condition results
 
-**Fixed in**: EventSystem.emitNewMessage() and claude-agent.ts - always pass `this.projectId`
+**Available files**:
 
-## Conditional Nodes Implementation Status (2025-01-13)
-
-**CRITICAL**: Conditional nodes are partially implemented. Backend is complete, UI store connection is complete, but full integration pending.
-
-### Completed:
-
-- ✅ **Backend LangGraph Integration** - WorkflowOrchestrator uses native `addConditionalEdges()`
-- ✅ **ConditionEvaluator Service** - Safe JavaScript expression evaluation with template variables
-- ✅ **Schema Updates** - Added condition, trueBranch, falseBranch fields
-- ✅ **ConditionalNode Store Connection** - UI component saves conditions to workflow store
-
-### Pending (Phase 2.2+):
-
-- ⚠️ **Workflow Builder Data Flow** - Ensure conditional data reaches execution API
-- ⚠️ **Edge Connection Logic** - trueBranch/falseBranch must be set when connecting edges
-- ⚠️ **Testing** - API and E2E testing of conditional workflows
-- ⚠️ **MCP Tool Support** - Update MCP tools to handle conditionals
-
-### Key Files:
-
-- `web/server/services/ConditionEvaluator.ts` - Evaluates conditions with template variables
-- `web/server/services/WorkflowOrchestrator.ts` - LangGraph conditional edges implementation
-- `src/components/workflow-builder/nodes/ConditionalNode.tsx` - UI component with store connection
-- `docs/conditional-nodes-implementation.md` - Full implementation tracking
-
-## Contact
-
-For questions or issues, create a GitHub issue or discuss in the project chat.
+- `web/server/services/ConditionEvaluator.ts` - Condition evaluation
+- `src/components/workflow-builder/nodes/ConditionalNode.tsx` - UI component
