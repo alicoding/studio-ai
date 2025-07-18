@@ -179,13 +179,13 @@ export class WorkflowOrchestrator {
   }
 
   /**
-   * Pause workflow execution using LangGraph's interrupt() function
-   * This preserves state and allows for manual intervention or review
+   * Pause workflow execution by interrupting the Claude Code SDK process
+   * This actually stops execution and preserves state for resume
    */
   async pauseWorkflow(
     threadId: string,
     steps: WorkflowStep[],
-    _reason?: string
+    reason?: string
   ): Promise<{ success: boolean; error?: string; paused: boolean }> {
     try {
       // Check if workflow is active
@@ -197,55 +197,81 @@ export class WorkflowOrchestrator {
         }
       }
 
-      // Get the workflow state to find where to pause
-      const workflowState = await this.getWorkflowState(threadId, steps)
+      // Get the abort controller for this workflow
+      const abortController =
+        this.abortControllers.get(threadId) ||
+        WorkflowOrchestrator.workflowAbortControllers.get(threadId)
 
-      if (!workflowState.canResume) {
+      if (!abortController) {
         return {
           success: false,
-          error: `Workflow cannot be paused. Current state does not allow interruption.`,
+          error: `No abort controller found for workflow ${threadId}`,
           paused: false,
         }
       }
 
-      // Build workflow to get compiled graph with checkpointer
-      const checkpointer = await this.getCheckpointer()
-      const workflow = await this.workflowBuilder.buildWorkflow(steps, checkpointer)
+      console.log(
+        `[WorkflowOrchestrator] Pausing workflow ${threadId} with reason: ${reason || 'Manual pause'}`
+      )
 
-      console.log(`[WorkflowOrchestrator] Pausing workflow ${threadId}`)
+      // Get current state before interrupting
+      const workflowState = await this.getWorkflowState(threadId, steps)
 
-      // Get current state and trigger interrupt
-      const currentState = await workflow.getState({
-        configurable: { thread_id: threadId },
+      // Update workflow status to 'paused' BEFORE signaling abort
+      // This way the error handler knows it's a pause, not an abort
+      await updateWorkflowStatus(threadId, {
+        status: 'paused',
+        currentStep: workflowState.pendingSteps[0], // Next step to execute when resumed
       })
 
-      if (currentState) {
-        // The workflow will be interrupted at the next safe checkpoint
-        // Update workflow status to indicate it's paused
-        await updateWorkflowStatus(threadId, {
-          status: 'paused',
-          currentStep: workflowState.pendingSteps[0], // Next step to execute
+      // Get workflow info to find project for event system
+      try {
+        const { WorkflowRegistry } = await import('./WorkflowRegistry')
+        const registry = WorkflowRegistry.getInstance()
+        const workflow = await registry.getWorkflow(threadId)
+
+        if (workflow && workflow.projectId) {
+          // Use AbortEventSystem to publish pause event (reusing abort infrastructure)
+          const { AbortEventSystem } = await import('./AbortEventSystem')
+          const abortSystem = AbortEventSystem.getInstance()
+
+          console.log(
+            `[WorkflowOrchestrator] 🛑 Publishing workflow pause event for project ${workflow.projectId}`
+          )
+          abortSystem.publishWorkflowAbort(threadId, workflow.projectId)
+        }
+      } catch (error) {
+        console.error(`[WorkflowOrchestrator] Failed to publish pause event: ${error}`)
+      }
+
+      // Signal workflow process interruption (same as abort, but status is already 'paused')
+      Promise.resolve(abortController.abort())
+        .then(() => {
+          console.log(
+            `[WorkflowOrchestrator] ✅ Workflow process interruption signal sent for pause ${threadId}`
+          )
+        })
+        .catch((error) => {
+          console.error(
+            `[WorkflowOrchestrator] ❌ Error signaling workflow pause for ${threadId}:`,
+            error
+          )
         })
 
-        // Emit workflow paused event
-        this.emitWorkflowEvent({
-          type: 'workflow_paused',
-          threadId,
-          status: 'paused',
-        })
+      // Emit workflow paused event
+      this.emitWorkflowEvent({
+        type: 'workflow_paused',
+        threadId,
+        status: 'paused',
+      })
 
-        console.log(`[WorkflowOrchestrator] Workflow ${threadId} paused successfully`)
+      console.log(
+        `[WorkflowOrchestrator] 🚀 Process interruption initiated for workflow pause ${threadId}`
+      )
 
-        return {
-          success: true,
-          paused: true,
-        }
-      } else {
-        return {
-          success: false,
-          error: 'Unable to access workflow state for pausing',
-          paused: false,
-        }
+      return {
+        success: true,
+        paused: true,
       }
     } catch (error) {
       console.error(`[WorkflowOrchestrator] Error pausing workflow ${threadId}:`, error)
@@ -458,11 +484,21 @@ export class WorkflowOrchestrator {
       } catch (error) {
         console.error('Workflow execution error:', error)
 
-        // Update status on error/abort
-        const abortInfo = detectAbortError(error)
-        await updateWorkflowStatus(threadId, {
-          status: abortInfo.isAbort ? 'aborted' : 'failed',
-        })
+        // Check current status before overwriting - don't change 'paused' to 'aborted'
+        const { WorkflowRegistry } = await import('./WorkflowRegistry')
+        const registry = WorkflowRegistry.getInstance()
+        const currentWorkflow = await registry.getWorkflow(threadId)
+
+        // If workflow is already paused, don't change status (pause uses abort signal internally)
+        if (currentWorkflow?.status === 'paused') {
+          console.log(`[WorkflowOrchestrator] Preserving 'paused' status for workflow ${threadId}`)
+        } else {
+          // Update status on error/abort for non-paused workflows
+          const abortInfo = detectAbortError(error)
+          await updateWorkflowStatus(threadId, {
+            status: abortInfo.isAbort ? 'aborted' : 'failed',
+          })
+        }
 
         // Emit workflow failed event with last step info for recovery
         // Find the last step that was attempted

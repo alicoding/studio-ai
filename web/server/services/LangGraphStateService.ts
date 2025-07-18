@@ -193,7 +193,7 @@ export class LangGraphStateService {
 
   /**
    * Resume workflow execution from last checkpoint
-   * Uses LangGraph's native graph.invoke(None, config) pattern
+   * Uses LangGraph's native graph.invoke(None, config) pattern with special handling for paused workflows
    */
   async resumeWorkflow(
     threadId: string,
@@ -212,11 +212,13 @@ export class LangGraphStateService {
         }
       }
 
+      // Check if this is a paused workflow requiring system message injection
+      const isPausedWorkflow = await this.checkIfWorkflowWasPaused(threadId)
+
       // Build workflow to get compiled graph with checkpointer
       const workflow = await this.workflowBuilder.buildWorkflow(steps, this.checkpointer)
 
-      // Use LangGraph's native resume pattern: invoke(None, config)
-      // This resumes from the last checkpoint for the given thread
+      // Prepare config for resume
       const config = {
         configurable: {
           thread_id: threadId,
@@ -224,10 +226,23 @@ export class LangGraphStateService {
         },
       }
 
-      console.log(`[LangGraphStateService] Resuming workflow for thread ${threadId}`)
+      console.log(
+        `[LangGraphStateService] Resuming workflow for thread ${threadId}${isPausedWorkflow ? ' (paused workflow - injecting system message)' : ''}`
+      )
 
-      // LangGraph will automatically resume from the last checkpoint
-      await workflow.invoke(null, config)
+      if (isPausedWorkflow) {
+        // For paused workflows, inject system message to continue work
+        console.log(
+          `[LangGraphStateService] Injecting resume system message for paused workflow ${threadId}`
+        )
+
+        // LangGraph expects null for resume, the system message will be handled by the executor
+        // The executor will detect paused status and inject appropriate system message
+        await workflow.invoke(null, config)
+      } else {
+        // Standard resume for failed/aborted workflows
+        await workflow.invoke(null, config)
+      }
 
       console.log(`[LangGraphStateService] Workflow resumed successfully for thread ${threadId}`)
 
@@ -398,5 +413,23 @@ export class LangGraphStateService {
 
     // Default to completed if no next steps and no errors
     return 'completed'
+  }
+
+  /**
+   * Check if a workflow was paused by looking at the workflow registry status
+   */
+  private async checkIfWorkflowWasPaused(threadId: string): Promise<boolean> {
+    try {
+      // Import WorkflowRegistry to check current workflow status
+      const { WorkflowRegistry } = await import('./WorkflowRegistry')
+      const registry = WorkflowRegistry.getInstance()
+      const workflow = await registry.getWorkflow(threadId)
+
+      // Return true if the workflow status is 'paused'
+      return workflow?.status === 'paused'
+    } catch (error) {
+      console.error(`[LangGraphStateService] Error checking paused status for ${threadId}:`, error)
+      return false
+    }
   }
 }

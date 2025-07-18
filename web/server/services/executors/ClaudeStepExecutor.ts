@@ -54,9 +54,17 @@ export class ClaudeStepExecutor implements StepExecutor {
 
     try {
       // Resolve template variables in task
-      const resolvedTask = this.resolveTemplateVariables(step.task, context)
+      let resolvedTask = this.resolveTemplateVariables(step.task, context)
       console.log(`[ClaudeStepExecutor] Step ${step.id} - Original task: ${step.task}`)
       console.log(`[ClaudeStepExecutor] Step ${step.id} - Resolved task: ${resolvedTask}`)
+
+      // Check if this is a resume from a paused workflow and inject system message
+      const isPausedResume = await this.checkIfPausedWorkflowResume(context.threadId)
+      if (isPausedResume) {
+        const systemMessage = `<system-message>Resume work: You were paused and are now resuming execution. Continue from where you left off with the current task. The workflow was paused manually and you should proceed with the next steps as planned.</system-message>\n\n`
+        resolvedTask = systemMessage + resolvedTask
+        console.log(`[ClaudeStepExecutor] Injected system message for paused workflow resume`)
+      }
 
       // Try to get project agents first
       let agentInstanceId: string | null = null
@@ -340,6 +348,27 @@ export class ClaudeStepExecutor implements StepExecutor {
         duration: Date.now() - startTime,
         abortedAt: abortInfo.isAbort ? new Date().toISOString() : undefined,
       }
+    }
+  }
+
+  /**
+   * Check if this is a resume from a paused workflow
+   */
+  private async checkIfPausedWorkflowResume(threadId: string): Promise<boolean> {
+    try {
+      // Import WorkflowRegistry to check current workflow status
+      const { WorkflowRegistry } = await import('../WorkflowRegistry')
+      const registry = WorkflowRegistry.getInstance()
+      const workflow = await registry.getWorkflow(threadId)
+
+      // Return true if the workflow status is 'paused' - indicating we're resuming a paused workflow
+      return workflow?.status === 'paused'
+    } catch (error) {
+      console.error(
+        `[ClaudeStepExecutor] Error checking paused resume status for ${threadId}:`,
+        error
+      )
+      return false
     }
   }
 
