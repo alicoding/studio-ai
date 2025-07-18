@@ -13,6 +13,7 @@ import { useProjectStore } from '../../stores/projects'
 import { WorkflowGraph } from './WorkflowGraph'
 import { WorkflowStepList } from './WorkflowStepList'
 import { WorkflowHistory } from './WorkflowHistory'
+import { WorkflowStateModal } from './WorkflowStateModal'
 import { useWorkflowGraph } from '../../hooks/useWorkflowGraph'
 import { WorkflowStateService } from '../../services/workflowStateService'
 import {
@@ -358,6 +359,17 @@ curl -s "http://localhost:3457/api/workflow-graph/${debugInfo.threadId}" | jq
             )}
             {/* History Button - Show checkpoint history */}
             <WorkflowHistory
+              threadId={workflow.threadId}
+              workflowSteps={workflow.steps.map((step) => ({
+                id: step.id,
+                role: step.role,
+                agentId: step.agentId,
+                task: step.task,
+                deps: step.dependencies || [],
+              }))}
+            />
+            {/* Inspect State Button - Show detailed workflow state */}
+            <WorkflowStateModal
               threadId={workflow.threadId}
               workflowSteps={workflow.steps.map((step) => ({
                 id: step.id,
