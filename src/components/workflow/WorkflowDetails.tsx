@@ -13,7 +13,7 @@ import { useProjectStore } from '../../stores/projects'
 import { WorkflowGraph } from './WorkflowGraph'
 import { WorkflowStepList } from './WorkflowStepList'
 import { useWorkflowGraph } from '../../hooks/useWorkflowGraph'
-import { WorkflowGraphService } from '../../services/workflowGraphService'
+import { WorkflowStateService } from '../../services/workflowStateService'
 import {
   Activity,
   Clock,
@@ -24,6 +24,9 @@ import {
   Copy,
   CheckCircle,
   PlayCircle,
+  Pause,
+  Square,
+  Loader2,
 } from 'lucide-react'
 
 interface WorkflowDetailsProps {
@@ -38,6 +41,8 @@ export const WorkflowDetails: React.FC<WorkflowDetailsProps> = ({
   const [viewMode, setViewMode] = useState<'steps' | 'graph'>('steps')
   const [copied, setCopied] = useState(false)
   const [resuming, setResuming] = useState(false)
+  const [pausing, setPausing] = useState(false)
+  const [aborting, setAborting] = useState(false)
   const workflows = useWorkflowStore((state) => state.workflows)
   const fetchWorkflows = useWorkflowStore((state) => state.fetchWorkflows)
   const { graphData, loading: graphLoading } = useWorkflowGraph(
@@ -116,6 +121,8 @@ export const WorkflowDetails: React.FC<WorkflowDetailsProps> = ({
   const resumePoints = getResumePoints()
   const canResume =
     resumePoints.length > 0 && (workflow?.status === 'failed' || workflow?.status === 'aborted')
+  const canPause = workflow?.status === 'running'
+  const canAbort = workflow?.status === 'running'
 
   const handleResume = async () => {
     if (!workflow || resuming || !canResume) return
@@ -130,12 +137,16 @@ export const WorkflowDetails: React.FC<WorkflowDetailsProps> = ({
         deps: step.dependencies || [],
       }))
 
-      // Call the resume API
-      const result = await WorkflowGraphService.resumeWorkflow(workflow.threadId, workflowSteps)
+      // Use the new WorkflowStateService instead of WorkflowGraphService
+      const result = await WorkflowStateService.resumeWorkflow(
+        workflow.threadId,
+        workflowSteps,
+        currentProject?.id
+      )
 
-      // Show success message with resume points from our calculation
+      // Show success message
       alert(
-        `Workflow resumed successfully!\n\nThread ID: ${result.threadId}\nStatus: ${result.status}\n\nThe workflow will continue from the resume points:\n${resumePoints.join(', ')}`
+        `Workflow resumed successfully!\n\nThread ID: ${result.threadId}\nResumed: ${result.resumed ? 'Yes' : 'No'}\n\nThe workflow will continue from the resume points:\n${resumePoints.join(', ')}`
       )
 
       // Refresh workflow data without full page reload
@@ -147,6 +158,71 @@ export const WorkflowDetails: React.FC<WorkflowDetailsProps> = ({
       )
     } finally {
       setResuming(false)
+    }
+  }
+
+  const handlePause = async () => {
+    if (!workflow || pausing || !canPause) return
+
+    setPausing(true)
+    try {
+      // Convert workflow steps to the format expected by the API
+      const workflowSteps = workflow.steps.map((step) => ({
+        id: step.id,
+        role: step.role,
+        task: step.task,
+        deps: step.dependencies || [],
+      }))
+
+      // Call the pause API
+      const result = await WorkflowStateService.pauseWorkflow(
+        workflow.threadId,
+        workflowSteps,
+        'Manual pause requested by user'
+      )
+
+      // Show success message
+      alert(
+        `Workflow paused successfully!\n\nThread ID: ${result.threadId}\nPaused: ${result.paused ? 'Yes' : 'No'}`
+      )
+
+      // Refresh workflow data without full page reload
+      await fetchWorkflows()
+    } catch (error) {
+      console.error('Failed to pause workflow:', error)
+      alert(`Failed to pause workflow: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setPausing(false)
+    }
+  }
+
+  const handleAbort = async () => {
+    if (!workflow || aborting || !canAbort) return
+
+    // Confirm abort action
+    const confirmed = window.confirm(
+      `Are you sure you want to abort this workflow?\n\nThread ID: ${workflow.threadId}\n\nThis action cannot be undone, but the workflow can be resumed later.`
+    )
+
+    if (!confirmed) return
+
+    setAborting(true)
+    try {
+      // Call the abort API
+      const result = await WorkflowStateService.abortWorkflow(workflow.threadId)
+
+      // Show success message
+      alert(
+        `Workflow aborted successfully!\n\nThread ID: ${result.threadId}\nStatus: ${result.status}`
+      )
+
+      // Refresh workflow data without full page reload
+      await fetchWorkflows()
+    } catch (error) {
+      console.error('Failed to abort workflow:', error)
+      alert(`Failed to abort workflow: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setAborting(false)
     }
   }
 
@@ -219,6 +295,26 @@ curl -s "http://localhost:3457/api/workflow-graph/${debugInfo.threadId}" | jq
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Pause Button - Show if workflow is running */}
+            {canPause && (
+              <button
+                onClick={handlePause}
+                disabled={pausing}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium ${
+                  pausing
+                    ? 'bg-amber-400 text-white cursor-not-allowed opacity-75'
+                    : 'bg-amber-500 text-white hover:bg-amber-600'
+                }`}
+                title="Pause workflow execution"
+              >
+                {pausing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Pause className="w-4 h-4" />
+                )}
+                {pausing ? 'Pausing...' : 'Pause Workflow'}
+              </button>
+            )}
             {/* Resume Button - Show if workflow can be resumed */}
             {canResume && (
               <button
@@ -226,13 +322,37 @@ curl -s "http://localhost:3457/api/workflow-graph/${debugInfo.threadId}" | jq
                 disabled={resuming}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium ${
                   resuming
-                    ? 'bg-amber-400 text-white cursor-not-allowed opacity-75'
-                    : 'bg-amber-500 text-white hover:bg-amber-600'
+                    ? 'bg-green-400 text-white cursor-not-allowed opacity-75'
+                    : 'bg-green-500 text-white hover:bg-green-600'
                 }`}
                 title={`Resume workflow from ${resumePoints.length} checkpoint${resumePoints.length > 1 ? 's' : ''}: ${resumePoints.join(', ')}`}
               >
-                <PlayCircle className="w-4 h-4" />
+                {resuming ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <PlayCircle className="w-4 h-4" />
+                )}
                 {resuming ? 'Resuming...' : 'Resume Workflow'}
+              </button>
+            )}
+            {/* Abort Button - Show if workflow is running */}
+            {canAbort && (
+              <button
+                onClick={handleAbort}
+                disabled={aborting}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium ${
+                  aborting
+                    ? 'bg-red-400 text-white cursor-not-allowed opacity-75'
+                    : 'bg-red-500 text-white hover:bg-red-600'
+                }`}
+                title="Abort workflow execution"
+              >
+                {aborting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Square className="w-4 h-4" />
+                )}
+                {aborting ? 'Aborting...' : 'Abort Workflow'}
               </button>
             )}
             {/* View Toggle */}
