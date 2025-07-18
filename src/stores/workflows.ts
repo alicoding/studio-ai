@@ -15,7 +15,7 @@ export interface WorkflowStep {
 
 export interface WorkflowInfo {
   threadId: string
-  status: 'running' | 'completed' | 'failed' | 'aborted'
+  status: 'running' | 'completed' | 'failed' | 'aborted' | 'paused'
   startedBy: string
   invocation: string
   projectId: string
@@ -185,7 +185,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
       workflows.forEach(
         (workflow: {
           threadId: string
-          status: 'running' | 'completed' | 'failed' | 'aborted'
+          status: 'running' | 'completed' | 'failed' | 'aborted' | 'paused'
           sessionIds: Record<string, string>
           lastUpdate: string
           currentStep?: string

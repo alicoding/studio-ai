@@ -43,6 +43,7 @@ const statusColors = {
   completed: 'text-green-500',
   failed: 'text-red-500',
   aborted: 'text-orange-500',
+  paused: 'text-amber-500',
 }
 
 export function WorkflowModal({ workflow, isOpen, onClose }: WorkflowModalProps) {

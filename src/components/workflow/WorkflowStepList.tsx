@@ -43,6 +43,7 @@ const getStatusStyles = (status: string): string => {
     not_executed: 'bg-gray-500/20 text-gray-700',
     skipped: 'bg-blue-500/20 text-blue-700',
     aborted: 'bg-purple-500/20 text-purple-700',
+    paused: 'bg-amber-500/20 text-amber-700',
   }
   return statusMap[status] || 'bg-gray-500/20 text-gray-700'
 }

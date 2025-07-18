@@ -52,7 +52,9 @@ const WorkflowItem: React.FC<{
                       ? 'bg-red-500/20 text-red-500'
                       : workflow.status === 'aborted'
                         ? 'bg-orange-500/20 text-orange-500'
-                        : 'bg-gray-500/20 text-gray-500'
+                        : workflow.status === 'paused'
+                          ? 'bg-amber-500/20 text-amber-500'
+                          : 'bg-gray-500/20 text-gray-500'
               }`}
             >
               {workflow.status}

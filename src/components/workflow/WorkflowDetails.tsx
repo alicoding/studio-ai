@@ -122,7 +122,10 @@ export const WorkflowDetails: React.FC<WorkflowDetailsProps> = ({
 
   const resumePoints = getResumePoints()
   const canResume =
-    resumePoints.length > 0 && (workflow?.status === 'failed' || workflow?.status === 'aborted')
+    resumePoints.length > 0 &&
+    (workflow?.status === 'failed' ||
+      workflow?.status === 'aborted' ||
+      workflow?.status === 'paused')
   const canPause = workflow?.status === 'running'
   const canAbort = workflow?.status === 'running'
 
@@ -415,7 +418,9 @@ curl -s "http://localhost:3457/api/workflow-graph/${debugInfo.threadId}" | jq
                       ? 'bg-red-500/20 text-red-500'
                       : workflow.status === 'aborted'
                         ? 'bg-orange-500/20 text-orange-500'
-                        : 'bg-gray-500/20 text-gray-500'
+                        : workflow.status === 'paused'
+                          ? 'bg-amber-500/20 text-amber-500'
+                          : 'bg-gray-500/20 text-gray-500'
               }`}
             >
               {workflow.status}
