@@ -188,7 +188,7 @@ export const InvokeResponseSchema = z.object({
   threadId: z.string(),
   sessionIds: z.record(z.string(), z.string()), // stepId -> sessionId
   results: z.record(z.string(), z.string()), // stepId -> response
-  status: z.enum(['completed', 'partial', 'failed']),
+  status: z.enum(['completed', 'partial', 'failed', 'aborted']),
   summary: z
     .object({
       total: z.number(),

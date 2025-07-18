@@ -12,6 +12,7 @@ interface ViewControlsProps {
   onViewChange: (view: ViewMode) => void
   onSidebarToggle: () => void
   onNewWorkflow?: () => void
+  onInterruptAgent?: () => void
 }
 
 const viewIcons = {

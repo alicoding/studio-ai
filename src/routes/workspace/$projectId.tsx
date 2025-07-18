@@ -15,7 +15,7 @@ import { Plus } from 'lucide-react'
 import { TeamTemplate } from '../../types/teams'
 import { convertToolsToPermissions, type ToolPermission } from '../../types/tool-permissions'
 
-import { useAgentStore, useProjectStore, type Agent } from '../../stores'
+import { useAgentStore, useProjectStore, useWorkflowStore, type Agent } from '../../stores'
 import { useAgentRoles } from '../../hooks/useAgentRoles'
 import { useWorkspaceData, type ProjectAgent } from '../../hooks/useWorkspaceData'
 
@@ -54,14 +54,20 @@ function WorkspacePage(): JSX.Element | null {
   // Zustand stores - get these first
   const { activeProjectId, setActiveProject, getOpenProjects, openProjectInWorkspace } =
     useProjectStore()
+  const { clearProjectData: clearWorkflowData } = useWorkflowStore()
+  const { clearProjectData: clearAgentData } = useAgentStore()
 
   // Set the active project based on URL and ensure it's opened in workspace
   useEffect(() => {
     if (projectId) {
       setActiveProject(projectId)
       openProjectInWorkspace(projectId) // Ensure project is open in tabs
+
+      // Clear data from other projects when switching to prevent data bleeding
+      clearWorkflowData() // Clear all workflow data
+      clearAgentData(projectId) // Keep only agents for current project
     }
-  }, [projectId, setActiveProject, openProjectInWorkspace])
+  }, [projectId, setActiveProject, openProjectInWorkspace, clearWorkflowData, clearAgentData])
 
   // DRY: Use optimized workspace data hook for all workspace data
   const { data: workspaceData, loading: workspaceLoading } = useWorkspaceData({
@@ -95,7 +101,6 @@ function WorkspacePage(): JSX.Element | null {
     }
   }, [workspaceLoading, projects, currentProject, navigate])
 
-
   // Get current project agents from workspace data with memoization
   const currentProjectAgents = useMemo(
     () => (projectId ? projectAgents[projectId] || [] : []),
@@ -126,8 +131,8 @@ function WorkspacePage(): JSX.Element | null {
   // WebSocket operations (handles event registration)
   useWebSocketOperations()
 
-  // Global workflow events (SSE for workflow updates)
-  useWorkflowEvents()
+  // Project-scoped workflow events (SSE for workflow updates)
+  useWorkflowEvents(projectId)
 
   // Approval events for human-in-the-loop workflows
   const {

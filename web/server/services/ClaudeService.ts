@@ -1,5 +1,6 @@
 import { ClaudeAgent, type Role, type AgentConfig, type MCPServerConfig } from './claude-agent.js'
 import { SessionService } from './SessionService.js'
+import { AbortEventSystem } from './AbortEventSystem.js'
 import type { Server } from 'socket.io'
 
 // SOLID: Single Responsibility - Handle Claude interactions
@@ -7,6 +8,8 @@ import type { Server } from 'socket.io'
 export class ClaudeService {
   private agents: Map<string, ClaudeAgent> = new Map()
   private sessionService = SessionService.getInstance()
+  private abortEventSystem = AbortEventSystem.getInstance()
+  private abortSubscriptions: Map<string, () => void> = new Map()
 
   // KISS: Simple method to get or create an agent
   // Updated to use project+agent based tracking instead of just sessionId
@@ -70,6 +73,9 @@ export class ClaudeService {
       const agent = new ClaudeAgent(agentId, role, projectPath, projectId, config)
 
       this.agents.set(agentKey, agent)
+
+      // Subscribe to abort events for this agent
+      this.subscribeAgentToAbortEvents(agent, agentKey, projectId, agentId)
     }
 
     // CRITICAL: Always set session update callback, even for cached agents
@@ -120,6 +126,30 @@ export class ClaudeService {
     }
   }
 
+  /**
+   * Subscribe agent to abort events using event-driven pattern
+   * SOLID: Single responsibility for event subscription
+   * DRY: Reuses AbortEventSystem for all abort scenarios
+   */
+  private subscribeAgentToAbortEvents(
+    agent: ClaudeAgent,
+    agentKey: string,
+    projectId: string,
+    agentId: string
+  ): void {
+    const unsubscribe = this.abortEventSystem.subscribeToAborts((event) => {
+      // Check if this agent should be aborted by this event
+      if (AbortEventSystem.shouldAbortAgent(event, agentId, projectId)) {
+        console.log(`[ClaudeService] 🚨 Aborting agent ${agentId} due to ${event.type} event`)
+        agent.abort()
+      }
+    })
+
+    // Store the unsubscribe function for cleanup
+    this.abortSubscriptions.set(agentKey, unsubscribe)
+    console.log(`[ClaudeService] 📡 Agent ${agentId} subscribed to abort events`)
+  }
+
   // Clean up agents - updated to use project+agent key
   async removeAgent(projectId: string, agentId: string): Promise<void> {
     const agentKey = `${projectId}:${agentId}`
@@ -127,6 +157,14 @@ export class ClaudeService {
     if (agent) {
       agent.abort()
       this.agents.delete(agentKey)
+
+      // Unsubscribe from abort events
+      const unsubscribe = this.abortSubscriptions.get(agentKey)
+      if (unsubscribe) {
+        unsubscribe()
+        this.abortSubscriptions.delete(agentKey)
+        console.log(`[ClaudeService] 📡 Agent ${agentId} unsubscribed from abort events`)
+      }
 
       // Clear session tracking
       await this.sessionService.clearSession(projectId, agentId)

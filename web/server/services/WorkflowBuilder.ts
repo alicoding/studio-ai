@@ -30,8 +30,8 @@ function isHumanStep(step: WorkflowStep): boolean {
   return step.type === 'human'
 }
 
-// Workflow state schema
-const WorkflowStateSchema = Annotation.Root({
+// Workflow state schema - exported for use in other workflow services
+export const WorkflowStateSchema = Annotation.Root({
   steps: Annotation<WorkflowStep[]>({
     reducer: (x, y) => y,
     default: () => [],

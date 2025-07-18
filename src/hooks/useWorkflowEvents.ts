@@ -21,10 +21,14 @@ export const useWorkflowEvents = (projectId?: string) => {
   }, [fetchWorkflows, projectId])
 
   useEffect(() => {
-    // Create global SSE connection for workflow events
+    // Create project-scoped SSE connection for workflow events
     // Use window.location.origin (dev server has Redis cross-server communication)
-    const sseUrl = `${window.location.origin}/api/invoke-status/events`
-    console.log('[WorkflowEvents] Creating SSE connection to:', sseUrl)
+    const url = new URL(`${window.location.origin}/api/invoke-status/events`)
+    if (projectId) {
+      url.searchParams.set('projectId', projectId)
+    }
+    const sseUrl = url.toString()
+    console.log('[WorkflowEvents] Creating project-scoped SSE connection to:', sseUrl)
 
     const eventSource = new EventSource(sseUrl)
     eventSourceRef.current = eventSource
@@ -112,7 +116,7 @@ export const useWorkflowEvents = (projectId?: string) => {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Empty dependency array - store functions are stable
+  }, [projectId]) // Recreate connection when project changes for proper isolation
 
   return {
     isConnected: eventSourceRef.current?.readyState === EventSource.OPEN,

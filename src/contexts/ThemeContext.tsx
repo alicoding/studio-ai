@@ -7,17 +7,11 @@
  * Library-First: Uses React Context and localStorage patterns
  */
 
-import { createContext, useEffect, useState, ReactNode } from 'react'
+import { useEffect, useState, ReactNode } from 'react'
+import { ThemeContext, type Theme, type ThemeContextType } from './ThemeContextTypes'
 
-export type Theme = 'light' | 'dark' | 'system'
-
-interface ThemeContextType {
-  theme: Theme
-  setTheme: (theme: Theme) => void
-  toggleTheme: () => void
-}
-
-export const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
+// Re-export for backwards compatibility
+export { ThemeContext, type Theme, type ThemeContextType }
 
 interface ThemeProviderProps {
   children: ReactNode

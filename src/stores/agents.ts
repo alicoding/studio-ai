@@ -89,6 +89,7 @@ interface AgentState {
   // Utility actions
   sendMessage: (from: string, to: string, content: string) => void
   clearAll: () => void
+  clearProjectData: (projectId?: string) => void // Clear agents not belonging to current project
 }
 
 // No mock data - will load from server
@@ -412,6 +413,32 @@ export const useAgentStore = createPersistentStore<AgentState>(
         agents: [],
         selectedAgentId: null,
         configs: [],
+      }),
+
+    clearProjectData: (projectId?: string) =>
+      set((state) => {
+        if (!projectId) {
+          // Clear all agents if no project specified
+          return {
+            agents: [],
+            selectedAgentId: null,
+          }
+        }
+
+        // Keep only agents belonging to the current project
+        const filteredAgents = state.agents.filter((agent) => agent.projectId === projectId)
+
+        // Clear selected agent if it doesn't belong to current project
+        const selectedAgentId =
+          state.selectedAgentId &&
+          filteredAgents.some((agent) => agent.id === state.selectedAgentId)
+            ? state.selectedAgentId
+            : null
+
+        return {
+          agents: filteredAgents,
+          selectedAgentId,
+        }
       }),
   }),
   {

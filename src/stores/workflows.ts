@@ -34,6 +34,7 @@ interface WorkflowStore {
   workflowList: WorkflowInfo[] // Stable array reference
   selectedWorkflows: Set<string> // For bulk operations
   totalCount: number // Total workflows in database
+  currentProjectId: string | null // Track current project context
   addWorkflow: (workflow: WorkflowInfo) => void
   updateWorkflow: (threadId: string, updates: Partial<WorkflowInfo>) => void
   updateStep: (threadId: string, stepId: string, updates: Partial<WorkflowStep>) => void
@@ -45,6 +46,7 @@ interface WorkflowStore {
   bulkDeleteWorkflows: (threadIds: string[]) => Promise<number>
   cleanupOldWorkflows: (daysOld: number) => Promise<number>
   fetchWorkflows: (projectId?: string) => Promise<void>
+  clearProjectData: () => void // Clear store when switching projects
   // Selection methods
   toggleWorkflowSelection: (threadId: string) => void
   selectAllWorkflows: () => void
@@ -57,6 +59,7 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
   workflowList: [],
   selectedWorkflows: new Set<string>(),
   totalCount: 0,
+  currentProjectId: null,
 
   addWorkflow: (workflow) =>
     set((state) => {
@@ -148,6 +151,13 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
 
   fetchWorkflows: async (projectId?: string) => {
     try {
+      // Check if project changed - clear data if so
+      const currentState = get()
+      if (projectId && currentState.currentProjectId !== projectId) {
+        console.log('[WorkflowStore] Project changed, clearing previous data')
+        get().clearProjectData()
+      }
+
       // Use window.location.origin (dev server has Redis cross-server communication)
       const url = new URL(`${window.location.origin}/api/invoke-status/workflows`)
       if (projectId) {
@@ -218,11 +228,21 @@ export const useWorkflowStore = create<WorkflowStore>((set, get) => ({
         workflows: workflowMap,
         workflowList: Object.values(workflowMap),
         totalCount: totalCount,
+        currentProjectId: projectId || null,
       })
     } catch (error) {
       console.error('Failed to fetch workflows:', error)
     }
   },
+
+  clearProjectData: () =>
+    set(() => ({
+      workflows: {},
+      workflowList: [],
+      selectedWorkflows: new Set<string>(),
+      totalCount: 0,
+      currentProjectId: null,
+    })),
 
   deleteWorkflow: async (threadId: string) => {
     try {

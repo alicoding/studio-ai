@@ -24,15 +24,18 @@ export class WorkflowStateManager {
    */
   determineOverallStatus(
     stepResults: Record<string, StepResult>
-  ): 'completed' | 'partial' | 'failed' {
+  ): 'completed' | 'partial' | 'failed' | 'aborted' {
     const results = Object.values(stepResults)
 
     if (results.length === 0) return 'failed'
 
+    const hasAborted = results.some((r) => r.status === 'aborted')
     const hasFailures = results.some((r) => r.status === 'failed')
     const hasBlocked = results.some((r) => r.status === 'blocked')
     const allSuccess = results.every((r) => r.status === 'success')
 
+    // CRITICAL: Check for aborted steps first - if ANY step was aborted, entire workflow is aborted
+    if (hasAborted) return 'aborted'
     if (allSuccess) return 'completed'
     if (hasFailures) return 'failed'
     if (hasBlocked) return 'partial'

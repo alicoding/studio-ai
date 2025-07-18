@@ -130,7 +130,7 @@ export class WorkflowOrchestrator {
   }
 
   /**
-   * Static method to abort a workflow by threadId
+   * Static method to abort a workflow by threadId (EVENT-DRIVEN)
    */
   static async abortWorkflow(threadId: string): Promise<void> {
     const abortController = WorkflowOrchestrator.workflowAbortControllers.get(threadId)
@@ -138,19 +138,44 @@ export class WorkflowOrchestrator {
       throw new Error(`No active workflow found with threadId: ${threadId}`)
     }
 
-    // Signal abort to the workflow
-    abortController.abort()
+    console.log(`[WorkflowOrchestrator] Starting event-driven abort for workflow ${threadId}`)
 
-    // Wait for the workflow to finish aborting
-    const workflowPromise = WorkflowOrchestrator.activeWorkflows.get(threadId)
-    if (workflowPromise) {
-      try {
-        await workflowPromise
-      } catch (_error) {
-        // Expected - workflow should throw abort error
-        console.log(`[WorkflowOrchestrator] Workflow ${threadId} aborted successfully`)
+    // Get workflow info to find project
+    try {
+      const { WorkflowRegistry } = await import('./WorkflowRegistry')
+      const registry = WorkflowRegistry.getInstance()
+      const workflow = await registry.getWorkflow(threadId)
+
+      if (workflow && workflow.projectId) {
+        // Use AbortEventSystem to publish abort event
+        const { AbortEventSystem } = await import('./AbortEventSystem')
+        const abortSystem = AbortEventSystem.getInstance()
+
+        console.log(
+          `[WorkflowOrchestrator] 🚨 Publishing workflow abort event for project ${workflow.projectId}`
+        )
+        abortSystem.publishWorkflowAbort(threadId, workflow.projectId)
       }
+    } catch (error) {
+      console.error(`[WorkflowOrchestrator] Failed to publish abort event: ${error}`)
     }
+
+    // Signal workflow orchestration abort (non-blocking)
+    Promise.resolve(abortController.abort())
+      .then(() => {
+        console.log(
+          `[WorkflowOrchestrator] ✅ Workflow orchestration abort signal sent for ${threadId}`
+        )
+      })
+      .catch((error) => {
+        console.error(
+          `[WorkflowOrchestrator] ❌ Error signaling workflow abort for ${threadId}:`,
+          error
+        )
+      })
+
+    // Return immediately - agents will receive events and terminate themselves
+    console.log(`[WorkflowOrchestrator] 🚀 Event-driven abort initiated for workflow ${threadId}`)
   }
 
   /**
@@ -299,7 +324,12 @@ export class WorkflowOrchestrator {
         )
 
         await updateWorkflowStatus(threadId, {
-          status: finalStatus === 'completed' ? 'completed' : 'failed',
+          status:
+            finalStatus === 'completed'
+              ? 'completed'
+              : finalStatus === 'aborted'
+                ? 'aborted'
+                : 'failed',
           sessionIds: finalState.sessionIds,
           steps: updatedSteps,
         })

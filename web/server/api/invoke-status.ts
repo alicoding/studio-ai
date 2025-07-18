@@ -102,9 +102,12 @@ router.get('/workflows', async (req: Request, res: Response) => {
 })
 
 /**
- * SSE endpoint for global workflow events
+ * SSE endpoint for project-scoped workflow events
  */
 router.get('/events', (req: Request, res: Response) => {
+  // Get project filter from query params for workspace isolation
+  const { projectId } = req.query as { projectId?: string }
+
   // Set SSE headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -113,8 +116,8 @@ router.get('/events', (req: Request, res: Response) => {
     'X-Accel-Buffering': 'no',
   })
 
-  // Send initial connection event
-  res.write(`event: connected\ndata: {}\n\n`)
+  // Send initial connection event with project context
+  res.write(`event: connected\ndata: ${JSON.stringify({ projectId })}\n\n`)
 
   // Get or create workflow events emitter
   let workflowEvents = req.app.get('workflowEvents')
@@ -137,8 +140,12 @@ router.get('/events', (req: Request, res: Response) => {
     }
   }, 30000)
 
-  // Listen for workflow events
+  // Listen for workflow events with project filtering
   const handleWorkflowUpdate = (data: WorkflowEvent & { graph?: unknown }) => {
+    // CRITICAL: Filter events by project to prevent cross-project data bleeding
+    if (projectId && data.projectId && data.projectId !== projectId) {
+      return // Skip events not belonging to the requested project
+    }
     // Emit different event types based on the data
     if (data.type === 'workflow_created') {
       res.write(`event: workflow_created\ndata: ${JSON.stringify(data)}\n\n`)
