@@ -10,6 +10,7 @@ export class ClaudeService {
   private sessionService = SessionService.getInstance()
   private abortEventSystem = AbortEventSystem.getInstance()
   private abortSubscriptions: Map<string, () => void> = new Map()
+  private workflowAbortControllers: Map<string, AbortController> = new Map()
 
   // KISS: Simple method to get or create an agent
   // Updated to use project+agent based tracking instead of just sessionId
@@ -103,7 +104,8 @@ export class ClaudeService {
     onStream?: (data: string) => void,
     io?: Server,
     forceNewSession?: boolean,
-    agentConfig?: AgentConfig
+    agentConfig?: AgentConfig,
+    threadId?: string
   ): Promise<{ response: string; sessionId: string | null }> {
     const agent = await this.getOrCreateAgent(projectId, agentId, role, projectPath, agentConfig)
 
@@ -113,8 +115,20 @@ export class ClaudeService {
     }
 
     try {
+      // CRITICAL FIX: Get workflow abort controller if available
+      const externalAbortController = threadId
+        ? this.getWorkflowAbortController(threadId)
+        : undefined
+
       // Pass the agentId as the sessionId parameter for UI compatibility
-      const response = await agent.sendMessage(content, projectPath, io, agentId, forceNewSession)
+      const response = await agent.sendMessage(
+        content,
+        projectPath,
+        io,
+        agentId,
+        forceNewSession,
+        externalAbortController
+      )
 
       return {
         response,
@@ -127,9 +141,26 @@ export class ClaudeService {
   }
 
   /**
+   * Set workflow abort controller for proper abort handling
+   * CRITICAL FIX: Allows WorkflowOrchestrator to pass its AbortController to agents
+   */
+  setWorkflowAbortController(threadId: string, abortController: AbortController): void {
+    this.workflowAbortControllers.set(threadId, abortController)
+    console.log(`[ClaudeService] Set workflow abort controller for ${threadId}`)
+  }
+
+  /**
+   * Get workflow abort controller for a specific thread
+   */
+  getWorkflowAbortController(threadId: string): AbortController | undefined {
+    return this.workflowAbortControllers.get(threadId)
+  }
+
+  /**
    * Subscribe agent to abort events using event-driven pattern
    * SOLID: Single responsibility for event subscription
    * DRY: Reuses AbortEventSystem for all abort scenarios
+   * CRITICAL FIX: Enhanced with debug logging for abort signal flow
    */
   private subscribeAgentToAbortEvents(
     agent: ClaudeAgent,
@@ -141,13 +172,25 @@ export class ClaudeService {
       // Check if this agent should be aborted by this event
       if (AbortEventSystem.shouldAbortAgent(event, agentId, projectId)) {
         console.log(`[ClaudeService] 🚨 Aborting agent ${agentId} due to ${event.type} event`)
+        console.log(`[ClaudeService] Event details:`, {
+          type: event.type,
+          threadId: event.threadId,
+          projectId: event.projectId,
+        })
         agent.abort()
+      } else {
+        console.log(
+          `[ClaudeService] 📡 Agent ${agentId} received abort event but not applicable:`,
+          { eventType: event.type, eventProjectId: event.projectId, agentProjectId: projectId }
+        )
       }
     })
 
     // Store the unsubscribe function for cleanup
     this.abortSubscriptions.set(agentKey, unsubscribe)
-    console.log(`[ClaudeService] 📡 Agent ${agentId} subscribed to abort events`)
+    console.log(
+      `[ClaudeService] 📡 Agent ${agentId} subscribed to abort events (total listeners: ${this.abortEventSystem.getListenerCount()})`
+    )
   }
 
   // Clean up agents - updated to use project+agent key
@@ -169,6 +212,14 @@ export class ClaudeService {
       // Clear session tracking
       await this.sessionService.clearSession(projectId, agentId)
     }
+  }
+
+  /**
+   * Clean up workflow abort controllers
+   */
+  cleanupWorkflowAbortController(threadId: string): void {
+    this.workflowAbortControllers.delete(threadId)
+    console.log(`[ClaudeService] Cleaned up workflow abort controller for ${threadId}`)
   }
 
   // Get existing agent without creating new one - for abort operations

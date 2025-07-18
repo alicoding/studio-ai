@@ -8,10 +8,12 @@
 
 import { useEffect, useRef } from 'react'
 import { useWorkflowStore } from '../stores/workflows'
+import type { WorkflowInfo } from '../stores/workflows'
 
 export const useWorkflowEvents = (projectId?: string) => {
   const eventSourceRef = useRef<EventSource | null>(null)
   const fetchWorkflows = useWorkflowStore((state) => state.fetchWorkflows)
+  const addWorkflow = useWorkflowStore((state) => state.addWorkflow)
   const updateWorkflow = useWorkflowStore((state) => state.updateWorkflow)
   const updateStep = useWorkflowStore((state) => state.updateStep)
 
@@ -67,9 +69,29 @@ export const useWorkflowEvents = (projectId?: string) => {
         const data = JSON.parse(event.data)
         console.log('[WorkflowEvents] New workflow created:', data)
 
-        // Don't call fetchWorkflows() to avoid overriding local deletions
-        // The workflow will appear on next manual refresh or page reload
-        console.log('[WorkflowEvents] Skipping fetchWorkflows() to preserve local state changes')
+        // Add the new workflow directly to the store for immediate UI update
+        if (data.workflow && typeof data.workflow === 'object') {
+          const workflow: WorkflowInfo = {
+            threadId: data.workflow.threadId,
+            status: data.workflow.status || 'running',
+            startedBy: data.workflow.startedBy || 'Claude Code CLI',
+            invocation:
+              data.workflow.invocation || `Workflow ${data.workflow.threadId?.substring(0, 8)}...`,
+            projectId: data.workflow.projectId || projectId || 'current-project',
+            projectName: data.workflow.projectName || 'Unknown Project',
+            webhook: data.workflow.webhook,
+            webhookType: data.workflow.webhookType,
+            currentStep: data.workflow.currentStep,
+            steps: data.workflow.steps || [],
+            lastUpdate: data.workflow.lastUpdate || new Date().toISOString(),
+            sessionIds: data.workflow.sessionIds || {},
+          }
+
+          console.log('[WorkflowEvents] Adding workflow to store:', workflow.threadId)
+          addWorkflow(workflow)
+        } else {
+          console.warn('[WorkflowEvents] Invalid workflow data received:', data)
+        }
       } catch (error) {
         console.error('[WorkflowEvents] Failed to parse workflow_created event:', error)
       }

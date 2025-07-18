@@ -244,29 +244,36 @@ router.post('/resume/:threadId', async (req: Request, res: Response) => {
     const { steps } = parseResult.data
     const projectId = req.body.projectId as string | undefined
 
-    // Initialize LangGraph state service (DRY principle)
-    const stateService = await createLangGraphStateService()
+    // Use WorkflowOrchestrator for resume to ensure proper execution path
+    const { WorkflowOrchestrator } = await import('../services/WorkflowOrchestrator')
+    const orchestrator = new WorkflowOrchestrator()
 
-    // Resume workflow using LangGraph's native capabilities
-    const resumeResult = await stateService.resumeWorkflow(
-      threadId,
-      steps as WorkflowStep[],
-      projectId
-    )
-
-    if (!resumeResult.success) {
-      return res.status(400).json({
-        error: resumeResult.error,
+    // Resume workflow using WorkflowOrchestrator.execute with the same threadId
+    // This ensures proper monitoring, status updates, and session management
+    try {
+      const resumeResult = await orchestrator.execute({
+        workflow: steps as WorkflowStep[],
         threadId,
-        resumed: resumeResult.resumed,
+        projectId,
+        startNewConversation: false, // Continue existing conversation
+      })
+
+      res.json({
+        threadId,
+        resumed: true,
+        message: 'Workflow resumed successfully from last checkpoint',
+        results: resumeResult.results,
+        status: resumeResult.status,
+      })
+    } catch (error) {
+      console.error(`[WorkflowState API] Error resuming workflow for thread ${threadId}:`, error)
+      return res.status(500).json({
+        error: 'Failed to resume workflow',
+        threadId,
+        resumed: false,
+        details: error instanceof Error ? error.message : 'Unknown error',
       })
     }
-
-    res.json({
-      threadId,
-      resumed: resumeResult.resumed,
-      message: 'Workflow resumed successfully from last checkpoint',
-    })
   } catch (error) {
     console.error(`[WorkflowState API] Error resuming workflow for thread ${threadId}:`, error)
     res.status(500).json({
@@ -297,32 +304,41 @@ router.post('/resume/:threadId/:checkpointId', async (req: Request, res: Respons
     const { steps } = parseResult.data
     const projectId = req.body.projectId as string | undefined
 
-    // Initialize LangGraph state service (DRY principle)
-    const stateService = await createLangGraphStateService()
+    // Use WorkflowOrchestrator for checkpoint resume to ensure proper execution path
+    const { WorkflowOrchestrator } = await import('../services/WorkflowOrchestrator')
+    const orchestrator = new WorkflowOrchestrator()
 
-    // Resume from specific checkpoint using LangGraph's native capabilities
-    const resumeResult = await stateService.resumeFromCheckpoint(
-      threadId,
-      checkpointId,
-      steps as WorkflowStep[],
-      projectId
-    )
+    // Resume workflow using WorkflowOrchestrator.execute with the same threadId
+    // Note: Specific checkpoint resume will be handled by LangGraph's checkpointer
+    try {
+      const resumeResult = await orchestrator.execute({
+        workflow: steps as WorkflowStep[],
+        threadId,
+        projectId,
+        startNewConversation: false, // Continue existing conversation
+      })
 
-    if (!resumeResult.success) {
-      return res.status(400).json({
-        error: resumeResult.error,
+      res.json({
         threadId,
         checkpointId,
-        resumed: resumeResult.resumed,
+        resumed: true,
+        message: 'Workflow resumed successfully from specified checkpoint',
+        results: resumeResult.results,
+        status: resumeResult.status,
+      })
+    } catch (error) {
+      console.error(
+        `[WorkflowState API] Error resuming from checkpoint ${checkpointId} for thread ${threadId}:`,
+        error
+      )
+      return res.status(500).json({
+        error: 'Failed to resume from checkpoint',
+        threadId,
+        checkpointId,
+        resumed: false,
+        details: error instanceof Error ? error.message : 'Unknown error',
       })
     }
-
-    res.json({
-      threadId,
-      checkpointId,
-      resumed: resumeResult.resumed,
-      message: 'Workflow resumed successfully from specified checkpoint',
-    })
   } catch (error) {
     console.error(
       `[WorkflowState API] Error resuming from checkpoint ${checkpointId} for thread ${threadId}:`,

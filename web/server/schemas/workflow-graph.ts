@@ -24,6 +24,7 @@ export interface WorkflowNode {
       | 'not_executed'
       | 'skipped'
       | 'aborted'
+      | 'paused'
     startTime?: number
     endTime?: number
     output?: string

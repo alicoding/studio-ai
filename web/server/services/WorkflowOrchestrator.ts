@@ -11,6 +11,7 @@ import { BaseCheckpointSaver } from '@langchain/langgraph'
 import { v4 as uuidv4 } from 'uuid'
 import { ClaudeService } from './ClaudeService'
 import { SimpleOperator } from './SimpleOperator'
+import type { Role } from './claude-agent'
 import { UnifiedAgentConfigService } from './UnifiedAgentConfigService'
 import { StudioProjectService } from './StudioProjectService'
 import { detectAbortError } from '../utils/errorUtils'
@@ -103,11 +104,16 @@ export class WorkflowOrchestrator {
 
   /**
    * Set abort controller for a workflow
+   * CRITICAL FIX: Also pass to ClaudeService for proper agent abort handling
    */
   setAbortController(threadId: string, abortController: AbortController): void {
     this.abortControllers.set(threadId, abortController)
     // Also register in static map for global abort access
     WorkflowOrchestrator.workflowAbortControllers.set(threadId, abortController)
+
+    // CRITICAL FIX: Pass AbortController to ClaudeService for proper agent abort handling
+    this.claudeService.setWorkflowAbortController(threadId, abortController)
+    console.log(`[WorkflowOrchestrator] Set abort controller for workflow ${threadId}`)
   }
 
   /**
@@ -131,6 +137,7 @@ export class WorkflowOrchestrator {
 
   /**
    * Static method to abort a workflow by threadId (EVENT-DRIVEN)
+   * CRITICAL FIX: Enhanced with debug logging and proper abort signal flow
    */
   static async abortWorkflow(threadId: string): Promise<void> {
     const abortController = WorkflowOrchestrator.workflowAbortControllers.get(threadId)
@@ -139,6 +146,9 @@ export class WorkflowOrchestrator {
     }
 
     console.log(`[WorkflowOrchestrator] Starting event-driven abort for workflow ${threadId}`)
+    console.log(
+      `[WorkflowOrchestrator] AbortController signal already aborted: ${abortController.signal.aborted}`
+    )
 
     // Get workflow info to find project
     try {
@@ -147,13 +157,17 @@ export class WorkflowOrchestrator {
       const workflow = await registry.getWorkflow(threadId)
 
       if (workflow && workflow.projectId) {
-        // Use AbortEventSystem to publish abort event
+        // CRITICAL FIX: Check abort event system listener count for debugging
         const { AbortEventSystem } = await import('./AbortEventSystem')
         const abortSystem = AbortEventSystem.getInstance()
 
         console.log(
+          `[WorkflowOrchestrator] AbortEventSystem listener count: ${abortSystem.getListenerCount()}`
+        )
+        console.log(
           `[WorkflowOrchestrator] 🚨 Publishing workflow abort event for project ${workflow.projectId}`
         )
+
         abortSystem.publishWorkflowAbort(threadId, workflow.projectId)
       }
     } catch (error) {
@@ -165,6 +179,9 @@ export class WorkflowOrchestrator {
       .then(() => {
         console.log(
           `[WorkflowOrchestrator] ✅ Workflow orchestration abort signal sent for ${threadId}`
+        )
+        console.log(
+          `[WorkflowOrchestrator] AbortController signal state after abort: ${abortController.signal.aborted}`
         )
       })
       .catch((error) => {
@@ -223,6 +240,9 @@ export class WorkflowOrchestrator {
         status: 'paused',
         currentStep: workflowState.pendingSteps[0], // Next step to execute when resumed
       })
+
+      // CRITICAL FIX: Mark this as a pause-triggered abort
+      this.markPauseTriggeredAbort(threadId)
 
       // Get workflow info to find project for event system
       try {
@@ -311,9 +331,77 @@ export class WorkflowOrchestrator {
   /**
    * Validate agent configurations before starting workflow
    * Delegates to WorkflowValidator for SOLID compliance
+   * CRITICAL FIX: Also creates agents to ensure they're subscribed to abort events
    */
   private async validateAgentConfigs(steps: WorkflowStep[], projectId?: string): Promise<void> {
-    return this.validator.validateAgentConfigs(steps, projectId)
+    await this.validator.validateAgentConfigs(steps, projectId)
+
+    // CRITICAL FIX: Create agents during validation to ensure abort event subscriptions
+    if (projectId) {
+      await this.preCreateAgentsForAbortHandling(steps, projectId)
+    }
+  }
+
+  /**
+   * Pre-create agents to ensure they're subscribed to abort events before workflow execution
+   * CRITICAL FIX: Solves timing issue where abort events are published before agents are subscribed
+   */
+  private async preCreateAgentsForAbortHandling(
+    steps: WorkflowStep[],
+    projectId: string
+  ): Promise<void> {
+    console.log(
+      `[WorkflowOrchestrator] Pre-creating agents for abort handling in project ${projectId}`
+    )
+
+    // Get project workspace path
+    let projectPath: string | undefined
+    try {
+      const project = await this.projectService.getProjectWithAgents(projectId)
+      projectPath = project.workspacePath
+    } catch (error) {
+      console.warn(`[WorkflowOrchestrator] Could not get project workspace: ${error}`)
+      return
+    }
+
+    // Create agents for each step to ensure abort event subscriptions
+    const agentPromises = steps.map(async (step) => {
+      try {
+        // Resolve agent ID using same logic as ClaudeStepExecutor
+        let agentId: string | undefined
+
+        if (step.agentId) {
+          // Use provided agent ID
+          agentId = step.agentId
+        } else if (step.role) {
+          // Find agent by role
+          const projectAgents = await this.projectService.getProjectAgentsWithShortIds(projectId)
+          const projectAgent = projectAgents.find(
+            (a) => a.role?.toLowerCase() === step.role!.toLowerCase()
+          )
+          agentId = projectAgent?.shortId
+        }
+
+        if (agentId && projectPath) {
+          console.log(`[WorkflowOrchestrator] Pre-creating agent ${agentId} for step ${step.id}`)
+          // Create agent via ClaudeService to ensure abort event subscription
+          await this.claudeService.getOrCreateAgent(
+            projectId,
+            agentId,
+            (step.role as Role) || 'dev',
+            projectPath
+          )
+        }
+      } catch (error) {
+        console.warn(
+          `[WorkflowOrchestrator] Failed to pre-create agent for step ${step.id}: ${error}`
+        )
+        // Don't fail validation if agent creation fails
+      }
+    })
+
+    await Promise.all(agentPromises)
+    console.log(`[WorkflowOrchestrator] Pre-created agents for abort handling`)
   }
 
   /**
@@ -484,16 +572,38 @@ export class WorkflowOrchestrator {
       } catch (error) {
         console.error('Workflow execution error:', error)
 
-        // Check current status before overwriting - don't change 'paused' to 'aborted'
-        const { WorkflowRegistry } = await import('./WorkflowRegistry')
-        const registry = WorkflowRegistry.getInstance()
-        const currentWorkflow = await registry.getWorkflow(threadId)
+        // CRITICAL FIX: Check current status before overwriting - distinguish between pause and abort
+        try {
+          const { WorkflowRegistry } = await import('./WorkflowRegistry')
+          const registry = WorkflowRegistry.getInstance()
+          const workflow = await registry.getWorkflow(threadId)
+          const currentStatus = workflow?.status
 
-        // If workflow is already paused, don't change status (pause uses abort signal internally)
-        if (currentWorkflow?.status === 'paused') {
-          console.log(`[WorkflowOrchestrator] Preserving 'paused' status for workflow ${threadId}`)
-        } else {
-          // Update status on error/abort for non-paused workflows
+          // CRITICAL FIX: Only preserve 'paused' status if this is actually a pause operation
+          // Check if the abort was triggered by a pause operation vs a real abort
+          const isPauseOperation =
+            currentStatus === 'paused' && this.isPauseTriggeredAbort(threadId)
+
+          if (isPauseOperation) {
+            console.log(
+              `[WorkflowOrchestrator] Preserving 'paused' status for workflow ${threadId} (pause operation)`
+            )
+          } else {
+            // Update status on error/abort for non-pause operations
+            const abortInfo = detectAbortError(error)
+            const newStatus = abortInfo.isAbort ? 'aborted' : 'failed'
+            console.log(
+              `[WorkflowOrchestrator] Updating status from '${currentStatus}' to '${newStatus}' for workflow ${threadId}`
+            )
+            await updateWorkflowStatus(threadId, {
+              status: newStatus,
+            })
+          }
+        } catch (statusCheckError) {
+          console.error(
+            `[WorkflowOrchestrator] Error checking workflow status: ${statusCheckError}`
+          )
+          // Fallback to original logic
           const abortInfo = detectAbortError(error)
           await updateWorkflowStatus(threadId, {
             status: abortInfo.isAbort ? 'aborted' : 'failed',
@@ -519,6 +629,9 @@ export class WorkflowOrchestrator {
         WorkflowOrchestrator.activeWorkflows.delete(threadId)
         WorkflowOrchestrator.workflowAbortControllers.delete(threadId)
         this.abortControllers.delete(threadId)
+
+        // CRITICAL FIX: Clean up ClaudeService abort controller
+        this.claudeService.cleanupWorkflowAbortController(threadId)
       }
     })()
 
@@ -683,6 +796,29 @@ export class WorkflowOrchestrator {
       threadId,
       graph,
     })
+  }
+
+  /**
+   * CRITICAL FIX: Track pause-triggered aborts to distinguish from real aborts
+   */
+  private pauseTriggeredAborts = new Set<string>()
+
+  /**
+   * Mark an abort as being triggered by a pause operation
+   */
+  private markPauseTriggeredAbort(threadId: string): void {
+    this.pauseTriggeredAborts.add(threadId)
+    // Clean up after 30 seconds to prevent memory leak
+    setTimeout(() => {
+      this.pauseTriggeredAborts.delete(threadId)
+    }, 30000)
+  }
+
+  /**
+   * Check if an abort was triggered by a pause operation
+   */
+  private isPauseTriggeredAbort(threadId: string): boolean {
+    return this.pauseTriggeredAborts.has(threadId)
   }
 
   // Human approval methods removed - use HumanApprovalService directly

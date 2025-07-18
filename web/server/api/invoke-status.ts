@@ -416,7 +416,7 @@ export async function updateWorkflowStatus(
 
     if (!existing) {
       // Create new workflow entry
-      await registry.registerWorkflow({
+      const newWorkflow = {
         threadId,
         savedWorkflowId: update.savedWorkflowId,
         status: update.status || 'running',
@@ -430,7 +430,35 @@ export async function updateWorkflowStatus(
         lastUpdate: new Date().toISOString(),
         sessionIds: update.sessionIds || {},
         steps: update.steps || [],
-      })
+      }
+
+      await registry.registerWorkflow(newWorkflow)
+
+      // CRITICAL: Emit workflow_created event for real-time UI updates
+      // This makes workflows appear in Recent Activity immediately without browser refresh
+      console.log(`[updateWorkflowStatus] Emitting workflow_created event for ${threadId}`)
+
+      // Get workflow events emitter from global app context
+      // Note: This will be available since the invoke API sets it up
+      const { app } = await import('../app')
+      const workflowEvents = app?.get('workflowEvents')
+
+      if (workflowEvents) {
+        workflowEvents.emit('workflow:update', {
+          type: 'workflow_created',
+          threadId,
+          projectId: update.projectId,
+          workflow: newWorkflow,
+          timestamp: new Date().toISOString(),
+        })
+        console.log(
+          `[updateWorkflowStatus] Successfully emitted workflow_created event for ${threadId}`
+        )
+      } else {
+        console.warn(
+          `[updateWorkflowStatus] No workflowEvents emitter found - workflow_created event not sent for ${threadId}`
+        )
+      }
     } else {
       // Update existing workflow
       await registry.updateWorkflow(threadId, update)

@@ -5,7 +5,7 @@ export interface WorkflowStep {
   role?: string
   agentId?: string
   task: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'paused'
   startTime?: string
   endTime?: string
   error?: string

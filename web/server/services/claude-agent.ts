@@ -104,7 +104,8 @@ export class ClaudeAgent {
     projectPath?: string,
     io?: Server,
     sessionId?: string,
-    forceNewSession?: boolean
+    forceNewSession?: boolean,
+    externalAbortController?: AbortController
   ): Promise<string> {
     try {
       this.agent.status = 'busy'
@@ -136,9 +137,14 @@ export class ClaudeAgent {
       console.log('Agent config:', this.config)
       console.log('[SYSTEM PROMPT DEBUG] Agent system prompt:', this.config?.systemPrompt)
 
-      // Create abort controller for this request
-      this.abortController = new AbortController()
-      console.log(`[ClaudeAgent] Created new AbortController for agent ${this.agent.id}`)
+      // CRITICAL FIX: Use external AbortController if provided, otherwise create new one
+      this.abortController = externalAbortController || new AbortController()
+      console.log(
+        `[ClaudeAgent] Using ${externalAbortController ? 'external' : 'new'} AbortController for agent ${this.agent.id}`
+      )
+      console.log(
+        `[ClaudeAgent] AbortController signal already aborted: ${this.abortController.signal.aborted}`
+      )
 
       const messages: SDKMessage[] = []
       let resultText = ''
@@ -365,11 +371,17 @@ export class ClaudeAgent {
       console.log(`[ClaudeAgent] Emitting status change to online for agent ${this.agent.id}`)
       await eventSystem.emitAgentStatus(this.agent.id, 'online')
 
-      // Clear abort controller after completion
-      this.abortController = undefined
-      console.log(
-        `[ClaudeAgent] Cleared AbortController for agent ${this.agent.id} after successful completion`
-      )
+      // CRITICAL FIX: Only clear abort controller if we created it (not external)
+      if (!externalAbortController) {
+        this.abortController = undefined
+        console.log(
+          `[ClaudeAgent] Cleared self-created AbortController for agent ${this.agent.id} after successful completion`
+        )
+      } else {
+        console.log(
+          `[ClaudeAgent] Keeping external AbortController for agent ${this.agent.id} after successful completion`
+        )
+      }
 
       // Session ID is already updated in the result handler above
 
@@ -381,9 +393,17 @@ export class ClaudeAgent {
       console.log(`[ClaudeAgent] Emitting status change to online for agent ${this.agent.id}`)
       await eventSystem.emitAgentStatus(this.agent.id, 'online')
 
-      // Clear abort controller after error
-      this.abortController = undefined
-      console.log(`[ClaudeAgent] Cleared AbortController for agent ${this.agent.id} after error`)
+      // CRITICAL FIX: Only clear abort controller if we created it (not external)
+      if (!externalAbortController) {
+        this.abortController = undefined
+        console.log(
+          `[ClaudeAgent] Cleared self-created AbortController for agent ${this.agent.id} after error`
+        )
+      } else {
+        console.log(
+          `[ClaudeAgent] Keeping external AbortController for agent ${this.agent.id} after error`
+        )
+      }
 
       console.error('Error in Claude query:', error)
 

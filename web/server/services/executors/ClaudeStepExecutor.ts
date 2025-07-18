@@ -52,6 +52,34 @@ export class ClaudeStepExecutor implements StepExecutor {
     FlowLogger.log('step-execution', `Step ${step.id} START (Claude)`)
     FlowLogger.log('step-execution', `-> WorkflowMonitor.updateHeartbeat(${step.id})`)
 
+    // CRITICAL FIX: Mark step as 'running' when execution starts
+    // This updates the database to show the step status as 'running' instead of 'pending'
+    try {
+      // Get current workflow to preserve other steps' statuses
+      const { WorkflowRegistry } = await import('../WorkflowRegistry')
+      const registry = WorkflowRegistry.getInstance()
+      const workflow = await registry.getWorkflow(context.threadId)
+
+      if (workflow?.steps) {
+        // Update the current step status to 'running', keep others unchanged
+        const updatedSteps = workflow.steps.map((s) =>
+          s.id === step.id
+            ? { ...s, status: 'running' as const, startTime: new Date().toISOString() }
+            : s
+        )
+
+        await updateWorkflowStatus(context.threadId, {
+          steps: updatedSteps,
+          currentStep: step.id,
+        })
+
+        console.log(`[ClaudeStepExecutor] Updated step ${step.id} status to 'running'`)
+      }
+    } catch (error) {
+      console.warn(`[ClaudeStepExecutor] Failed to update step status to running: ${error}`)
+      // Don't fail the execution if we can't update status
+    }
+
     try {
       // Resolve template variables in task
       let resolvedTask = this.resolveTemplateVariables(step.task, context)
@@ -219,7 +247,8 @@ export class ClaudeStepExecutor implements StepExecutor {
         undefined, // onStream
         context.io,
         step.sessionId ? false : context.startNewConversation, // Don't force new if resuming
-        agentConfig // Pass agent config explicitly since we're using short ID for session
+        agentConfig, // Pass agent config explicitly since we're using short ID for session
+        context.threadId // CRITICAL FIX: Pass threadId to get correct AbortController
       )
 
       const result = await Promise.race([messagePromise, timeoutPromise])
@@ -339,10 +368,39 @@ export class ClaudeStepExecutor implements StepExecutor {
         console.log(`[ClaudeStepExecutor] Using sessionId from AbortError: ${lastSessionId}`)
       }
 
-      // Return error result
+      // CRITICAL FIX: Check if workflow is paused to set correct step status
+      let stepStatus: 'aborted' | 'failed' | 'paused' = 'failed'
+
+      if (abortInfo.isAbort) {
+        // Check if the workflow is currently paused (abort was due to pause)
+        try {
+          const { WorkflowRegistry } = await import('../WorkflowRegistry')
+          const registry = WorkflowRegistry.getInstance()
+          const workflow = await registry.getWorkflow(context.threadId)
+
+          if (workflow?.status === 'paused') {
+            stepStatus = 'paused'
+            console.log(
+              `[ClaudeStepExecutor] Step ${step.id} marked as 'paused' (workflow was paused)`
+            )
+          } else {
+            stepStatus = 'aborted'
+            console.log(
+              `[ClaudeStepExecutor] Step ${step.id} marked as 'aborted' (workflow was aborted)`
+            )
+          }
+        } catch (checkError) {
+          console.warn(
+            `[ClaudeStepExecutor] Could not check workflow status, defaulting to 'aborted': ${checkError}`
+          )
+          stepStatus = 'aborted'
+        }
+      }
+
+      // Return error result with correct status
       return {
         id: step.id!,
-        status: abortInfo.isAbort ? ('aborted' as const) : ('failed' as const),
+        status: stepStatus,
         response: abortInfo.message,
         sessionId: lastSessionId, // Preserve sessionId for resume
         duration: Date.now() - startTime,
