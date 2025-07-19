@@ -22,6 +22,7 @@ import ReactFlow, {
   NodeTypes,
   Panel,
   NodeChange,
+  EdgeChange,
   SelectionMode,
   MarkerType,
   PanOnScrollMode,
@@ -66,6 +67,20 @@ const connectionStyles = `
   .react-flow__handle:hover {
     transform: scale(1.2);
     filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.8));
+  }
+  
+  .react-flow__edge.selected {
+    stroke: #3b82f6 !important;
+    stroke-width: 3px !important;
+  }
+  
+  .react-flow__edge:hover {
+    stroke: #60a5fa !important;
+    stroke-width: 3px !important;
+  }
+  
+  .react-flow__edge.deletable {
+    cursor: pointer;
   }
 `
 
@@ -181,6 +196,8 @@ function stepsToEdges(steps: WorkflowStepDefinition[]): Edge[] {
           source: depId,
           target: step.id,
           type: 'smoothstep',
+          deletable: true, // Allow edge deletion
+          focusable: true, // Allow edge focus/selection
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 20,
@@ -401,7 +418,7 @@ export default function VisualWorkflowBuilder({
 
   // Use React Flow hooks for UI interactions only - initialized once, then managed by React Flow
   const [displayNodes, setDisplayNodes, onNodesChangeOriginal] = useNodesState([])
-  const [displayEdges, setDisplayEdges, onEdgesChange] = useEdgesState([])
+  const [displayEdges, setDisplayEdges, onEdgesChangeOriginal] = useEdgesState([])
 
   // Track if we've initialized the nodes to prevent race conditions
   const [nodesInitialized, setNodesInitialized] = useState(false)
@@ -449,6 +466,47 @@ export default function VisualWorkflowBuilder({
       }
     },
     [onNodesChangeOriginal, removeStep, setSelectedSteps, updateNodePosition]
+  )
+
+  // Enhanced onEdgesChange handler that syncs edge deletions with store
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      // Handle React Flow display changes first
+      onEdgesChangeOriginal(changes)
+
+      // Process edge deletions and update store dependencies
+      changes.forEach((change) => {
+        if (change.type === 'remove') {
+          const edgeId = change.id
+          // Parse edge ID format: "sourceId-targetId"
+          const [sourceId, targetId] = edgeId.split('-')
+
+          if (sourceId && targetId && workflow) {
+            const targetStep = workflow.steps.find((s) => s.id === targetId)
+            if (targetStep) {
+              // Check if source is a conditional node to clean up branch references
+              const sourceStep = workflow.steps.find((s) => s.id === sourceId)
+              if (sourceStep?.type === 'conditional') {
+                // Clean up conditional branch references
+                if (sourceStep.trueBranch === targetId) {
+                  updateStep(sourceId, { trueBranch: undefined })
+                }
+                if (sourceStep.falseBranch === targetId) {
+                  updateStep(sourceId, { falseBranch: undefined })
+                }
+              }
+
+              // Remove dependency from target step
+              const newDeps = (targetStep.deps || []).filter((dep) => dep !== sourceId)
+              setDependencies(targetId, newDeps)
+
+              console.log(`[Edge Delete] Removed dependency: ${sourceId} -> ${targetId}`)
+            }
+          }
+        }
+      })
+    },
+    [onEdgesChangeOriginal, workflow, updateStep, setDependencies]
   )
 
   // Reset initialization when workflow changes completely (new workflow loaded)
