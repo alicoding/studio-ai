@@ -26,6 +26,13 @@ import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
 
 // Supported AI providers following n8n AI node patterns
@@ -126,13 +133,40 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
 
   // Handle node data updates using workflow builder store
   const handleUpdate = (updates: Partial<AINodeData>) => {
-    updateStep(id, updates)
+    // Manually map fields to avoid TypeScript issues
+    const stepUpdate = {
+      task: updates.task,
+      provider: updates.provider,
+      model: updates.model,
+      systemPrompt: updates.systemPrompt,
+      temperature: updates.temperature,
+      maxTokens: updates.maxTokens,
+    }
+
+    updateStep(id, stepUpdate)
   }
 
   // Handle provider configuration - n8n style contextual modal
   const handleProviderClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     setShowProviderModal(true)
+  }
+
+  // Handle provider selection - create configuration and show it
+  const handleProviderSelect = (providerKey: string) => {
+    const provider = AI_PROVIDERS[providerKey as keyof typeof AI_PROVIDERS]
+
+    // Update the node with the selected provider and default model
+    const updates: Partial<AINodeData> = {
+      provider: providerKey as AIProvider,
+      model: provider.defaultModels[0],
+    }
+
+    handleUpdate(updates)
+    setShowProviderModal(false)
+
+    // Automatically expand the node to show configuration options
+    setIsExpanded(true)
   }
 
   return (
@@ -267,25 +301,53 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
             <div className="space-y-1">
               <Label className="text-xs font-medium">AI Provider Connection</Label>
               <div className="p-2 bg-muted/50 rounded border text-xs">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                  Connect an AI Provider Configuration node to the bottom-left handle
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  Drag from a Provider Config node (OpenAI, Anthropic, etc.) to configure this AI
-                  task
-                </div>
+                {nodeData.provider && nodeData.model ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span className="text-foreground">
+                      Connected to {providerConfig.label} ({nodeData.model})
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                      Click the provider handle below to configure AI provider
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Select from OpenAI, Anthropic, Google AI, or Azure OpenAI
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
             {/* Model Selection */}
             <div className="space-y-1">
               <Label className="text-xs font-medium">Model</Label>
-              <div className="p-2 bg-muted/50 rounded border text-xs">
-                <div className="text-muted-foreground">
-                  Model will be available after connecting a Provider Configuration
+              {nodeData.provider ? (
+                <Select
+                  value={nodeData.model || providerConfig.defaultModels[0]}
+                  onValueChange={(model) => handleUpdate({ model })}
+                >
+                  <SelectTrigger className="text-xs h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providerConfig.defaultModels.map((model) => (
+                      <SelectItem key={model} value={model} className="text-xs">
+                        {model}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="p-2 bg-muted/50 rounded border text-xs">
+                  <div className="text-muted-foreground">
+                    Model will be available after selecting a Provider
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* System prompt */}
@@ -452,10 +514,7 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
                 {Object.entries(AI_PROVIDERS).map(([key, provider]) => (
                   <button
                     key={key}
-                    onClick={() => {
-                      handleUpdate({ provider: key as AIProvider })
-                      setShowProviderModal(false)
-                    }}
+                    onClick={() => handleProviderSelect(key)}
                     className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted transition-colors"
                   >
                     <div className={`${provider.colorClass} p-2 rounded-md text-white`}>
