@@ -96,7 +96,7 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
   const updateStep = useWorkflowBuilderStore((state) => state.updateStep)
 
   const nodeData = data || {
-    label: 'AI Task',
+    label: 'AI Assistant',
     task: '',
     provider: 'openai' as AIProvider,
     model: '',
@@ -130,7 +130,7 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
     <TooltipProvider>
       <div
         className={`
-          relative bg-card border-2 rounded-lg shadow-sm min-w-[250px] max-w-[400px]
+          relative bg-card border-2 rounded-lg shadow-sm min-w-[300px] max-w-[450px]
           ${selected ? 'border-primary shadow-md' : 'border-border'}
           transition-all duration-200
         `}

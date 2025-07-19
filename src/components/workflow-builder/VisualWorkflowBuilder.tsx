@@ -720,7 +720,7 @@ export default function VisualWorkflowBuilder({
           addStep({
             type: 'ai_evaluation',
             task: 'Process the content: {previous_step.output}',
-            role: 'ai_task',
+            role: 'ai',
           })
           break
         default:
