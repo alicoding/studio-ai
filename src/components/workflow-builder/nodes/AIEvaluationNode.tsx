@@ -17,6 +17,7 @@ import {
   Sparkles,
   Key,
   Sliders,
+  Bug,
 } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -97,6 +98,7 @@ const AI_PROVIDERS = {
 export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [debugMode, setDebugMode] = useState(false)
   const { updateStep, getStep } = useWorkflowBuilderStore()
 
   // Get current step data from store to ensure reactivity
@@ -176,6 +178,15 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => setDebugMode(!debugMode)}
+              className="h-6 w-6 p-0"
+              title="Debug component state"
+            >
+              <Bug className="w-3 h-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setIsExpanded(!isExpanded)}
               className="h-6 w-6 p-0"
             >
@@ -187,6 +198,43 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
             </Button>
           </div>
         </div>
+
+        {/* Debug panel */}
+        {debugMode && (
+          <div className="p-3 bg-yellow-50 border-b border-yellow-200">
+            <div className="text-xs font-medium text-yellow-800 mb-2">🐛 Debug Info</div>
+            <div className="text-xs text-yellow-700 space-y-1">
+              <div>
+                <strong>Provider:</strong> {currentProvider}
+              </div>
+              <div>
+                <strong>Model:</strong> {nodeData.model || 'not set'}
+              </div>
+              <div>
+                <strong>Store Step:</strong> {storeStep ? 'exists' : 'null'}
+              </div>
+              <div>
+                <strong>Data Prop:</strong> {data ? 'exists' : 'null'}
+              </div>
+              <div>
+                <strong>Node Selected:</strong> {selected ? 'true' : 'false'}
+              </div>
+              <div>
+                <strong>Expanded:</strong> {isExpanded ? 'true' : 'false'}
+              </div>
+              <div className="mt-2">
+                <strong>Available Providers:</strong>
+                <div className="ml-2">
+                  {Object.entries(AI_PROVIDERS).map(([key, config]) => (
+                    <div key={key}>
+                      • {key} ({config.label})
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Configuration panel */}
         {isExpanded && (
