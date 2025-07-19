@@ -21,6 +21,10 @@
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
 
+    /* Performance optimizations */
+    "incremental": true,
+    "assumeChangesOnlyAffectDirectDependencies": true,
+
     /* Paths */
     "baseUrl": "./",
     "paths": {
@@ -28,6 +32,14 @@
     }
   },
   "include": ["src"],
-  "exclude": ["vite.config.ts"],
+  "exclude": [
+    "vite.config.ts",
+    "node_modules",
+    "**/node_modules",
+    "dist",
+    "build",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
