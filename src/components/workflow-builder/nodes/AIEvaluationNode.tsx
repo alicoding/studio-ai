@@ -93,9 +93,13 @@ const AI_PROVIDERS = {
 export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const updateStep = useWorkflowBuilderStore((state) => state.updateStep)
+  const { updateStep, getStep } = useWorkflowBuilderStore()
 
-  const nodeData = data || {
+  // Get current step data from store to ensure reactivity
+  const storeStep = getStep(id)
+
+  // Default values
+  const defaultNodeData = {
     label: 'AI Assistant',
     task: '',
     provider: 'openai' as AIProvider,
@@ -108,6 +112,13 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
     presencePenalty: 0,
     timeout: 30000,
     retryCount: 3,
+  }
+
+  // Merge with data prop and store data, giving priority to store
+  const nodeData = {
+    ...defaultNodeData,
+    ...(data || {}),
+    ...(storeStep || {}),
   }
 
   const currentProvider = nodeData.provider || 'openai'
