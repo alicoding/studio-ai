@@ -57,7 +57,10 @@ import AINode from './nodes/AIEvaluationNode'
 import DraggableNodePalette from './DraggableNodePalette'
 import WorkflowLibraryModal from './WorkflowLibraryModal'
 
-// Define nodeTypes outside component to prevent recreation warnings
+// Custom edge types
+import DeletableEdge from './edges/DeletableEdge'
+
+// Define nodeTypes and edgeTypes outside component to prevent recreation warnings
 const nodeTypes: NodeTypes = {
   workflowStep: WorkflowStepNode,
   conditional: ConditionalNode,
@@ -65,6 +68,10 @@ const nodeTypes: NodeTypes = {
   parallel: ParallelNode,
   human: HumanNode,
   aiEvaluation: AINode,
+}
+
+const edgeTypes = {
+  deletable: DeletableEdge,
 }
 
 interface VisualWorkflowBuilderProps {
@@ -138,7 +145,10 @@ function stepsToNodes(
 }
 
 // Convert workflow steps dependencies to React Flow edges
-function stepsToEdges(steps: WorkflowStepDefinition[]): Edge[] {
+function stepsToEdges(
+  steps: WorkflowStepDefinition[],
+  onEdgeDelete?: (edgeId: string) => void
+): Edge[] {
   const edges: Edge[] = []
 
   steps.forEach((step) => {
@@ -148,9 +158,10 @@ function stepsToEdges(steps: WorkflowStepDefinition[]): Edge[] {
           id: `${depId}-${step.id}`,
           source: depId,
           target: step.id,
-          type: 'smoothstep',
+          type: 'deletable', // Use our custom deletable edge
           deletable: true,
           focusable: true,
+          data: { onDelete: onEdgeDelete }, // Pass delete handler to edge component
           markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 20,
@@ -159,8 +170,7 @@ function stepsToEdges(steps: WorkflowStepDefinition[]): Edge[] {
           },
           style: {
             stroke: '#64748b',
-            strokeWidth: 3, // Thicker for easier clicking
-            cursor: 'pointer',
+            strokeWidth: 3,
           },
         })
       })
@@ -323,14 +333,52 @@ export default function VisualWorkflowBuilder({
     }))
   }, [workflow, selectedStepIds, nodePositions])
 
-  const edges = useMemo(() => (workflow ? stepsToEdges(workflow.steps) : []), [workflow])
-
   // React Flow canvas ref for focus management
   const reactFlowRef = useRef<HTMLDivElement>(null)
 
   // Use React Flow hooks for UI interactions only - initialized once, then managed by React Flow
   const [displayNodes, setDisplayNodes, onNodesChangeOriginal] = useNodesState([])
   const [displayEdges, setDisplayEdges, onEdgesChangeOriginal] = useEdgesState([])
+
+  // Custom edge delete handler that maintains dependency cleanup
+  const handleCustomEdgeDelete = useCallback(
+    (edgeId: string) => {
+      // Parse edge ID format: "sourceId-targetId"
+      const [sourceId, targetId] = edgeId.split('-')
+
+      if (sourceId && targetId && workflow) {
+        const targetStep = workflow.steps.find((s) => s.id === targetId)
+        if (targetStep) {
+          // Check if source is a conditional node to clean up branch references
+          const sourceStep = workflow.steps.find((s) => s.id === sourceId)
+          if (sourceStep?.type === 'conditional') {
+            // Clean up conditional branch references
+            if (sourceStep.trueBranch === targetId) {
+              updateStep(sourceId, { trueBranch: undefined })
+            }
+            if (sourceStep.falseBranch === targetId) {
+              updateStep(sourceId, { falseBranch: undefined })
+            }
+          }
+
+          // Remove dependency from target step
+          const newDeps = (targetStep.deps || []).filter((dep) => dep !== sourceId)
+          setDependencies(targetId, newDeps)
+
+          console.log(`[Custom Edge Delete] Removed dependency: ${sourceId} -> ${targetId}`)
+        }
+      }
+
+      // Also update React Flow display
+      setDisplayEdges((edges) => edges.filter((edge) => edge.id !== edgeId))
+    },
+    [workflow, updateStep, setDependencies, setDisplayEdges]
+  )
+
+  const edges = useMemo(
+    () => (workflow ? stepsToEdges(workflow.steps, handleCustomEdgeDelete) : []),
+    [workflow, handleCustomEdgeDelete]
+  )
 
   // Track if we've initialized the nodes to prevent race conditions
   const [nodesInitialized, setNodesInitialized] = useState(false)
@@ -865,6 +913,7 @@ export default function VisualWorkflowBuilder({
           minZoom={0.1}
           maxZoom={2}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           fitView={!viewport}
           defaultViewport={viewport || undefined}
           attributionPosition="bottom-left"
