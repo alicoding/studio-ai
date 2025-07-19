@@ -92,6 +92,7 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [debugMode, setDebugMode] = useState(false)
+  const [showProviderModal, setShowProviderModal] = useState(false)
   const { updateStep, getStep } = useWorkflowBuilderStore()
 
   // Get current step data from store to ensure reactivity
@@ -128,6 +129,12 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
     updateStep(id, updates)
   }
 
+  // Handle provider configuration - n8n style contextual modal
+  const handleProviderClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowProviderModal(true)
+  }
+
   return (
     <TooltipProvider>
       <div
@@ -146,17 +153,18 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
           style={{ background: '#64748b' }}
         />
 
-        {/* Provider Config handle - Bottom Left */}
+        {/* Provider Config handle - Bottom Left - Clickable for n8n-style config */}
         <Handle
           type="target"
           position={Position.Bottom}
           id="provider-config"
-          className="w-3 h-3 border-2 border-background"
+          className="w-3 h-3 border-2 border-background cursor-pointer hover:scale-110 transition-transform"
           style={{
             background: providerConfig.colorHex,
             left: '25%',
             transform: 'translateX(-50%)',
           }}
+          onClick={handleProviderClick}
         />
 
         {/* Header */}
@@ -434,6 +442,44 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
           className="w-3 h-3 border-2 border-background"
           style={{ background: '#64748b' }}
         />
+
+        {/* n8n-style Provider Selection Modal */}
+        {showProviderModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-card border rounded-lg p-6 min-w-[400px] max-w-[500px]">
+              <h3 className="text-lg font-semibold mb-4">Select AI Provider</h3>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {Object.entries(AI_PROVIDERS).map(([key, provider]) => (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      handleUpdate({ provider: key as AIProvider })
+                      setShowProviderModal(false)
+                    }}
+                    className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <div className={`${provider.colorClass} p-2 rounded-md text-white`}>
+                      <provider.icon className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-medium text-sm">{provider.label}</div>
+                      <div className="text-xs text-muted-foreground">{provider.description}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowProviderModal(false)}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </TooltipProvider>
   )

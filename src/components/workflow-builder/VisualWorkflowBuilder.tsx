@@ -54,7 +54,6 @@ import LoopNode from './nodes/LoopNode'
 import ParallelNode from './nodes/ParallelNode'
 import HumanNode from './nodes/HumanNode'
 import AINode from './nodes/AIEvaluationNode'
-import OpenAIConfigNode from './nodes/config/OpenAIConfigNode'
 import DraggableNodePalette from './DraggableNodePalette'
 import WorkflowLibraryModal from './WorkflowLibraryModal'
 
@@ -69,7 +68,6 @@ const nodeTypes: NodeTypes = {
   parallel: ParallelNode,
   human: HumanNode,
   aiEvaluation: AINode,
-  openaiConfig: OpenAIConfigNode,
 }
 
 const edgeTypes = {
@@ -81,44 +79,6 @@ interface VisualWorkflowBuilderProps {
   scope?: 'project' | 'global'
   projectId?: string
   onSaveSuccess?: (workflowId: string) => void
-}
-
-// Convert config nodes to React Flow nodes
-function configNodesToNodes(
-  configNodes: Record<string, import('@/types/ai-config-nodes').AIProviderConfig>,
-  nodePositions: Record<string, { x: number; y: number }>
-): Node[] {
-  return Object.values(configNodes).map((config, index) => {
-    // Map provider type to React Flow node type
-    let nodeType = 'openaiConfig'
-    switch (config.provider) {
-      case 'openai':
-        nodeType = 'openaiConfig'
-        break
-      // Add other providers when implemented
-      case 'anthropic':
-        nodeType = 'anthropicConfig'
-        break
-      case 'google':
-        nodeType = 'googleConfig'
-        break
-    }
-
-    // Use stored position or calculate default position (offset from workflow nodes)
-    const storedPosition = nodePositions[config.id]
-    const defaultPosition = { x: 600 + (index % 2) * 300, y: 100 + Math.floor(index / 2) * 200 }
-    const position = storedPosition || defaultPosition
-
-    return {
-      id: config.id,
-      type: nodeType,
-      position,
-      data: {
-        ...config,
-        label: config.name,
-      },
-    }
-  })
 }
 
 // Convert workflow steps to React Flow nodes
@@ -248,13 +208,11 @@ export default function VisualWorkflowBuilder({
     selectedStepIds,
     nodePositions,
     viewport,
-    configNodes,
     updateWorkflowMeta,
     addStep,
     updateStep,
     removeStep,
     setDependencies,
-    addConfigNode,
     validateWorkflow,
     executeWorkflow,
     saveWorkflow,
@@ -369,21 +327,11 @@ export default function VisualWorkflowBuilder({
     if (!workflow) return []
     console.log('[VisualWorkflowBuilder] Creating nodes with positions:', nodePositions)
     console.log('[VisualWorkflowBuilder] Workflow steps:', workflow.steps)
-    console.log('[VisualWorkflowBuilder] Config nodes:', configNodes)
-
-    // Combine workflow step nodes and config nodes
-    const stepNodes = stepsToNodes(workflow.steps, nodePositions).map((node) => ({
+    return stepsToNodes(workflow.steps, nodePositions).map((node) => ({
       ...node,
       selected: selectedStepIds.includes(node.id),
     }))
-
-    const configNodesArray = configNodesToNodes(configNodes, nodePositions).map((node) => ({
-      ...node,
-      selected: false, // Config nodes don't participate in bulk selection for now
-    }))
-
-    return [...stepNodes, ...configNodesArray]
-  }, [workflow, selectedStepIds, nodePositions, configNodes])
+  }, [workflow, selectedStepIds, nodePositions])
 
   // React Flow canvas ref for focus management
   const reactFlowRef = useRef<HTMLDivElement>(null)
@@ -775,23 +723,6 @@ export default function VisualWorkflowBuilder({
             role: 'ai',
           })
           break
-        case 'OpenAIConfig':
-          // Configuration nodes are handled differently - add to config store instead
-          addConfigNode({
-            id: `openai-${Date.now()}`,
-            name: 'OpenAI Configuration',
-            description: 'OpenAI API configuration',
-            provider: 'openai',
-            settings: {
-              apiKey: '',
-              defaultModel: 'gpt-4',
-              timeout: 30000,
-              maxRetries: 3,
-            },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          })
-          break
         default:
           // Regular task nodes (Developer, Architect, etc.)
           addStep({
@@ -801,7 +732,7 @@ export default function VisualWorkflowBuilder({
           })
       }
     },
-    [addStep, addConfigNode]
+    [addStep]
   )
 
   const handleExecute = async () => {
