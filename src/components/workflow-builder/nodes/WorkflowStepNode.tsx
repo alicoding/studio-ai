@@ -87,8 +87,8 @@ function WorkflowStepNode({ id, data, selected }: NodeProps<WorkflowStepData>) {
         transition-all duration-200 hover:shadow-xl
       `}
     >
-      {/* Connection Handles */}
-      <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-gray-400" />
+      {/* Input Handle - Left Side */}
+      <Handle type="target" position={Position.Left} className="w-3 h-3 !bg-gray-400" />
 
       {/* Node Header */}
       <div className="flex items-center justify-between p-3 border-b border-border">
@@ -186,7 +186,8 @@ function WorkflowStepNode({ id, data, selected }: NodeProps<WorkflowStepData>) {
         </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} className="w-3 h-3 !bg-gray-400" />
+      {/* Output Handle - Right Side */}
+      <Handle type="source" position={Position.Right} className="w-3 h-3 !bg-gray-400" />
     </div>
   )
 }

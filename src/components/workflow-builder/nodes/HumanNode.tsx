@@ -141,7 +141,8 @@ export default function HumanNode({ id, data, selected }: NodeProps<HumanNodeDat
           selected ? 'border-primary shadow-lg' : 'border-border'
         } rounded-lg p-4 min-w-[280px]`}
       >
-        <Handle type="target" position={Position.Top} className="workflow-handle" />
+        {/* Input Handle - Left Side */}
+        <Handle type="target" position={Position.Left} className="workflow-handle" />
 
         <div className="flex items-center gap-2 mb-3">
           <div className={`${currentInteraction.color} p-2 rounded-md text-white`}>
@@ -375,7 +376,8 @@ export default function HumanNode({ id, data, selected }: NodeProps<HumanNodeDat
           </div>
         )}
 
-        <Handle type="source" position={Position.Bottom} className="workflow-handle" />
+        {/* Output Handle - Right Side */}
+        <Handle type="source" position={Position.Right} className="workflow-handle" />
       </div>
     </TooltipProvider>
   )

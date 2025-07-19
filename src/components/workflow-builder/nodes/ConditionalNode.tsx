@@ -61,8 +61,8 @@ function ConditionalNode({ data, selected, id }: NodeProps<ConditionalNodeData>)
   return (
     <>
       <div className="relative">
-        {/* Connection Handles */}
-        <Handle type="target" position={Position.Top} className="w-3 h-3 !bg-amber-500" />
+        {/* Input Handle - Left Side */}
+        <Handle type="target" position={Position.Left} className="w-3 h-3 !bg-amber-500" />
 
         {/* Rectangular Shape with Cut Corners for Diamond Hint */}
         <div
@@ -106,27 +106,27 @@ function ConditionalNode({ data, selected, id }: NodeProps<ConditionalNodeData>)
           </div>
         </div>
 
-        {/* Output Handles with Better Positioning */}
+        {/* Output Handles - Right Side with Vertical Separation */}
         <Handle
           type="source"
           position={Position.Right}
           id="true"
           className="w-3 h-3 !bg-green-500"
-          style={{ top: '35%', right: '-6px' }}
+          style={{ top: '25%', right: '-6px' }}
         />
         <Handle
           type="source"
-          position={Position.Left}
+          position={Position.Right}
           id="false"
           className="w-3 h-3 !bg-red-500"
-          style={{ top: '35%', left: '-6px' }}
+          style={{ top: '75%', right: '-6px' }}
         />
 
-        {/* Branch Labels with Background */}
-        <div className="absolute -right-12 top-[35%] transform -translate-y-1/2 text-xs text-green-600 font-medium bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded">
+        {/* Branch Labels - Right Side with Vertical Separation */}
+        <div className="absolute -right-12 top-[25%] transform -translate-y-1/2 text-xs text-green-600 font-medium bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded">
           True
         </div>
-        <div className="absolute -left-14 top-[35%] transform -translate-y-1/2 text-xs text-red-600 font-medium bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">
+        <div className="absolute -right-12 top-[75%] transform -translate-y-1/2 text-xs text-red-600 font-medium bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">
           False
         </div>
       </div>
