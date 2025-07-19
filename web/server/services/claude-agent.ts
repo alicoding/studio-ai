@@ -1,12 +1,8 @@
 // Local Claude Agent implementation using Claude Code SDK
 // KISS: Basic agent that can respond to messages
 
-import {
-  query,
-  type SDKMessage,
-  type SDKAssistantMessage,
-  type Options,
-} from '@anthropic-ai/claude-code'
+import { query, type SDKMessage, type Options } from '@anthropic-ai/claude-code'
+import { spawn, type ChildProcess } from 'child_process'
 
 // Extend Options type to include MCP configuration that's missing from SDK types
 interface ExtendedOptions extends Options {
@@ -55,10 +51,14 @@ export class ClaudeAgent {
   private agent: Agent
   private abortController?: AbortController
   private isAborted: boolean = false
+  private abortedAt?: string // Timestamp when agent was aborted
+  private abortReason?: string // Reason for abort
   private onSessionUpdate?: (sessionId: string) => void
   private config?: AgentConfig
   private projectPath?: string
   private projectId?: string
+  private abortCheckInterval?: NodeJS.Timeout // Periodic abort signal checking
+  private cliProcess?: ChildProcess // For CLI-based execution
 
   constructor(
     id: string,
@@ -79,8 +79,6 @@ export class ClaudeAgent {
     this.projectPath = projectPath
     // Store project ID for session lookups
     this.projectId = projectId
-    console.log(`[SYSTEM PROMPT DEBUG] ClaudeAgent created with config:`, configOverrides)
-    console.log(`[SYSTEM PROMPT DEBUG] System prompt:`, configOverrides?.systemPrompt)
   }
 
   setSessionUpdateCallback(callback: (sessionId: string) => void): void {
@@ -99,6 +97,84 @@ export class ClaudeAgent {
     return 'sonnet' // Default to sonnet for everything else
   }
 
+  /**
+   * CLI-based execution that replicates query() functionality
+   * Uses claude CLI for better process control and abort handling
+   */
+  private async executeViaCLI(
+    content: string,
+    projectPath: string,
+    sessionId?: string
+  ): Promise<string> {
+    return new Promise(async (resolve, reject) => {
+      // Build CLI arguments
+      const args = ['-p', content]
+      if (sessionId) {
+        args.push('--resume', sessionId)
+      }
+      if (this.config?.model) {
+        args.push('--model', this.mapToValidModel(this.config.model) || 'sonnet')
+      }
+
+      // Add maxTurns if configured
+      if (this.config?.maxTurns) {
+        args.push('--max-turns', this.config.maxTurns.toString())
+      }
+
+      // Add tool restrictions
+      const allowedTools = await this.getToolRestrictions('allowed')
+      const disallowedTools = await this.getToolRestrictions('disallowed')
+
+      if (allowedTools && allowedTools.length > 0) {
+        args.push('--allowedTools', ...allowedTools)
+      }
+
+      if (disallowedTools && disallowedTools.length > 0) {
+        args.push('--disallowedTools', ...disallowedTools)
+      }
+
+      args.push('--output-format', 'stream-json')
+      args.push('--input-format', 'stream-json')
+      args.push('--verbose')
+
+      // Spawn claude CLI process
+      this.cliProcess = spawn('claude', args, {
+        cwd: projectPath,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      })
+
+      let output = ''
+      let errorOutput = ''
+
+      // Collect stdout
+      this.cliProcess.stdout?.on('data', (data) => {
+        output += data.toString()
+      })
+
+      // Collect stderr
+      this.cliProcess.stderr?.on('data', (data) => {
+        errorOutput += data.toString()
+      })
+
+      // Handle process completion
+      this.cliProcess.on('close', (code) => {
+        this.cliProcess = undefined
+
+        if (code === 0) {
+          resolve(output.trim())
+        } else {
+          reject(new Error(`Claude CLI failed with code ${code}: ${errorOutput}`))
+        }
+      })
+
+      // Handle process errors
+      this.cliProcess.on('error', (error) => {
+        this.cliProcess = undefined
+        reject(error)
+      })
+    })
+  }
+
   async sendMessage(
     content: string,
     projectPath?: string,
@@ -108,50 +184,35 @@ export class ClaudeAgent {
     externalAbortController?: AbortController
   ): Promise<string> {
     try {
-      this.agent.status = 'busy'
-      this.isAborted = false // Reset abort flag
+      // Pre-query abort checking
+      if (this.isAgentAborted()) {
+        throw new Error(`Agent ${this.agent.id} is aborted - cannot process new messages`)
+      }
 
-      // Get current session from SessionService (single source of truth)
+      this.agent.status = 'busy'
+
+      // Get current session from SessionService
       const sessionService = SessionService.getInstance()
       let currentSessionId: string | null = null
 
       if (!forceNewSession && this.projectId) {
         currentSessionId = await sessionService.getSession(this.projectId, this.agent.id)
-        console.log(`[ClaudeAgent] Retrieved session from SessionService: ${currentSessionId}`)
-        console.log(
-          `[ClaudeAgent] Will use session ID for continuity: ${currentSessionId || 'NEW SESSION'}`
-        )
       } else if (forceNewSession && this.projectId) {
-        console.log('Forcing new session - clearing session in SessionService')
         await sessionService.clearSession(this.projectId, this.agent.id)
       }
 
-      // Emit status update via EventSystem
-      console.log(`[ClaudeAgent] Emitting status change to busy for agent ${this.agent.id}`)
+      // Emit status update
       await eventSystem.emitAgentStatus(this.agent.id, 'busy')
 
-      console.log('Sending message to Claude SDK:', content)
-      console.log('Project path:', projectPath)
-      console.log('Current sessionId from SessionService:', currentSessionId)
-      console.log('Force new session:', forceNewSession)
-      console.log('Agent config:', this.config)
-      console.log('[SYSTEM PROMPT DEBUG] Agent system prompt:', this.config?.systemPrompt)
-
-      // CRITICAL FIX: Use external AbortController if provided, otherwise create new one
+      // Use external AbortController if provided, otherwise create new one
       this.abortController = externalAbortController || new AbortController()
-      console.log(
-        `[ClaudeAgent] Using ${externalAbortController ? 'external' : 'new'} AbortController for agent ${this.agent.id}`
-      )
-      console.log(
-        `[ClaudeAgent] AbortController signal already aborted: ${this.abortController.signal.aborted}`
-      )
 
       const messages: SDKMessage[] = []
       let resultText = ''
       let hasError = false
       let errorMessage = ''
 
-      // Prefer passed parameter over stored project path (parameter is more up-to-date)
+      // Get effective project path
       const effectiveProjectPath = projectPath || this.projectPath
 
       // Expand tilde in project path if present
@@ -159,81 +220,89 @@ export class ClaudeAgent {
         ? path.join(os.homedir(), effectiveProjectPath.slice(2))
         : effectiveProjectPath
 
-      console.log('[ClaudeAgent] Project path resolution:', {
-        storedProjectPath: this.projectPath,
-        paramProjectPath: projectPath,
-        effectiveProjectPath,
-        expandedProjectPath,
-      })
-
       if (!expandedProjectPath) {
-        const errorMsg =
-          'Project path is required but not provided. Cannot determine working directory for Claude SDK.'
-        console.error('[ClaudeAgent] ERROR:', errorMsg)
-        throw new Error(errorMsg)
+        throw new Error(
+          'Project path is required but not provided. Cannot determine working directory for Claude execution.'
+        )
       }
 
+      // Use CLI execution as primary method
+      try {
+        const response = await this.executeViaCLI(
+          content,
+          expandedProjectPath,
+          currentSessionId || undefined
+        )
+
+        // Emit final message via WebSocket if available
+        if (io && sessionId) {
+          await eventSystem.emitNewMessage(
+            sessionId,
+            {
+              role: 'assistant',
+              content: response,
+              timestamp: new Date().toISOString(),
+              isMeta: false,
+              isStreaming: false,
+            },
+            this.projectId
+          )
+        }
+
+        this.agent.status = 'online'
+        await eventSystem.emitAgentStatus(this.agent.id, 'online')
+
+        // Clear agent abort state on successful completion
+        if (this.isAgentAborted()) {
+          this.clearAborted()
+        }
+
+        return response
+      } catch (error) {
+        // If CLI fails, fallback to SDK execution
+        console.warn('CLI execution failed, falling back to SDK:', error)
+      }
+
+      // Fallback to SDK execution
       // Get tool restrictions (async)
       const allowedTools = await this.getToolRestrictions('allowed')
       const disallowedTools = await this.getToolRestrictions('disallowed')
 
       // Build query options from agent configuration
       const queryOptions: ExtendedOptions = {
-        maxTurns: this.config?.maxTurns || 500, // Use configured maxTurns or default to 500
-        cwd: expandedProjectPath, // MUST pass project path - no fallback!
-        resume: currentSessionId || undefined, // Try resume parameter instead of sessionId
-        allowedTools, // Pass allowed tools if any restrictions
-        disallowedTools, // Pass disallowed tools if any restrictions
-        model: this.mapToValidModel(this.config?.model), // Use valid Claude Code model name
-        customSystemPrompt: this.config?.systemPrompt, // Pass agent's system prompt
-        mcpServers: this.config?.mcpServers, // Enable MCP server access for agents
-        // Not supported by SDK: verbose, temperature, maxTokens, outputFormat
+        maxTurns: this.config?.maxTurns || 500,
+        cwd: expandedProjectPath,
+        resume: currentSessionId || undefined,
+        allowedTools,
+        disallowedTools,
+        model: this.mapToValidModel(this.config?.model),
+        customSystemPrompt: this.config?.systemPrompt,
+        mcpServers: this.config?.mcpServers,
       }
 
-      console.log('Query options:', JSON.stringify(queryOptions, null, 2))
-      console.log(
-        '[SYSTEM PROMPT DEBUG] customSystemPrompt being passed to SDK:',
-        queryOptions.customSystemPrompt
-      )
-      console.log('Project path:', projectPath)
-      console.log('Process cwd:', process.cwd())
-
       // Query returns an async generator that yields messages
-      try {
-        console.log('CLAUDE SDK QUERY PARAMS:', {
-          prompt: content,
-          hasAbortController: !!this.abortController,
-          options: queryOptions,
-        })
+      // Add timeout fallback as recommended for v1.0.35+ abort issues
+      const QUERY_TIMEOUT_MS = 300000 // 5 minutes max per query
+      let timeoutId: NodeJS.Timeout | undefined
 
-        let isFirstResponse = true
+      try {
+        // Create timeout controller for fallback termination
+        timeoutId = setTimeout(() => {
+          if (this.abortController && !this.abortController.signal.aborted) {
+            this.abortController.abort()
+          }
+        }, QUERY_TIMEOUT_MS)
+
         for await (const message of query({
           prompt: content,
           abortController: this.abortController,
           options: queryOptions,
         })) {
-          // Log first response in detail
-          if (isFirstResponse) {
-            console.log('=== FIRST RESPONSE FROM CLAUDE AGENT ===')
-            console.log('Message type:', message.type)
-            console.log('Full message:', JSON.stringify(message, null, 2))
-            console.log('Config tools:', JSON.stringify(this.config?.tools, null, 2))
-            console.log('Allowed tools:', queryOptions.allowedTools)
-            console.log('Disallowed tools:', queryOptions.disallowedTools)
-            console.log('=======================================')
-            isFirstResponse = false
+          // Check agent abort state at start of each message processing
+          if (this.isAgentAborted()) {
+            break // Exit the message processing loop immediately
           }
 
-          console.log('Received message:', message.type, {
-            type: message.type,
-            sessionId: 'session_id' in message ? message.session_id : undefined,
-            hasSession: 'session_id' in message,
-            hasContent: 'message' in message && !!message.message,
-            contentLength:
-              message.type === 'assistant'
-                ? JSON.stringify((message as SDKAssistantMessage).message?.content).length
-                : 0,
-          })
           messages.push(message)
 
           // Note: There is no 'error' type in SDKMessage union
@@ -249,11 +318,8 @@ export class ClaudeAgent {
             console.error('Claude query failed:', message)
           }
 
-          // Check if we've been aborted before processing messages
-          if (this.isAborted) {
-            console.log(
-              `[ClaudeAgent] Skipping message processing - agent ${this.agent.id} was aborted`
-            )
+          // Check AbortController signal directly
+          if (this.abortController?.signal.aborted) {
             break
           }
 
@@ -261,22 +327,16 @@ export class ClaudeAgent {
           // This prevents race condition between WebSocket and REST API
           const messageSessionId = 'session_id' in message ? message.session_id : undefined
           if (messageSessionId && messageSessionId !== currentSessionId) {
-            console.log('📍 Session checkpoint update:', {
-              from: currentSessionId,
-              to: messageSessionId,
-              messageType: message.type,
-            })
             currentSessionId = messageSessionId
 
             // Update session in SessionService IMMEDIATELY (single source of truth)
             if (this.onSessionUpdate && messageSessionId) {
               await this.onSessionUpdate(messageSessionId)
-              console.log('📍 SessionService updated with new session ID before WebSocket emission')
             }
           }
 
-          // Emit all messages through WebSocket if io is provided
-          if (io && sessionId && !this.isAborted) {
+          // CRITICAL FIX: Emit all messages through WebSocket if io is provided and not aborted
+          if (io && sessionId && !this.abortController?.signal.aborted) {
             // ALWAYS use agent instance ID for consistent WebSocket routing
             // This eliminates timing issues with Claude session ID updates
             const effectiveSessionId = sessionId // sessionId = agent instance ID
@@ -286,7 +346,6 @@ export class ClaudeAgent {
               // Pass content as-is - let frontend handle rendering
               const content = message.message?.content || ''
 
-              console.log(`[WebSocket] Emitting message:new with sessionId: ${effectiveSessionId}`)
               await eventSystem.emitNewMessage(
                 effectiveSessionId,
                 {
@@ -308,8 +367,12 @@ export class ClaudeAgent {
             // Errors are handled via result messages with error subtypes
           }
 
-          // Extract text from assistant messages
-          if (message.type === 'assistant' && message.message?.content && !this.isAborted) {
+          // CRITICAL FIX: Extract text from assistant messages only if not aborted
+          if (
+            message.type === 'assistant' &&
+            message.message?.content &&
+            !this.abortController?.signal.aborted
+          ) {
             for (const content of message.message.content) {
               if (content.type === 'text') {
                 resultText += content.text
@@ -335,13 +398,17 @@ export class ClaudeAgent {
             // Session ID is already handled above for all message types
           }
         }
+
+        // Clear timeout on successful completion
+        if (timeoutId) clearTimeout(timeoutId)
       } catch (error) {
-        // Check if this is an abort error from the for-await loop
+        // Clear timeout on error
+        if (timeoutId) clearTimeout(timeoutId)
+        // CRITICAL FIX: Check AbortController signal first, then fallback to error detection
         const abortInfo = detectAbortError(error)
-        if (this.isAborted || abortInfo.isAbort) {
-          console.log(`[ClaudeAgent] Query loop was aborted for agent ${this.agent.id}`)
-          console.log(`[ClaudeAgent] Last known sessionId: ${currentSessionId}`)
-          // Create a proper AbortError with sessionId for recovery
+        const isAbortedByController = this.abortController?.signal.aborted
+
+        if (isAbortedByController || abortInfo.isAbort) {
           throw new AbortError(
             'Query was aborted by user',
             currentSessionId || undefined,
@@ -351,9 +418,8 @@ export class ClaudeAgent {
         throw error
       }
 
-      // Check if aborted before throwing errors
-      if (this.isAborted) {
-        console.log(`[ClaudeAgent] Query was aborted, not processing errors`)
+      // Check AbortController signal before throwing errors
+      if (this.abortController?.signal.aborted) {
         throw new Error('Query was aborted by user')
       }
 
@@ -362,25 +428,19 @@ export class ClaudeAgent {
         throw new Error(`Claude Code error: ${errorMessage}`)
       }
 
-      console.log('Final response:', resultText)
-      console.log('Session ID after query:', currentSessionId)
-
       this.agent.status = 'online'
 
       // Emit status update via EventSystem
-      console.log(`[ClaudeAgent] Emitting status change to online for agent ${this.agent.id}`)
       await eventSystem.emitAgentStatus(this.agent.id, 'online')
 
-      // CRITICAL FIX: Only clear abort controller if we created it (not external)
+      // Clear agent abort state on successful completion
+      if (this.isAgentAborted()) {
+        this.clearAborted()
+      }
+
+      // Only clear abort controller if we created it (not external)
       if (!externalAbortController) {
         this.abortController = undefined
-        console.log(
-          `[ClaudeAgent] Cleared self-created AbortController for agent ${this.agent.id} after successful completion`
-        )
-      } else {
-        console.log(
-          `[ClaudeAgent] Keeping external AbortController for agent ${this.agent.id} after successful completion`
-        )
       }
 
       // Session ID is already updated in the result handler above
@@ -390,19 +450,11 @@ export class ClaudeAgent {
       this.agent.status = 'online'
 
       // Emit status update via EventSystem
-      console.log(`[ClaudeAgent] Emitting status change to online for agent ${this.agent.id}`)
       await eventSystem.emitAgentStatus(this.agent.id, 'online')
 
-      // CRITICAL FIX: Only clear abort controller if we created it (not external)
+      // Only clear abort controller if we created it (not external)
       if (!externalAbortController) {
         this.abortController = undefined
-        console.log(
-          `[ClaudeAgent] Cleared self-created AbortController for agent ${this.agent.id} after error`
-        )
-      } else {
-        console.log(
-          `[ClaudeAgent] Keeping external AbortController for agent ${this.agent.id} after error`
-        )
       }
 
       console.error('Error in Claude query:', error)
@@ -410,14 +462,10 @@ export class ClaudeAgent {
       // Check if this is an abort error using centralized detection
       const abortInfo = detectAbortError(error)
       if (abortInfo.isAbort) {
-        console.log(
-          `[ClaudeAgent] Query was aborted for agent ${this.agent.id} - type: ${abortInfo.type}`
-        )
         // For abort errors, we need to get the latest session from SessionService
         const latestSessionId = this.projectId
           ? await SessionService.getInstance().getSession(this.projectId, this.agent.id)
           : null
-        console.log(`[ClaudeAgent] Preserving sessionId for resume: ${latestSessionId}`)
         // Re-throw as AbortError to preserve sessionId
         if (error instanceof AbortError) {
           throw error // Already has sessionId
@@ -436,19 +484,78 @@ export class ClaudeAgent {
     }
   }
 
-  abort(): void {
-    console.log(`[ClaudeAgent] Abort called for agent ${this.agent.id}`)
-    this.isAborted = true // Set abort flag immediately
+  /**
+   * Check if agent is in aborted state (persistent across sessions)
+   */
+  isAgentAborted(): boolean {
+    return !!this.abortedAt
+  }
 
-    if (this.abortController) {
-      console.log(`[ClaudeAgent] AbortController exists, calling abort()`)
-      this.abortController.abort()
-      console.log(`[ClaudeAgent] Abort signal sent`)
-    } else {
-      console.log(
-        `[ClaudeAgent] No AbortController found - agent might not be processing a message`
-      )
+  /**
+   * Set agent to aborted state (persistent across sessions)
+   */
+  setAborted(reason: string = 'User requested abort'): void {
+    this.abortedAt = new Date().toISOString()
+    this.abortReason = reason
+  }
+
+  /**
+   * Clear agent abort state (for workflow completion/reset)
+   */
+  clearAborted(): void {
+    this.abortedAt = undefined
+    this.abortReason = undefined
+  }
+
+  abort(): void {
+    // Set persistent agent abort state
+    this.setAborted('Workflow abort requested')
+
+    // Kill CLI process if running
+    if (this.cliProcess) {
+      this.cliProcess.kill('SIGTERM')
+      this.cliProcess = undefined
     }
+
+    // Abort SDK controller if exists
+    if (this.abortController) {
+      this.abortController.abort()
+    }
+
+    // Enhanced abort signal checking
+    this.enhanceAbortSignalChecking()
+
+    // Set manual flag as backup
+    this.isAborted = true
+  }
+
+  /**
+   * Enhanced abort signal checking for responsive abort handling
+   */
+  private enhanceAbortSignalChecking(): void {
+    // Clear any existing interval
+    if (this.abortCheckInterval) {
+      clearInterval(this.abortCheckInterval)
+    }
+
+    // Set up frequent abort signal checking (every 100ms)
+    this.abortCheckInterval = setInterval(() => {
+      if (this.abortController?.signal.aborted) {
+        // Clear the interval since we're aborting
+        if (this.abortCheckInterval) {
+          clearInterval(this.abortCheckInterval)
+          this.abortCheckInterval = undefined
+        }
+      }
+    }, 100)
+
+    // Auto-cleanup after 30 seconds to prevent memory leaks
+    setTimeout(() => {
+      if (this.abortCheckInterval) {
+        clearInterval(this.abortCheckInterval)
+        this.abortCheckInterval = undefined
+      }
+    }, 30000)
   }
 
   getInfo() {
@@ -460,17 +567,9 @@ export class ClaudeAgent {
    */
   private async getToolRestrictions(type: 'allowed' | 'disallowed'): Promise<string[] | undefined> {
     if (!this.config?.tools || !Array.isArray(this.config.tools)) {
-      console.log(
-        `[TOOLS DEBUG] No tools configured for agent ${this.agent.id}, using default access`
-      )
       // When no config, allow all tools (no restrictions) - this is the safe default
       return undefined
     }
-
-    console.log(
-      `[TOOLS DEBUG] Processing ${type} tools for agent ${this.agent.id}:`,
-      this.config.tools
-    )
 
     // Get the correct tool names from ToolDiscoveryService (these have proper capitalization)
     const { ToolDiscoveryService } = await import('./ToolDiscoveryService')
@@ -505,16 +604,10 @@ export class ClaudeAgent {
         if (correctToolName) {
           // Use the EXACT name from ToolDiscoveryService - no conversion!
           restrictions.push(correctToolName)
-        } else {
-          console.warn(
-            `[TOOLS DEBUG] Tool ${toolName} not found in discovered tools:`,
-            availableTools
-          )
         }
       }
     }
 
-    console.log(`[TOOLS DEBUG] ${type} restrictions for agent ${this.agent.id}:`, restrictions)
     return restrictions.length > 0 ? restrictions : undefined
   }
 

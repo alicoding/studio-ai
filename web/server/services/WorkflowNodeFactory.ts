@@ -797,4 +797,74 @@ export class WorkflowNodeFactory {
       throw new Error(`Approval ${approvalId} timed out after ${timeoutSeconds} seconds`)
     }
   }
+
+  /**
+   * Create a LangGraph node for AI evaluation
+   * Uses LangChain BaseChatModel for multi-provider evaluation (like n8n AI node)
+   */
+  createAIEvaluationNode(step: ExtendedWorkflowStep) {
+    return async (state: WorkflowStateSchema['State']) => {
+      const startTime = Date.now()
+
+      this.eventEmitter.emit({
+        type: 'step_start',
+        threadId: state.threadId,
+        stepId: step.id,
+      })
+
+      try {
+        // Create workflow context
+        const context: WorkflowContext = {
+          stepResults: state.stepResults || {},
+          stepOutputs: state.stepOutputs || {},
+          sessionIds: state.sessionIds || {},
+          threadId: state.threadId,
+          projectId: state.projectId,
+        }
+
+        // Get AI evaluation executor and execute step
+        const executor = this.executorRegistry.getExecutor(step)
+        FlowLogger.log(
+          'ai-evaluation',
+          `-> ${executor.constructor.name}.execute(${step.id || 'unknown'}) with provider: ${step.provider}`
+        )
+
+        const stepResult = await executor.execute(step, context)
+
+        FlowLogger.log(
+          'ai-evaluation',
+          `<- ${executor.constructor.name} completed with status: ${stepResult.status}`
+        )
+
+        // Emit step completion event
+        this.eventEmitter.emit({
+          type: 'step_complete',
+          threadId: state.threadId,
+          stepId: step.id,
+        })
+
+        // Update state
+        return {
+          stepResults: { ...state.stepResults, [step.id!]: stepResult },
+          stepOutputs: { ...state.stepOutputs, [step.id!]: stepResult.response },
+        }
+      } catch (error) {
+        console.error(`AI Evaluation ${step.id} error:`, error)
+
+        const errorResult: StepResult = {
+          id: step.id!,
+          status: 'failed',
+          response: `AI evaluation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          sessionId: '',
+          duration: Date.now() - startTime,
+        }
+
+        return {
+          stepResults: { ...state.stepResults, [step.id!]: errorResult },
+          stepOutputs: { ...state.stepOutputs, [step.id!]: errorResult.response },
+          status: 'failed' as const,
+        }
+      }
+    }
+  }
 }

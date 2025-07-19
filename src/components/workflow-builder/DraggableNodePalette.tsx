@@ -21,6 +21,7 @@ import {
   RotateCcw,
   Users,
   Settings,
+  Brain,
 } from 'lucide-react'
 import { useAgentConfigs } from '@/hooks/useAgentConfigs'
 
@@ -81,6 +82,14 @@ const controlNodes: NodeTypeConfig[] = [
     icon: <Users className="w-4 h-4" />,
     color: 'bg-green-500',
     description: 'Wait for human approval',
+    category: 'control',
+  },
+  {
+    type: 'AIEvaluation',
+    label: 'AI Task',
+    icon: <Brain className="w-4 h-4" />,
+    color: 'bg-orange-500',
+    description: 'Process with AI models',
     category: 'control',
   },
 ]

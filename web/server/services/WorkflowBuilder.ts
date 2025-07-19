@@ -9,6 +9,7 @@
 
 import { StateGraph, Annotation, BaseCheckpointSaver, type RetryPolicy } from '@langchain/langgraph'
 import type { WorkflowStep, StepResult } from '../schemas/invoke'
+import type { WorkflowCondition } from '../schemas/condition-types'
 import { ConditionEvaluator } from './ConditionEvaluator'
 import { WorkflowNodeFactory } from './WorkflowNodeFactory'
 import { WorkflowStateManager } from './WorkflowStateManager'
@@ -28,6 +29,10 @@ function isParallelStep(step: WorkflowStep): boolean {
 
 function isHumanStep(step: WorkflowStep): boolean {
   return step.type === 'human'
+}
+
+function isAIEvaluationStep(step: WorkflowStep): boolean {
+  return step.type === 'ai_evaluation'
 }
 
 // Workflow state schema - exported for use in other workflow services
@@ -114,6 +119,8 @@ export class WorkflowBuilder {
         workflow.addNode(step.id!, this.nodeFactory.createParallelNode(step), { retryPolicy })
       } else if (isHumanStep(step)) {
         workflow.addNode(step.id!, this.nodeFactory.createHumanNode(step), { retryPolicy })
+      } else if (isAIEvaluationStep(step)) {
+        workflow.addNode(step.id!, this.nodeFactory.createAIEvaluationNode(step), { retryPolicy })
       } else {
         workflow.addNode(step.id!, this.nodeFactory.createTaskNode(step), { retryPolicy })
       }
@@ -197,7 +204,10 @@ export class WorkflowBuilder {
         projectId: state.projectId,
       }
 
-      const result = this.conditionEvaluator.evaluateCondition(step.condition, context)
+      const result = this.conditionEvaluator.evaluateWorkflowCondition(
+        step.condition as WorkflowCondition,
+        context
+      )
 
       if (result.error) {
         console.error(`Condition evaluation error for step ${step.id}: ${result.error}`)

@@ -26,6 +26,11 @@ export class ClaudeStepExecutor implements StepExecutor {
   ) {}
 
   canHandle(step: WorkflowStep): boolean {
+    // CRITICAL FIX: Respect mock mode - defer to MockStepExecutor when USE_MOCK_AI=true
+    if (process.env.USE_MOCK_AI === 'true') {
+      return false
+    }
+
     // Handle 'task' type with role/agentId (default from schema)
     if (step.type === 'task' && Boolean(step.role || step.agentId)) return true
 

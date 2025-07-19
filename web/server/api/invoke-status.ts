@@ -315,7 +315,9 @@ router.post('/abort/:threadId', async (req: Request, res: Response) => {
     const { WorkflowOrchestrator } = await import('../services/WorkflowOrchestrator')
 
     // Check if workflow is currently active
-    if (!WorkflowOrchestrator.isWorkflowActive(threadId)) {
+    const isActive = WorkflowOrchestrator.isWorkflowActive(threadId)
+
+    if (!isActive) {
       return res.status(404).json({
         error: 'Workflow not found or not currently running',
         threadId,
@@ -353,8 +355,6 @@ router.post('/abort/:threadId', async (req: Request, res: Response) => {
       })
     }
 
-    console.log(`[Abort API] Successfully aborted workflow ${threadId}`)
-
     res.json({
       success: true,
       threadId,
@@ -362,7 +362,7 @@ router.post('/abort/:threadId', async (req: Request, res: Response) => {
       message: 'Workflow aborted successfully',
     })
   } catch (error) {
-    console.error(`[Abort API] Error aborting workflow ${threadId}:`, error)
+    console.error(`Error aborting workflow ${threadId}:`, error)
     res.status(500).json({
       error: 'Failed to abort workflow',
       threadId,
@@ -462,6 +462,27 @@ export async function updateWorkflowStatus(
     } else {
       // Update existing workflow
       await registry.updateWorkflow(threadId, update)
+
+      // Emit step status change events for real-time UI updates
+      if (update.steps && update.steps.length > 0) {
+        // Get workflow events emitter from global app context (same pattern as workflow_created)
+        const { app } = await import('../app')
+        const workflowEvents = app?.get('workflowEvents')
+
+        if (workflowEvents) {
+          // Emit step_update events for each step status change
+          for (const step of update.steps) {
+            workflowEvents.emit('workflow:update', {
+              type: 'step_update',
+              threadId,
+              stepId: step.id,
+              status: step.status,
+              projectId: existing?.projectId,
+              timestamp: new Date().toISOString(),
+            })
+          }
+        }
+      }
     }
   } catch (error) {
     console.error('[updateWorkflowStatus] Failed to update workflow:', error)

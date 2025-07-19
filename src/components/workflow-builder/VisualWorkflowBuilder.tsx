@@ -47,6 +47,7 @@ import ConditionalNode from './nodes/ConditionalNode'
 import LoopNode from './nodes/LoopNode'
 import ParallelNode from './nodes/ParallelNode'
 import HumanNode from './nodes/HumanNode'
+import AINode from './nodes/AIEvaluationNode'
 import DraggableNodePalette from './DraggableNodePalette'
 import WorkflowLibraryModal from './WorkflowLibraryModal'
 
@@ -57,6 +58,7 @@ const nodeTypes: NodeTypes = {
   loop: LoopNode,
   parallel: ParallelNode,
   human: HumanNode,
+  aiEvaluation: AINode,
 }
 
 interface VisualWorkflowBuilderProps {
@@ -86,6 +88,9 @@ function stepsToNodes(
         break
       case 'human':
         nodeType = 'human'
+        break
+      case 'ai_evaluation':
+        nodeType = 'aiEvaluation'
         break
     }
 
@@ -498,6 +503,13 @@ export default function VisualWorkflowBuilder({
             prompt: 'Please review and approve to continue',
             approvalRequired: true,
             timeoutSeconds: 3600,
+          })
+          break
+        case 'AIEvaluation':
+          addStep({
+            type: 'ai_evaluation',
+            task: 'Process the content: {previous_step.output}',
+            role: 'ai_task',
           })
           break
         default:

@@ -34,12 +34,9 @@ export class ClaudeService {
 
           // Use the full agentId as passed (should be the agentConfigId)
           const storedConfig = await configService.getConfig(agentId)
-          console.log(`[SYSTEM PROMPT DEBUG] Loading config for configId: ${agentId}`)
-          console.log(`[SYSTEM PROMPT DEBUG] Stored config:`, storedConfig)
 
           // Always load MCP servers, even if no stored config
           const defaultMcpServers = await this.getDefaultMcpServers()
-          console.log(`[MCP DEBUG] Loaded MCP servers:`, defaultMcpServers)
 
           if (storedConfig) {
             config = {
@@ -50,13 +47,11 @@ export class ClaudeService {
               temperature: storedConfig.temperature,
               mcpServers: defaultMcpServers,
             }
-            console.log(`[SYSTEM PROMPT DEBUG] Final config with system prompt:`, config)
           } else {
             // No stored config, but still provide MCP servers
             config = {
               mcpServers: defaultMcpServers,
             }
-            console.log(`[MCP DEBUG] No stored config, using default with MCP servers:`, config)
           }
         } catch (error) {
           console.error('Failed to load agent configuration:', error)
@@ -79,15 +74,11 @@ export class ClaudeService {
       this.subscribeAgentToAbortEvents(agent, agentKey, projectId, agentId)
     }
 
-    // CRITICAL: Always set session update callback, even for cached agents
+    // Always set session update callback, even for cached agents
     // This ensures SessionService stays in sync when Claude SDK creates new sessions
     const agent = this.agents.get(agentKey)!
     agent.setSessionUpdateCallback(async (newSessionId: string) => {
-      console.log(
-        `📍 [ClaudeService] Session update callback called for ${agentId}: ${newSessionId}`
-      )
       await this.sessionService.updateSession(projectId, agentId, newSessionId)
-      console.log(`📍 [ClaudeService] SessionService.updateSession completed for ${agentId}`)
     })
 
     return agent
@@ -115,7 +106,7 @@ export class ClaudeService {
     }
 
     try {
-      // CRITICAL FIX: Get workflow abort controller if available
+      // Get workflow abort controller if available
       const externalAbortController = threadId
         ? this.getWorkflowAbortController(threadId)
         : undefined
@@ -146,7 +137,6 @@ export class ClaudeService {
    */
   setWorkflowAbortController(threadId: string, abortController: AbortController): void {
     this.workflowAbortControllers.set(threadId, abortController)
-    console.log(`[ClaudeService] Set workflow abort controller for ${threadId}`)
   }
 
   /**
@@ -170,27 +160,15 @@ export class ClaudeService {
   ): void {
     const unsubscribe = this.abortEventSystem.subscribeToAborts((event) => {
       // Check if this agent should be aborted by this event
-      if (AbortEventSystem.shouldAbortAgent(event, agentId, projectId)) {
-        console.log(`[ClaudeService] 🚨 Aborting agent ${agentId} due to ${event.type} event`)
-        console.log(`[ClaudeService] Event details:`, {
-          type: event.type,
-          threadId: event.threadId,
-          projectId: event.projectId,
-        })
+      const shouldAbort = AbortEventSystem.shouldAbortAgent(event, agentId, projectId)
+
+      if (shouldAbort) {
         agent.abort()
-      } else {
-        console.log(
-          `[ClaudeService] 📡 Agent ${agentId} received abort event but not applicable:`,
-          { eventType: event.type, eventProjectId: event.projectId, agentProjectId: projectId }
-        )
       }
     })
 
     // Store the unsubscribe function for cleanup
     this.abortSubscriptions.set(agentKey, unsubscribe)
-    console.log(
-      `[ClaudeService] 📡 Agent ${agentId} subscribed to abort events (total listeners: ${this.abortEventSystem.getListenerCount()})`
-    )
   }
 
   // Clean up agents - updated to use project+agent key
@@ -206,7 +184,6 @@ export class ClaudeService {
       if (unsubscribe) {
         unsubscribe()
         this.abortSubscriptions.delete(agentKey)
-        console.log(`[ClaudeService] 📡 Agent ${agentId} unsubscribed from abort events`)
       }
 
       // Clear session tracking
@@ -219,7 +196,6 @@ export class ClaudeService {
    */
   cleanupWorkflowAbortController(threadId: string): void {
     this.workflowAbortControllers.delete(threadId)
-    console.log(`[ClaudeService] Cleaned up workflow abort controller for ${threadId}`)
   }
 
   // Get existing agent without creating new one - for abort operations

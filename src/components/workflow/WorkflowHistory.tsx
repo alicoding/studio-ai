@@ -107,7 +107,11 @@ export const WorkflowHistory: React.FC<WorkflowHistoryProps> = ({
     }
   }
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string | undefined) => {
+    if (!status) {
+      return <Clock className="w-4 h-4 text-gray-500" />
+    }
+
     switch (status.toLowerCase()) {
       case 'completed':
         return <CheckCircle className="w-4 h-4 text-green-500" />
@@ -115,6 +119,12 @@ export const WorkflowHistory: React.FC<WorkflowHistoryProps> = ({
         return <XCircle className="w-4 h-4 text-red-500" />
       case 'pending':
         return <AlertCircle className="w-4 h-4 text-yellow-500" />
+      case 'running':
+        return <Clock className="w-4 h-4 text-blue-500" />
+      case 'aborted':
+        return <XCircle className="w-4 h-4 text-orange-500" />
+      case 'paused':
+        return <AlertCircle className="w-4 h-4 text-purple-500" />
       default:
         return <Clock className="w-4 h-4 text-gray-500" />
     }
@@ -192,7 +202,7 @@ export const WorkflowHistory: React.FC<WorkflowHistoryProps> = ({
       <div className="space-y-4">
         {checkpoints.map((checkpoint, index) => (
           <div
-            key={checkpoint.id}
+            key={checkpoint.id || `checkpoint-${index}`}
             className={`relative flex items-start gap-4 p-4 border rounded-lg transition-colors ${getStatusColor(checkpoint.status)}`}
           >
             {/* Timeline line */}
@@ -228,7 +238,7 @@ export const WorkflowHistory: React.FC<WorkflowHistoryProps> = ({
                 <Calendar className="w-3 h-3" />
                 <span>{formatTimestamp(checkpoint.timestamp)}</span>
                 <GitBranch className="w-3 h-3 ml-2" />
-                <span>ID: {checkpoint.id.substring(0, 8)}...</span>
+                <span>ID: {checkpoint.id ? checkpoint.id.substring(0, 8) : 'unknown'}...</span>
               </div>
 
               {/* Checkpoint data preview */}
@@ -249,13 +259,15 @@ export const WorkflowHistory: React.FC<WorkflowHistoryProps> = ({
 
               {/* Resume button */}
               <Button
-                onClick={() => handleResumeFromCheckpoint(checkpoint.id)}
-                disabled={resumingFromCheckpoint !== null}
+                onClick={() => checkpoint.id && handleResumeFromCheckpoint(checkpoint.id)}
+                disabled={resumingFromCheckpoint !== null || !checkpoint.id}
                 variant="outline"
                 size="sm"
                 className="text-xs"
               >
-                {resumingFromCheckpoint === checkpoint.id ? (
+                {resumingFromCheckpoint &&
+                checkpoint.id &&
+                resumingFromCheckpoint === checkpoint.id ? (
                   <>
                     <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                     Resuming...

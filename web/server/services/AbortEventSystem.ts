@@ -46,8 +46,16 @@ export class AbortEventSystem extends EventEmitter {
     }
 
     console.log(`[AbortEventSystem] 🚨 Publishing workflow abort event:`, event)
+    console.log(
+      `[AbortEventSystem] 📊 Current listener count before emit: ${this.getListenerCount()}`
+    )
+
     this.emit('abort', event)
     this.emit('workflow_abort', event) // Specific event type
+
+    console.log(
+      `[AbortEventSystem] ✅ Workflow abort event emitted to ${this.getListenerCount()} listeners`
+    )
   }
 
   /**

@@ -35,7 +35,7 @@ export interface WorkflowDefinition {
  */
 export interface WorkflowStepDefinition {
   id: string // Step ID (e.g., "step1", "design_api")
-  type: 'task' | 'parallel' | 'conditional' | 'loop' | 'human' // Step type
+  type: 'task' | 'parallel' | 'conditional' | 'loop' | 'human' | 'ai_evaluation' // Step type
   agentId?: string // Specific agent ID (e.g., "dev_01")
   role?: string // Or role-based (e.g., "developer")
   task: string // Task description with template vars
