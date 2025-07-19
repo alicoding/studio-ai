@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
+import { useConfigModal, type ProviderConfig } from '../ConfigModalContext'
 
 // Supported AI providers following n8n AI node patterns
 type AIProvider = 'openai' | 'anthropic' | 'azure' | 'google'
@@ -57,6 +58,8 @@ interface AINodeData {
   // Configuration
   timeout?: number
   retryCount?: number
+  // New n8n-style configuration
+  providerConfig?: ProviderConfig
 }
 
 // Provider configuration options
@@ -100,6 +103,26 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [debugMode, setDebugMode] = useState(false)
   const { updateStep, getStep } = useWorkflowBuilderStore()
+  const { openProviderModal } = useConfigModal()
+
+  // Click handlers for plus buttons - prevent node dragging
+  const handleProviderClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    console.log('Provider clicked for node:', id, 'with config:', nodeData.providerConfig)
+    openProviderModal(id, nodeData.providerConfig)
+  }
+
+  const handleToolsClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    // TODO: Open tools selection modal
+    console.log('Tools configuration clicked for node:', id)
+  }
+
+  const handleMemoryClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    // TODO: Open memory selection modal
+    console.log('Memory configuration clicked for node:', id)
+  }
 
   // Get current step data from store to ensure reactivity
   const storeStep = getStep(id)
@@ -161,19 +184,6 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
           id="data-input"
           className="w-3 h-3 border-2 border-background"
           style={{ background: '#64748b' }}
-        />
-
-        {/* Provider Config handle - Bottom Left - For connecting to config nodes */}
-        <Handle
-          type="target"
-          position={Position.Bottom}
-          id="provider-config"
-          className="w-3 h-3 border-2 border-background"
-          style={{
-            background: providerConfig.colorHex,
-            left: '25%',
-            transform: 'translateX(-50%)',
-          }}
         />
 
         {/* Header */}
@@ -287,7 +297,7 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
                   <>
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                      Click the provider handle below to configure AI provider
+                      Provider configuration will be available via plus buttons
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
                       Select from OpenAI, Anthropic, Google AI, or Azure OpenAI
@@ -451,6 +461,36 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
             )}
           </div>
         )}
+
+        {/* Plus buttons section - n8n style at bottom edge */}
+        <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-background border border-border rounded-full px-2 py-1 shadow-sm">
+          <button
+            type="button"
+            onClick={handleProviderClick}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
+          >
+            <span className="text-sm">+</span>
+            Provider
+          </button>
+          <div className="w-px h-4 bg-border" />
+          <button
+            type="button"
+            onClick={handleToolsClick}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
+          >
+            <span className="text-sm">+</span>
+            Tools
+          </button>
+          <div className="w-px h-4 bg-border" />
+          <button
+            type="button"
+            onClick={handleMemoryClick}
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
+          >
+            <span className="text-sm">+</span>
+            Memory
+          </button>
+        </div>
 
         {/* Status summary when collapsed */}
         {!isExpanded && (

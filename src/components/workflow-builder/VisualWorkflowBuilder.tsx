@@ -54,9 +54,10 @@ import LoopNode from './nodes/LoopNode'
 import ParallelNode from './nodes/ParallelNode'
 import HumanNode from './nodes/HumanNode'
 import AINode from './nodes/AIEvaluationNode'
-import OpenAIConfigNode from './nodes/OpenAIConfigNode'
 import DraggableNodePalette from './DraggableNodePalette'
 import WorkflowLibraryModal from './WorkflowLibraryModal'
+import { ConfigModalProvider } from './ConfigModalContext'
+import ProviderSelectionModal from './ProviderSelectionModal'
 
 // Custom edge types
 import DeletableEdge from './edges/DeletableEdge'
@@ -69,11 +70,6 @@ const nodeTypes: NodeTypes = {
   parallel: ParallelNode,
   human: HumanNode,
   aiEvaluation: AINode,
-  // AI Provider Configuration Nodes
-  OpenAIConfig: OpenAIConfigNode,
-  AnthropicConfig: OpenAIConfigNode, // TODO: Create separate components
-  AzureConfig: OpenAIConfigNode, // TODO: Create separate components
-  GoogleConfig: OpenAIConfigNode, // TODO: Create separate components
 }
 
 const edgeTypes = {
@@ -809,280 +805,292 @@ export default function VisualWorkflowBuilder({
   }
 
   return (
-    <div
-      data-testid="workflow-builder"
-      className="fixed inset-0 z-50 w-full h-screen bg-background text-foreground"
-    >
-      {/* Enhanced Toolbar with Project Context */}
-      <div className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
-        <div className="flex items-center gap-4">
+    <ConfigModalProvider>
+      <div
+        data-testid="workflow-builder"
+        className="fixed inset-0 z-50 w-full h-screen bg-background text-foreground"
+      >
+        {/* Enhanced Toolbar with Project Context */}
+        <div className="h-16 bg-card border-b border-border flex items-center justify-between px-6">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="ghost" onClick={onClose} className="p-2">
+                <X className="w-4 h-4" />
+              </Button>
+              <div className="h-6 w-px bg-border" />
+            </div>
+
+            {/* Workflow Name */}
+            <input
+              type="text"
+              value={workflow?.name || 'Untitled Workflow'}
+              onChange={(e) => handleWorkflowNameChange(e.target.value)}
+              className="text-xl font-semibold bg-transparent border-none outline-none focus:bg-muted px-2 py-1 rounded"
+              placeholder="Enter workflow name..."
+            />
+
+            {/* Status Indicators */}
+            <div className="flex items-center gap-2">
+              {isDirty && (
+                <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
+                  Unsaved changes
+                </span>
+              )}
+              {validationResult && !validationResult.valid && (
+                <div className="flex items-center gap-1 text-xs text-red-600 bg-red-100 px-2 py-1 rounded">
+                  <AlertTriangle className="w-3 h-3" />
+                  {validationResult.errors.length} errors
+                </div>
+              )}
+              {lastError && (
+                <div className="flex items-center gap-1 text-xs text-red-600 bg-red-100 px-2 py-1 rounded">
+                  <AlertTriangle className="w-3 h-3" />
+                  Error
+                </div>
+              )}
+            </div>
+
+            {/* Project Context */}
+            {currentProject && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted px-3 py-1 rounded-md">
+                <Folder className="w-4 h-4" />
+                <span>{currentProject.name}</span>
+              </div>
+            )}
+
+            {/* Mock Mode Indicator */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-100 px-3 py-1 rounded-md">
+                <span>Mock Mode</span>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="ghost" onClick={onClose} className="p-2">
-              <X className="w-4 h-4" />
+            <Button size="sm" variant="outline" onClick={handleValidate} disabled={isValidating}>
+              {isValidating ? 'Validating...' : 'Validate'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleSave}
+              disabled={!isDirty || isSaving}
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {isSaving ? 'Saving...' : isDirty ? 'Save' : 'Saved'}
+            </Button>
+            <Button size="sm" variant="outline">
+              <Download className="w-4 h-4 mr-2" />
+              Export
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleLoadClick}
+              disabled={isLoadingWorkflows}
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              {isLoadingWorkflows ? 'Loading...' : 'Load'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setIsLibraryModalOpen(true)}>
+              <Library className="w-4 h-4 mr-2" />
+              Library
             </Button>
             <div className="h-6 w-px bg-border" />
+            <Button
+              size="sm"
+              onClick={handleExecute}
+              disabled={isExecuting || !workflow?.steps.length}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              {isExecuting ? 'Executing...' : 'Execute'}
+            </Button>
           </div>
-
-          {/* Workflow Name */}
-          <input
-            type="text"
-            value={workflow?.name || 'Untitled Workflow'}
-            onChange={(e) => handleWorkflowNameChange(e.target.value)}
-            className="text-xl font-semibold bg-transparent border-none outline-none focus:bg-muted px-2 py-1 rounded"
-            placeholder="Enter workflow name..."
-          />
-
-          {/* Status Indicators */}
-          <div className="flex items-center gap-2">
-            {isDirty && (
-              <span className="text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded">
-                Unsaved changes
-              </span>
-            )}
-            {validationResult && !validationResult.valid && (
-              <div className="flex items-center gap-1 text-xs text-red-600 bg-red-100 px-2 py-1 rounded">
-                <AlertTriangle className="w-3 h-3" />
-                {validationResult.errors.length} errors
-              </div>
-            )}
-            {lastError && (
-              <div className="flex items-center gap-1 text-xs text-red-600 bg-red-100 px-2 py-1 rounded">
-                <AlertTriangle className="w-3 h-3" />
-                Error
-              </div>
-            )}
-          </div>
-
-          {/* Project Context */}
-          {currentProject && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted px-3 py-1 rounded-md">
-              <Folder className="w-4 h-4" />
-              <span>{currentProject.name}</span>
-            </div>
-          )}
-
-          {/* Mock Mode Indicator */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-100 px-3 py-1 rounded-md">
-              <span>Mock Mode</span>
-            </div>
-          )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={handleValidate} disabled={isValidating}>
-            {isValidating ? 'Validating...' : 'Validate'}
-          </Button>
-          <Button size="sm" variant="outline" onClick={handleSave} disabled={!isDirty || isSaving}>
-            <Save className="w-4 h-4 mr-2" />
-            {isSaving ? 'Saving...' : isDirty ? 'Save' : 'Saved'}
-          </Button>
-          <Button size="sm" variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleLoadClick}
-            disabled={isLoadingWorkflows}
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            {isLoadingWorkflows ? 'Loading...' : 'Load'}
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setIsLibraryModalOpen(true)}>
-            <Library className="w-4 h-4 mr-2" />
-            Library
-          </Button>
-          <div className="h-6 w-px bg-border" />
-          <Button
-            size="sm"
-            onClick={handleExecute}
-            disabled={isExecuting || !workflow?.steps.length}
-          >
-            <Settings className="w-4 h-4 mr-2" />
-            {isExecuting ? 'Executing...' : 'Execute'}
-          </Button>
-        </div>
-      </div>
-
-      {/* React Flow Canvas */}
-      <div className="h-[calc(100vh-4rem)]">
-        <ReactFlow
-          ref={reactFlowRef}
-          nodes={displayNodes}
-          edges={displayEdges}
-          onInit={setRfInstance}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          isValidConnection={isValidConnection}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          connectionLineStyle={{
-            stroke: '#3b82f6',
-            strokeWidth: 4,
-            strokeDasharray: '8,4',
-            filter: 'drop-shadow(0 0 6px rgba(59, 130, 246, 0.6))',
-          }}
-          onDrop={onDrop}
-          onDragOver={onDragOver}
-          onPaneClick={handlePaneClick}
-          onMove={handleViewportChange}
-          snapToGrid={true}
-          snapGrid={[20, 20]}
-          connectionRadius={100}
-          connectOnClick={false}
-          minZoom={0.1}
-          maxZoom={2}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView={!viewport}
-          defaultViewport={viewport || undefined}
-          attributionPosition="bottom-left"
-          className="bg-background"
-          tabIndex={0}
-          style={{ outline: 'none' }}
-          selectionMode={SelectionMode.Partial}
-          multiSelectionKeyCode={['Meta', 'Control']}
-          selectNodesOnDrag={false}
-          selectionKeyCode={['Shift']}
-          elementsSelectable={true}
-          deleteKeyCode={null}
-          panOnDrag={[1, 2]}
-          nodesDraggable={true}
-          selectionOnDrag={true}
-          panOnScroll={true}
-          zoomOnScroll={true}
-          zoomOnPinch={true}
-          panOnScrollMode={PanOnScrollMode.Free}
-          zoomOnDoubleClick={false}
-          preventScrolling={false}
-        >
-          <Controls className="bg-card border-border" />
-          <MiniMap
-            className="bg-card border-border"
-            nodeColor={(node) => {
-              switch (node.data?.role) {
-                case 'developer':
-                  return '#3b82f6'
-                case 'architect':
-                  return '#8b5cf6'
-                case 'reviewer':
-                  return '#10b981'
-                case 'tester':
-                  return '#f59e0b'
-                case 'security':
-                  return '#ef4444'
-                default:
-                  return '#6b7280'
-              }
+        {/* React Flow Canvas */}
+        <div className="h-[calc(100vh-4rem)]">
+          <ReactFlow
+            ref={reactFlowRef}
+            nodes={displayNodes}
+            edges={displayEdges}
+            onInit={setRfInstance}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            isValidConnection={isValidConnection}
+            connectionLineType={ConnectionLineType.SmoothStep}
+            connectionLineStyle={{
+              stroke: '#3b82f6',
+              strokeWidth: 4,
+              strokeDasharray: '8,4',
+              filter: 'drop-shadow(0 0 6px rgba(59, 130, 246, 0.6))',
             }}
-          />
-          <Background
-            variant={BackgroundVariant.Dots}
-            gap={20}
-            size={1}
+            onDrop={onDrop}
+            onDragOver={onDragOver}
+            onPaneClick={handlePaneClick}
+            onMove={handleViewportChange}
+            snapToGrid={true}
+            snapGrid={[20, 20]}
+            connectionRadius={100}
+            connectOnClick={false}
+            minZoom={0.1}
+            maxZoom={2}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            fitView={!viewport}
+            defaultViewport={viewport || undefined}
+            attributionPosition="bottom-left"
             className="bg-background"
-          />
+            tabIndex={0}
+            style={{ outline: 'none' }}
+            selectionMode={SelectionMode.Partial}
+            multiSelectionKeyCode={['Meta', 'Control']}
+            selectNodesOnDrag={false}
+            selectionKeyCode={['Shift']}
+            elementsSelectable={true}
+            deleteKeyCode={null}
+            panOnDrag={[1, 2]}
+            nodesDraggable={true}
+            selectionOnDrag={true}
+            panOnScroll={true}
+            zoomOnScroll={true}
+            zoomOnPinch={true}
+            panOnScrollMode={PanOnScrollMode.Free}
+            zoomOnDoubleClick={false}
+            preventScrolling={false}
+          >
+            <Controls className="bg-card border-border" />
+            <MiniMap
+              className="bg-card border-border"
+              nodeColor={(node) => {
+                switch (node.data?.role) {
+                  case 'developer':
+                    return '#3b82f6'
+                  case 'architect':
+                    return '#8b5cf6'
+                  case 'reviewer':
+                    return '#10b981'
+                  case 'tester':
+                    return '#f59e0b'
+                  case 'security':
+                    return '#ef4444'
+                  default:
+                    return '#6b7280'
+                }
+              }}
+            />
+            <Background
+              variant={BackgroundVariant.Dots}
+              gap={20}
+              size={1}
+              className="bg-background"
+            />
 
-          {/* Draggable Node Palette */}
-          <DraggableNodePalette />
+            {/* Draggable Node Palette */}
+            <DraggableNodePalette />
 
-          {/* Empty State Help */}
-          {!workflow?.steps.length && (
-            <Panel position="top-center">
-              <div className="bg-card border border-border rounded-lg p-8 shadow-lg text-center max-w-md">
-                <h3 className="text-lg font-semibold mb-2">Start Building Your Workflow</h3>
-                <p className="text-muted-foreground mb-4">
-                  Drag nodes from the palette on the left to create your workflow steps. Connect
-                  them by dragging between the node handles to set up dependencies.
+            {/* Empty State Help */}
+            {!workflow?.steps.length && (
+              <Panel position="top-center">
+                <div className="bg-card border border-border rounded-lg p-8 shadow-lg text-center max-w-md">
+                  <h3 className="text-lg font-semibold mb-2">Start Building Your Workflow</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Drag nodes from the palette on the left to create your workflow steps. Connect
+                    them by dragging between the node handles to set up dependencies.
+                  </p>
+                  <div className="text-sm text-muted-foreground">
+                    💡 Tip: Each node type has a different color to help you organize your workflow
+                  </div>
+                </div>
+              </Panel>
+            )}
+
+            {/* Validation Results Panel */}
+            {validationResult && !validationResult.valid && (
+              <Panel position="bottom-right">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 shadow-lg max-w-sm">
+                  <h4 className="text-sm font-semibold text-red-800 mb-2">Validation Errors</h4>
+                  <div className="space-y-1">
+                    {validationResult.errors.slice(0, 3).map((error, index) => (
+                      <div key={index} className="text-xs text-red-600">
+                        {error.stepId && `[${error.stepId}] `}
+                        {error.message}
+                      </div>
+                    ))}
+                    {validationResult.errors.length > 3 && (
+                      <div className="text-xs text-red-600">
+                        ...and {validationResult.errors.length - 3} more errors
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Panel>
+            )}
+          </ReactFlow>
+        </div>
+
+        {/* Load Workflow Modal */}
+        <ModalLayout
+          isOpen={isLoadModalOpen}
+          onClose={() => setIsLoadModalOpen(false)}
+          title="Load Workflow"
+          size="lg"
+        >
+          <div className="space-y-4">
+            {availableWorkflows.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Upload className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No saved workflows found</p>
+                <p className="text-sm mt-2">Create and save workflows to see them here</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Select a workflow to load into the builder:
                 </p>
-                <div className="text-sm text-muted-foreground">
-                  💡 Tip: Each node type has a different color to help you organize your workflow
-                </div>
-              </div>
-            </Panel>
-          )}
-
-          {/* Validation Results Panel */}
-          {validationResult && !validationResult.valid && (
-            <Panel position="bottom-right">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 shadow-lg max-w-sm">
-                <h4 className="text-sm font-semibold text-red-800 mb-2">Validation Errors</h4>
-                <div className="space-y-1">
-                  {validationResult.errors.slice(0, 3).map((error, index) => (
-                    <div key={index} className="text-xs text-red-600">
-                      {error.stepId && `[${error.stepId}] `}
-                      {error.message}
-                    </div>
-                  ))}
-                  {validationResult.errors.length > 3 && (
-                    <div className="text-xs text-red-600">
-                      ...and {validationResult.errors.length - 3} more errors
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Panel>
-          )}
-        </ReactFlow>
-      </div>
-
-      {/* Load Workflow Modal */}
-      <ModalLayout
-        isOpen={isLoadModalOpen}
-        onClose={() => setIsLoadModalOpen(false)}
-        title="Load Workflow"
-        size="lg"
-      >
-        <div className="space-y-4">
-          {availableWorkflows.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Upload className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No saved workflows found</p>
-              <p className="text-sm mt-2">Create and save workflows to see them here</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground mb-4">
-                Select a workflow to load into the builder:
-              </p>
-              {availableWorkflows.map((workflow) => (
-                <div
-                  key={workflow.id}
-                  className="border border-border rounded-lg p-4 hover:bg-muted cursor-pointer transition-colors"
-                  onClick={() => handleWorkflowSelect(workflow)}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h3 className="font-medium">{workflow.name}</h3>
-                      {workflow.description && (
-                        <p className="text-sm text-muted-foreground mt-1">{workflow.description}</p>
-                      )}
-                      <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                        <span>{workflow.definition?.steps?.length || 0} steps</span>
-                        <span>Updated {new Date(workflow.updatedAt).toLocaleDateString()}</span>
+                {availableWorkflows.map((workflow) => (
+                  <div
+                    key={workflow.id}
+                    className="border border-border rounded-lg p-4 hover:bg-muted cursor-pointer transition-colors"
+                    onClick={() => handleWorkflowSelect(workflow)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-medium">{workflow.name}</h3>
+                        {workflow.description && (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {workflow.description}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                          <span>{workflow.definition?.steps?.length || 0} steps</span>
+                          <span>Updated {new Date(workflow.updatedAt).toLocaleDateString()}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </ModalLayout>
+                ))}
+              </div>
+            )}
+          </div>
+        </ModalLayout>
 
-      {/* Workflow Library Modal */}
-      <WorkflowLibraryModal
-        isOpen={isLibraryModalOpen}
-        onClose={() => setIsLibraryModalOpen(false)}
-        onSelectWorkflow={(workflow) => {
-          loadWorkflow(workflow)
-          console.log('Workflow loaded from library:', workflow.name)
-        }}
-        title="Workflow Library"
-        subtitle="Browse, load, and manage your saved workflows"
-      />
-    </div>
+        {/* Workflow Library Modal */}
+        <WorkflowLibraryModal
+          isOpen={isLibraryModalOpen}
+          onClose={() => setIsLibraryModalOpen(false)}
+          onSelectWorkflow={(workflow) => {
+            loadWorkflow(workflow)
+            console.log('Workflow loaded from library:', workflow.name)
+          }}
+          title="Workflow Library"
+          subtitle="Browse, load, and manage your saved workflows"
+        />
+
+        {/* Provider Configuration Modal */}
+        <ProviderSelectionModal />
+      </div>
+    </ConfigModalProvider>
   )
 }
