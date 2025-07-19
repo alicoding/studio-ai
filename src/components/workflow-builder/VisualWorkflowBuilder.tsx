@@ -922,7 +922,6 @@ export default function VisualWorkflowBuilder({
           onDragOver={onDragOver}
           onPaneClick={handlePaneClick}
           onMove={handleViewportChange}
-          onNodeClick={handlePaneClick}
           snapToGrid={true}
           snapGrid={[20, 20]}
           connectionRadius={100}
@@ -940,7 +939,7 @@ export default function VisualWorkflowBuilder({
           selectionMode={SelectionMode.Partial}
           multiSelectionKeyCode={['Meta', 'Control']}
           selectNodesOnDrag={false}
-          selectionKeyCode={null}
+          selectionKeyCode={['Shift']}
           elementsSelectable={true}
           deleteKeyCode={null}
           panOnDrag={[1, 2]}
