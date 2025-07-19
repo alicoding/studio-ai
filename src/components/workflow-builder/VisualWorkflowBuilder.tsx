@@ -399,9 +399,12 @@ export default function VisualWorkflowBuilder({
   // React Flow canvas ref for focus management
   const reactFlowRef = useRef<HTMLDivElement>(null)
 
-  // Use React Flow hooks for UI interactions only
-  const [displayNodes, setDisplayNodes, onNodesChangeOriginal] = useNodesState(nodes)
-  const [displayEdges, setDisplayEdges, onEdgesChange] = useEdgesState(edges)
+  // Use React Flow hooks for UI interactions only - initialized once, then managed by React Flow
+  const [displayNodes, setDisplayNodes, onNodesChangeOriginal] = useNodesState([])
+  const [displayEdges, setDisplayEdges, onEdgesChange] = useEdgesState([])
+
+  // Track if we've initialized the nodes to prevent race conditions
+  const [nodesInitialized, setNodesInitialized] = useState(false)
 
   // Node position update timers to debounce position changes
   const nodePositionTimersRef = useRef<Record<string, NodeJS.Timeout>>({})
@@ -448,11 +451,96 @@ export default function VisualWorkflowBuilder({
     [onNodesChangeOriginal, removeStep, setSelectedSteps, updateNodePosition]
   )
 
-  // Sync store changes to display (only when structure changes, not positions)
+  // Reset initialization when workflow changes completely (new workflow loaded)
+  const workflowIdRef = useRef<string | null>(null)
   useEffect(() => {
-    setDisplayNodes(nodes)
-    setDisplayEdges(edges)
-  }, [nodes, edges, setDisplayNodes, setDisplayEdges])
+    const currentWorkflowId =
+      workflow?.name || workflow?.id || workflow?.steps?.length?.toString() || null
+    if (currentWorkflowId !== workflowIdRef.current) {
+      console.log('[VisualWorkflowBuilder] New workflow detected, resetting initialization')
+      workflowIdRef.current = currentWorkflowId
+      setNodesInitialized(false)
+    }
+  }, [workflow])
+
+  // Initialize nodes only once when workflow loads, then let React Flow manage positions
+  useEffect(() => {
+    if (workflow && workflow.steps.length > 0 && !nodesInitialized) {
+      console.log('[VisualWorkflowBuilder] Initial node setup with stored positions')
+      setDisplayNodes(nodes)
+      setDisplayEdges(edges)
+      setNodesInitialized(true)
+    }
+  }, [workflow, nodes, edges, setDisplayNodes, setDisplayEdges, nodesInitialized])
+
+  // Handle structural changes (add/remove nodes) without affecting positions
+  useEffect(() => {
+    if (workflow && nodesInitialized) {
+      const currentNodeIds = displayNodes.map((n) => n.id).sort()
+      const newNodeIds = workflow.steps.map((s) => s.id).sort()
+
+      // Only update if there are structural changes (different node IDs)
+      if (JSON.stringify(currentNodeIds) !== JSON.stringify(newNodeIds)) {
+        console.log('[VisualWorkflowBuilder] Structural change detected, updating nodes')
+        // Preserve current positions from React Flow state
+        const currentPositions = displayNodes.reduce(
+          (acc, node) => {
+            acc[node.id] = node.position
+            return acc
+          },
+          {} as Record<string, { x: number; y: number }>
+        )
+
+        // Create new nodes with preserved positions where possible
+        const updatedNodes = stepsToNodes(workflow.steps, currentPositions).map((node) => {
+          // Add visual feedback for connection interactions (preserve existing logic)
+          const isConnectionTarget =
+            connectionInProgress.nodeId !== null &&
+            connectionInProgress.nodeId !== node.id &&
+            isValidConnection({
+              source: connectionInProgress.nodeId,
+              target: node.id,
+              sourceHandle: connectionInProgress.handleId,
+              targetHandle: null,
+            } as Connection)
+
+          const isHovered = hoveredNodeId === node.id
+
+          return {
+            ...node,
+            selected: selectedStepIds.includes(node.id),
+            className: `
+              ${node.className || ''}
+              ${isConnectionTarget ? 'connection-target-highlight' : ''}
+              ${isHovered ? 'connection-hovered' : ''}
+            `.trim(),
+            style: {
+              ...node.style,
+              ...(isConnectionTarget && {
+                boxShadow: '0 0 0 2px #3b82f6, 0 0 20px rgba(59, 130, 246, 0.3)',
+                transform: 'scale(1.02)',
+                transition: 'all 0.2s ease-in-out',
+              }),
+            },
+          }
+        })
+
+        setDisplayNodes(updatedNodes)
+        setDisplayEdges(edges)
+      }
+    }
+  }, [
+    workflow,
+    nodesInitialized,
+    displayNodes,
+    edges,
+    connectionInProgress,
+    hoveredNodeId,
+    isValidConnection,
+    selectedStepIds,
+    setDisplayNodes,
+    setDisplayEdges,
+  ])
 
   // Keyboard event handlers for canvas focus and shortcuts
   const handleKeyDown = useCallback(
