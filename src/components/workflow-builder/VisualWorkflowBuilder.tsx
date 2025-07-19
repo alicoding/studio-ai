@@ -28,8 +28,46 @@ import ReactFlow, {
   ReactFlowInstance,
   OnMove,
   Viewport,
+  OnConnectStart,
+  OnConnectEnd,
+  HandleType,
+  IsValidConnection,
+  ConnectionLineType,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+
+// CSS for connection animations and visual feedback
+const connectionStyles = `
+  @keyframes dash {
+    to {
+      stroke-dashoffset: -10;
+    }
+  }
+  
+  .connection-target-highlight {
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.6));
+  }
+  
+  .connection-hovered {
+    filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.8));
+  }
+  
+  .react-flow__connection-line {
+    stroke: #3b82f6 !important;
+    stroke-width: 3 !important;
+    stroke-dasharray: 5,5 !important;
+    animation: dash 1s linear infinite !important;
+  }
+  
+  .react-flow__handle {
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .react-flow__handle:hover {
+    transform: scale(1.2);
+    filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.8));
+  }
+`
 
 import { Button } from '@/components/ui/button'
 import { ModalLayout } from '@/components/ui/modal-layout'
@@ -167,6 +205,16 @@ export default function VisualWorkflowBuilder({
   projectId,
   onSaveSuccess,
 }: VisualWorkflowBuilderProps) {
+  // Inject connection styles
+  useEffect(() => {
+    const styleElement = document.createElement('style')
+    styleElement.textContent = connectionStyles
+    document.head.appendChild(styleElement)
+
+    return () => {
+      document.head.removeChild(styleElement)
+    }
+  }, [])
   // Use store state instead of local state
   const {
     workflow,
@@ -205,8 +253,41 @@ export default function VisualWorkflowBuilder({
   // Track if we've done initial viewport setup to prevent loops
   const [isViewportInitialized, setIsViewportInitialized] = useState(false)
 
+  // Connection interaction state for visual feedback
+  const [connectionInProgress, setConnectionInProgress] = useState<{
+    nodeId: string | null
+    handleType: HandleType | null
+    handleId: string | null
+  }>({ nodeId: null, handleType: null, handleId: null })
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null)
+
   // Debounce timer ref for viewport updates
   const viewportTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Connection validation - prevent invalid connections
+  const isValidConnection: IsValidConnection = useCallback(
+    (connection) => {
+      // Prevent self-connections
+      if (connection.source === connection.target) {
+        return false
+      }
+
+      // Prevent duplicate connections
+      const targetStep = workflow?.steps.find((s) => s.id === connection.target)
+      if (targetStep?.deps?.includes(connection.source || '')) {
+        return false
+      }
+
+      // Prevent circular dependencies (basic check)
+      const sourceStep = workflow?.steps.find((s) => s.id === connection.source)
+      if (sourceStep?.deps?.includes(connection.target || '')) {
+        return false
+      }
+
+      return true
+    },
+    [workflow?.steps]
+  )
 
   // Handle viewport changes and save to store with debouncing
   const handleViewportChange: OnMove = useCallback(
@@ -266,16 +347,52 @@ export default function VisualWorkflowBuilder({
   // Library modal state
   const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false)
 
-  // Convert store workflow to React Flow format with selection state
+  // Convert store workflow to React Flow format with selection state and connection highlights
   const nodes = useMemo(() => {
     if (!workflow) return []
     console.log('[VisualWorkflowBuilder] Creating nodes with positions:', nodePositions)
     console.log('[VisualWorkflowBuilder] Workflow steps:', workflow.steps)
-    return stepsToNodes(workflow.steps, nodePositions).map((node) => ({
-      ...node,
-      selected: selectedStepIds.includes(node.id),
-    }))
-  }, [workflow, selectedStepIds, nodePositions])
+    return stepsToNodes(workflow.steps, nodePositions).map((node) => {
+      // Add visual feedback for connection interactions
+      const isConnectionTarget =
+        connectionInProgress.nodeId !== null &&
+        connectionInProgress.nodeId !== node.id &&
+        isValidConnection({
+          source: connectionInProgress.nodeId,
+          target: node.id,
+          sourceHandle: connectionInProgress.handleId,
+          targetHandle: null,
+        } as Connection)
+
+      const isHovered = hoveredNodeId === node.id
+
+      return {
+        ...node,
+        selected: selectedStepIds.includes(node.id),
+        // Add CSS classes for visual feedback
+        className: `
+          ${node.className || ''}
+          ${isConnectionTarget ? 'connection-target-highlight' : ''}
+          ${isHovered ? 'connection-hovered' : ''}
+        `.trim(),
+        style: {
+          ...node.style,
+          ...(isConnectionTarget && {
+            boxShadow: '0 0 0 2px #3b82f6, 0 0 20px rgba(59, 130, 246, 0.3)',
+            transform: 'scale(1.02)',
+            transition: 'all 0.2s ease-in-out',
+          }),
+        },
+      }
+    })
+  }, [
+    workflow,
+    selectedStepIds,
+    nodePositions,
+    connectionInProgress,
+    hoveredNodeId,
+    isValidConnection,
+  ])
 
   const edges = useMemo(() => (workflow ? stepsToEdges(workflow.steps) : []), [workflow])
 
@@ -422,6 +539,19 @@ export default function VisualWorkflowBuilder({
 
   // Remove automatic initialization - this should be handled by the route wrapper
   // to prevent conflicts with persistence and rehydration
+
+  // Connection start handler - track connection state for visual feedback
+  const onConnectStart: OnConnectStart = useCallback((_event, { nodeId, handleType, handleId }) => {
+    setConnectionInProgress({ nodeId, handleType, handleId })
+    console.log('[Connection] Started from:', { nodeId, handleType, handleId })
+  }, [])
+
+  // Connection end handler - reset connection state
+  const onConnectEnd: OnConnectEnd = useCallback(() => {
+    setConnectionInProgress({ nodeId: null, handleType: null, handleId: null })
+    setHoveredNodeId(null)
+    console.log('[Connection] Ended, reset state')
+  }, [])
 
   const onConnect = useCallback(
     (params: Connection | Edge) => {
@@ -699,10 +829,28 @@ export default function VisualWorkflowBuilder({
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onConnectStart={onConnectStart}
+          onConnectEnd={onConnectEnd}
+          isValidConnection={isValidConnection}
+          connectionLineType={ConnectionLineType.SmoothStep}
+          connectionLineStyle={{
+            stroke: '#3b82f6',
+            strokeWidth: 3,
+            strokeDasharray: '5,5',
+            animation: 'dash 1s linear infinite',
+          }}
           onDrop={onDrop}
           onDragOver={onDragOver}
           onPaneClick={handlePaneClick}
           onMove={handleViewportChange}
+          onNodeMouseEnter={(_, node) => {
+            if (connectionInProgress.nodeId && connectionInProgress.nodeId !== node.id) {
+              setHoveredNodeId(node.id)
+            }
+          }}
+          onNodeMouseLeave={() => {
+            setHoveredNodeId(null)
+          }}
           nodeTypes={nodeTypes}
           fitView={!viewport}
           defaultViewport={viewport || undefined}
