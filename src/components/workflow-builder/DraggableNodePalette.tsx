@@ -94,6 +94,42 @@ const controlNodes: NodeTypeConfig[] = [
   },
 ]
 
+// AI Provider Configuration Nodes - Separate nodes that can be connected to AI Task nodes
+const configNodes: NodeTypeConfig[] = [
+  {
+    type: 'OpenAIConfig',
+    label: 'OpenAI Config',
+    icon: <Code2 className="w-4 h-4" />,
+    color: 'bg-green-500',
+    description: 'OpenAI API configuration',
+    category: 'control',
+  },
+  {
+    type: 'AnthropicConfig',
+    label: 'Anthropic Config',
+    icon: <Brain className="w-4 h-4" />,
+    color: 'bg-orange-500',
+    description: 'Anthropic Claude configuration',
+    category: 'control',
+  },
+  {
+    type: 'AzureConfig',
+    label: 'Azure OpenAI Config',
+    icon: <Server className="w-4 h-4" />,
+    color: 'bg-blue-500',
+    description: 'Azure OpenAI configuration',
+    category: 'control',
+  },
+  {
+    type: 'GoogleConfig',
+    label: 'Google AI Config',
+    icon: <Zap className="w-4 h-4" />,
+    color: 'bg-purple-500',
+    description: 'Google Gemini configuration',
+    category: 'control',
+  },
+]
+
 const onDragStart = (event: React.DragEvent, nodeType: string) => {
   event.dataTransfer.setData('application/reactflow', nodeType)
   event.dataTransfer.effectAllowed = 'move'
@@ -173,6 +209,34 @@ export default function DraggableNodePalette() {
                     ? 'conditional-node-template'
                     : `${nodeType.type.toLowerCase()}-node-template`
                 }
+              >
+                <div className={`${nodeType.color} p-2 rounded-md text-white`}>{nodeType.icon}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium group-hover:text-foreground">
+                    {nodeType.label}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {nodeType.description}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* AI Provider Configuration Nodes Section */}
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            AI Provider Configuration
+          </h4>
+          <div className="space-y-2">
+            {configNodes.map((nodeType) => (
+              <div
+                key={nodeType.type}
+                draggable
+                onDragStart={(e) => onDragStart(e, nodeType.type)}
+                className="flex items-center gap-3 p-3 border border-border rounded-lg bg-background hover:bg-muted cursor-grab active:cursor-grabbing transition-colors group"
+                data-testid={`${nodeType.type.toLowerCase()}-node-template`}
               >
                 <div className={`${nodeType.color} p-2 rounded-md text-white`}>{nodeType.icon}</div>
                 <div className="flex-1 min-w-0">

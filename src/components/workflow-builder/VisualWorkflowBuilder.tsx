@@ -54,6 +54,7 @@ import LoopNode from './nodes/LoopNode'
 import ParallelNode from './nodes/ParallelNode'
 import HumanNode from './nodes/HumanNode'
 import AINode from './nodes/AIEvaluationNode'
+import OpenAIConfigNode from './nodes/OpenAIConfigNode'
 import DraggableNodePalette from './DraggableNodePalette'
 import WorkflowLibraryModal from './WorkflowLibraryModal'
 
@@ -68,6 +69,11 @@ const nodeTypes: NodeTypes = {
   parallel: ParallelNode,
   human: HumanNode,
   aiEvaluation: AINode,
+  // AI Provider Configuration Nodes
+  OpenAIConfig: OpenAIConfigNode,
+  AnthropicConfig: OpenAIConfigNode, // TODO: Create separate components
+  AzureConfig: OpenAIConfigNode, // TODO: Create separate components
+  GoogleConfig: OpenAIConfigNode, // TODO: Create separate components
 }
 
 const edgeTypes = {
