@@ -209,28 +209,15 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
             </div>
 
             {/* Provider selection */}
-            <div className="space-y-1">
+            <div className="space-y-1 nodrag nopan">
               <Label className="text-xs font-medium">AI Provider</Label>
               <Select value={currentProvider} onValueChange={handleProviderChange}>
-                <SelectTrigger
-                  className="text-xs"
-                  onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
-                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                >
+                <SelectTrigger className="text-xs">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent
-                  onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
-                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                >
+                <SelectContent>
                   {Object.entries(AI_PROVIDERS).map(([key, config]) => (
-                    <SelectItem
-                      key={key}
-                      value={key}
-                      className="text-xs"
-                      onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
-                      onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                    >
+                    <SelectItem key={key} value={key} className="text-xs">
                       <div className="flex items-center gap-2">
                         <config.icon className="w-3 h-3" />
                         <span>{config.label}</span>
@@ -242,31 +229,18 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
             </div>
 
             {/* Model selection */}
-            <div className="space-y-1">
+            <div className="space-y-1 nodrag nopan">
               <Label className="text-xs font-medium">Model</Label>
               <Select
                 value={nodeData.model || providerConfig.defaultModels[0]}
                 onValueChange={(model) => handleUpdate({ model })}
               >
-                <SelectTrigger
-                  className="text-xs"
-                  onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
-                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                >
+                <SelectTrigger className="text-xs">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent
-                  onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
-                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                >
+                <SelectContent>
                   {providerConfig.defaultModels.map((model: string) => (
-                    <SelectItem
-                      key={model}
-                      value={model}
-                      className="text-xs"
-                      onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
-                      onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                    >
+                    <SelectItem key={model} value={model} className="text-xs">
                       {model}
                     </SelectItem>
                   ))}
