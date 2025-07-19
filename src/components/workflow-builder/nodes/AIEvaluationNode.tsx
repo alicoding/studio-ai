@@ -149,7 +149,7 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
         className={`
           relative bg-card border-2 rounded-lg shadow-sm min-w-[280px] max-w-[380px]
           ${selected ? 'border-primary shadow-md' : 'border-border'}
-          transition-all duration-200 nodrag nowheel
+          transition-all duration-200
         `}
       >
         {/* Input handle */}
