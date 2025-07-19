@@ -942,7 +942,7 @@ export default function VisualWorkflowBuilder({
           selectNodesOnDrag={false}
           selectionKeyCode={null}
           elementsSelectable={true}
-          deleteKeyCode={['Backspace', 'Delete']}
+          deleteKeyCode={null}
           panOnDrag={[1, 2]}
           nodesDraggable={true}
           selectionOnDrag={true}

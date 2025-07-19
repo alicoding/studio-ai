@@ -130,7 +130,7 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
     <TooltipProvider>
       <div
         className={`
-          relative bg-card border-2 rounded-lg shadow-sm min-w-[300px] max-w-[450px]
+          relative bg-card border-2 rounded-lg shadow-sm min-w-[280px] max-w-[380px]
           ${selected ? 'border-primary shadow-md' : 'border-border'}
           transition-all duration-200
         `}
