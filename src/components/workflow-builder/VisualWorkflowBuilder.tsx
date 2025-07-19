@@ -645,10 +645,27 @@ export default function VisualWorkflowBuilder({
           }
         }
       }
-      // Also update display for immediate feedback
-      setDisplayEdges((eds) => addEdge(params, eds))
+      // Also update display for immediate feedback with our custom edge type
+      const customEdge: Edge = {
+        id: `${params.source}-${params.target}`,
+        source: params.source!,
+        target: params.target!,
+        type: 'deletable',
+        data: { onDelete: handleCustomEdgeDelete },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 20,
+          height: 20,
+          color: '#64748b',
+        },
+        style: {
+          stroke: '#64748b',
+          strokeWidth: 3,
+        },
+      }
+      setDisplayEdges((eds) => addEdge(customEdge, eds))
     },
-    [setDependencies, setDisplayEdges, workflow?.steps, updateStep]
+    [setDependencies, setDisplayEdges, workflow?.steps, updateStep, handleCustomEdgeDelete]
   )
 
   const onDragOver = useCallback((event: React.DragEvent) => {
