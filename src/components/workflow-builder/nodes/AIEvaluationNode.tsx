@@ -64,28 +64,32 @@ const AI_PROVIDERS = {
     label: 'OpenAI',
     description: 'GPT models - Fast and cost-effective',
     icon: Bot,
-    color: 'bg-green-500',
+    colorClass: 'bg-green-500',
+    colorHex: '#10b981',
     defaultModels: ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo'],
   },
   anthropic: {
     label: 'Anthropic',
     description: 'Claude models - Advanced reasoning',
     icon: Brain,
-    color: 'bg-orange-500',
+    colorClass: 'bg-orange-500',
+    colorHex: '#f97316',
     defaultModels: ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'],
   },
   azure: {
     label: 'Azure OpenAI',
     description: 'Enterprise OpenAI via Azure',
     icon: Bot,
-    color: 'bg-blue-500',
+    colorClass: 'bg-blue-500',
+    colorHex: '#3b82f6',
     defaultModels: ['gpt-4', 'gpt-35-turbo'],
   },
   google: {
     label: 'Google AI',
     description: 'Gemini models - Multimodal capabilities',
     icon: Sparkles,
-    color: 'bg-purple-500',
+    colorClass: 'bg-purple-500',
+    colorHex: '#8b5cf6',
     defaultModels: ['gemini-pro', 'gemini-pro-vision'],
   },
 } as const
@@ -143,7 +147,7 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
         className={`
           relative bg-card border-2 rounded-lg shadow-sm min-w-[280px] max-w-[380px]
           ${selected ? 'border-primary shadow-md' : 'border-border'}
-          transition-all duration-200
+          transition-all duration-200 nodrag nowheel
         `}
       >
         {/* Input handle */}
@@ -151,13 +155,13 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
           type="target"
           position={Position.Left}
           className="w-3 h-3 border-2 border-background"
-          style={{ background: providerConfig.color.replace('bg-', '#') }}
+          style={{ background: providerConfig.colorHex }}
         />
 
         {/* Header */}
         <div className="flex items-center justify-between p-3 bg-muted/30 rounded-t-lg border-b">
           <div className="flex items-center gap-2">
-            <div className={`${providerConfig.color} p-1.5 rounded-md text-white`}>
+            <div className={`${providerConfig.colorClass} p-1.5 rounded-md text-white`}>
               <providerConfig.icon className="w-4 h-4" />
             </div>
             <div>
@@ -395,7 +399,7 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
           type="source"
           position={Position.Right}
           className="w-3 h-3 border-2 border-background"
-          style={{ background: providerConfig.color.replace('bg-', '#') }}
+          style={{ background: providerConfig.colorHex }}
         />
       </div>
     </TooltipProvider>
