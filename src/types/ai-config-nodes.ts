@@ -212,12 +212,12 @@ export interface ConnectionTestResult {
   testedAt: string
 }
 
-// Updated AI Task Node data to reference config nodes
+// Updated AI Task Node data with n8n-style multiple connections
 export interface AITaskNodeData {
   label: string
   task: string
   systemPrompt?: string
-  configNodeId?: string // Reference to configuration node
+  // No configNodeId - connections handle this
   model?: string
   temperature?: number
   maxTokens?: number
@@ -225,4 +225,24 @@ export interface AITaskNodeData {
   frequencyPenalty?: number
   presencePenalty?: number
   // Task-specific parameters only (no provider config)
+}
+
+// n8n-style connection types for AI nodes
+export interface AINodeConnectionTypes {
+  // Data flow (left/right)
+  input: 'workflow-data'
+  output: 'workflow-data'
+  // Configuration connections (bottom)
+  provider: 'ai-provider-config'
+  memory?: 'memory-config' // Future: RAG, conversation memory
+  tools?: 'tools-config' // Future: Function calling, tools
+}
+
+// Handle positions for n8n-style layout
+export interface AINodeHandles {
+  input: { type: 'target'; position: 'Left' }
+  output: { type: 'source'; position: 'Right' }
+  provider: { type: 'target'; position: 'Bottom'; style: { left: '25%' } }
+  memory?: { type: 'target'; position: 'Bottom'; style: { left: '50%' } }
+  tools?: { type: 'target'; position: 'Bottom'; style: { left: '75%' } }
 }

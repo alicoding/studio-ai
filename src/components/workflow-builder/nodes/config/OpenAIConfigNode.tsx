@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import BaseConfigNode from './BaseConfigNode'
+import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
 import type {
   AIConfigNodeData,
   OpenAIProviderConfig,
@@ -43,6 +44,7 @@ const OPENAI_METADATA: ProviderMetadata = {
 
 export default function OpenAIConfigNode({ id, data, selected }: NodeProps<AIConfigNodeData>) {
   const [showApiKey, setShowApiKey] = useState(false)
+  const { updateConfigNode } = useWorkflowBuilderStore()
 
   // Cast data to OpenAI config type
   const config = data as OpenAIProviderConfig
@@ -50,8 +52,8 @@ export default function OpenAIConfigNode({ id, data, selected }: NodeProps<AICon
 
   // Handle settings updates
   const handleUpdateConfig = (updates: Partial<AIConfigNodeData>) => {
-    // TODO: Update via workflow builder store
-    console.log('Update config:', updates)
+    // Cast to the expected type for the store
+    updateConfigNode(id, updates as Partial<OpenAIProviderConfig>)
   }
 
   const handleUpdateSettings = (settingUpdates: Partial<OpenAIProviderConfig['settings']>) => {

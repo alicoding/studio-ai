@@ -24,13 +24,6 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
@@ -135,14 +128,6 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
     updateStep(id, updates)
   }
 
-  const handleProviderChange = (provider: AIProvider) => {
-    // Reset model when provider changes
-    handleUpdate({
-      provider,
-      model: AI_PROVIDERS[provider].defaultModels[0],
-    })
-  }
-
   return (
     <TooltipProvider>
       <div
@@ -152,12 +137,26 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
           transition-all duration-200
         `}
       >
-        {/* Input handle */}
+        {/* Data Input handle - Left */}
         <Handle
           type="target"
           position={Position.Left}
+          id="data-input"
           className="w-3 h-3 border-2 border-background"
-          style={{ background: providerConfig.colorHex }}
+          style={{ background: '#64748b' }}
+        />
+
+        {/* Provider Config handle - Bottom Left */}
+        <Handle
+          type="target"
+          position={Position.Bottom}
+          id="provider-config"
+          className="w-3 h-3 border-2 border-background"
+          style={{
+            background: providerConfig.colorHex,
+            left: '25%',
+            transform: 'translateX(-50%)',
+          }}
         />
 
         {/* Header */}
@@ -256,44 +255,29 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
               </div>
             </div>
 
-            {/* Provider selection */}
-            <div className="space-y-1 nodrag nopan">
-              <Label className="text-xs font-medium">AI Provider</Label>
-              <Select value={currentProvider} onValueChange={handleProviderChange}>
-                <SelectTrigger className="text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(AI_PROVIDERS).map(([key, config]) => (
-                    <SelectItem key={key} value={key} className="text-xs">
-                      <div className="flex items-center gap-2">
-                        <config.icon className="w-3 h-3" />
-                        <span>{config.label}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Provider Connection Status */}
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">AI Provider Connection</Label>
+              <div className="p-2 bg-muted/50 rounded border text-xs">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                  Connect an AI Provider Configuration node to the bottom-left handle
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  Drag from a Provider Config node (OpenAI, Anthropic, etc.) to configure this AI
+                  task
+                </div>
+              </div>
             </div>
 
-            {/* Model selection */}
-            <div className="space-y-1 nodrag nopan">
+            {/* Model Selection */}
+            <div className="space-y-1">
               <Label className="text-xs font-medium">Model</Label>
-              <Select
-                value={nodeData.model || providerConfig.defaultModels[0]}
-                onValueChange={(model) => handleUpdate({ model })}
-              >
-                <SelectTrigger className="text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {providerConfig.defaultModels.map((model: string) => (
-                    <SelectItem key={model} value={model} className="text-xs">
-                      {model}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="p-2 bg-muted/50 rounded border text-xs">
+                <div className="text-muted-foreground">
+                  Model will be available after connecting a Provider Configuration
+                </div>
+              </div>
             </div>
 
             {/* System prompt */}
@@ -442,12 +426,13 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
           </div>
         )}
 
-        {/* Output handle */}
+        {/* Data Output handle - Right */}
         <Handle
           type="source"
           position={Position.Right}
+          id="data-output"
           className="w-3 h-3 border-2 border-background"
-          style={{ background: providerConfig.colorHex }}
+          style={{ background: '#64748b' }}
         />
       </div>
     </TooltipProvider>
