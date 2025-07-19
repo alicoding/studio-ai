@@ -212,12 +212,25 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
             <div className="space-y-1">
               <Label className="text-xs font-medium">AI Provider</Label>
               <Select value={currentProvider} onValueChange={handleProviderChange}>
-                <SelectTrigger className="text-xs">
+                <SelectTrigger
+                  className="text-xs"
+                  onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                >
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent
+                  onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                >
                   {Object.entries(AI_PROVIDERS).map(([key, config]) => (
-                    <SelectItem key={key} value={key} className="text-xs">
+                    <SelectItem
+                      key={key}
+                      value={key}
+                      className="text-xs"
+                      onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+                      onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                    >
                       <div className="flex items-center gap-2">
                         <config.icon className="w-3 h-3" />
                         <span>{config.label}</span>
@@ -235,12 +248,25 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
                 value={nodeData.model || providerConfig.defaultModels[0]}
                 onValueChange={(model) => handleUpdate({ model })}
               >
-                <SelectTrigger className="text-xs">
+                <SelectTrigger
+                  className="text-xs"
+                  onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                >
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent
+                  onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                >
                   {providerConfig.defaultModels.map((model: string) => (
-                    <SelectItem key={model} value={model} className="text-xs">
+                    <SelectItem
+                      key={model}
+                      value={model}
+                      className="text-xs"
+                      onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+                      onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                    >
                       {model}
                     </SelectItem>
                   ))}
