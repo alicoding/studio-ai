@@ -17,6 +17,7 @@ import type {
   WorkflowValidationResult,
   WorkflowExecutionResponse,
 } from '../../web/server/schemas/workflow-builder'
+import type { AIProviderConfig } from '@/types/ai-config-nodes'
 
 // UI-specific state that extends the core workflow definition
 interface WorkflowBuilderState {
@@ -33,6 +34,9 @@ interface WorkflowBuilderState {
 
   // Saved workflow tracking for update vs create
   savedWorkflowDatabaseId: string | null // Database UUID of the saved workflow record
+
+  // AI Provider Configuration Nodes
+  configNodes: Record<string, AIProviderConfig> // Store config nodes by ID
 
   // UI state
   selectedStepId: string | null // Currently selected step
@@ -71,6 +75,13 @@ interface WorkflowBuilderState {
   removeStep: (id: string) => void
   reorderSteps: (fromIndex: number, toIndex: number) => void
   setDependencies: (stepId: string, deps: string[]) => void
+
+  // Config node management
+  addConfigNode: (config: AIProviderConfig) => void
+  updateConfigNode: (id: string, updates: Partial<AIProviderConfig>) => void
+  removeConfigNode: (id: string) => void
+  getConfigNode: (id: string) => AIProviderConfig | null
+  getConfigNodesByProvider: (provider: string) => AIProviderConfig[]
 
   // UI state management
   setSelectedStep: (stepId: string | null) => void
@@ -169,6 +180,9 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>()(
 
         // Saved workflow tracking
         savedWorkflowDatabaseId: null,
+
+        // AI Provider Configuration Nodes
+        configNodes: {},
 
         selectedStepId: null,
         selectedStepIds: [],
@@ -481,6 +495,53 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>()(
 
         setDependencies: (stepId, deps) => {
           get().updateStep(stepId, { deps })
+        },
+
+        // Config node management
+        addConfigNode: (config) => {
+          set((state) => ({
+            configNodes: {
+              ...state.configNodes,
+              [config.id]: config,
+            },
+            isDirty: true,
+          }))
+        },
+
+        updateConfigNode: (id, updates) => {
+          const state = get()
+          if (!state.configNodes[id]) return
+          const updatedConfig = {
+            ...state.configNodes[id],
+            ...updates,
+            updatedAt: new Date().toISOString(),
+          } as AIProviderConfig
+          set({
+            configNodes: {
+              ...state.configNodes,
+              [id]: updatedConfig,
+            },
+            isDirty: true,
+          })
+        },
+
+        removeConfigNode: (id) => {
+          const state = get()
+          const newConfigNodes = { ...state.configNodes }
+          delete newConfigNodes[id]
+          set({
+            configNodes: newConfigNodes,
+            isDirty: true,
+          })
+        },
+
+        getConfigNode: (id) => {
+          return get().configNodes[id] || null
+        },
+
+        getConfigNodesByProvider: (provider) => {
+          const { configNodes } = get()
+          return Object.values(configNodes).filter((node) => node.provider === provider)
         },
 
         // UI state management
