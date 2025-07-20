@@ -379,8 +379,20 @@ export default function VisualWorkflowBuilder({
   // Handle keyboard shortcuts with direct event handling (more reliable than useKeyPress)
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
-      // Prevent shortcuts when typing in inputs
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      // Prevent shortcuts when typing in inputs, textareas, or selects
+      const activeElement = document.activeElement
+
+      // Simple but robust check for input fields
+      if (
+        // Check if actively focused element is an input
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement instanceof HTMLSelectElement ||
+        // Check if we're inside a no-drag container (our form areas) with proper type checking
+        (activeElement instanceof Element &&
+          activeElement.closest('[data-no-drag="true"]') !== null)
+      ) {
+        // Skip all keyboard shortcuts when user is typing in input fields
         return
       }
 
