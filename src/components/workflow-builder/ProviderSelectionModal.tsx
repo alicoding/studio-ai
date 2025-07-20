@@ -154,8 +154,14 @@ export default function ProviderSelectionModal() {
     }))
   }
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      closeModal()
+    }
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={closeModal}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         {configStep === 'selection' ? (
           <>

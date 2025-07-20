@@ -34,10 +34,21 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
-import { useConfigModal, type ProviderConfig } from '../ConfigModalContext'
+import { useCanvasModalsContext } from '../contexts/CanvasModalsContext'
 
 // Supported AI providers following n8n AI node patterns
 type AIProvider = 'openai' | 'anthropic' | 'azure' | 'google'
+
+// Provider configuration interface
+interface ProviderConfig {
+  type: 'openai' | 'anthropic' | 'azure' | 'google'
+  apiKey?: string
+  model: string
+  temperature?: number
+  maxTokens?: number
+  baseUrl?: string
+  organizationId?: string
+}
 
 interface AINodeData {
   label: string
@@ -103,25 +114,29 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [debugMode, setDebugMode] = useState(false)
   const { updateStep, getStep } = useWorkflowBuilderStore()
-  const { openProviderModal } = useConfigModal()
+  const { openProviderModal, openMemoryModal, openToolsModal } = useCanvasModalsContext()
 
-  // Click handlers for plus buttons - prevent node dragging
+  // Click handlers for plus buttons - open modals for node selection
   const handleProviderClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    console.log('Provider clicked for node:', id, 'with config:', nodeData.providerConfig)
-    openProviderModal(id, nodeData.providerConfig)
+    e.preventDefault()
+    console.log('🎯 Provider + button clicked for node:', id)
+    openProviderModal(id)
+    console.log('📱 Provider modal should be opening...')
   }
 
   const handleToolsClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    // TODO: Open tools selection modal
-    console.log('Tools configuration clicked for node:', id)
+    e.preventDefault()
+    console.log('🛠️ Tools + button clicked for node:', id)
+    openToolsModal(id)
   }
 
   const handleMemoryClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    // TODO: Open memory selection modal
-    console.log('Memory configuration clicked for node:', id)
+    e.preventDefault()
+    console.log('🧠 Memory + button clicked for node:', id)
+    openMemoryModal(id)
   }
 
   // Get current step data from store to ensure reactivity
@@ -462,36 +477,6 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
           </div>
         )}
 
-        {/* Plus buttons section - n8n style at bottom edge */}
-        <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-background border border-border rounded-full px-2 py-1 shadow-sm">
-          <button
-            type="button"
-            onClick={handleProviderClick}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
-          >
-            <span className="text-sm">+</span>
-            Provider
-          </button>
-          <div className="w-px h-4 bg-border" />
-          <button
-            type="button"
-            onClick={handleToolsClick}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
-          >
-            <span className="text-sm">+</span>
-            Tools
-          </button>
-          <div className="w-px h-4 bg-border" />
-          <button
-            type="button"
-            onClick={handleMemoryClick}
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors"
-          >
-            <span className="text-sm">+</span>
-            Memory
-          </button>
-        </div>
-
         {/* Status summary when collapsed */}
         {!isExpanded && (
           <div className="p-3">
@@ -510,6 +495,72 @@ export default function AINode({ id, data, selected }: NodeProps<AINodeData>) {
             )}
           </div>
         )}
+
+        {/* Component input handles with + buttons - Bottom (n8n style) */}
+        <div className="absolute -bottom-3 left-0 w-full flex justify-around">
+          {/* Provider Handle with + Button */}
+          <div className="relative">
+            <Handle
+              type="target"
+              position={Position.Bottom}
+              id="provider"
+              className="w-4 h-4 border-2 border-background cursor-pointer"
+              style={{
+                background: '#10b981', // green for provider
+                position: 'relative',
+              }}
+            />
+            <button
+              onClick={handleProviderClick}
+              className="absolute -top-1 -left-1 w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold hover:bg-green-600 transition-colors"
+              style={{ pointerEvents: 'auto', zIndex: 10 }}
+            >
+              +
+            </button>
+          </div>
+
+          {/* Memory Handle with + Button */}
+          <div className="relative">
+            <Handle
+              type="target"
+              position={Position.Bottom}
+              id="memory"
+              className="w-4 h-4 border-2 border-background cursor-pointer"
+              style={{
+                background: '#8b5cf6', // purple for memory
+                position: 'relative',
+              }}
+            />
+            <button
+              onClick={handleMemoryClick}
+              className="absolute -top-1 -left-1 w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold hover:bg-purple-600 transition-colors"
+              style={{ pointerEvents: 'auto', zIndex: 10 }}
+            >
+              +
+            </button>
+          </div>
+
+          {/* Tools Handle with + Button */}
+          <div className="relative">
+            <Handle
+              type="target"
+              position={Position.Bottom}
+              id="tools"
+              className="w-4 h-4 border-2 border-background cursor-pointer"
+              style={{
+                background: '#f97316', // orange for tools
+                position: 'relative',
+              }}
+            />
+            <button
+              onClick={handleToolsClick}
+              className="absolute -top-1 -left-1 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold hover:bg-orange-600 transition-colors"
+              style={{ pointerEvents: 'auto', zIndex: 10 }}
+            >
+              +
+            </button>
+          </div>
+        </div>
 
         {/* Data Output handle - Right */}
         <Handle

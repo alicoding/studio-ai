@@ -54,10 +54,12 @@ import LoopNode from './nodes/LoopNode'
 import ParallelNode from './nodes/ParallelNode'
 import HumanNode from './nodes/HumanNode'
 import AINode from './nodes/AIEvaluationNode'
+import ProviderNode from './nodes/ProviderNode'
 import DraggableNodePalette from './DraggableNodePalette'
 import WorkflowLibraryModal from './WorkflowLibraryModal'
-import { ConfigModalProvider } from './ConfigModalContext'
-import ProviderSelectionModal from './ProviderSelectionModal'
+import ProviderSelectionModal from './modals/ProviderSelectionModal'
+import { useCanvasModals } from './hooks/useCanvasModals'
+import { CanvasModalsProvider } from './contexts/CanvasModalsContext'
 
 // Custom edge types
 import DeletableEdge from './edges/DeletableEdge'
@@ -70,6 +72,7 @@ const nodeTypes: NodeTypes = {
   parallel: ParallelNode,
   human: HumanNode,
   aiEvaluation: AINode,
+  provider: ProviderNode,
 }
 
 const edgeTypes = {
@@ -235,6 +238,9 @@ export default function VisualWorkflowBuilder({
 
   // Track if we've done initial viewport setup to prevent loops
   const [isViewportInitialized, setIsViewportInitialized] = useState(false)
+
+  // Canvas modals for node creation
+  const canvasModals = useCanvasModals()
 
   // Removed connection state - let React Flow handle everything
 
@@ -804,8 +810,110 @@ export default function VisualWorkflowBuilder({
     console.log('Workflow loaded:', selectedWorkflow.definition.name)
   }
 
+  // Handle provider node creation
+  const handleProviderSelect = (providerType: string) => {
+    console.log('🎯 handleProviderSelect called with:', providerType)
+    console.log('📊 Modal state:', canvasModals.modalState)
+
+    const targetNodeId = canvasModals.modalState.targetNodeId
+    if (!targetNodeId) {
+      console.error('❌ No targetNodeId in modal state')
+      return
+    }
+
+    console.log('🔍 Looking for target node:', targetNodeId)
+
+    // Get target node position - try multiple approaches
+    let targetPosition = { x: 200, y: 200 } // fallback position
+
+    // Try React Flow instance first
+    if (rfInstance) {
+      const targetNode = rfInstance.getNode(targetNodeId)
+      if (targetNode) {
+        targetPosition = { x: targetNode.position.x, y: targetNode.position.y + 150 }
+        console.log('✅ Found target node in React Flow:', targetNode.position)
+      } else {
+        console.warn('⚠️ Target node not found in React Flow instance')
+      }
+    }
+
+    // Fallback: try displayNodes
+    if (!rfInstance || !rfInstance.getNode(targetNodeId)) {
+      const targetNode = displayNodes.find((node) => node.id === targetNodeId)
+      if (targetNode) {
+        targetPosition = { x: targetNode.position.x, y: targetNode.position.y + 150 }
+        console.log('✅ Found target node in displayNodes:', targetNode.position)
+      } else {
+        console.warn('⚠️ Target node not found in displayNodes, using fallback position')
+      }
+    }
+
+    // Create provider node ID
+    const providerNodeId = `provider-${Date.now()}`
+    console.log('🆕 Creating provider node:', providerNodeId)
+
+    // First, add to workflow store as a task step (provider info stored in task description)
+    addStep({
+      id: providerNodeId,
+      type: 'task',
+      task: `Configure ${providerType} AI provider connection`,
+      role: 'provider',
+    })
+
+    // Create provider node for React Flow display
+    const newProviderNode = {
+      id: providerNodeId,
+      type: 'provider',
+      position: targetPosition,
+      data: {
+        label: 'AI Provider',
+        providerType: providerType,
+      },
+    }
+
+    // Create edge connecting provider to AI node
+    const edgeId = `${providerNodeId}-${targetNodeId}`
+    const newEdge = {
+      id: edgeId,
+      source: providerNodeId,
+      sourceHandle: 'output',
+      target: targetNodeId,
+      targetHandle: 'provider',
+      type: 'deletable',
+      data: { onDelete: handleCustomEdgeDelete },
+      style: { stroke: '#10b981', strokeWidth: 2 },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 20,
+        height: 20,
+        color: '#10b981',
+      },
+    }
+
+    // Update React Flow display immediately
+    setDisplayNodes((nodes) => [...nodes, newProviderNode])
+    setDisplayEdges((edges) => [...edges, newEdge])
+
+    // Store the position for persistence
+    updateNodePosition(providerNodeId, targetPosition)
+
+    console.log('✅ Provider node created successfully:', {
+      nodeId: providerNodeId,
+      providerType,
+      position: targetPosition,
+      edgeId,
+    })
+  }
+
+  const canvasModalContextValue = {
+    openProviderModal: canvasModals.openProviderModal,
+    openMemoryModal: canvasModals.openMemoryModal,
+    openToolsModal: canvasModals.openToolsModal,
+    closeAllModals: canvasModals.closeAllModals,
+  }
+
   return (
-    <ConfigModalProvider>
+    <CanvasModalsProvider value={canvasModalContextValue}>
       <div
         data-testid="workflow-builder"
         className="fixed inset-0 z-50 w-full h-screen bg-background text-foreground"
@@ -1089,8 +1197,12 @@ export default function VisualWorkflowBuilder({
         />
 
         {/* Provider Configuration Modal */}
-        <ProviderSelectionModal />
+        <ProviderSelectionModal
+          isOpen={canvasModals.modalState.isProviderModalOpen}
+          onClose={canvasModals.closeAllModals}
+          onProviderSelect={handleProviderSelect}
+        />
       </div>
-    </ConfigModalProvider>
+    </CanvasModalsProvider>
   )
 }
