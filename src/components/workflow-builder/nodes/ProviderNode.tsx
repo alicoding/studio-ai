@@ -173,11 +173,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
           className="p-3 space-y-3"
           data-no-drag="true"
           onMouseDown={(e) => e.stopPropagation()}
-          onMouseDownCapture={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onPointerDownCapture={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
-          onFocus={(e) => e.stopPropagation()}
           style={{ pointerEvents: 'auto', userSelect: 'text' }}
         >
           {/* Provider Selection */}
@@ -189,9 +185,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
                 handleProviderChange(e.target.value as 'openai' | 'anthropic' | 'azure' | 'google')
               }
               className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              onFocus={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
               style={{ pointerEvents: 'auto', userSelect: 'text' }}
             >
               {Object.entries(AI_PROVIDERS).map(([key, provider]) => (
@@ -209,9 +203,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
               value={config.model}
               onChange={(e) => handleConfigUpdate({ model: e.target.value })}
               className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              onFocus={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
               style={{ pointerEvents: 'auto', userSelect: 'text' }}
             >
               {providerConfig.defaultModels.map((model) => (
@@ -233,9 +225,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
               placeholder="Enter API key (optional)"
               value={config.apiKey || ''}
               onChange={(e) => handleConfigUpdate({ apiKey: e.target.value })}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              onFocus={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
               className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ pointerEvents: 'auto', userSelect: 'text' }}
             />
@@ -253,9 +243,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
               onChange={(e) =>
                 handleConfigUpdate({ temperature: parseFloat(e.target.value) || 0.7 })
               }
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              onFocus={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
               className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ pointerEvents: 'auto', userSelect: 'text' }}
             />
@@ -270,9 +258,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
               max="4000"
               value={config.maxTokens || 1000}
               onChange={(e) => handleConfigUpdate({ maxTokens: parseInt(e.target.value) || 1000 })}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              onFocus={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
               className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ pointerEvents: 'auto', userSelect: 'text' }}
             />
@@ -286,9 +272,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
               placeholder="https://api.openai.com/v1"
               value={config.baseUrl || ''}
               onChange={(e) => handleConfigUpdate({ baseUrl: e.target.value })}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              onFocus={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
               className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ pointerEvents: 'auto', userSelect: 'text' }}
             />
