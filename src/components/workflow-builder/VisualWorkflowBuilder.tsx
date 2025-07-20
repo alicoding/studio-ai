@@ -1067,6 +1067,7 @@ export default function VisualWorkflowBuilder({
             panOnScrollMode={PanOnScrollMode.Free}
             zoomOnDoubleClick={false}
             preventScrolling={false}
+            nodeDragThreshold={10}
           >
             <Controls className="bg-card border-border" />
             <MiniMap

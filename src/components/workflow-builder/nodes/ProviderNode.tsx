@@ -12,14 +12,8 @@ import { Bot, Brain, Sparkles, Key, ChevronDown, ChevronRight } from 'lucide-rea
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+// Removed Input component due to event handling issues in React Flow nodes
+// Removed Select components due to portal rendering issues in React Flow nodes
 import { useWorkflowBuilderStore } from '@/stores/workflowBuilder'
 import type { WorkflowStepDefinition } from '../../../../web/server/schemas/workflow-builder'
 
@@ -177,41 +171,63 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
       {isExpanded && (
         <div
           className="p-3 space-y-3"
+          data-no-drag="true"
           onMouseDown={(e) => e.stopPropagation()}
+          onMouseDownCapture={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerDownCapture={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
+          onFocus={(e) => e.stopPropagation()}
+          style={{ pointerEvents: 'auto', userSelect: 'text' }}
         >
           {/* Provider Selection */}
           <div className="space-y-1">
             <Label className="text-xs font-medium">Provider Type</Label>
-            <Select value={currentProvider} onValueChange={handleProviderChange}>
-              <SelectTrigger className="text-xs h-8" onMouseDown={(e) => e.stopPropagation()}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(AI_PROVIDERS).map(([key, provider]) => (
-                  <SelectItem key={key} value={key} className="text-xs">
-                    {provider.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <select
+              value={currentProvider}
+              onChange={(e) =>
+                handleProviderChange(e.target.value as 'openai' | 'anthropic' | 'azure' | 'google')
+              }
+              className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseDownCapture={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDownCapture={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onFocus={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              style={{ pointerEvents: 'auto', userSelect: 'text' }}
+            >
+              {Object.entries(AI_PROVIDERS).map(([key, provider]) => (
+                <option key={key} value={key}>
+                  {provider.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Model Selection */}
           <div className="space-y-1">
             <Label className="text-xs font-medium">Model</Label>
-            <Select value={config.model} onValueChange={(model) => handleConfigUpdate({ model })}>
-              <SelectTrigger className="text-xs h-8" onMouseDown={(e) => e.stopPropagation()}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {providerConfig.defaultModels.map((model) => (
-                  <SelectItem key={model} value={model} className="text-xs">
-                    {model}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <select
+              value={config.model}
+              onChange={(e) => handleConfigUpdate({ model: e.target.value })}
+              className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseDownCapture={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDownCapture={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onFocus={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              style={{ pointerEvents: 'auto', userSelect: 'text' }}
+            >
+              {providerConfig.defaultModels.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* API Key */}
@@ -220,20 +236,27 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
               <Key className="w-3 h-3" />
               API Key
             </Label>
-            <Input
+            <input
               type="password"
               placeholder="Enter API key (optional)"
               value={config.apiKey || ''}
               onChange={(e) => handleConfigUpdate({ apiKey: e.target.value })}
               onMouseDown={(e) => e.stopPropagation()}
-              className="text-xs h-8"
+              onMouseDownCapture={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDownCapture={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onFocus={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ pointerEvents: 'auto', userSelect: 'text' }}
             />
           </div>
 
           {/* Temperature */}
           <div className="space-y-1">
             <Label className="text-xs font-medium">Temperature ({config.temperature})</Label>
-            <Input
+            <input
               type="number"
               min="0"
               max="2"
@@ -243,34 +266,55 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
                 handleConfigUpdate({ temperature: parseFloat(e.target.value) || 0.7 })
               }
               onMouseDown={(e) => e.stopPropagation()}
-              className="text-xs h-8"
+              onMouseDownCapture={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDownCapture={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onFocus={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ pointerEvents: 'auto', userSelect: 'text' }}
             />
           </div>
 
           {/* Max Tokens */}
           <div className="space-y-1">
             <Label className="text-xs font-medium">Max Tokens</Label>
-            <Input
+            <input
               type="number"
               min="1"
               max="4000"
               value={config.maxTokens || 1000}
               onChange={(e) => handleConfigUpdate({ maxTokens: parseInt(e.target.value) || 1000 })}
               onMouseDown={(e) => e.stopPropagation()}
-              className="text-xs h-8"
+              onMouseDownCapture={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDownCapture={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onFocus={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ pointerEvents: 'auto', userSelect: 'text' }}
             />
           </div>
 
           {/* Base URL (optional) */}
           <div className="space-y-1">
             <Label className="text-xs font-medium">Base URL (Optional)</Label>
-            <Input
+            <input
               type="url"
               placeholder="https://api.openai.com/v1"
               value={config.baseUrl || ''}
               onChange={(e) => handleConfigUpdate({ baseUrl: e.target.value })}
               onMouseDown={(e) => e.stopPropagation()}
-              className="text-xs h-8"
+              onMouseDownCapture={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDownCapture={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              onFocus={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ pointerEvents: 'auto', userSelect: 'text' }}
             />
           </div>
         </div>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Input Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .input-test {
+            margin: 10px 0;
+        }
+        .input-test label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-test input, .input-test select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .input-test input:focus, .input-test select:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+        }
+        .react-flow-style {
+            pointer-events: auto;
+            user-select: text;
+            border: 1px solid #d4d4d8;
+            background: #ffffff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        .react-flow-style:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <h1>Input Debug Test</h1>
+    
+    <div class="test-container">
+        <h2>Standard HTML Inputs (Control Test)</h2>
+        
+        <div class="input-test">
+            <label>Text Input:</label>
+            <input type="text" placeholder="Type here to test..." />
+        </div>
+        
+        <div class="input-test">
+            <label>Password Input:</label>
+            <input type="password" placeholder="Password..." />
+        </div>
+        
+        <div class="input-test">
+            <label>Number Input:</label>
+            <input type="number" min="0" max="2" step="0.1" value="0.7" />
+        </div>
+        
+        <div class="input-test">
+            <label>URL Input:</label>
+            <input type="url" placeholder="https://api.openai.com/v1" />
+        </div>
+        
+        <div class="input-test">
+            <label>Select Dropdown:</label>
+            <select>
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="azure">Azure OpenAI</option>
+                <option value="google">Google AI</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="test-container">
+        <h2>React Flow Styled Inputs (With Event Handling)</h2>
+        
+        <div class="input-test">
+            <label>Text Input (React Flow Style):</label>
+            <input 
+                type="text" 
+                placeholder="Type here to test..."
+                class="react-flow-style"
+                onmousedown="event.stopPropagation()"
+                onpointerdown="event.stopPropagation()"
+                onclick="event.stopPropagation()"
+                onfocus="event.stopPropagation()"
+                onkeydown="event.stopPropagation()"
+            />
+        </div>
+        
+        <div class="input-test">
+            <label>Password Input (React Flow Style):</label>
+            <input 
+                type="password" 
+                placeholder="Password..."
+                class="react-flow-style"
+                onmousedown="event.stopPropagation()"
+                onpointerdown="event.stopPropagation()"
+                onclick="event.stopPropagation()"
+                onfocus="event.stopPropagation()"
+                onkeydown="event.stopPropagation()"
+            />
+        </div>
+        
+        <div class="input-test">
+            <label>Number Input (React Flow Style):</label>
+            <input 
+                type="number" 
+                min="0" 
+                max="2" 
+                step="0.1" 
+                value="0.7"
+                class="react-flow-style"
+                onmousedown="event.stopPropagation()"
+                onpointerdown="event.stopPropagation()"
+                onclick="event.stopPropagation()"
+                onfocus="event.stopPropagation()"
+                onkeydown="event.stopPropagation()"
+            />
+        </div>
+        
+        <div class="input-test">
+            <label>Select Dropdown (React Flow Style):</label>
+            <select 
+                class="react-flow-style"
+                onmousedown="event.stopPropagation()"
+                onpointerdown="event.stopPropagation()"
+                onclick="event.stopPropagation()"
+                onfocus="event.stopPropagation()"
+                onkeydown="event.stopPropagation()"
+            >
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic</option>
+                <option value="azure">Azure OpenAI</option>
+                <option value="google">Google AI</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="test-container">
+        <h2>Test Instructions</h2>
+        <ol>
+            <li><strong>Test Standard Inputs:</strong> Click and type in the control inputs above - they should work normally</li>
+            <li><strong>Test React Flow Style Inputs:</strong> Click and type in the styled inputs - these simulate the ProviderNode styling</li>
+            <li><strong>Check Focus Behavior:</strong> Inputs should visually focus (blue outline) when clicked</li>
+            <li><strong>Check Keyboard Input:</strong> All keyboard input should work in all fields</li>
+            <li><strong>Check Selection:</strong> Text selection should work normally</li>
+        </ol>
+        
+        <h3>Expected Results:</h3>
+        <ul>
+            <li>All inputs should accept keyboard input</li>
+            <li>Clicking should focus the input field</li>
+            <li>Text selection should work</li>
+            <li>Tab navigation should work</li>
+        </ul>
+    </div>
+    
+    <script>
+        // Test event handling
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Test page loaded. Try clicking and typing in the input fields.');
+            
+            // Add event listeners to detect if events are being blocked
+            const inputs = document.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.addEventListener('focus', function() {
+                    console.log('Input focused:', this.type, this.placeholder || this.tagName);
+                });
+                
+                input.addEventListener('input', function() {
+                    console.log('Input changed:', this.value);
+                });
+                
+                input.addEventListener('keydown', function(e) {
+                    console.log('Key pressed:', e.key, 'in', this.type || this.tagName);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
