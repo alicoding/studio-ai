@@ -19,18 +19,18 @@ function KeyRecorder({ isRecording, currentKeys, onRecord, onCancel }: KeyRecord
 
   const formatKeys = useCallback((keys: string[]): string => {
     if (keys.length === 0) return ''
-    
+
     // Sort modifier keys first
     const modifierOrder = ['Meta', 'Control', 'Alt', 'Shift']
-    const modifiers = keys.filter(key => modifierOrder.includes(key))
-    const nonModifiers = keys.filter(key => !modifierOrder.includes(key))
-    
+    const modifiers = keys.filter((key) => modifierOrder.includes(key))
+    const nonModifiers = keys.filter((key) => !modifierOrder.includes(key))
+
     // Sort modifiers by our preferred order
     modifiers.sort((a, b) => modifierOrder.indexOf(a) - modifierOrder.indexOf(b))
-    
+
     // Replace Meta with Cmd for better UX
-    const formattedModifiers = modifiers.map(key => key === 'Meta' ? 'Cmd' : key)
-    
+    const formattedModifiers = modifiers.map((key) => (key === 'Meta' ? 'Cmd' : key))
+
     return [...formattedModifiers, ...nonModifiers].join('+')
   }, [])
 
@@ -41,17 +41,34 @@ function KeyRecorder({ isRecording, currentKeys, onRecord, onCancel }: KeyRecord
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Only capture if not in an input field or if recording shortcuts
+      const target = e.target
+      if (!target || !(target instanceof HTMLElement)) return
+
+      const isInInputField =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.contentEditable === 'true' ||
+        target.closest('[data-no-drag="true"]') !== null ||
+        target.closest('.react-flow__node') !== null
+
+      // Don't capture if we're in an input field and not recording shortcuts
+      if (isInInputField && !isRecording) {
+        return
+      }
+
       e.preventDefault()
       e.stopPropagation()
 
       const keys = new Set<string>()
-      
+
       // Add modifiers
       if (e.metaKey) keys.add('Meta')
       if (e.ctrlKey) keys.add('Control')
       if (e.altKey) keys.add('Alt')
       if (e.shiftKey) keys.add('Shift')
-      
+
       // Add the main key (not a modifier)
       if (!['Meta', 'Control', 'Alt', 'Shift'].includes(e.key)) {
         // Convert special keys to readable format
@@ -62,7 +79,7 @@ function KeyRecorder({ isRecording, currentKeys, onRecord, onCancel }: KeyRecord
         if (mainKey === 'Backspace') mainKey = 'Backspace'
         if (mainKey === 'Delete') mainKey = 'Delete'
         if (mainKey.startsWith('Arrow')) mainKey = mainKey.replace('Arrow', '')
-        
+
         keys.add(mainKey)
       }
 
@@ -70,7 +87,7 @@ function KeyRecorder({ isRecording, currentKeys, onRecord, onCancel }: KeyRecord
       setRecordedKeys(keyArray)
 
       // Auto-complete recording if we have a non-modifier key
-      if (keyArray.some(key => !['Meta', 'Control', 'Alt', 'Shift'].includes(key))) {
+      if (keyArray.some((key) => !['Meta', 'Control', 'Alt', 'Shift'].includes(key))) {
         const formatted = formatKeys(keyArray)
         setTimeout(() => {
           onRecord(formatted)
@@ -79,6 +96,23 @@ function KeyRecorder({ isRecording, currentKeys, onRecord, onCancel }: KeyRecord
     }
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      // Only capture if not in an input field or if recording shortcuts
+      const target = e.target
+      if (!target || !(target instanceof HTMLElement)) return
+
+      const isInInputField =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.contentEditable === 'true' ||
+        target.closest('[data-no-drag="true"]') !== null ||
+        target.closest('.react-flow__node') !== null
+
+      // Don't capture if we're in an input field and not recording shortcuts
+      if (isInInputField && !isRecording) {
+        return
+      }
+
       e.preventDefault()
       e.stopPropagation()
     }
@@ -143,18 +177,21 @@ export function KeyboardShortcutsTab() {
     toast.success('Keyboard shortcuts saved!')
   }
 
-  const groupedShortcuts = shortcuts.reduce((acc, shortcut) => {
-    if (!acc[shortcut.category]) {
-      acc[shortcut.category] = []
-    }
-    acc[shortcut.category].push(shortcut)
-    return acc
-  }, {} as Record<string, KeyboardShortcut[]>)
+  const groupedShortcuts = shortcuts.reduce(
+    (acc, shortcut) => {
+      if (!acc[shortcut.category]) {
+        acc[shortcut.category] = []
+      }
+      acc[shortcut.category].push(shortcut)
+      return acc
+    },
+    {} as Record<string, KeyboardShortcut[]>
+  )
 
   const categoryNames = {
     global: 'Global Shortcuts',
-    workspace: 'Workspace Shortcuts', 
-    modal: 'Modal Shortcuts'
+    workspace: 'Workspace Shortcuts',
+    modal: 'Modal Shortcuts',
   }
 
   return (
@@ -167,18 +204,11 @@ export function KeyboardShortcutsTab() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            onClick={handleResetAll}
-            disabled={recordingId !== null}
-          >
+          <Button variant="outline" onClick={handleResetAll} disabled={recordingId !== null}>
             <RotateCcw className="w-4 h-4 mr-2" />
             Reset All
           </Button>
-          <Button 
-            onClick={handleSave}
-            disabled={!hasChanges || recordingId !== null}
-          >
+          <Button onClick={handleSave} disabled={!hasChanges || recordingId !== null}>
             <Save className="w-4 h-4 mr-2" />
             Save Changes
           </Button>
@@ -204,9 +234,7 @@ export function KeyboardShortcutsTab() {
                 <div className="flex items-center justify-between py-3">
                   <div className="flex-1">
                     <div className="font-medium">{shortcut.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {shortcut.description}
-                    </div>
+                    <div className="text-sm text-muted-foreground">{shortcut.description}</div>
                   </div>
                   <div className="flex items-center gap-3">
                     <KeyRecorder
@@ -228,7 +256,9 @@ export function KeyboardShortcutsTab() {
                         size="sm"
                         variant="ghost"
                         onClick={() => handleReset(shortcut.id)}
-                        disabled={recordingId !== null || shortcut.currentKeys === shortcut.defaultKeys}
+                        disabled={
+                          recordingId !== null || shortcut.currentKeys === shortcut.defaultKeys
+                        }
                       >
                         Reset
                       </Button>

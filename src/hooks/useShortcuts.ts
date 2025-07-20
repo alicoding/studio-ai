@@ -18,7 +18,7 @@ function parseShortcut(shortcut: string): {
     ctrlKey: false,
     altKey: false,
     shiftKey: false,
-    key: ''
+    key: '',
   }
 
   for (const part of parts) {
@@ -47,13 +47,13 @@ function parseShortcut(shortcut: string): {
 
 function isShortcutMatch(event: KeyboardEvent, shortcut: string): boolean {
   const parsed = parseShortcut(shortcut)
-  
+
   // Handle special key mappings
   let eventKey = event.key.toLowerCase()
   if (eventKey === ' ') eventKey = 'space'
   if (eventKey === 'enter') eventKey = 'enter'
   if (eventKey === 'escape') eventKey = 'escape'
-  
+
   return (
     event.metaKey === parsed.metaKey &&
     event.ctrlKey === parsed.ctrlKey &&
@@ -72,11 +72,26 @@ export function useShortcuts(handlers: ShortcutHandlers, enabled: boolean = true
 
     const handleKeyDown = (event: KeyboardEvent) => {
       // Don't trigger shortcuts when typing in input elements
-      const target = event.target as HTMLElement
+      const target = event.target as HTMLElement | null
+      if (!target || !(target instanceof HTMLElement)) {
+        return
+      }
+
       if (
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
-        target.contentEditable === 'true'
+        target.tagName === 'SELECT' ||
+        target.contentEditable === 'true' ||
+        // Check if we're inside a form area (workflow node configuration)
+        target.closest('[data-no-drag="true"]') !== null ||
+        // Check if we're inside any React Flow node
+        target.closest('.react-flow__node') !== null ||
+        // Check if target has input-related classes
+        target.classList.contains('form-control') ||
+        target.classList.contains('input') ||
+        // Check for any ancestor with input-related attributes
+        target.closest('[role="textbox"]') !== null ||
+        target.closest('[contenteditable]') !== null
       ) {
         return
       }
@@ -101,14 +116,17 @@ export function useShortcuts(handlers: ShortcutHandlers, enabled: boolean = true
     }
   }, [shortcuts, handlers, enabled])
 
-  const getShortcut = useCallback((id: string): string | undefined => {
-    const shortcut = getShortcutFromStore(id)
-    return shortcut?.currentKeys
-  }, [getShortcutFromStore])
+  const getShortcut = useCallback(
+    (id: string): string | undefined => {
+      const shortcut = getShortcutFromStore(id)
+      return shortcut?.currentKeys
+    },
+    [getShortcutFromStore]
+  )
 
   return {
     shortcuts,
-    getShortcut
+    getShortcut,
   }
 }
 

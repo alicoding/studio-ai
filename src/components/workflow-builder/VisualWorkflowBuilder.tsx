@@ -382,15 +382,26 @@ export default function VisualWorkflowBuilder({
       // Prevent shortcuts when typing in inputs, textareas, or selects
       const activeElement = document.activeElement
 
-      // Simple but robust check for input fields
+      // Enhanced check for input fields and form areas
       if (
         // Check if actively focused element is an input
         activeElement instanceof HTMLInputElement ||
         activeElement instanceof HTMLTextAreaElement ||
         activeElement instanceof HTMLSelectElement ||
-        // Check if we're inside a no-drag container (our form areas) with proper type checking
-        (activeElement instanceof Element &&
-          activeElement.closest('[data-no-drag="true"]') !== null)
+        // Check if we're inside a no-drag container (our form areas)
+        (activeElement instanceof HTMLElement &&
+          (activeElement.closest('[data-no-drag="true"]') !== null ||
+            // Check if we're inside any React Flow node
+            activeElement.closest('.react-flow__node') !== null ||
+            // Check for input-related roles and attributes
+            activeElement.closest('[role="textbox"]') !== null ||
+            activeElement.closest('[contenteditable]') !== null ||
+            // Check for specific input classes
+            activeElement.classList.contains('form-control') ||
+            activeElement.classList.contains('input'))) ||
+        // Check if element itself is editable
+        (activeElement instanceof HTMLElement &&
+          activeElement.getAttribute('contenteditable') === 'true')
       ) {
         // Skip all keyboard shortcuts when user is typing in input fields
         return
