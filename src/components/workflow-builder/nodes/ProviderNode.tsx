@@ -175,12 +175,16 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
 
       {/* Configuration panel */}
       {isExpanded && (
-        <div className="p-3 space-y-3">
+        <div
+          className="p-3 space-y-3"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
           {/* Provider Selection */}
           <div className="space-y-1">
             <Label className="text-xs font-medium">Provider Type</Label>
             <Select value={currentProvider} onValueChange={handleProviderChange}>
-              <SelectTrigger className="text-xs h-8">
+              <SelectTrigger className="text-xs h-8" onMouseDown={(e) => e.stopPropagation()}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -197,7 +201,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
           <div className="space-y-1">
             <Label className="text-xs font-medium">Model</Label>
             <Select value={config.model} onValueChange={(model) => handleConfigUpdate({ model })}>
-              <SelectTrigger className="text-xs h-8">
+              <SelectTrigger className="text-xs h-8" onMouseDown={(e) => e.stopPropagation()}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -221,6 +225,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
               placeholder="Enter API key (optional)"
               value={config.apiKey || ''}
               onChange={(e) => handleConfigUpdate({ apiKey: e.target.value })}
+              onMouseDown={(e) => e.stopPropagation()}
               className="text-xs h-8"
             />
           </div>
@@ -237,6 +242,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
               onChange={(e) =>
                 handleConfigUpdate({ temperature: parseFloat(e.target.value) || 0.7 })
               }
+              onMouseDown={(e) => e.stopPropagation()}
               className="text-xs h-8"
             />
           </div>
@@ -250,6 +256,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
               max="4000"
               value={config.maxTokens || 1000}
               onChange={(e) => handleConfigUpdate({ maxTokens: parseInt(e.target.value) || 1000 })}
+              onMouseDown={(e) => e.stopPropagation()}
               className="text-xs h-8"
             />
           </div>
@@ -262,6 +269,7 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
               placeholder="https://api.openai.com/v1"
               value={config.baseUrl || ''}
               onChange={(e) => handleConfigUpdate({ baseUrl: e.target.value })}
+              onMouseDown={(e) => e.stopPropagation()}
               className="text-xs h-8"
             />
           </div>
