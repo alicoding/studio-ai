@@ -174,9 +174,6 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
           data-no-drag="true"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-          onKeyUp={(e) => e.stopPropagation()}
-          onKeyPress={(e) => e.stopPropagation()}
           style={{ pointerEvents: 'auto', userSelect: 'text' }}
         >
           {/* Provider Selection */}
