@@ -35,7 +35,16 @@ export interface WorkflowDefinition {
  */
 export interface WorkflowStepDefinition {
   id: string // Step ID (e.g., "step1", "design_api")
-  type: 'task' | 'parallel' | 'conditional' | 'loop' | 'human' | 'ai_evaluation' // Step type
+  type:
+    | 'task'
+    | 'parallel'
+    | 'conditional'
+    | 'loop'
+    | 'human'
+    | 'ai_evaluation'
+    | 'provider'
+    | 'memory'
+    | 'tools' // Step type
   agentId?: string // Specific agent ID (e.g., "dev_01")
   role?: string // Or role-based (e.g., "developer")
   task: string // Task description with template vars
@@ -57,6 +66,21 @@ export interface WorkflowStepDefinition {
   timeoutSeconds?: number // Timeout for human input
   // Parallel fields
   parallelSteps?: string[] // IDs of steps to run in parallel
+  // Provider fields (for type: 'provider')
+  providerType?: 'openai' | 'anthropic' | 'azure' | 'google' // AI provider type
+  providerConfig?: {
+    type: 'openai' | 'anthropic' | 'azure' | 'google'
+    apiKey?: string
+    model: string
+    temperature?: number
+    maxTokens?: number
+    baseUrl?: string
+    organizationId?: string
+  } // Provider configuration
+  // Memory fields (for type: 'memory')
+  memoryType?: 'buffer' | 'vector' | 'summary' | 'entity' // Memory type
+  // Tools fields (for type: 'tools')
+  toolsType?: 'function' | 'api' | 'retriever' | 'code' | 'mcp' // Tools type
 }
 
 /**

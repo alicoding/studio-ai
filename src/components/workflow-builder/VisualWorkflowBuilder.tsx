@@ -73,6 +73,8 @@ const nodeTypes: NodeTypes = {
   human: HumanNode,
   aiEvaluation: AINode,
   provider: ProviderNode,
+  memory: WorkflowStepNode, // Placeholder until MemoryNode is created
+  tools: WorkflowStepNode, // Placeholder until ToolsNode is created
 }
 
 const edgeTypes = {
@@ -110,6 +112,15 @@ function stepsToNodes(
       case 'ai_evaluation':
         nodeType = 'aiEvaluation'
         break
+      case 'provider':
+        nodeType = 'provider'
+        break
+      case 'memory':
+        nodeType = 'memory' // Component pending creation
+        break
+      case 'tools':
+        nodeType = 'tools' // Component pending creation
+        break
     }
 
     // Use stored position or calculate default position
@@ -144,6 +155,15 @@ function stepsToNodes(
           approvalRequired: step.approvalRequired,
           timeoutSeconds: step.timeoutSeconds,
         }),
+        ...(step.type === 'provider' && {
+          providerType: step.providerType || 'openai',
+          config: step.providerConfig || {
+            type: 'openai',
+            model: 'gpt-4',
+            temperature: 0.7,
+            maxTokens: 1000,
+          },
+        }),
       },
     }
   })
@@ -159,10 +179,34 @@ function stepsToEdges(
   steps.forEach((step) => {
     if (step.deps && Array.isArray(step.deps)) {
       step.deps.forEach((depId) => {
+        // Find the source step to determine connection type
+        const sourceStep = steps.find((s) => s.id === depId)
+
+        // Determine handles based on step types
+        let sourceHandle: string | undefined = undefined
+        let targetHandle: string | undefined = undefined
+        let edgeColor = '#64748b' // default color
+
+        if (sourceStep?.type === 'provider') {
+          sourceHandle = 'output'
+          targetHandle = 'provider' // Connect to bottom green handle
+          edgeColor = '#10b981' // green color for provider connections
+        } else if (sourceStep?.type === 'memory') {
+          sourceHandle = 'output'
+          targetHandle = 'memory' // Connect to bottom purple handle
+          edgeColor = '#8b5cf6' // purple color for memory connections
+        } else if (sourceStep?.type === 'tools') {
+          sourceHandle = 'output'
+          targetHandle = 'tools' // Connect to bottom orange handle
+          edgeColor = '#f97316' // orange color for tools connections
+        }
+
         edges.push({
           id: `${depId}-${step.id}`,
           source: depId,
           target: step.id,
+          sourceHandle,
+          targetHandle,
           type: 'deletable', // Use our custom deletable edge
           deletable: true,
           focusable: true,
@@ -171,10 +215,10 @@ function stepsToEdges(
             type: MarkerType.ArrowClosed,
             width: 20,
             height: 20,
-            color: '#64748b',
+            color: edgeColor,
           },
           style: {
-            stroke: '#64748b',
+            stroke: edgeColor,
             strokeWidth: 3,
           },
         })
@@ -223,9 +267,7 @@ export default function VisualWorkflowBuilder({
     saveWorkflow,
     fetchSavedWorkflows,
     loadWorkflow,
-    selectAllSteps,
     clearSelection,
-    deleteSelectedSteps,
     setSelectedSteps,
     updateNodePosition,
     updateViewport,
@@ -313,6 +355,54 @@ export default function VisualWorkflowBuilder({
       })
     }
   }, [])
+
+  // Select all steps function
+  const selectAllSteps = useCallback(() => {
+    if (!workflow?.steps) return
+    const allStepIds = workflow.steps.map((step) => step.id)
+    setSelectedSteps(allStepIds)
+  }, [workflow?.steps, setSelectedSteps])
+
+  // Delete selected steps function
+  const deleteSelectedSteps = useCallback(() => {
+    if (selectedStepIds.length === 0) return
+
+    // Remove each selected step
+    selectedStepIds.forEach((stepId) => {
+      removeStep(stepId)
+    })
+
+    // Clear selection after deletion
+    clearSelection()
+  }, [selectedStepIds, removeStep, clearSelection])
+
+  // Handle keyboard shortcuts with direct event handling (more reliable than useKeyPress)
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      // Prevent shortcuts when typing in inputs
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      // Handle Delete/Backspace for node deletion
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        if (selectedStepIds.length > 0) {
+          event.preventDefault()
+          deleteSelectedSteps()
+        }
+      }
+
+      // Handle CMD+A for select all - ensure React Flow doesn't interfere
+      if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
+        if (workflow?.steps.length) {
+          event.preventDefault()
+          event.stopPropagation() // Prevent React Flow from handling this
+          selectAllSteps()
+        }
+      }
+    },
+    [selectedStepIds, deleteSelectedSteps, workflow?.steps, selectAllSteps]
+  )
 
   // Load modal state
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false)
@@ -537,58 +627,8 @@ export default function VisualWorkflowBuilder({
     setDisplayEdges,
   ])
 
-  // Keyboard event handlers for canvas focus and shortcuts
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      // Only handle keyboard events when canvas is focused or no input is focused
-      const activeElement = document.activeElement
-      const isInputFocused =
-        activeElement?.tagName === 'INPUT' ||
-        activeElement?.tagName === 'TEXTAREA' ||
-        (activeElement as HTMLElement)?.contentEditable === 'true'
-
-      if (isInputFocused) return
-
-      // CMD+A / CTRL+A - Select all nodes
-      if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
-        event.preventDefault()
-        selectAllSteps()
-        // Also update React Flow display nodes to show selection
-        setTimeout(() => {
-          setDisplayNodes((nodes) => nodes.map((node) => ({ ...node, selected: true })))
-        }, 0)
-        return
-      }
-
-      // Delete / Backspace - Delete selected nodes
-      if (event.key === 'Delete' || event.key === 'Backspace') {
-        event.preventDefault()
-        if (selectedStepIds.length > 0) {
-          deleteSelectedSteps()
-        }
-        return
-      }
-
-      // Escape - Clear selection
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        clearSelection()
-        // Also clear React Flow visual selection
-        setTimeout(() => {
-          setDisplayNodes((nodes) => nodes.map((node) => ({ ...node, selected: false })))
-        }, 0)
-        return
-      }
-    },
-    [selectAllSteps, deleteSelectedSteps, clearSelection, selectedStepIds, setDisplayNodes]
-  )
-
-  // Canvas click handler for focus management
+  // Canvas click handler for focus management and selection clearing
   const handlePaneClick = useCallback(() => {
-    // Focus the React Flow canvas to enable keyboard shortcuts
-    if (reactFlowRef.current) {
-      reactFlowRef.current.focus()
-    }
     // Clear selection when clicking on empty canvas
     clearSelection()
     // Also clear React Flow visual selection
@@ -596,14 +636,6 @@ export default function VisualWorkflowBuilder({
       setDisplayNodes((nodes) => nodes.map((node) => ({ ...node, selected: false })))
     }, 0)
   }, [clearSelection, setDisplayNodes])
-
-  // Add keyboard event listeners
-  useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [handleKeyDown])
 
   // Workflow initialization is now handled by the routes that open this component
 
@@ -823,6 +855,21 @@ export default function VisualWorkflowBuilder({
 
     console.log('🔍 Looking for target node:', targetNodeId)
 
+    // Check if target AI node already has a provider connection
+    const targetAIStep = workflow?.steps.find((s) => s.id === targetNodeId)
+    if (targetAIStep) {
+      const existingProviderConnection = targetAIStep.deps?.find((depId) => {
+        const depStep = workflow?.steps.find((s) => s.id === depId)
+        return depStep?.type === 'provider'
+      })
+
+      if (existingProviderConnection) {
+        console.warn('⚠️ Target AI node already has a provider connection')
+        canvasModals.closeAllModals()
+        return // Don't create auto-connection, but allow manual node creation
+      }
+    }
+
     // Get target node position - try multiple approaches
     let targetPosition = { x: 200, y: 200 } // fallback position
 
@@ -848,21 +895,41 @@ export default function VisualWorkflowBuilder({
       }
     }
 
-    // Create provider node ID
-    const providerNodeId = `provider-${Date.now()}`
-    console.log('🆕 Creating provider node:', providerNodeId)
+    console.log('🆕 Creating provider node for type:', providerType)
 
-    // First, add to workflow store as a task step (provider info stored in task description)
-    addStep({
-      id: providerNodeId,
-      type: 'task',
-      task: `Configure ${providerType} AI provider connection`,
+    // Validate provider type with explicit checks
+    const typedProviderType =
+      providerType === 'openai' ||
+      providerType === 'anthropic' ||
+      providerType === 'azure' ||
+      providerType === 'google'
+        ? providerType
+        : 'openai' // fallback to openai for invalid types
+
+    // First, add to workflow store as a provider step
+    const generatedStepId = addStep({
+      type: 'provider',
+      task: `Configure ${typedProviderType} AI provider connection`,
       role: 'provider',
+      providerType: typedProviderType,
+      providerConfig: {
+        type: typedProviderType,
+        model:
+          typedProviderType === 'openai'
+            ? 'gpt-4'
+            : typedProviderType === 'anthropic'
+              ? 'claude-3-sonnet'
+              : typedProviderType === 'azure'
+                ? 'gpt-4'
+                : 'gemini-pro',
+        temperature: 0.7,
+        maxTokens: 1000,
+      },
     })
 
     // Create provider node for React Flow display
     const newProviderNode = {
-      id: providerNodeId,
+      id: generatedStepId,
       type: 'provider',
       position: targetPosition,
       data: {
@@ -872,10 +939,10 @@ export default function VisualWorkflowBuilder({
     }
 
     // Create edge connecting provider to AI node
-    const edgeId = `${providerNodeId}-${targetNodeId}`
+    const edgeId = `${generatedStepId}-${targetNodeId}`
     const newEdge = {
       id: edgeId,
-      source: providerNodeId,
+      source: generatedStepId,
       sourceHandle: 'output',
       target: targetNodeId,
       targetHandle: 'provider',
@@ -894,11 +961,18 @@ export default function VisualWorkflowBuilder({
     setDisplayNodes((nodes) => [...nodes, newProviderNode])
     setDisplayEdges((edges) => [...edges, newEdge])
 
+    // CRITICAL: Update target node dependencies in store for persistence
+    const targetStep = workflow?.steps.find((s) => s.id === targetNodeId)
+    if (targetStep) {
+      const newDeps = [...(targetStep.deps || []), generatedStepId]
+      setDependencies(targetNodeId, newDeps)
+    }
+
     // Store the position for persistence
-    updateNodePosition(providerNodeId, targetPosition)
+    updateNodePosition(generatedStepId, targetPosition)
 
     console.log('✅ Provider node created successfully:', {
-      nodeId: providerNodeId,
+      nodeId: generatedStepId,
       providerType,
       position: targetPosition,
       edgeId,
@@ -1026,6 +1100,7 @@ export default function VisualWorkflowBuilder({
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onKeyDown={handleKeyDown}
             isValidConnection={isValidConnection}
             connectionLineType={ConnectionLineType.SmoothStep}
             connectionLineStyle={{
@@ -1054,12 +1129,14 @@ export default function VisualWorkflowBuilder({
             style={{ outline: 'none' }}
             selectionMode={SelectionMode.Partial}
             multiSelectionKeyCode={['Meta', 'Control']}
-            selectNodesOnDrag={false}
+            selectNodesOnDrag={true}
             selectionKeyCode={['Shift']}
             elementsSelectable={true}
-            deleteKeyCode={null}
             panOnDrag={[1, 2]}
             nodesDraggable={true}
+            nodesFocusable={true}
+            edgesFocusable={true}
+            disableKeyboardA11y={false}
             selectionOnDrag={true}
             panOnScroll={true}
             zoomOnScroll={true}
