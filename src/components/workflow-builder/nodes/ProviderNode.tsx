@@ -9,7 +9,7 @@
 
 import { Handle, Position, NodeProps } from 'reactflow'
 import { Bot, Brain, Sparkles, Key, ChevronDown, ChevronRight } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useCallback, useEffect, memo, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 // Removed Input component due to event handling issues in React Flow nodes
@@ -74,43 +74,97 @@ const AI_PROVIDERS = {
   },
 } as const
 
-export default function ProviderNode({ id, data, selected }: NodeProps<ProviderNodeData>) {
+const ProviderNode = memo(function ProviderNode({
+  id,
+  data,
+  selected,
+}: NodeProps<ProviderNodeData>) {
   const [isExpanded, setIsExpanded] = useState(false)
   const { updateStep } = useWorkflowBuilderStore()
 
-  // Default values
-  const defaultNodeData: ProviderNodeData = {
-    label: 'AI Provider',
-    providerType: 'openai',
-    config: {
-      type: 'openai',
-      model: 'gpt-4',
-      temperature: 0.7,
-      maxTokens: 1000,
-    },
-  }
+  // Local state for form inputs to prevent re-renders
+  const [localApiKey, setLocalApiKey] = useState('')
+  const [localTemperature, setLocalTemperature] = useState(0.7)
+  const [localMaxTokens, setLocalMaxTokens] = useState(1000)
+  const [localBaseUrl, setLocalBaseUrl] = useState('')
 
-  // Merge with data prop
-  const nodeData = {
-    ...defaultNodeData,
-    ...(data || {}),
-  }
+  // Merge with data prop (memoized to prevent unnecessary re-renders)
+  const nodeData = useMemo(() => {
+    // Default values
+    const defaultNodeData: ProviderNodeData = {
+      label: 'AI Provider',
+      providerType: 'openai',
+      config: {
+        type: 'openai',
+        model: 'gpt-4',
+        temperature: 0.7,
+        maxTokens: 1000,
+      },
+    }
+
+    return {
+      ...defaultNodeData,
+      ...(data || {}),
+    }
+  }, [data])
 
   const currentProvider = nodeData.providerType || 'openai'
   const providerConfig = AI_PROVIDERS[currentProvider]
-  const config = nodeData.config || defaultNodeData.config!
 
-  // Handle configuration updates
-  const handleConfigUpdate = (updates: Partial<ProviderConfig>) => {
-    const newConfig = { ...config, ...updates }
-    const nodeUpdate: ExtendedStepDefinition = {
-      ...nodeData,
-      config: newConfig,
-    }
+  // Memoize config to prevent dependency changes in useCallback
+  const config = useMemo(() => {
+    return (
+      nodeData.config || {
+        type: 'openai' as const,
+        model: 'gpt-4',
+        temperature: 0.7,
+        maxTokens: 1000,
+        apiKey: undefined,
+        baseUrl: undefined,
+        organizationId: undefined,
+      }
+    )
+  }, [nodeData.config])
 
-    // Type assertion for provider node data
-    updateStep(id, nodeUpdate as unknown as Partial<WorkflowStepDefinition>)
-  }
+  // Initialize local state from config
+  useEffect(() => {
+    setLocalApiKey(config.apiKey || '')
+    setLocalTemperature(config.temperature || 0.7)
+    setLocalMaxTokens(config.maxTokens || 1000)
+    setLocalBaseUrl(config.baseUrl || '')
+  }, [config.apiKey, config.temperature, config.maxTokens, config.baseUrl])
+
+  // Debounced update to prevent re-renders during typing
+  const debouncedUpdateStep = useCallback(
+    (updates: Partial<ProviderConfig>) => {
+      const timeoutId = setTimeout(() => {
+        const newConfig = { ...config, ...updates }
+        const nodeUpdate: ExtendedStepDefinition = {
+          ...nodeData,
+          config: newConfig,
+        }
+        updateStep(id, nodeUpdate as unknown as Partial<WorkflowStepDefinition>)
+      }, 300) // 300ms debounce
+
+      return () => clearTimeout(timeoutId)
+    },
+    [config, nodeData, id, updateStep]
+  )
+
+  // Handle configuration updates with local state
+  const handleConfigUpdate = useCallback(
+    (updates: Partial<ProviderConfig>) => {
+      // Update local state immediately for responsive UI
+      if ('apiKey' in updates) setLocalApiKey(updates.apiKey || '')
+      if ('temperature' in updates) setLocalTemperature(updates.temperature || 0.7)
+      if ('maxTokens' in updates) setLocalMaxTokens(updates.maxTokens || 1000)
+      if ('baseUrl' in updates) setLocalBaseUrl(updates.baseUrl || '')
+
+      // Debounce the actual store update
+      debouncedUpdateStep(updates)
+    },
+    [debouncedUpdateStep]
+  )
 
   const handleProviderChange = (providerType: ProviderConfig['type']) => {
     const newConfig: ProviderConfig = {
@@ -219,9 +273,11 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
               API Key
             </Label>
             <input
+              id={`${id}-api-key`}
+              name="apiKey"
               type="password"
               placeholder="Enter API key (optional)"
-              value={config.apiKey || ''}
+              value={localApiKey}
               onChange={(e) => handleConfigUpdate({ apiKey: e.target.value })}
               className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ pointerEvents: 'auto', userSelect: 'text' }}
@@ -230,13 +286,15 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
 
           {/* Temperature */}
           <div className="space-y-1">
-            <Label className="text-xs font-medium">Temperature ({config.temperature})</Label>
+            <Label className="text-xs font-medium">Temperature ({localTemperature})</Label>
             <input
+              id={`${id}-temperature`}
+              name="temperature"
               type="number"
               min="0"
               max="2"
               step="0.1"
-              value={config.temperature || 0.7}
+              value={localTemperature}
               onChange={(e) =>
                 handleConfigUpdate({ temperature: parseFloat(e.target.value) || 0.7 })
               }
@@ -249,10 +307,12 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
           <div className="space-y-1">
             <Label className="text-xs font-medium">Max Tokens</Label>
             <input
+              id={`${id}-max-tokens`}
+              name="maxTokens"
               type="number"
               min="1"
               max="4000"
-              value={config.maxTokens || 1000}
+              value={localMaxTokens}
               onChange={(e) => handleConfigUpdate({ maxTokens: parseInt(e.target.value) || 1000 })}
               className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ pointerEvents: 'auto', userSelect: 'text' }}
@@ -263,9 +323,11 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
           <div className="space-y-1">
             <Label className="text-xs font-medium">Base URL (Optional)</Label>
             <input
+              id={`${id}-base-url`}
+              name="baseUrl"
               type="url"
               placeholder="https://api.openai.com/v1"
-              value={config.baseUrl || ''}
+              value={localBaseUrl}
               onChange={(e) => handleConfigUpdate({ baseUrl: e.target.value })}
               className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ pointerEvents: 'auto', userSelect: 'text' }}
@@ -298,4 +360,6 @@ export default function ProviderNode({ id, data, selected }: NodeProps<ProviderN
       />
     </div>
   )
-}
+})
+
+export default ProviderNode
