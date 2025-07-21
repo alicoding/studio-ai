@@ -26,6 +26,7 @@ import { WorkflowOperatorNode } from './WorkflowOperatorNode'
 import { WorkflowEdge } from './WorkflowEdge'
 import { WorkflowGraphSettings, type GraphLayoutConfig } from './WorkflowGraphSettings'
 import { WorkflowLayoutEngine } from './WorkflowLayoutEngine'
+import { nodeRegistry } from '../workflow-builder/utils/NodeRegistry'
 import type { WorkflowGraph as WorkflowGraphData } from '../../../web/server/schemas/workflow-graph'
 
 interface WorkflowGraphProps {
@@ -33,6 +34,13 @@ interface WorkflowGraphProps {
   threadId: string
   className?: string
 }
+
+// Edge type registry - SOLID: Single responsibility for edge type management
+const edgeTypeRegistry = new Map<string, typeof WorkflowEdge>([
+  ['dependency', WorkflowEdge],
+  ['loop', WorkflowEdge],
+  ['conditional', WorkflowEdge],
+])
 
 export function WorkflowGraph({ data, threadId, className = '' }: WorkflowGraphProps) {
   // Layout configuration state
@@ -51,24 +59,37 @@ export function WorkflowGraph({ data, threadId, className = '' }: WorkflowGraphP
     enableBackground: true,
   })
 
-  // Define custom node types (memoized to prevent re-creation)
-  const nodeTypes: NodeTypes = useMemo(
-    () => ({
+  // Define custom node types using registry (memoized to prevent re-creation)
+  const nodeTypes: NodeTypes = useMemo(() => {
+    // Get registry-based node types
+    const registryTypes = nodeRegistry.getNodeTypesSync({
+      workflowStep: WorkflowStepNode,
+      conditional: WorkflowStepNode, // Use WorkflowStepNode for compatibility
+      loop: WorkflowStepNode,
+      parallel: WorkflowStepNode,
+      human: WorkflowStepNode,
+      aiEvaluation: WorkflowStepNode,
+      provider: WorkflowStepNode,
+      memory: WorkflowStepNode,
+      tools: WorkflowStepNode,
+    })
+
+    // Merge with legacy types for backward compatibility
+    return {
+      ...registryTypes,
       step: WorkflowStepNode,
       operator: WorkflowOperatorNode,
-    }),
-    []
-  )
+    }
+  }, [])
 
-  // Define custom edge types (memoized to prevent re-creation)
-  const edgeTypes: EdgeTypes = useMemo(
-    () => ({
-      dependency: WorkflowEdge,
-      loop: WorkflowEdge,
-      conditional: WorkflowEdge,
-    }),
-    []
-  )
+  // Define custom edge types using registry (memoized to prevent re-creation)
+  const edgeTypes: EdgeTypes = useMemo(() => {
+    const types: EdgeTypes = {}
+    edgeTypeRegistry.forEach((component, type) => {
+      types[type] = component
+    })
+    return types
+  }, [])
 
   // Debug logging
   console.log('[WorkflowGraph] Received data:', data)
@@ -201,35 +222,29 @@ export function WorkflowGraph({ data, threadId, className = '' }: WorkflowGraphP
   )
 }
 
-// Helper function to get edge color based on type
+// Edge color registry - SOLID: Single responsibility for edge styling
+const edgeColorRegistry = new Map<string, string>([
+  ['dependency', '#6b7280'], // gray-500
+  ['loop', '#f59e0b'], // amber-500
+  ['conditional', '#3b82f6'], // blue-500
+])
+
+// Helper function to get edge color based on type using registry
 function getEdgeColor(type: string): string {
-  switch (type) {
-    case 'dependency':
-      return '#6b7280' // gray-500
-    case 'loop':
-      return '#f59e0b' // amber-500
-    case 'conditional':
-      return '#3b82f6' // blue-500
-    default:
-      return '#6b7280'
-  }
+  return edgeColorRegistry.get(type) ?? '#6b7280' // default gray-500
 }
 
-// Helper function to get node color for minimap
+// Node status color registry - SOLID: Single responsibility for node styling
+const nodeStatusColorRegistry = new Map<string, string>([
+  ['pending', '#6b7280'], // gray-500
+  ['running', '#3b82f6'], // blue-500
+  ['completed', '#10b981'], // emerald-500
+  ['failed', '#ef4444'], // red-500
+  ['blocked', '#f59e0b'], // amber-500
+])
+
+// Helper function to get node color for minimap using registry
 function getNodeColor(node: Node): string {
   const status = node.data?.status
-  switch (status) {
-    case 'pending':
-      return '#6b7280' // gray-500
-    case 'running':
-      return '#3b82f6' // blue-500
-    case 'completed':
-      return '#10b981' // emerald-500
-    case 'failed':
-      return '#ef4444' // red-500
-    case 'blocked':
-      return '#f59e0b' // amber-500
-    default:
-      return '#6b7280'
-  }
+  return nodeStatusColorRegistry.get(status) ?? '#6b7280' // default gray-500
 }
