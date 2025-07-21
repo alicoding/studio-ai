@@ -55,6 +55,8 @@ import ParallelNode from './nodes/ParallelNode'
 import HumanNode from './nodes/HumanNode'
 import AINode from './nodes/AIEvaluationNode'
 import ProviderNode from './nodes/ProviderNode'
+import MemoryNode from './nodes/MemoryNode'
+import ToolsNode from './nodes/ToolsNode'
 import DraggableNodePalette from './DraggableNodePalette'
 import WorkflowLibraryModal from './WorkflowLibraryModal'
 import ProviderSelectionModal from './modals/ProviderSelectionModal'
@@ -73,8 +75,8 @@ const nodeTypes: NodeTypes = {
   human: HumanNode,
   aiEvaluation: AINode,
   provider: ProviderNode,
-  memory: WorkflowStepNode, // Placeholder until MemoryNode is created
-  tools: WorkflowStepNode, // Placeholder until ToolsNode is created
+  memory: MemoryNode,
+  tools: ToolsNode,
 }
 
 const edgeTypes = {

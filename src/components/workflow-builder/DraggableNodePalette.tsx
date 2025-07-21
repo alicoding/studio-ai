@@ -22,6 +22,8 @@ import {
   Users,
   Settings,
   Brain,
+  Database,
+  Wrench,
 } from 'lucide-react'
 import { useAgentConfigs } from '@/hooks/useAgentConfigs'
 
@@ -90,6 +92,22 @@ const controlNodes: NodeTypeConfig[] = [
     icon: <Brain className="w-4 h-4" />,
     color: 'bg-orange-500',
     description: 'Process with AI models',
+    category: 'control',
+  },
+  {
+    type: 'Memory',
+    label: 'Memory',
+    icon: <Database className="w-4 h-4" />,
+    color: 'bg-blue-600',
+    description: 'Store and retrieve context',
+    category: 'control',
+  },
+  {
+    type: 'Tools',
+    label: 'Tools',
+    icon: <Wrench className="w-4 h-4" />,
+    color: 'bg-green-600',
+    description: 'Function calls and integrations',
     category: 'control',
   },
 ]
