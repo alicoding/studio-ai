@@ -19,7 +19,6 @@ import ReactFlow, {
   Connection,
   Edge,
   Node,
-  NodeTypes,
   Panel,
   NodeChange,
   EdgeChange,
@@ -47,7 +46,7 @@ import type {
   WorkflowDefinition,
 } from '../../../web/server/schemas/workflow-builder'
 
-// Custom node types
+// Custom node types - now using dynamic registry pattern
 import WorkflowStepNode from './nodes/WorkflowStepNode'
 import ConditionalNode from './nodes/ConditionalNode'
 import LoopNode from './nodes/LoopNode'
@@ -62,12 +61,13 @@ import WorkflowLibraryModal from './WorkflowLibraryModal'
 import ProviderSelectionModal from './modals/ProviderSelectionModal'
 import { useCanvasModals } from './hooks/useCanvasModals'
 import { CanvasModalsProvider } from './contexts/CanvasModalsContext'
+import { nodeRegistry } from './utils/NodeRegistry'
 
 // Custom edge types
 import DeletableEdge from './edges/DeletableEdge'
 
-// Define nodeTypes and edgeTypes outside component to prevent recreation warnings
-const nodeTypes: NodeTypes = {
+// Generate nodeTypes from registry (extends existing pattern)
+const nodeTypes = nodeRegistry.getNodeTypesSync({
   workflowStep: WorkflowStepNode,
   conditional: ConditionalNode,
   loop: LoopNode,
@@ -77,7 +77,7 @@ const nodeTypes: NodeTypes = {
   provider: ProviderNode,
   memory: MemoryNode,
   tools: ToolsNode,
-}
+})
 
 const edgeTypes = {
   deletable: DeletableEdge,
@@ -96,33 +96,12 @@ function stepsToNodes(
   nodePositions: Record<string, { x: number; y: number }>
 ): Node[] {
   return steps.map((step, index) => {
-    // Map step type to React Flow node type
-    let nodeType = 'workflowStep'
-    switch (step.type) {
-      case 'conditional':
-        nodeType = 'conditional'
-        break
-      case 'loop':
-        nodeType = 'loop'
-        break
-      case 'parallel':
-        nodeType = 'parallel'
-        break
-      case 'human':
-        nodeType = 'human'
-        break
-      case 'ai_evaluation':
-        nodeType = 'aiEvaluation'
-        break
-      case 'provider':
-        nodeType = 'provider'
-        break
-      case 'memory':
-        nodeType = 'memory' // Component pending creation
-        break
-      case 'tools':
-        nodeType = 'tools' // Component pending creation
-        break
+    // Use registry to map step type to React Flow node type (extends existing pattern)
+    let nodeType = nodeRegistry.getNodeType(step.type || 'workflowStep')
+
+    // Handle special case for ai_evaluation -> aiEvaluation mapping
+    if (step.type === 'ai_evaluation') {
+      nodeType = 'aiEvaluation'
     }
 
     // Use stored position or calculate default position
@@ -786,6 +765,20 @@ export default function VisualWorkflowBuilder({
             type: 'ai_evaluation',
             task: 'Process the content: {previous_step.output}',
             role: 'ai',
+          })
+          break
+        case 'Memory':
+          addStep({
+            type: 'memory',
+            task: 'Configure memory storage here...',
+            role: 'memory',
+          })
+          break
+        case 'Tools':
+          addStep({
+            type: 'tools',
+            task: 'Configure tool integration here...',
+            role: 'tools',
           })
           break
         default:

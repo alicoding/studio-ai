@@ -26,6 +26,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import { useAgentConfigs } from '@/hooks/useAgentConfigs'
+import { nodeRegistry } from './utils/NodeRegistry'
 
 interface NodeTypeConfig {
   type: string
@@ -33,7 +34,7 @@ interface NodeTypeConfig {
   icon: React.ReactNode
   color: string
   description: string
-  category: 'task' | 'control'
+  category: 'task' | 'control' | 'config'
 }
 
 // Icon mapping for agent roles
@@ -52,65 +53,108 @@ const getIconForRole = (iconName: string) => {
   return iconMap[iconName] || <User className="w-4 h-4" />
 }
 
-// Control flow nodes - Now with full backend implementation
-const controlNodes: NodeTypeConfig[] = [
-  {
-    type: 'Conditional',
-    label: 'Conditional',
-    icon: <GitBranch className="w-4 h-4" />,
-    color: 'bg-amber-500',
-    description: 'If/else branching logic',
-    category: 'control',
-  },
-  {
-    type: 'Loop',
-    label: 'Loop',
-    icon: <RotateCcw className="w-4 h-4" />,
-    color: 'bg-purple-500',
-    description: 'Repeat steps for each item',
-    category: 'control',
-  },
-  {
-    type: 'Parallel',
-    label: 'Parallel',
-    icon: <Settings className="w-4 h-4" />,
-    color: 'bg-blue-500',
-    description: 'Run multiple steps in parallel',
-    category: 'control',
-  },
-  {
-    type: 'Human',
-    label: 'Human Input',
-    icon: <Users className="w-4 h-4" />,
-    color: 'bg-green-500',
-    description: 'Wait for human approval',
-    category: 'control',
-  },
-  {
-    type: 'AIEvaluation',
-    label: 'AI Task',
-    icon: <Brain className="w-4 h-4" />,
-    color: 'bg-orange-500',
-    description: 'Process with AI models',
-    category: 'control',
-  },
-  {
-    type: 'Memory',
-    label: 'Memory',
-    icon: <Database className="w-4 h-4" />,
-    color: 'bg-blue-600',
-    description: 'Store and retrieve context',
-    category: 'control',
-  },
-  {
-    type: 'Tools',
-    label: 'Tools',
-    icon: <Wrench className="w-4 h-4" />,
-    color: 'bg-green-600',
-    description: 'Function calls and integrations',
-    category: 'control',
-  },
-]
+// Icon and color mapping for registry-generated nodes (extends existing pattern)
+const getNodeDisplayInfo = (type: string) => {
+  const displayMap: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
+    conditional: {
+      icon: <GitBranch className="w-4 h-4" />,
+      color: 'bg-amber-500',
+      label: 'Conditional',
+    },
+    loop: { icon: <RotateCcw className="w-4 h-4" />, color: 'bg-purple-500', label: 'Loop' },
+    parallel: { icon: <Settings className="w-4 h-4" />, color: 'bg-blue-500', label: 'Parallel' },
+    human: { icon: <Users className="w-4 h-4" />, color: 'bg-green-500', label: 'Human Input' },
+    aiEvaluation: { icon: <Brain className="w-4 h-4" />, color: 'bg-orange-500', label: 'AI Task' },
+    memory: { icon: <Database className="w-4 h-4" />, color: 'bg-purple-600', label: 'Memory' },
+    tools: { icon: <Wrench className="w-4 h-4" />, color: 'bg-orange-600', label: 'Tools' },
+  }
+  return (
+    displayMap[type] || {
+      icon: <Settings className="w-4 h-4" />,
+      color: 'bg-gray-500',
+      label: type,
+    }
+  )
+}
+
+// Generate control and config nodes from registry (follows research best practices)
+const getControlNodes = (): NodeTypeConfig[] => {
+  const registeredTypes = nodeRegistry.getRegisteredTypes()
+  return registeredTypes
+    .filter((type) => {
+      // Get category from registry - for now use hardcoded mapping during transition
+      const controlTypes = ['conditional', 'loop', 'parallel', 'human', 'aiEvaluation']
+      return controlTypes.includes(type)
+    })
+    .map((type) => {
+      const displayInfo = getNodeDisplayInfo(type)
+      return {
+        type:
+          type === 'conditional'
+            ? 'Conditional'
+            : type === 'loop'
+              ? 'Loop'
+              : type === 'parallel'
+                ? 'Parallel'
+                : type === 'human'
+                  ? 'Human'
+                  : type === 'aiEvaluation'
+                    ? 'AIEvaluation'
+                    : type,
+        label: displayInfo.label,
+        icon: displayInfo.icon,
+        color: displayInfo.color,
+        description:
+          type === 'conditional'
+            ? 'If/else branching logic'
+            : type === 'loop'
+              ? 'Repeat steps for each item'
+              : type === 'parallel'
+                ? 'Run multiple steps in parallel'
+                : type === 'human'
+                  ? 'Wait for human approval'
+                  : type === 'aiEvaluation'
+                    ? 'Process with AI models'
+                    : 'Node type',
+        category: 'control' as const,
+      }
+    })
+}
+
+const getConfigNodes = (): NodeTypeConfig[] => {
+  const registeredTypes = nodeRegistry.getRegisteredTypes()
+  return registeredTypes
+    .filter((type) => {
+      // Get category from registry - for now use hardcoded mapping during transition
+      const configTypes = ['memory', 'tools', 'provider']
+      return configTypes.includes(type)
+    })
+    .map((type) => {
+      const displayInfo = getNodeDisplayInfo(type)
+      return {
+        type:
+          type === 'memory'
+            ? 'Memory'
+            : type === 'tools'
+              ? 'Tools'
+              : type === 'provider'
+                ? 'Provider'
+                : type,
+        label: displayInfo.label,
+        icon: displayInfo.icon,
+        color: displayInfo.color,
+        description:
+          type === 'memory'
+            ? 'Store and retrieve context'
+            : type === 'tools'
+              ? 'Function calls and integrations'
+              : type === 'provider'
+                ? 'AI provider configuration'
+                : 'Configuration node',
+        category: 'config' as const,
+      }
+    })
+}
 
 const onDragStart = (event: React.DragEvent, nodeType: string) => {
   event.dataTransfer.setData('application/reactflow', nodeType)
@@ -129,6 +173,10 @@ export default function DraggableNodePalette() {
     description: role.description,
     category: 'task' as const,
   }))
+
+  // Generate nodes from registry (follows research best practices)
+  const controlNodes = getControlNodes()
+  const configNodes = getConfigNodes()
 
   return (
     <Panel
@@ -191,6 +239,34 @@ export default function DraggableNodePalette() {
                     ? 'conditional-node-template'
                     : `${nodeType.type.toLowerCase()}-node-template`
                 }
+              >
+                <div className={`${nodeType.color} p-2 rounded-md text-white`}>{nodeType.icon}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium group-hover:text-foreground">
+                    {nodeType.label}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {nodeType.description}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Configuration Nodes Section */}
+        <div>
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            Configuration
+          </h4>
+          <div className="space-y-2">
+            {configNodes.map((nodeType) => (
+              <div
+                key={nodeType.type}
+                draggable
+                onDragStart={(e) => onDragStart(e, nodeType.type)}
+                className="flex items-center gap-3 p-3 border border-border rounded-lg bg-background hover:bg-muted cursor-grab active:cursor-grabbing transition-colors group"
+                data-testid={`${nodeType.type.toLowerCase()}-node-template`}
               >
                 <div className={`${nodeType.color} p-2 rounded-md text-white`}>{nodeType.icon}</div>
                 <div className="flex-1 min-w-0">
