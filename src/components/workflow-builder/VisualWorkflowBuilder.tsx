@@ -59,6 +59,8 @@ import ToolsNode from './nodes/ToolsNode'
 import DraggableNodePalette from './DraggableNodePalette'
 import WorkflowLibraryModal from './WorkflowLibraryModal'
 import ProviderSelectionModal from './modals/ProviderSelectionModal'
+import MemorySelectionModal from './modals/MemorySelectionModal'
+import ToolsSelectionModal from './modals/ToolsSelectionModal'
 import { useCanvasModals } from './hooks/useCanvasModals'
 import { CanvasModalsProvider } from './contexts/CanvasModalsContext'
 import { nodeRegistry } from './utils/NodeRegistry'
@@ -997,6 +999,249 @@ export default function VisualWorkflowBuilder({
     })
   }
 
+  // Handle memory node creation (follows handleProviderSelect pattern)
+  const handleMemorySelect = (memoryType: string) => {
+    console.log('🧠 handleMemorySelect called with:', memoryType)
+    console.log('📊 Modal state:', canvasModals.modalState)
+
+    const targetNodeId = canvasModals.modalState.targetNodeId
+    if (!targetNodeId) {
+      console.error('❌ No targetNodeId in modal state')
+      return
+    }
+
+    console.log('🔍 Looking for target node:', targetNodeId)
+
+    // Check if target AI node already has a memory connection
+    const targetAIStep = workflow?.steps.find((s) => s.id === targetNodeId)
+    if (targetAIStep) {
+      const existingMemoryConnection = targetAIStep.deps?.find((depId) => {
+        const depStep = workflow?.steps.find((s) => s.id === depId)
+        return depStep?.type === 'memory'
+      })
+
+      if (existingMemoryConnection) {
+        console.warn('⚠️ Target AI node already has a memory connection')
+        canvasModals.closeAllModals()
+        return // Don't create auto-connection, but allow manual node creation
+      }
+    }
+
+    // Get target node position - try multiple approaches
+    let targetPosition = { x: 200, y: 200 } // fallback position
+
+    // Try React Flow instance first
+    if (rfInstance) {
+      const targetNode = rfInstance.getNode(targetNodeId)
+      if (targetNode) {
+        targetPosition = { x: targetNode.position.x - 200, y: targetNode.position.y + 150 }
+        console.log('✅ Found target node in React Flow:', targetNode.position)
+      } else {
+        console.warn('⚠️ Target node not found in React Flow instance')
+      }
+    }
+
+    // Fallback: try displayNodes
+    if (!rfInstance || !rfInstance.getNode(targetNodeId)) {
+      const targetNode = displayNodes.find((node) => node.id === targetNodeId)
+      if (targetNode) {
+        targetPosition = { x: targetNode.position.x - 200, y: targetNode.position.y + 150 }
+        console.log('✅ Found target node in displayNodes:', targetNode.position)
+      } else {
+        console.warn('⚠️ Target node not found in displayNodes, using fallback position')
+      }
+    }
+
+    console.log('🆕 Creating memory node for type:', memoryType)
+
+    // Validate memory type with explicit checks
+    const typedMemoryType =
+      memoryType === 'buffer' ||
+      memoryType === 'vector' ||
+      memoryType === 'summary' ||
+      memoryType === 'entity'
+        ? memoryType
+        : 'buffer' // fallback to buffer for invalid types
+
+    // First, add to workflow store as a memory step
+    const generatedStepId = addStep({
+      type: 'memory',
+      task: `Configure ${typedMemoryType} memory system`,
+      role: 'memory',
+    })
+
+    // Create memory node for React Flow display
+    const newMemoryNode = {
+      id: generatedStepId,
+      type: 'memory',
+      position: targetPosition,
+      data: {
+        label: 'Memory System',
+        memoryType: memoryType,
+      },
+    }
+
+    // Create edge connecting memory to AI node
+    const edgeId = `${generatedStepId}-${targetNodeId}`
+    const newEdge = {
+      id: edgeId,
+      source: generatedStepId,
+      sourceHandle: 'output',
+      target: targetNodeId,
+      targetHandle: 'memory',
+      type: 'deletable',
+      data: { onDelete: handleCustomEdgeDelete },
+      style: { stroke: '#8b5cf6', strokeWidth: 2 },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 20,
+        height: 20,
+        color: '#8b5cf6',
+      },
+    }
+
+    // Update React Flow display immediately
+    setDisplayNodes((nodes) => [...nodes, newMemoryNode])
+    setDisplayEdges((edges) => [...edges, newEdge])
+
+    // CRITICAL: Update target node dependencies in store for persistence
+    const targetStep = workflow?.steps.find((s) => s.id === targetNodeId)
+    if (targetStep) {
+      const newDeps = [...(targetStep.deps || []), generatedStepId]
+      setDependencies(targetNodeId, newDeps)
+    }
+
+    // Store the position for persistence
+    updateNodePosition(generatedStepId, targetPosition)
+
+    console.log('✅ Memory node created successfully:', {
+      nodeId: generatedStepId,
+      memoryType,
+      position: targetPosition,
+      edgeId,
+    })
+  }
+
+  // Handle tools node creation (follows handleProviderSelect pattern)
+  const handleToolsSelect = (toolsType: string) => {
+    console.log('🔧 handleToolsSelect called with:', toolsType)
+    console.log('📊 Modal state:', canvasModals.modalState)
+
+    const targetNodeId = canvasModals.modalState.targetNodeId
+    if (!targetNodeId) {
+      console.error('❌ No targetNodeId in modal state')
+      return
+    }
+
+    console.log('🔍 Looking for target node:', targetNodeId)
+
+    // Check if target AI node already has a tools connection
+    const targetAIStep = workflow?.steps.find((s) => s.id === targetNodeId)
+    if (targetAIStep) {
+      const existingToolsConnection = targetAIStep.deps?.find((depId) => {
+        const depStep = workflow?.steps.find((s) => s.id === depId)
+        return depStep?.type === 'tools'
+      })
+
+      if (existingToolsConnection) {
+        console.warn('⚠️ Target AI node already has a tools connection')
+        canvasModals.closeAllModals()
+        return // Don't create auto-connection, but allow manual node creation
+      }
+    }
+
+    // Get target node position - try multiple approaches
+    let targetPosition = { x: 200, y: 200 } // fallback position
+
+    // Try React Flow instance first
+    if (rfInstance) {
+      const targetNode = rfInstance.getNode(targetNodeId)
+      if (targetNode) {
+        targetPosition = { x: targetNode.position.x + 200, y: targetNode.position.y + 150 }
+        console.log('✅ Found target node in React Flow:', targetNode.position)
+      } else {
+        console.warn('⚠️ Target node not found in React Flow instance')
+      }
+    }
+
+    // Fallback: try displayNodes
+    if (!rfInstance || !rfInstance.getNode(targetNodeId)) {
+      const targetNode = displayNodes.find((node) => node.id === targetNodeId)
+      if (targetNode) {
+        targetPosition = { x: targetNode.position.x + 200, y: targetNode.position.y + 150 }
+        console.log('✅ Found target node in displayNodes:', targetNode.position)
+      } else {
+        console.warn('⚠️ Target node not found in displayNodes, using fallback position')
+      }
+    }
+
+    console.log('🆕 Creating tools node for type:', toolsType)
+
+    // Validate tools type with explicit checks
+    const typedToolsType =
+      toolsType === 'function' || toolsType === 'api' || toolsType === 'code' || toolsType === 'mcp'
+        ? toolsType
+        : 'function' // fallback to function for invalid types
+
+    // First, add to workflow store as a tools step
+    const generatedStepId = addStep({
+      type: 'tools',
+      task: `Configure ${typedToolsType} tools integration`,
+      role: 'tools',
+    })
+
+    // Create tools node for React Flow display
+    const newToolsNode = {
+      id: generatedStepId,
+      type: 'tools',
+      position: targetPosition,
+      data: {
+        label: 'Tools Integration',
+        toolsType: toolsType,
+      },
+    }
+
+    // Create edge connecting tools to AI node
+    const edgeId = `${generatedStepId}-${targetNodeId}`
+    const newEdge = {
+      id: edgeId,
+      source: generatedStepId,
+      sourceHandle: 'output',
+      target: targetNodeId,
+      targetHandle: 'tools',
+      type: 'deletable',
+      data: { onDelete: handleCustomEdgeDelete },
+      style: { stroke: '#f97316', strokeWidth: 2 },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 20,
+        height: 20,
+        color: '#f97316',
+      },
+    }
+
+    // Update React Flow display immediately
+    setDisplayNodes((nodes) => [...nodes, newToolsNode])
+    setDisplayEdges((edges) => [...edges, newEdge])
+
+    // CRITICAL: Update target node dependencies in store for persistence
+    const targetStep = workflow?.steps.find((s) => s.id === targetNodeId)
+    if (targetStep) {
+      const newDeps = [...(targetStep.deps || []), generatedStepId]
+      setDependencies(targetNodeId, newDeps)
+    }
+
+    // Store the position for persistence
+    updateNodePosition(generatedStepId, targetPosition)
+
+    console.log('✅ Tools node created successfully:', {
+      nodeId: generatedStepId,
+      toolsType,
+      position: targetPosition,
+      edgeId,
+    })
+  }
+
   const canvasModalContextValue = {
     openProviderModal: canvasModals.openProviderModal,
     openMemoryModal: canvasModals.openMemoryModal,
@@ -1297,6 +1542,20 @@ export default function VisualWorkflowBuilder({
           isOpen={canvasModals.modalState.isProviderModalOpen}
           onClose={canvasModals.closeAllModals}
           onProviderSelect={handleProviderSelect}
+        />
+
+        {/* Memory Configuration Modal */}
+        <MemorySelectionModal
+          isOpen={canvasModals.modalState.isMemoryModalOpen}
+          onClose={canvasModals.closeAllModals}
+          onMemorySelect={handleMemorySelect}
+        />
+
+        {/* Tools Configuration Modal */}
+        <ToolsSelectionModal
+          isOpen={canvasModals.modalState.isToolsModalOpen}
+          onClose={canvasModals.closeAllModals}
+          onToolsSelect={handleToolsSelect}
         />
       </div>
     </CanvasModalsProvider>
